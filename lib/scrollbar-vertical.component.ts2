@@ -1,0 +1,102 @@
+import { useRef } from 'ts2';
+import { ARROW, CAP, MIN_THUMB, STEP, WHEEL } from './lib.constants';
+import { trackScroll } from './lib.helpers';
+
+export function ScrollbarVertical({
+  content,
+  track,
+  capTopSprite,
+  thumbSprite,
+  capBottomSprite,
+  arrowUp,
+  arrowDown,
+}: {
+  content: Ref;
+  track: Sprite;
+  capTopSprite: Sprite;
+  thumbSprite: Sprite;
+  capBottomSprite: Sprite;
+  arrowUp: Sprite;
+  arrowDown: Sprite;
+}): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const extent: Int = Math.max(1, Math.max(content.height, content.scrollHeight));
+
+  content.onScrollWheel = (event) => {
+    content.scrollY = content.scrollY + event.mouseY * WHEEL;
+    trackScroll(gutter, thumb, capTop, capBottom, content);
+  };
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={track}
+        noClickThrough
+        onScrollWheel={(event) => {
+          content.scrollY = content.scrollY + event.mouseY * WHEEL;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = content.scrollHeight - content.height;
+          content.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={ARROW}
+        w="fill"
+        h={Math.max(MIN_THUMB, ((bar.height - ARROW * 2) * content.height) / extent)}
+        sprite={thumbSprite}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = content.scrollHeight - content.height;
+          content.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={capTopSprite} />
+      <sprite ref={capBottom} y={thumb.y + thumb.height - CAP} w="fill" h={CAP} sprite={capBottomSprite} />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={arrowUp}
+        noClickThrough
+        onHold={() => {
+          content.scrollY = content.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={arrowDown}
+        noClickThrough
+        onHold={() => {
+          content.scrollY = content.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+    </layer>
+  );
+}
