@@ -1,4 +1,6 @@
-import { Colors, Qty } from './seed-vault.constants';
+import { useInventory } from 'ts2';
+import { Inventories } from '../lib/game/inventories';
+import { CategoryRow, Colors, Layout, Params, Qty, SeedVault } from './seed-vault.constants';
 
 export function qtyColor(amount: Int, selected: Int): Int {
   if (amount === selected) {
@@ -19,4 +21,46 @@ export function customQtyColor(selected: Int): Int {
     return Colors.QTY_LABEL;
   }
   return Colors.QTY_SELECTED;
+}
+
+export function categoryItemCount(category: Int): Int {
+  const vault = useInventory(Inventories.SEED_VAULT);
+  let count: Int = 0;
+  let slot: Int = 0;
+  while (slot < SeedVault.SLOTS) {
+    if (vault[slot] !== -1) {
+      if (vault.param(slot, Params.CATEGORY) === category) {
+        count = count + 1;
+      }
+    }
+    slot = slot + 1;
+  }
+  if (category === 0) {
+    return count + 1;
+  }
+  return count;
+}
+
+export function itemsPerRow(listWidth: Int): Int {
+  return listWidth / (Layout.ITEM_PITCH + Layout.ITEM_GAP);
+}
+
+export function categoryRows(count: Int, perRow: Int): Int {
+  return 1 + (count - 1) / perRow;
+}
+
+export function categoryHeaderY(index: Int, perRow: Int): Int {
+  let y: Int = Layout.LIST_TOP;
+  let category: Int = 0;
+  while (category < index) {
+    y = y + CategoryRow.HEADER_HEIGHT + 2;
+    y = y + categoryRows(categoryItemCount(category), perRow) * Layout.ITEM_ROW_HEIGHT;
+    category = category + 1;
+  }
+  return y;
+}
+
+export function listScrollHeight(perRow: Int): Int {
+  const last: Int = categoryHeaderY(SeedVault.CATEGORIES - 1, perRow);
+  return last + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET + Layout.ITEM_ROW_HEIGHT;
 }

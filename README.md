@@ -33,24 +33,24 @@ Each folder is named for the user interface id it recreates, then that UI's name
 | [`0068_slayer-partner`](0068_slayer-partner/) | Slayer Partner — a request/response dialog | 3 |
 | [`0227_needed-items-list`](0227_needed-items-list/) | A "needed items" checklist with its own scrollbar | 2 |
 | [`0370_house-options`](0370_house-options/) | House Options — the POH build/settings | 8 |
-| [`0371_wom-recycling`](0371_wom-recycling/) | Wise Old Man's Recycling Centre | 4 |
+| [`0371_wom-recycling`](0371_wom-recycling/) | Wise Old Man's Recycling Centre | 3 |
 | [`0387_equipment`](0387_equipment/) | Worn Equipment | 3 |
 | [`0428_room-timer-overlay`](0428_room-timer-overlay/) | Room timer overlay — "Room X of 8" with a progress bar | 4 |
 | [`0625_message-scroll`](0625_message-scroll/) | A scrollable message modal | 1 |
 | [`0631_seed-vault`](0631_seed-vault/) | The Seed Vault | 8 |
-| [`0735_league-3-fragments`](0735_league-3-fragments/) | League 3 ("Trailblazer") fragment and relic modal | 11 |
+| [`0735_league-3-fragments`](0735_league-3-fragments/) | League 3 ("Trailblazer") fragment and relic modal | 12 |
 | [`0738_fairy-ring-power-relay`](0738_fairy-ring-power-relay/) | Fairy Ring Power Relay | 1 |
 | [`0796_family-portraits`](0796_family-portraits/) | Family portraits | 1 |
 
-`0735_league-3-fragments` is the one to read if you only read one: 11 components, a list built by
+`0735_league-3-fragments` is the one to read if you only read one: 12 components, a list built by
 iterating a shipped data table, a filter driven by a client variable, and right-click
 options.
 
 ### `lib/` — shared code
 
-Components used by more than one UI — the `StoneButton` family, `SteelBorder`,
-`ThinBox`, `ScrollbarVertical`, `Frame` — alongside `lib.helpers.ts2` and
-`lib.constants.ts2`.
+The components the UIs share — the `StoneButton` family, `SteelBorder`,
+`StoneBorder`, `ThinBox`, `ScrollbarVertical`, `Frame` — alongside
+`lib.helpers.ts2` and `lib.constants.ts2`.
 
 The `game/` subfolder holds eleven **generated dictionaries** (`varbits.ts2`, `enums.ts2`,
 `sprites.ts2`, `sounds.ts2`, `animations.ts2`, `params.ts2`, `varps.ts2`, `varcs.ts2`,

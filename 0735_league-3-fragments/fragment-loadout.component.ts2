@@ -1,7 +1,108 @@
+import { useServerState } from 'ts2';
+import {
+  BoxParams,
+  LoadoutBoxes,
+  LoadoutColors,
+  LoadoutLayout,
+  LoadoutNumerals,
+  LoadoutVarbits,
+  LoadoutVarps,
+} from './league-3-fragments.constants';
+import { StructBox } from './struct-box.component';
+
+const SLOTS = [0, 1, 2, 3, 4, 5, 6] as const;
+const GAPS = [0, 1, 2, 3, 4, 5] as const;
+
+function unlockedSlots(): Int {
+  if (useServerState(LoadoutVarbits.LEAGUE) !== 3) return 0;
+  const points = useServerState(LoadoutVarps.POINTS);
+  if (points < 10) return 1;
+  if (points < 300) return 2;
+  if (points < 1500) return 3;
+  if (points < 3000) return 4;
+  if (points < 7500) return 5;
+  if (points < 15000) return 6;
+  return 7;
+}
+
 export function FragmentLoadout(): Component {
+  const unlocked = unlockedSlots();
+
   return (
     <>
-      <layer x="center" y={41} w={338} h={51} />
+      <layer x="center" y={41} w={338} h={51}>
+        {SLOTS.map((i) => (
+          <StructBox
+            x={i * LoadoutLayout.PITCH}
+            y={0}
+            w={LoadoutLayout.SLOT}
+            h={LoadoutLayout.SLOT}
+            style={i < unlocked ? LoadoutBoxes.UNLOCKED : LoadoutBoxes.LOCKED}
+            fill={i < unlocked ? LoadoutColors.UNLOCKED_BOX : LoadoutColors.LOCKED_BOX}
+            hideFill={false}
+          />
+        ))}
+
+        {SLOTS.map((i) => (
+          <>
+            <StructBox
+              x={i * LoadoutLayout.PITCH + 9}
+              y={LoadoutLayout.NUMERAL_Y}
+              w={LoadoutLayout.NUMERAL_W}
+              h={LoadoutLayout.NUMERAL_H}
+              style={LoadoutBoxes.UNLOCKED}
+              fill={LoadoutColors.UNLOCKED_BOX}
+              hideFill={false}
+            />
+            <sprite
+              x={i * LoadoutLayout.PITCH + 11}
+              y={40}
+              w={16}
+              h={8}
+              tiling
+              sprite={i < unlocked ? LoadoutNumerals.UNLOCKED_FIRST + i : LoadoutNumerals.LOCKED_FIRST + i}
+            />
+          </>
+        ))}
+
+        {GAPS.map((i) => (
+          <>
+            <sprite
+              x={i * LoadoutLayout.PITCH + 28}
+              y={LoadoutLayout.CONNECTOR_Y}
+              w={LoadoutLayout.CONNECTOR_W}
+              h={4}
+              tiling
+              sprite={LoadoutBoxes.LOCKED.sprite(BoxParams.EDGE_TOP)}
+            />
+            <sprite
+              x={i * LoadoutLayout.PITCH + 28}
+              y={LoadoutLayout.CONNECTOR_Y + 2}
+              w={LoadoutLayout.CONNECTOR_W}
+              h={4}
+              tiling
+              sprite={LoadoutBoxes.LOCKED.sprite(BoxParams.EDGE_BOTTOM)}
+            />
+            <rect
+              x={i * LoadoutLayout.PITCH + 28}
+              y={LoadoutLayout.CONNECTOR_Y + 1}
+              w={LoadoutLayout.CONNECTOR_W}
+              h={4}
+              color={LoadoutColors.CONNECTOR}
+              fill
+            />
+            <rect
+              x={i * LoadoutLayout.PITCH + 28}
+              y={LoadoutLayout.CONNECTOR_Y + 1}
+              w={unlocked - 1 > i ? LoadoutLayout.CONNECTOR_W : 0}
+              h={4}
+              color={LoadoutColors.UNLOCKED_BOX}
+              fill
+            />
+          </>
+        ))}
+      </layer>
+
       <layer x="center" y={41} w={338} h={51} />
     </>
   );
