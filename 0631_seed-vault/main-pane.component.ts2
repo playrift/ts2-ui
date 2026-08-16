@@ -1,4 +1,5 @@
-import { useRef } from 'ts2';
+import { CS2, intArray, useInventory, useRef } from 'ts2';
+import { Inventories } from '../lib/game/inventories';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
 import { QuantityToolbar } from './quantity-toolbar.component';
 import {
@@ -11,20 +12,71 @@ import {
   HeaderFont,
   Items,
   Layout,
+  Params,
+  SeedVault,
 } from './seed-vault.constants';
-import { categoryHeaderY, itemsPerRow, listScrollHeight } from './seed-vault.helpers';
+import { categoryRows, itemsPerRow, slotCategory } from './seed-vault.helpers';
 
 export function MainPane(): Component {
   const list = useRef();
+  const vault = useInventory(Inventories.SEED_VAULT);
   const perRow: Int = itemsPerRow(Layout.LIST_WIDTH);
+
+  const counts = intArray(SeedVault.CATEGORIES);
+  let slot: Int = 0;
+  while (slot < SeedVault.SLOTS) {
+    if (vault[slot] !== -1) {
+      const category: Int = slotCategory(vault.param(slot, Params.CATEGORY), slot);
+      counts[category] = counts[category] + 1;
+    }
+    slot = slot + 1;
+  }
+  counts[0] = counts[0] + 1;
+
+  const headerY = intArray(SeedVault.CATEGORIES);
+  let cursor: Int = Layout.LIST_TOP;
+  let category: Int = 0;
+  while (category < SeedVault.CATEGORIES) {
+    headerY[category] = cursor;
+    cursor = cursor + CategoryRow.HEADER_HEIGHT + 2 + categoryRows(counts[category], perRow) * Layout.ITEM_ROW_HEIGHT;
+    category = category + 1;
+  }
+  const scroll: Int =
+    headerY[SeedVault.CATEGORIES - 1] + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET + Layout.ITEM_ROW_HEIGHT;
+
+  const rowX = intArray(SeedVault.CATEGORIES);
+  const rowY = intArray(SeedVault.CATEGORIES);
+  let seeded: Int = 0;
+  while (seeded < SeedVault.CATEGORIES) {
+    rowY[seeded] = headerY[seeded] + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET;
+    seeded = seeded + 1;
+  }
+
+  const slotX = intArray(SeedVault.SLOTS);
+  const slotY = intArray(SeedVault.SLOTS);
+  let placing: Int = 0;
+  while (placing < SeedVault.SLOTS) {
+    if (vault[placing] !== -1) {
+      const bucket: Int = slotCategory(vault.param(placing, Params.CATEGORY), placing);
+      slotX[placing] = rowX[bucket];
+      slotY[placing] = rowY[bucket];
+      let advanced: Int = rowX[bucket] + Layout.ITEM_GAP + Layout.ITEM_PITCH;
+      if (advanced + Layout.ITEM_GAP + Layout.ITEM_PITCH > Layout.LIST_WIDTH) {
+        advanced = 0;
+        rowY[bucket] = rowY[bucket] + Layout.ITEM_ROW_HEIGHT;
+      }
+      rowX[bucket] = advanced;
+    }
+    placing = placing + 1;
+  }
 
   return (
     <layer x="right" y={0} w="71.9177%" h="fill">
-      <layer ref={list} x={0} y={0} w={{ fill: 16 }} h={{ fill: 40 }} scrollHeight={listScrollHeight(perRow)}>
+      <layer ref={list} x={0} y={0} w={{ fill: 16 }} h={{ fill: 40 }} scrollHeight={scroll}>
         <layer w="fill" h="fill">
           <sprite
-            x={Layout.ITEM_GAP / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
-            y={categoryHeaderY(0, perRow) + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET}
+            x={rowX[0] + Layout.ITEM_GAP / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
+            y={rowY[0]}
             w={Layout.ICON_WIDTH}
             h={Layout.ICON_HEIGHT}
             item={Items.FAVOURITES}
@@ -32,8 +84,8 @@ export function MainPane(): Component {
             transparency={120}
           />
           <text
-            x={Layout.ITEM_GAP / 2}
-            y={categoryHeaderY(0, perRow) + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET + Layout.ICON_HEIGHT}
+            x={rowX[0] + Layout.ITEM_GAP / 2}
+            y={rowY[0] + Layout.ICON_HEIGHT}
             w={Layout.ITEM_PITCH}
             h={Layout.LABEL_HEIGHT}
             text="Remove Favourites"
@@ -48,7 +100,7 @@ export function MainPane(): Component {
           {Enums.CATEGORY_NAMES.map((name, index) => (
             <text
               x={5}
-              y={categoryHeaderY(index, perRow)}
+              y={headerY[index]}
               w={{ fill: 5 }}
               h={CategoryRow.HEADER_HEIGHT}
               text={name}
@@ -64,7 +116,7 @@ export function MainPane(): Component {
           {Enums.CATEGORY_NAMES.map((name, index) => (
             <sprite
               x={2}
-              y={categoryHeaderY(index, perRow) + CategoryRow.HEADER_HEIGHT + 2}
+              y={headerY[index] + CategoryRow.HEADER_HEIGHT + 2}
               w={{ fill: 4 }}
               h={2}
               sprite={DividerSprite.RULE}
@@ -72,8 +124,46 @@ export function MainPane(): Component {
             />
           ))}
         </layer>
-        <layer w="fill" h="fill" />
-        <layer w="fill" h="fill" />
+        <layer w="fill" h="fill">
+          {vault.map(
+            (item, slot) =>
+              item !== -1 && (
+                <sprite
+                  x={slotX[slot] + Layout.ITEM_GAP / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
+                  y={slotY[slot]}
+                  w={Layout.ICON_WIDTH}
+                  h={Layout.ICON_HEIGHT}
+                  item={item}
+                  itemCount={vault.total(item)}
+                  outline={1}
+                  shadowColor={Colors.DIVIDER}
+                  optionSubject={CS2.item_name(item)}
+                  options={['', '', '', '', '', '', '', '', '', 'Examine']}
+                />
+              ),
+          )}
+        </layer>
+        <layer w="fill" h="fill">
+          {vault.map(
+            (item, slot) =>
+              item !== -1 && (
+                <text
+                  x={slotX[slot] + Layout.ITEM_GAP / 2}
+                  y={slotY[slot] + Layout.ICON_HEIGHT}
+                  w={Layout.ITEM_PITCH}
+                  h={Layout.LABEL_HEIGHT}
+                  text={CS2.item_name(item)}
+                  font={Fonts.QTY_LABEL}
+                  color={Colors.QTY_LABEL}
+                  shadow
+                  align="center"
+                  valign="top"
+                  optionSubject={CS2.item_name(item)}
+                  options={['', '', '', '', '', '', '', '', '', 'Examine']}
+                />
+              ),
+          )}
+        </layer>
       </layer>
       <layer x="right" y={0} w={16} h={{ fill: 40 }}>
         <ScrollbarVertical

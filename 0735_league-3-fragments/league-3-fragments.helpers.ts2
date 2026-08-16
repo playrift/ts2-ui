@@ -1,9 +1,15 @@
-import { useServerState } from 'ts2';
+import { CS2, useServerState } from 'ts2';
 import {
   FragmentLoadoutVarbits,
+  FragmentParams,
+  Fragments,
+  FragmentSetParams,
+  FragmentSets,
   FragmentXpVarbits,
   LeagueThemeParams,
   LeagueThemes,
+  LoadoutVarbits,
+  LoadoutVarps,
 } from './league-3-fragments.constants';
 
 export function fragmentXp(fragmentId: Int): Int {
@@ -131,4 +137,141 @@ export function equippedInLoadout(fragmentId: Int): Boolean {
 
 export function leagueColour(league: Int): Int {
   return LeagueThemes.at(league).int(LeagueThemeParams.COLOUR);
+}
+
+export function leaguesEnabled(): Boolean {
+  const flags = useServerState(LoadoutVarps.MAP_FLAGS);
+  if (CS2.testbit(flags, 29)) {
+    return false;
+  }
+  return CS2.testbit(flags, 30);
+}
+
+export function unlockedSlots(): Int {
+  if (leaguesEnabled() === false) return 0;
+  if (useServerState(LoadoutVarbits.LEAGUE) !== 3) return 0;
+  const points = useServerState(LoadoutVarps.POINTS);
+  if (points < 10) return 1;
+  if (points < 300) return 2;
+  if (points < 1500) return 3;
+  if (points < 3000) return 4;
+  if (points < 7500) return 5;
+  if (points < 15000) return 6;
+  return 7;
+}
+
+export function loadoutSlot(index: Int): Int {
+  if (index === 0) return useServerState(FragmentLoadoutVarbits.SLOT_0);
+  if (index === 1) return useServerState(FragmentLoadoutVarbits.SLOT_1);
+  if (index === 2) return useServerState(FragmentLoadoutVarbits.SLOT_2);
+  if (index === 3) return useServerState(FragmentLoadoutVarbits.SLOT_3);
+  if (index === 4) return useServerState(FragmentLoadoutVarbits.SLOT_4);
+  if (index === 5) return useServerState(FragmentLoadoutVarbits.SLOT_5);
+  return useServerState(FragmentLoadoutVarbits.SLOT_6);
+}
+
+function slotInSet(slot: Int, set: Int): Int {
+  const fragment: Int = loadoutSlot(slot);
+  if (fragment === 0) {
+    return 0;
+  }
+  const row = Fragments.at(fragment);
+  let members: Int = 0;
+  if (row.int(FragmentSetParams.SET_A) === set) {
+    members = members + 1;
+  }
+  if (row.int(FragmentSetParams.SET_B) === set) {
+    members = members + 1;
+  }
+  return members;
+}
+
+export function setMembers(set: Int): Int {
+  const unlocked: Int = unlockedSlots();
+  if (unlocked < 1) return 0;
+  let members: Int = slotInSet(0, set);
+  if (unlocked < 2) return members;
+  members = members + slotInSet(1, set);
+  if (unlocked < 3) return members;
+  members = members + slotInSet(2, set);
+  if (unlocked < 4) return members;
+  members = members + slotInSet(3, set);
+  if (unlocked < 5) return members;
+  members = members + slotInSet(4, set);
+  if (unlocked < 6) return members;
+  members = members + slotInSet(5, set);
+  if (unlocked < 7) return members;
+  return members + slotInSet(6, set);
+}
+
+export function setActive(fragmentId: Int): Boolean {
+  const row = Fragments.at(fragmentId);
+  const first: Int = row.int(FragmentSetParams.SET_A);
+  if (setMembers(first) >= FragmentSets.at(first).int(FragmentSetParams.THRESHOLD)) {
+    return true;
+  }
+  const second: Int = row.int(FragmentSetParams.SET_B);
+  if (setMembers(second) >= FragmentSets.at(second).int(FragmentSetParams.THRESHOLD)) {
+    return true;
+  }
+  return false;
+}
+
+export function unlockProgress(width: Int): Int {
+  if (leaguesEnabled() === false) return 0;
+  if (useServerState(LoadoutVarbits.LEAGUE) !== 3) return 0;
+  const points: Int = useServerState(LoadoutVarps.POINTS);
+  if (points < 10) return CS2.scale(points, 10, width);
+  if (points < 300) return CS2.scale(points - 10, 300 - 10, width);
+  if (points < 1500) return CS2.scale(points - 300, 1500 - 300, width);
+  if (points < 3000) return CS2.scale(points - 1500, 3000 - 1500, width);
+  if (points < 7500) return CS2.scale(points - 3000, 7500 - 3000, width);
+  if (points < 15000) return CS2.scale(points - 7500, 15000 - 7500, width);
+  return 0;
+}
+
+export function fragmentTier(fragmentId: Int): Int {
+  const xp: Int = fragmentXp(fragmentId);
+  if (xp <= 0) return 0;
+  if (xp < 2000) return 1;
+  if (xp < 8000) return 2;
+  return 3;
+}
+
+export function fragmentEffect(fragmentId: Int): String {
+  const row = Fragments.at(fragmentId);
+  const tier: Int = fragmentTier(fragmentId);
+  if (tier === 3) return row.text(FragmentParams.EFFECT_3);
+  if (tier === 2) return row.text(FragmentParams.EFFECT_2);
+  return row.text(FragmentParams.EFFECT_1);
+}
+
+export function setLineHeight(text: String, font: Font, width: Int): Int {
+  return CS2.paraheight(text, width, font) * 15;
+}
+
+export function setBlockHeight(row: Row, width: Int, headerFont: Font, bodyFont: Font): Int {
+  let height: Int = setLineHeight(row.text(FragmentSetParams.NAME), headerFont, width);
+  height = height + setLineHeight(row.text(FragmentSetParams.DESCRIPTION), bodyFont, width);
+  height = height + 3;
+  height = height + setLineHeight(setBonusLine(row, false), bodyFont, width);
+  if (row.int(FragmentSetParams.THRESHOLD_2) > 0) {
+    height = height + 3;
+    height = height + setLineHeight(setBonusLine(row, true), bodyFont, width);
+  }
+  return height + 10;
+}
+
+export function setBonusLine(row: Row, second: Boolean): String {
+  if (second) {
+    return `${String(row.int(FragmentSetParams.THRESHOLD_2))} Fragments: <col=cfcfcf>${row.text(FragmentSetParams.BONUS_2)}`;
+  }
+  return `${String(row.int(FragmentSetParams.THRESHOLD))} Fragments: <col=cfcfcf>${row.text(FragmentSetParams.BONUS)}`;
+}
+
+export function setMet(set: Int, row: Row): Boolean {
+  if (setMembers(set) >= row.int(FragmentSetParams.THRESHOLD)) {
+    return true;
+  }
+  return false;
 }

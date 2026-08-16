@@ -1,0 +1,188 @@
+import { intArray, useServerState } from 'ts2';
+import { Sprites } from '../lib/game/sprites';
+import { Varps } from '../lib/game/varps';
+import { ProductSlot } from './product-slot.component';
+import { QuantityButton } from './quantity-button.component';
+import { Layout, SkillMultiFonts, SlotColors, SlotKeyLabels } from './skillmulti.constants';
+
+const SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] as const;
+
+export function SkillMulti({
+  maxQuantity,
+  quantity,
+  title,
+  item0 = -1,
+  item1 = -1,
+  item2 = -1,
+  item3 = -1,
+  item4 = -1,
+  item5 = -1,
+  item6 = -1,
+  item7 = -1,
+  item8 = -1,
+  item9 = -1,
+  item10 = -1,
+  item11 = -1,
+  item12 = -1,
+  item13 = -1,
+  item14 = -1,
+  item15 = -1,
+  item16 = -1,
+  item17 = -1,
+}: {
+  kind: Int;
+  maxQuantity: Int;
+  quantity: Int;
+  title: String;
+  item0?: Item;
+  item1?: Item;
+  item2?: Item;
+  item3?: Item;
+  item4?: Item;
+  item5?: Item;
+  item6?: Item;
+  item7?: Item;
+  item8?: Item;
+  item9?: Item;
+  item10?: Item;
+  item11?: Item;
+  item12?: Item;
+  item13?: Item;
+  item14?: Item;
+  item15?: Item;
+  item16?: Item;
+  item17?: Item;
+}): Component {
+  const items = intArray<Item>(Layout.SLOTS);
+  items[0] = item0;
+  items[1] = item1;
+  items[2] = item2;
+  items[3] = item3;
+  items[4] = item4;
+  items[5] = item5;
+  items[6] = item6;
+  items[7] = item7;
+  items[8] = item8;
+  items[9] = item9;
+  items[10] = item10;
+  items[11] = item11;
+  items[12] = item12;
+  items[13] = item13;
+  items[14] = item14;
+  items[15] = item15;
+  items[16] = item16;
+  items[17] = item17;
+
+  let count: Int = 0;
+  while (count < Layout.SLOTS && items[count] !== -1) {
+    count = count + 1;
+  }
+
+  let slotWidth: Int = Layout.SLOT_WIDTH;
+  let gap: Int = Layout.GAP;
+  if (count > 1) {
+    const gaps: Int = count - 1;
+    if (slotWidth * count + gap * gaps > Layout.USABLE_WIDTH) {
+      gap = (Layout.USABLE_WIDTH - slotWidth * count) / gaps;
+      const floor: Int = Layout.MIN_GAP + 2 * (7 - count > 0 ? 7 - count : 0);
+      if (gap < floor) {
+        slotWidth = (Layout.USABLE_WIDTH - floor * gaps) / count;
+        gap = floor;
+      }
+    }
+  }
+  let onePressed: Boolean = false;
+  let fivePressed: Boolean = false;
+  let tenPressed: Boolean = false;
+  if (quantity === 1) {
+    onePressed = true;
+  }
+  if (quantity === 5) {
+    fivePressed = true;
+  }
+  if (quantity === 10) {
+    tenPressed = true;
+  }
+
+  const keySlot: Int = useServerState(Varps.SKILLMULTI_PREVIOUSSELECTION);
+
+  const stride: Int = slotWidth + gap;
+  const rowWidth: Int = count * slotWidth + (count - 1) * gap;
+
+  return (
+    <layer x="center" y="center" w={519} h={142}>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={Sprites.CHAT_BACKGROUND} />
+
+      <layer x={{ center: 1 }} y={15} w={480} h={30}>
+        <layer x={0} y="center" w={{ fill: 100 }} h="fill">
+          <text
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            text={title}
+            align="center"
+            valign="top"
+            font={SkillMultiFonts.TITLE}
+            color={SlotColors.TITLE}
+          />
+          <text
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            text="Choose a quantity, then click an item to begin."
+            align="center"
+            valign="bottom"
+            font={SkillMultiFonts.LABEL}
+            color={SlotColors.HINT}
+          />
+        </layer>
+
+        <layer x="right" y="center" w={100} h={30}>
+          <QuantityButton label="1" x={0} selected={onePressed} />
+          {maxQuantity >= 5 && <QuantityButton label="5" x={35} selected={fivePressed} />}
+          {maxQuantity >= 10 && <QuantityButton label="10" x={70} selected={tenPressed} />}
+        </layer>
+      </layer>
+
+      <layer x={{ center: 1 }} y={{ bottom: 5 }} w={rowWidth} h={{ fill: 50 }}>
+        {SLOTS.map(
+          (index) =>
+            index < count && (
+              <>
+                <layer x={index * stride} y={{ bottom: Layout.ROW_Y }} w={slotWidth} h={Layout.SLOT_HEIGHT}>
+                  <ProductSlot item={items[index]} w={slotWidth} h={Layout.SLOT_HEIGHT} />
+                </layer>
+                {index === keySlot ? (
+                  <text
+                    x={index * stride}
+                    y="bottom"
+                    w={slotWidth}
+                    h={Layout.LABEL_HEIGHT}
+                    text={SlotKeyLabels.at(36)}
+                    align="center"
+                    valign="middle"
+                    font={SkillMultiFonts.LABEL}
+                    color={SlotColors.TITLE}
+                  />
+                ) : (
+                  <text
+                    x={index * stride}
+                    y="bottom"
+                    w={slotWidth}
+                    h={Layout.LABEL_HEIGHT}
+                    text={SlotKeyLabels.at(index)}
+                    align="center"
+                    valign="middle"
+                    font={SkillMultiFonts.LABEL}
+                    color={SlotColors.TITLE}
+                  />
+                )}
+              </>
+            ),
+        )}
+      </layer>
+    </layer>
+  );
+}
