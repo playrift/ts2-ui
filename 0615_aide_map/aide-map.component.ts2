@@ -1,0 +1,231 @@
+import { useInterval, useRef, useState } from 'ts2';
+
+import { closeInterface, coordInBox } from '../lib/lib.helpers';
+import {
+  AideMapAnims,
+  AideMapArt,
+  AideMapColors,
+  AideMapFonts,
+  AideMapModels,
+  AideMapUpstairs,
+  AideMapWorld,
+} from './aide-map.constants';
+import { moveCoord, playerCoord, scaled } from '../lib/lib.engine';
+
+const MARKER_SIZE = 32;
+
+const markerAt = (): [Int, Int, Boolean] => {
+  let here: Coord = playerCoord();
+
+  if (
+    coordInBox(
+      tileOf(AideMapUpstairs.MIN_X, AideMapUpstairs.MIN_Z, AideMapUpstairs.MIN_PLANE),
+      tileOf(AideMapUpstairs.MAX_X, AideMapUpstairs.MAX_Z, AideMapUpstairs.MAX_PLANE),
+      here,
+    )
+  ) {
+    here = moveCoord(here, 0, AideMapUpstairs.NORTH_OFFSET, 0);
+  }
+
+  const east: Int = here.x - AideMapWorld.CORNER_X;
+  const north: Int = here.z - AideMapWorld.CORNER_Y;
+  if (east < 0 || east > AideMapWorld.SPAN || north < 0 || north > AideMapWorld.SPAN) {
+    return [0, 0, true];
+  }
+
+  const x: Int = 75 + scaled(north, AideMapWorld.SPAN, 85);
+  const y: Int = 235 - scaled(north, AideMapWorld.SPAN, 188);
+  const across: Int = 295 - scaled(north, AideMapWorld.SPAN, 53);
+  const down: Int = 70 - scaled(north, AideMapWorld.SPAN, 20);
+
+  return [
+    x + scaled(east, AideMapWorld.SPAN, across) - MARKER_SIZE / 2,
+    y + scaled(east, AideMapWorld.SPAN, down) - MARKER_SIZE / 2,
+    false,
+  ];
+};
+
+export function AideMap(): Component {
+  const marker = useRef();
+  const [hidden, setHidden] = useState(1);
+
+  const [markerX, markerY, markerOff] = markerAt();
+
+  useInterval(
+    () => {
+      const [x, y, off] = markerAt();
+      marker.x = x;
+      marker.y = y;
+      marker.hide = off;
+    },
+    { everyMs: 20 },
+  );
+
+  return (
+    <>
+      <layer x="center" y="center" w={512} h={334}>
+        <model x={240} y={155} w={32} h={32} model={AideMapModels.MAP} zoom={613} pitch={345} yaw={84} />
+        <model x={123} y={290} w={32} h={34} model={AideMapModels.COMPASS} zoom={753} pitch={624} yaw={6} />
+        <text
+          x={60}
+          y={292}
+          w={156}
+          h={28}
+          text="Misthalin & Asgarnia"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.TITLE}
+          align="center"
+          valign="middle"
+        />
+        <model x={41} y={43} w={32} h={32} model={AideMapModels.CREST} zoom={999} pitch={302} yaw={175} />
+
+        <text
+          x={275}
+          y={213}
+          w={139}
+          h={17}
+          text="Lumbridge"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={192}
+          y={177}
+          w={101}
+          h={17}
+          text="Draynor"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={294}
+          y={97}
+          w={120}
+          h={20}
+          text="Varrock"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={146}
+          y={105}
+          w={93}
+          h={17}
+          text="Falador"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={133}
+          y={188}
+          w={77}
+          h={17}
+          text="Port"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={122}
+          y={203}
+          w={113}
+          h={17}
+          text="Sarim"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={86}
+          y={162}
+          w={127}
+          h={18}
+          text="Rimmington"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+        <text
+          x={170}
+          y={63}
+          w={123}
+          h={21}
+          text="Edgeville"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL_EDGEVILLE}
+          align="center"
+        />
+        <text
+          x={281}
+          y={260}
+          w={124}
+          h={16}
+          text="Al Kharid"
+          font={AideMapFonts.LABEL}
+          color={AideMapColors.LABEL}
+          align="center"
+        />
+
+        {hidden === 0 && (
+          <layer x="center" y="center" w={494} h={319}>
+            <model x={304} y={105} w={32} h={32} model={AideMapModels.TUTOR_PIN} zoom={3088} pitch={489} yaw={162} />
+            <model x={287} y={205} w={32} h={32} model={AideMapModels.TUTOR_PIN} zoom={3088} pitch={381} yaw={186} />
+            <model x={267} y={231} w={32} h={32} model={AideMapModels.TUTOR_PIN} zoom={3088} pitch={489} yaw={162} />
+          </layer>
+        )}
+
+        <sprite
+          right={5}
+          y={5}
+          w={26}
+          h={23}
+          sprite={AideMapArt.CLOSE}
+          hover={{ sprite: AideMapArt.CLOSE_HOVER }}
+          options={['Close']}
+          onOptionSelect={() => {
+            closeInterface();
+          }}
+        />
+
+        <model
+          ref={marker}
+          x={markerX}
+          y={markerY}
+          hide={markerOff}
+          w={MARKER_SIZE}
+          h={MARKER_SIZE}
+          model={AideMapModels.MARKER}
+          zoom={1526}
+          pitch={512}
+          yaw={68}
+          anim={AideMapAnims.MARKER}
+        />
+      </layer>
+
+      <layer right={15} y={213} w={73} h={55}>
+        <model x="center" bottom={0} w={32} h={32} model={AideMapModels.TUTOR_PIN} zoom={2064} pitch={474} yaw={18} />
+        <text
+          x="center"
+          y={0}
+          w="fill"
+          h={{ fill: 32 }}
+          text={hidden === 1 ? 'Show Tutors' : 'Hide Tutors'}
+          font={AideMapFonts.TOGGLE}
+          color={AideMapColors.TOGGLE}
+          hover={{ color: AideMapColors.TOGGLE_HOVER }}
+          align="center"
+          valign="top"
+          optionSubject="<col=ff9040>Tutors</col>"
+          options={[hidden === 1 ? 'Show' : 'Hide']}
+          onOptionSelect={() => {
+            setHidden(1 - hidden);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

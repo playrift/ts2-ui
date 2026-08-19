@@ -1,0 +1,75 @@
+import { useServerState, useState } from 'ts2';
+import { CS2 } from 'ts2';
+
+import { GameframeSlot, gameframeSlot } from './lib.gameframe';
+import { toplevelComponents } from './lib.helpers';
+import { ToplevelComponents } from './lib.constants';
+import {
+  keyboardTimeout,
+  worldmapSearching,
+  displaynameInputListening,
+  smithingListening,
+  craftingListening,
+} from './game/varcs';
+import { Varbits } from './game/varbits';
+
+const enum Chat {
+  REPORT_INPUT = 10617397,
+  REPORT_INPUT_ALT = 10617398,
+  ENTRY_LINE = 10616870,
+  DISPLAY_CHAT = 10813480,
+}
+
+const enum Allowed {
+  WORLDMAP = 595,
+  BANK = 134,
+  BANK_SIDE = 621,
+  DISPLAYNAME = 558,
+  SMITHING = 312,
+  SMITHING_ALT = 698,
+  CRAFTING = 446,
+  CRAFTING_ALT = 6,
+  DISPLAY_CHAT_OWNER = 16,
+}
+
+export function dialogueMayAdvance(top: Interface, sub: Interface): Boolean {
+  const [timeout] = useState(keyboardTimeout);
+  if (timeout > CS2.clientclock()) return false;
+
+  const [worldmap] = useState(worldmapSearching);
+  const [displayname] = useState(displaynameInputListening);
+  const [smithing] = useState(smithingListening);
+  const [crafting] = useState(craftingListening);
+
+  if (CS2.if_sub_has(gameframeSlot(GameframeSlot.SUB_MOUNT))) {
+    if (worldmap === 1 && sub !== Allowed.WORLDMAP) return false;
+    if (
+      useServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD) === 1 &&
+      useServerState(Varbits.FLOATER_IS_SEARCHING) === 1 &&
+      sub !== Allowed.BANK &&
+      sub !== Allowed.BANK_SIDE
+    ) {
+      return false;
+    }
+  }
+
+  if (CS2.if_sub_has(gameframeSlot(GameframeSlot.VIEWPORT))) {
+    if (displayname === 1 && top !== Allowed.DISPLAYNAME) return false;
+    if (
+      CS2.if_sub_has(Chat.REPORT_INPUT_ALT) === false &&
+      CS2.if_sub_has(Chat.REPORT_INPUT) === false &&
+      CS2.if_hide_get(Chat.ENTRY_LINE) === true
+    ) {
+      if (smithing === 1 && top !== Allowed.SMITHING && top !== Allowed.SMITHING_ALT) return false;
+      if (crafting === 1 && top !== Allowed.CRAFTING && top !== Allowed.CRAFTING_ALT) return false;
+    }
+  }
+
+  if (toplevelComponents() === ToplevelComponents.DISPLAY && CS2.if_sub_has(Chat.DISPLAY_CHAT)) {
+    if (top !== Allowed.DISPLAY_CHAT_OWNER && (sub !== Allowed.WORLDMAP || worldmap !== 1)) {
+      return false;
+    }
+  }
+
+  return true;
+}

@@ -1,4 +1,5 @@
-import { CS2, intArray, useInventory, useRef } from 'ts2';
+import { CategoryNames } from './category-names.data';
+import { intArray, useInventory, useRef } from 'ts2';
 import { Inventories } from '../lib/game/inventories';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
 import { QuantityToolbar } from './quantity-toolbar.component';
@@ -16,11 +17,17 @@ import {
   SeedVault,
 } from './seed-vault.constants';
 import { categoryRows, itemsPerRow, slotCategory } from './seed-vault.helpers';
+import { itemName } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
 
 export function MainPane(): Component {
   const list = useRef();
   const vault = useInventory(Inventories.SEED_VAULT);
-  const perRow: Int = itemsPerRow(Layout.LIST_WIDTH);
+  const mobile: Boolean = onMobile();
+  const gap: Int = mobile ? Layout.ITEM_GAP_MOBILE : Layout.ITEM_GAP;
+  const rowHeight: Int = mobile ? Layout.ITEM_ROW_HEIGHT_MOBILE : Layout.ITEM_ROW_HEIGHT;
+
+  const perRow: Int = itemsPerRow(Layout.LIST_WIDTH, gap);
 
   const counts = intArray(SeedVault.CATEGORIES);
   let slot: Int = 0;
@@ -38,11 +45,10 @@ export function MainPane(): Component {
   let category: Int = 0;
   while (category < SeedVault.CATEGORIES) {
     headerY[category] = cursor;
-    cursor = cursor + CategoryRow.HEADER_HEIGHT + 2 + categoryRows(counts[category], perRow) * Layout.ITEM_ROW_HEIGHT;
+    cursor = cursor + CategoryRow.HEADER_HEIGHT + 2 + categoryRows(counts[category], perRow) * rowHeight;
     category = category + 1;
   }
-  const scroll: Int =
-    headerY[SeedVault.CATEGORIES - 1] + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET + Layout.ITEM_ROW_HEIGHT;
+  const scroll: Int = headerY[SeedVault.CATEGORIES - 1] + CategoryRow.HEADER_HEIGHT + 2 + Layout.ITEM_INSET + rowHeight;
 
   const rowX = intArray(SeedVault.CATEGORIES);
   const rowY = intArray(SeedVault.CATEGORIES);
@@ -60,10 +66,10 @@ export function MainPane(): Component {
       const bucket: Int = slotCategory(vault.param(placing, Params.CATEGORY), placing);
       slotX[placing] = rowX[bucket];
       slotY[placing] = rowY[bucket];
-      let advanced: Int = rowX[bucket] + Layout.ITEM_GAP + Layout.ITEM_PITCH;
-      if (advanced + Layout.ITEM_GAP + Layout.ITEM_PITCH > Layout.LIST_WIDTH) {
+      let advanced: Int = rowX[bucket] + gap + Layout.ITEM_PITCH;
+      if (advanced + gap + Layout.ITEM_PITCH > Layout.LIST_WIDTH) {
         advanced = 0;
-        rowY[bucket] = rowY[bucket] + Layout.ITEM_ROW_HEIGHT;
+        rowY[bucket] = rowY[bucket] + rowHeight;
       }
       rowX[bucket] = advanced;
     }
@@ -75,7 +81,7 @@ export function MainPane(): Component {
       <layer ref={list} x={0} y={0} w={{ fill: 16 }} h={{ fill: 40 }} scrollHeight={scroll}>
         <layer w="fill" h="fill">
           <sprite
-            x={rowX[0] + Layout.ITEM_GAP / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
+            x={rowX[0] + gap / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
             y={rowY[0]}
             w={Layout.ICON_WIDTH}
             h={Layout.ICON_HEIGHT}
@@ -84,7 +90,7 @@ export function MainPane(): Component {
             transparency={120}
           />
           <text
-            x={rowX[0] + Layout.ITEM_GAP / 2}
+            x={rowX[0] + gap / 2}
             y={rowY[0] + Layout.ICON_HEIGHT}
             w={Layout.ITEM_PITCH}
             h={Layout.LABEL_HEIGHT}
@@ -97,7 +103,7 @@ export function MainPane(): Component {
           />
         </layer>
         <layer w="fill" h="fill">
-          {Enums.CATEGORY_NAMES.map((name, index) => (
+          {CategoryNames.map((name, index) => (
             <text
               x={5}
               y={headerY[index]}
@@ -113,7 +119,7 @@ export function MainPane(): Component {
           ))}
         </layer>
         <layer w="fill" h="fill">
-          {Enums.CATEGORY_NAMES.map((name, index) => (
+          {CategoryNames.map((name, index) => (
             <sprite
               x={2}
               y={headerY[index] + CategoryRow.HEADER_HEIGHT + 2}
@@ -129,7 +135,7 @@ export function MainPane(): Component {
             (item, slot) =>
               item !== -1 && (
                 <sprite
-                  x={slotX[slot] + Layout.ITEM_GAP / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
+                  x={slotX[slot] + gap / 2 + (Layout.ITEM_PITCH - Layout.ICON_WIDTH) / 2}
                   y={slotY[slot]}
                   w={Layout.ICON_WIDTH}
                   h={Layout.ICON_HEIGHT}
@@ -137,7 +143,7 @@ export function MainPane(): Component {
                   itemCount={vault.total(item)}
                   outline={1}
                   shadowColor={Colors.DIVIDER}
-                  optionSubject={CS2.item_name(item)}
+                  optionSubject={itemName(item)}
                   options={['', '', '', '', '', '', '', '', '', 'Examine']}
                 />
               ),
@@ -148,17 +154,17 @@ export function MainPane(): Component {
             (item, slot) =>
               item !== -1 && (
                 <text
-                  x={slotX[slot] + Layout.ITEM_GAP / 2}
+                  x={slotX[slot] + gap / 2}
                   y={slotY[slot] + Layout.ICON_HEIGHT}
                   w={Layout.ITEM_PITCH}
                   h={Layout.LABEL_HEIGHT}
-                  text={CS2.item_name(item)}
+                  text={itemName(item)}
                   font={Fonts.QTY_LABEL}
                   color={Colors.QTY_LABEL}
                   shadow
                   align="center"
                   valign="top"
-                  optionSubject={CS2.item_name(item)}
+                  optionSubject={itemName(item)}
                   options={['', '', '', '', '', '', '', '', '', 'Examine']}
                 />
               ),

@@ -20,6 +20,8 @@ export function ThinBox({ children }: { children?: Children }): Component {
 
 ts2 grew out of [Rift](https://playrift.co), and this repository is a set of worked
 examples demonstrating the language and providing references for what idiomatic ts2 looks like. Every UI is a **recreation of a user interface from 235 era osrs**, rebuilt in ts2. Where a folder has a `_preview.png`, that picture is a render of the compiled ts2 source at runtime.
+Every preview comes in a pair — `_preview.png` and `_preview.mobile.png` — because each UI is built once and
+rendered on both the desktop and the mobile client.
 
 ## Folders
 
@@ -68,6 +70,8 @@ Files are named `<subject>.<role>.ts2`.
 | `<UI>.constants.ts2` | Enums, types, table references and other module-level data. |
 | `game/<kind>.ts2` | A generated dictionary (`lib/game/` only). |
 | `_preview.png` | The UI, rendered from the source beside it. |
+| `_preview.mobile.png` | The same UI on the mobile client. |
+| `_preview.<state>.png` | A UI with more than one state worth showing — `_preview.flying.png`, `_preview.wizard.png`. Paired with a `.mobile.png` of its own. |
 
 `<UI>` is the name half of the folder name (`house-options`, `league-3-fragments`), so
 the entry point for `0370_house-options` is `0370_house-options/house-options.ui.ts2`.

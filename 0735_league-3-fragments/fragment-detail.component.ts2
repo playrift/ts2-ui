@@ -1,3 +1,4 @@
+import type { FragmentSetsRow } from './fragment-sets.data';
 import { CS2, intArray, useRef } from 'ts2';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
 import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
@@ -21,6 +22,7 @@ import {
   setMembers,
   setMet,
 } from './league-3-fragments.helpers';
+import { textLineCount } from '../lib/lib.engine';
 
 const SET_COUNT = 15;
 
@@ -46,9 +48,9 @@ function SectionHeader({ y, title }: { y: Int; title: String }): Component {
   );
 }
 
-function SetEffectBlock({ row, members, y }: { row: Row; members: Int; y: Int }): Component {
-  const nameH: Int = setLineHeight(row.text(FragmentSetParams.NAME), FragmentFonts.HEADER, Body.TEXT_WIDTH);
-  const descH: Int = setLineHeight(row.text(FragmentSetParams.DESCRIPTION), FragmentFonts.BODY, Body.TEXT_WIDTH);
+function SetEffectBlock({ row, members, y }: { row: FragmentSetsRow; members: Int; y: Int }): Component {
+  const nameH: Int = setLineHeight(row.name, FragmentFonts.HEADER, Body.TEXT_WIDTH);
+  const descH: Int = setLineHeight(row.description, FragmentFonts.BODY, Body.TEXT_WIDTH);
   const firstH: Int = setLineHeight(setBonusLine(row, false), FragmentFonts.BODY, Body.TEXT_WIDTH);
   const secondY: Int = y + nameH + descH + 3 + firstH + 3;
   return (
@@ -58,20 +60,20 @@ function SetEffectBlock({ row, members, y }: { row: Row; members: Int; y: Int })
         y={y}
         w={{ fill: Body.MARGIN * 2 }}
         h={nameH}
-        text={row.text(FragmentSetParams.NAME)}
+        text={row.name}
         align="left"
         valign="top"
         lineHeight={Body.LINE}
         shadow
         font={FragmentFonts.HEADER}
-        color={members < row.int(FragmentSetParams.THRESHOLD) ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
+        color={members < row.threshold ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
       />
       <text
         x={Body.MARGIN}
         y={y + nameH}
         w={{ fill: Body.MARGIN * 2 }}
         h={descH}
-        text={row.text(FragmentSetParams.DESCRIPTION)}
+        text={row.description}
         align="left"
         valign="top"
         lineHeight={Body.LINE}
@@ -90,9 +92,9 @@ function SetEffectBlock({ row, members, y }: { row: Row; members: Int; y: Int })
         lineHeight={Body.LINE}
         shadow
         font={FragmentFonts.BODY}
-        color={members < row.int(FragmentSetParams.THRESHOLD) ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
+        color={members < row.threshold ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
       />
-      {row.int(FragmentSetParams.THRESHOLD_2) > 0 && (
+      {row.threshold2 > 0 && (
         <text
           x={Body.MARGIN}
           y={secondY}
@@ -104,7 +106,7 @@ function SetEffectBlock({ row, members, y }: { row: Row; members: Int; y: Int })
           lineHeight={Body.LINE}
           shadow
           font={FragmentFonts.BODY}
-          color={members < row.int(FragmentSetParams.THRESHOLD_2) ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
+          color={members < row.threshold2 ? FragmentColors.LABEL_DISABLED : leagueColour(3)}
         />
       )}
     </>
@@ -150,7 +152,7 @@ export function FragmentDetail(): Component {
       headingY[slot] = cursor;
       cursor = cursor + Body.LINE + 2;
       bodyY[slot] = cursor;
-      bodyH[slot] = CS2.paraheight(fragmentEffect(fragment), Body.TEXT_WIDTH, FragmentFonts.BODY) * Body.LINE;
+      bodyH[slot] = textLineCount(fragmentEffect(fragment), Body.TEXT_WIDTH, FragmentFonts.BODY) * Body.LINE;
       cursor = cursor + bodyH[slot] + 10;
     }
     slot = slot + 1;
@@ -161,11 +163,11 @@ export function FragmentDetail(): Component {
   let anySet: Boolean = false;
   let set: Int = 1;
   while (set <= SET_COUNT) {
-    if (setMet(set, FragmentSets.at(set))) {
+    if (setMet(set, FragmentSets.get(set))) {
       anySet = true;
       setY[set] = setCursor;
       setCursor =
-        setCursor + setBlockHeight(FragmentSets.at(set), Body.TEXT_WIDTH, FragmentFonts.HEADER, FragmentFonts.BODY);
+        setCursor + setBlockHeight(FragmentSets.get(set), Body.TEXT_WIDTH, FragmentFonts.HEADER, FragmentFonts.BODY);
     }
     set = set + 1;
   }
@@ -217,7 +219,7 @@ export function FragmentDetail(): Component {
                   y={headingY[i]}
                   w={{ fill: Body.MARGIN * 2 }}
                   h={Body.LINE}
-                  text={`${Fragments.at(loadoutSlot(i)).text(FragmentParams.NAME)} <col=cfcfcf>(${String(fragmentTier(loadoutSlot(i)))})`}
+                  text={`${Fragments.get(loadoutSlot(i)).name} <col=cfcfcf>(${stringOf(fragmentTier(loadoutSlot(i)))})`}
                   align="left"
                   valign="top"
                   shadow
@@ -244,10 +246,7 @@ export function FragmentDetail(): Component {
 
         <SectionHeader y={setsY} title="Set Effects" />
         {FragmentSets.map(
-          (row, index) =>
-            setMet(index + 1, row) && (
-              <SetEffectBlock row={row} y={setY[index + 1]} members={setMembers(row.int(FragmentSetParams.GROUP))} />
-            ),
+          (row, set) => setMet(set, row) && <SetEffectBlock row={row} y={setY[set]} members={setMembers(row.group)} />,
         )}
         {anySet === false && <NoneRow y={setsY + 22} />}
       </layer>

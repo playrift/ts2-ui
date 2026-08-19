@@ -1,0 +1,114 @@
+import { useInventory } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { itemName } from '../lib/lib.engine';
+import { questComplete } from '../lib/lib.quests';
+import { WomQuestItems, WomOtherItems, WomRow } from './wom-items.data';
+
+export const enum WomTab {
+  ALL = 0,
+  FREE = 1,
+  MEMBERS = 2,
+}
+
+const enum Cell {
+  W = 36,
+  H = 32,
+  FIRST_X = 18,
+  FIRST_Y = 16,
+  STRIDE_X = 54,
+  STRIDE_Y = 48,
+}
+
+function columns(width: Int): Int {
+  return (width + 17) / 54;
+}
+
+function heldCount(item: Item): Int {
+  const bank = useInventory(Inventories.BANK);
+  const inv = useInventory(Inventories.INV);
+  const worn = useInventory(Inventories.WORN);
+  return bank.total(item) + inv.total(item) + worn.total(item);
+}
+
+function shownCount(items: List<WomRow>): Int {
+  let shown = 0;
+  let i = 0;
+  let row = items.at(i);
+  while (row !== null) {
+    if (questComplete(row.quest) && heldCount(row.item) > 0) {
+      shown = shown + 1;
+    }
+    i = i + 1;
+    row = items.at(i);
+  }
+  return shown;
+}
+
+export function womGridHeight(width: Int, members: Boolean, tab: WomTab): Int {
+  const across = columns(width);
+  let shown = shownCount(WomQuestItems);
+  if (members) {
+    if (tab === WomTab.ALL) {
+      shown = shown + shownCount(WomOtherItems);
+    } else if (tab === WomTab.MEMBERS) {
+      shown = shownCount(WomOtherItems);
+    }
+  }
+  if (shown === 0) {
+    return Cell.STRIDE_Y;
+  }
+  return Cell.STRIDE_Y * ((shown + across - 1) / across);
+}
+
+function WomCell({ row, i, across }: { row: WomRow; i: Int; across: Int }): Component {
+  return (
+    <sprite
+      x={Cell.FIRST_X + (i % across) * Cell.STRIDE_X}
+      y={Cell.FIRST_Y + (i / across) * Cell.STRIDE_Y}
+      w={Cell.W}
+      h={Cell.H}
+      item={row.item}
+      itemCount={heldCount(row.item)}
+      outline={1}
+      dragDeadZone={5}
+      dragDeadTime={5}
+      options={['Remove', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(row.item)}</col>`}
+    />
+  );
+}
+
+export function WomItemGrid({ width, members, tab }: { width: Int; members: Boolean; tab: WomTab }): Component {
+  const across = columns(width);
+
+  if (members === false || tab === WomTab.FREE) {
+    return (
+      <layer w="fill" h="fill">
+        {WomQuestItems.filter((row) => questComplete(row.quest) && heldCount(row.item) > 0).map((row, i) => (
+          <WomCell row={row} i={i} across={across} />
+        ))}
+      </layer>
+    );
+  }
+  if (tab === WomTab.ALL) {
+    const first = shownCount(WomQuestItems);
+    return (
+      <layer w="fill" h="fill">
+        {WomQuestItems.filter((row) => questComplete(row.quest) && heldCount(row.item) > 0).map((row, i) => (
+          <WomCell row={row} i={i} across={across} />
+        ))}
+        {WomOtherItems.filter((row) => questComplete(row.quest) && heldCount(row.item) > 0).map((row, i) => (
+          <WomCell row={row} i={i + first} across={across} />
+        ))}
+      </layer>
+    );
+  }
+  return (
+    <layer w="fill" h="fill">
+      {WomOtherItems.filter((row) => questComplete(row.quest) && heldCount(row.item) > 0).map((row, i) => (
+        <WomCell row={row} i={i} across={across} />
+      ))}
+    </layer>
+  );
+}
