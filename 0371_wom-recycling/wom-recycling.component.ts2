@@ -1,4 +1,4 @@
-import { CS2, predictServerState, useRef, useState } from 'ts2';
+import { onUpdated, predictServerState, useRef, useServerState, useState } from 'ts2';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
 import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
 import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
@@ -15,11 +15,18 @@ import {
 import { HoverFilledButton } from './hover-filled-button.component';
 import { TooltipBox } from './tooltip-box.component';
 import { HoverRemoveAllButton } from './hover-remove-all-button.component';
+import { WomItemGrid, womGridHeight } from './item-grid.component';
 import { freeWorld, paintTabs, tabWidth } from './wom-recycling.helpers';
+import { membersWorld } from '../lib/lib.engine';
 
 export function WomRecycling(): Component {
   const items = useRef();
   const [hovered, setHovered] = useState(0);
+  const tab = useServerState(Varbits.WOM_INTERFACE_TAB);
+
+  onUpdated(() => {
+    items.scrollY = items.scrollY;
+  });
   const allWidth: Int = tabWidth('All');
   const membersWidth: Int = tabWidth('Members');
   const freeWidth: Int = tabWidth('Free');
@@ -116,7 +123,7 @@ export function WomRecycling(): Component {
           </layer>
 
           <layer
-            x={CS2.map_members() ? allWidth : 0}
+            x={membersWorld() ? allWidth : 0}
             y="center"
             w={freeWidth}
             h="fill"
@@ -206,7 +213,16 @@ export function WomRecycling(): Component {
           <HoverRemoveAllButton />
         </layer>
 
-        <layer ref={items} x={0} y={32} w={{ fill: 16 }} h={{ fill: 64 }} />
+        <layer
+          ref={items}
+          x={0}
+          y={32}
+          w={{ fill: 16 }}
+          h={{ fill: 64 }}
+          scrollHeight={womGridHeight(items.width, membersWorld(), tab)}
+        >
+          <WomItemGrid width={items.width} members={membersWorld()} tab={tab} />
+        </layer>
         <layer x="right" y={32} w={16} h={{ fill: 64 }}>
           <ScrollbarVertical
             content={items}
