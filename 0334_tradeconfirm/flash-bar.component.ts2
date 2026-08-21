@@ -1,0 +1,52 @@
+import { CS2, stopTimer, useRef } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { Blink, FLASH_MS, Offer } from './trade-confirm.constants';
+
+export function FlashBar({
+  x,
+  y,
+  w,
+  color,
+  filled,
+  changedAt,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  color: Int;
+  filled: Boolean;
+  changedAt: Int;
+}): Component {
+  const bar = useRef();
+
+  return (
+    <rect
+      ref={bar}
+      x={x}
+      y={y}
+      w={w}
+      h={Offer.FLASH_HEIGHT}
+      fill={filled}
+      color={color}
+      transparency={255}
+      onTimer={() => {
+        fade(bar, changedAt);
+      }}
+    />
+  );
+}
+
+function fade(bar: Ref, changedAt: Int): void {
+  const now: Int = clientClock();
+  const elapsed: Int = now - changedAt;
+  if (elapsed >= FLASH_MS) {
+    bar.transparency = 255;
+    stopTimer(bar);
+    return;
+  }
+  if (now % Blink.PERIOD >= Blink.OFF_FROM) {
+    bar.transparency = 255;
+    return;
+  }
+  bar.transparency = CS2.interpolate(0, elapsed, 0, FLASH_MS, 255);
+}

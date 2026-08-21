@@ -1,0 +1,57 @@
+import { intArray, useInventory } from 'ts2';
+import { Offer, TradeColors, TradeFonts, TradeInventories } from './trade-confirm.constants';
+import { offerText, splitsIntoColumns } from './trade-confirm.helpers';
+import { OfferRow } from './offer-row.component';
+
+export function YourOffer(): Component {
+  const trade = useInventory(TradeInventories.OFFER);
+  const slots: Int = trade.size;
+
+  const half: Int = (slots + 1) / 2;
+
+  const rank = intArray(28);
+  let filled: Int = 0;
+  let slot: Int = 0;
+  while (slot < slots) {
+    rank[slot] = filled;
+    if (trade[slot] !== -1) {
+      filled = filled + 1;
+    }
+    slot = slot + 1;
+  }
+
+  const twoColumns: Boolean = splitsIntoColumns(filled, half);
+  const columnWidth: Int = twoColumns ? Offer.HALF : Offer.WIDTH;
+
+  return (
+    <layer w="fill" h="fill">
+      {trade.map(
+        (item, index) =>
+          item !== -1 && (
+            <OfferRow
+              line={offerText(item, trade.count(index))}
+              x={twoColumns && rank[index] % 2 === 1 ? Offer.HALF : 0}
+              y={twoColumns ? (rank[index] / 2) * Offer.ROW_STEP : rank[index] * Offer.ROW_STEP}
+              w={columnWidth}
+              twoColumns={twoColumns}
+            />
+          ),
+      )}
+
+      {filled === 0 && (
+        <text
+          x={0}
+          y={0}
+          w={Offer.WIDTH}
+          h={Offer.ROW_HEIGHT}
+          text="Absolutely nothing!"
+          font={TradeFonts.LARGE}
+          color={TradeColors.EMPTY}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+    </layer>
+  );
+}

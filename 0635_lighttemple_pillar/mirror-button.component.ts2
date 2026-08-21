@@ -1,0 +1,137 @@
+import { CS2, useState } from 'ts2';
+
+import { Frame } from '../lib/frame.component';
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  BeigeButtonIn,
+  BeigeButtonOut,
+  Layout,
+  NO_CHAR,
+  PillarColor,
+  PillarFonts,
+  PillarGate,
+  PillarKey,
+  PRESS_CYCLES,
+} from './lighttemple-pillar.constants';
+
+export function ButtonFace({ label, pressed }: { label: String; pressed: Int }): Component {
+  return (
+    <>
+      {pressed === 1 ? (
+        <>
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={PillarColor.PRESSED_FILL} fill />
+          <Frame
+            topLeft={BeigeButtonIn.TOP_LEFT}
+            topRight={BeigeButtonIn.TOP_RIGHT}
+            bottomLeft={BeigeButtonIn.BOTTOM_LEFT}
+            bottomRight={BeigeButtonIn.BOTTOM_RIGHT}
+            left={BeigeButtonIn.LEFT}
+            top={BeigeButtonIn.TOP}
+            right={BeigeButtonIn.RIGHT}
+            bottom={BeigeButtonIn.BOTTOM}
+          />
+        </>
+      ) : (
+        <>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={BeigeButtonOut.FILL} tiling />
+          <Frame
+            topLeft={BeigeButtonOut.TOP_LEFT}
+            topRight={BeigeButtonOut.TOP_RIGHT}
+            bottomLeft={BeigeButtonOut.BOTTOM_LEFT}
+            bottomRight={BeigeButtonOut.BOTTOM_RIGHT}
+            left={BeigeButtonOut.LEFT}
+            top={BeigeButtonOut.TOP}
+            right={BeigeButtonOut.RIGHT}
+            bottom={BeigeButtonOut.BOTTOM}
+          />
+        </>
+      )}
+
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={PillarFonts.LABEL}
+        color={PillarColor.LABEL}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function MirrorButton({
+  label,
+  keys,
+  offsetY,
+  primary = false,
+}: {
+  label: String;
+  keys: String;
+  offsetY: Int;
+  primary?: Boolean;
+}): Component {
+  const [pressed, setPressed] = useState(0);
+  const [deadline, setDeadline] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer x={{ center: Layout.BUTTON_X }} y={{ center: offsetY }} w={Layout.BUTTON_W} h={Layout.BUTTON_H} continueOp>
+        <ButtonFace label={label} pressed={0} />
+      </layer>
+    );
+  }
+
+  const face: Int = pressed;
+
+  return (
+    <layer
+      x={{ center: Layout.BUTTON_X }}
+      y={{ center: offsetY }}
+      w={Layout.BUTTON_W}
+      h={Layout.BUTTON_H}
+      continueOp
+      onMouseRepeat={() => {
+        setPressed(1);
+      }}
+      onMouseLeave={() => {
+        setPressed(0);
+      }}
+      onKey={(event) => {
+        if (event.keyChar === NO_CHAR) {
+          return;
+        }
+        if (dialogueMayAdvance(PillarGate.LIGHTTEMPLE_PILLAR, PillarGate.NO_SUB) === false) {
+          return;
+        }
+        if (deadline !== 0) {
+          return;
+        }
+        if (
+          CS2.string_indexof_char(keys, event.keyChar as Int) !== -1 ||
+          ((event.keyCode === PillarKey.ENTER || event.keyCode === PillarKey.SPACE) && primary)
+        ) {
+          setPressed(1);
+          setDeadline(clientClock() + PRESS_CYCLES);
+          CS2.if_resume_pausebutton(event.component);
+        }
+      }}
+      onTimer={() => {
+        if (deadline === 0) {
+          return;
+        }
+        if (clientClock() < deadline) {
+          return;
+        }
+        setDeadline(0);
+        setPressed(0);
+      }}
+    >
+      <ButtonFace label={label} pressed={face} />
+    </layer>
+  );
+}

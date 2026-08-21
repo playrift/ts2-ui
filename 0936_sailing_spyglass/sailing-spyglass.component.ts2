@@ -1,0 +1,48 @@
+import { useState, useUniverse } from 'ts2';
+
+import { SpyglassColors, SpyglassModels } from './sailing-spyglass.constants';
+import { spyglassSide, spyglassZoom } from './sailing-spyglass.helpers';
+
+export function SailingSpyglass(): Component {
+  const universe = useUniverse();
+  const measuredWidth: Int = universe.width;
+  const measuredHeight: Int = universe.height;
+
+  const [seenWidth, setSeenWidth] = useState(0);
+  const [seenHeight, setSeenHeight] = useState(0);
+
+  universe.onResize = () => {
+    setSeenWidth(universe.width);
+    setSeenHeight(universe.height);
+  };
+
+  const width: Int = seenWidth === 0 ? measuredWidth : seenWidth;
+  const height: Int = seenHeight === 0 ? measuredHeight : seenHeight;
+
+  const side: Int = spyglassSide(height);
+  const zoom: Int = spyglassZoom(side);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y="center" w="fill" h="fill">
+        {height >= side && (
+          <>
+            <rect x="center" y="top" w="fill" h={(height - side) / 2} fill color={SpyglassColors.MASK} />
+            <rect x="center" y="bottom" w="fill" h={(height - side) / 2} fill color={SpyglassColors.MASK} />
+          </>
+        )}
+        {width >= side && (
+          <>
+            <rect x="left" y="center" w={(width - side) / 2} h="fill" fill color={SpyglassColors.MASK} />
+            <rect x="right" y="center" w={(width - side) / 2} h="fill" fill color={SpyglassColors.MASK} />
+          </>
+        )}
+      </layer>
+
+      <model x="center" y="center" w="fill" h="fill" model={SpyglassModels.BACK} zoom={zoom} />
+      <model x="center" y="center" w="fill" h="fill" model={SpyglassModels.FRONT} zoom={zoom} transparent />
+
+      <rect x="center" y="center" w="fill" h="fill" fill color={SpyglassColors.MASK} />
+    </layer>
+  );
+}

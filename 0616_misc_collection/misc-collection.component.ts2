@@ -1,0 +1,114 @@
+import { useInventory, useRef, useState } from 'ts2';
+import { clientClock, itemName } from '../lib/lib.engine';
+import { closeInterface, graphicSwapperUnlessMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  CollectionArt,
+  CollectionBar,
+  CollectionColors,
+  CollectionFonts,
+  CollectionInventories,
+  CollectionModel,
+  Fade,
+  Grid,
+} from './misc-collection.constants';
+
+export function MiscCollection(): Component {
+  const list = useRef();
+  const stash = useInventory(CollectionInventories.RESOURCES);
+
+  const [pressedSlot, setPressedSlot] = useState(-1);
+  const [restoreAt, setRestoreAt] = useState(0);
+
+  let lastRowY: Int = 0;
+  let slot: Int = 0;
+  while (slot < Grid.SLOTS) {
+    if (stash[slot] !== -1) {
+      lastRowY = (slot / Grid.COLUMNS) * (Grid.ICON_HEIGHT + Grid.GAP);
+    }
+    slot = slot + 1;
+  }
+  const extent: Int = lastRowY + Grid.ICON_HEIGHT;
+
+  return (
+    <>
+      <model
+        x="center"
+        y="center"
+        w={80}
+        h={80}
+        model={CollectionModel.PILE}
+        pitch={CollectionModel.PITCH}
+        zoom={CollectionModel.ZOOM}
+        offsetY={CollectionModel.OFFSET_Y}
+      />
+
+      <text x={23} y={20} w={250} h={20} text="Resources Collected" font={CollectionFonts.HEADING} valign="middle" />
+
+      <layer
+        ref={list}
+        x={23}
+        y={46}
+        w={Grid.LIST_WIDTH}
+        h={Grid.LIST_HEIGHT}
+        scrollHeight={Grid.LIST_HEIGHT < extent ? extent : 0}
+        onTimer={() => {
+          if (pressedSlot === -1) {
+            return;
+          }
+          if (clientClock() < restoreAt) {
+            return;
+          }
+          setPressedSlot(-1);
+        }}
+      >
+        {stash.map(
+          (item, index) =>
+            item !== -1 && (
+              <sprite
+                x={Grid.INSET + (index % Grid.COLUMNS) * (Grid.ICON_WIDTH + Grid.GAP)}
+                y={(index / Grid.COLUMNS) * (Grid.ICON_HEIGHT + Grid.GAP)}
+                w={Grid.ICON_WIDTH}
+                h={Grid.ICON_HEIGHT}
+                item={item}
+                itemCount={stash.count(index)}
+                outline={1}
+                shadowColor={CollectionColors.ICON_SHADOW}
+                transparency={pressedSlot === index ? Fade.PRESSED : Fade.REST}
+                options={['', '', '', '', '', '', '', '', '', 'Examine']}
+                optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                onOptionSelect={(event) => {
+                  setPressedSlot(event.subId);
+                  setRestoreAt(clientClock() + Fade.CYCLES);
+                }}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={{ right: 20 }} y={46} w={16} h={Grid.LIST_HEIGHT}>
+        <ScrollbarVertical
+          content={list}
+          track={CollectionBar.TRACK}
+          capTopSprite={CollectionBar.CAP_TOP}
+          thumbSprite={CollectionBar.THUMB}
+          capBottomSprite={CollectionBar.CAP_BOTTOM}
+          arrowUp={CollectionBar.ARROW_UP}
+          arrowDown={CollectionBar.ARROW_DOWN}
+        />
+      </layer>
+
+      <sprite
+        x={{ right: 20 }}
+        y={18}
+        w={26}
+        h={23}
+        sprite={CollectionArt.CLOSE}
+        options={['Close']}
+        onOptionSelect={() => closeInterface()}
+        onMouseEnter={(event) => graphicSwapperUnlessMobile(event.component, CollectionArt.CLOSE_HOVER)}
+        onMouseLeave={(event) => graphicSwapperUnlessMobile(event.component, CollectionArt.CLOSE)}
+      />
+    </>
+  );
+}

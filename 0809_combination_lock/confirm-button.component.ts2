@@ -1,0 +1,122 @@
+import { CS2, useState } from 'ts2';
+
+import {
+  combinationLockValue0,
+  combinationLockValue1,
+  combinationLockValue2,
+  combinationLockValue3,
+  combinationLockValue4,
+  combinationLockValue5,
+} from '../lib/game/varcs';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  CONFIRM_LABEL,
+  CONFIRM_PENDING_LABEL,
+  DEBOUNCE,
+  LockColors,
+  LockFonts,
+  LockSounds,
+} from './combination-lock.constants';
+import { packDials } from './combination-lock.state';
+
+export function ConfirmButton(): Component {
+  const [pendingUntil, setPendingUntil] = useState(0);
+  const [pressed, setPressed] = useState(0);
+
+  const [value0] = useState(combinationLockValue0);
+  const [value1] = useState(combinationLockValue1);
+  const [value2] = useState(combinationLockValue2);
+  const [value3] = useState(combinationLockValue3);
+  const [value4] = useState(combinationLockValue4);
+  const [value5] = useState(combinationLockValue5);
+
+  if (clientClock() < pendingUntil) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonPressedFilled />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={CONFIRM_PENDING_LABEL}
+          font={LockFonts.BUTTON}
+          color={LockColors.BUTTON_LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[CONFIRM_LABEL]}
+        onMouseLeave={() => {
+          setPressed(0);
+        }}
+        onOptionSelect={() => {
+          playSound(LockSounds.ATTEMPT);
+          CS2.countdialog_resume(stringOf(packDials(value0, value1, value2, value3, value4, value5)));
+          setPressed(0);
+          setPendingUntil(clientClock() + DEBOUNCE);
+        }}
+      >
+        <StoneButtonOutFilled />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={CONFIRM_LABEL}
+          font={LockFonts.BUTTON}
+          color={LockColors.BUTTON_LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CONFIRM_LABEL]}
+      onMouseRepeat={() => {
+        setPressed(1);
+      }}
+      onMouseLeave={() => {
+        setPressed(0);
+      }}
+      onOptionSelect={() => {
+        playSound(LockSounds.ATTEMPT);
+        CS2.countdialog_resume(stringOf(packDials(value0, value1, value2, value3, value4, value5)));
+        setPressed(0);
+        setPendingUntil(clientClock() + DEBOUNCE);
+      }}
+    >
+      {pressed !== 0 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={CONFIRM_LABEL}
+        font={LockFonts.BUTTON}
+        color={LockColors.BUTTON_LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

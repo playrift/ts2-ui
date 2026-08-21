@@ -1,0 +1,45 @@
+import { chatMessage, hasBit, playSound } from '../lib/lib.engine';
+import { FossilMapOps, FossilMapSounds, FossilMapView } from './ds2-fossil-map.constants';
+import { angleOf, pieceOf, setSlot } from './ds2-fossil-map.slots';
+
+export function rotatePiece(op: Int, slot: Int): void {
+  let step: Int = 0;
+  if (op === FossilMapOps.ROTATE_RIGHT) {
+    step = FossilMapView.RIGHT_STEP;
+  } else if (op === FossilMapOps.ROTATE_LEFT) {
+    step = FossilMapView.LEFT_STEP;
+  } else {
+    return;
+  }
+
+  playSound(FossilMapSounds.MOVE);
+  const piece: Int = pieceOf(slot);
+  const angle: Int = angleOf(slot);
+  setSlot(slot, piece, (angle + step) % FossilMapView.TURNS);
+}
+
+export function swapPieces(component: ComponentId, slot: Int, target: ComponentId, targetSlot: Int): void {
+  if (target !== component) {
+    return;
+  }
+
+  const fromPiece: Int = pieceOf(slot);
+  const fromAngle: Int = angleOf(slot);
+  const ontoPiece: Int = pieceOf(targetSlot);
+  const ontoAngle: Int = angleOf(targetSlot);
+
+  if (fromPiece === 0 || ontoPiece === 0) {
+    return;
+  }
+
+  setSlot(targetSlot, fromPiece, fromAngle);
+  setSlot(slot, ontoPiece, ontoAngle);
+  playSound(FossilMapSounds.MOVE);
+}
+
+export function stuckPiece(op: Int, mask: Int): void {
+  if (hasBit(mask, op)) {
+    playSound(FossilMapSounds.STUCK);
+    chatMessage('That piece is stuck.');
+  }
+}
