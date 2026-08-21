@@ -1,0 +1,69 @@
+import { useInventory, useRef, useServerState, useState } from 'ts2';
+import { itemName, clientClock } from '../lib/lib.engine';
+import {
+  AlchemyBag,
+  AlchemyColor,
+  AlchemyMode,
+  AlchemyVarbits,
+  FADE_CYCLES,
+  Slot,
+  Transparency,
+} from './lumbridge-alchemy.constants';
+
+export function AlchemyItemSlot({
+  item,
+  count,
+  slot,
+  verb,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  verb: String;
+}): Component {
+  const [restoreAt, setRestoreAt] = useState(0);
+  const cell = useRef();
+
+  return (
+    <sprite
+      ref={cell}
+      x={(slot % Slot.COLUMNS) * Slot.STRIDE_X}
+      y={(slot / Slot.COLUMNS) * Slot.STRIDE_Y}
+      w={Slot.W}
+      h={Slot.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={AlchemyColor.SLOT_SHADOW}
+      options={[verb, '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={() => {
+        cell.transparency = Transparency.FLASH;
+        setRestoreAt(clientClock() + FADE_CYCLES);
+      }}
+      onTimer={() => {
+        if (restoreAt === 0) {
+          return;
+        }
+        if (clientClock() < restoreAt) {
+          return;
+        }
+        cell.transparency = Transparency.CLEAR;
+        setRestoreAt(0);
+      }}
+    />
+  );
+}
+
+export function AlchemyItemGrid(): Component {
+  const bag = useInventory(AlchemyBag.INV);
+  const verb: String = useServerState(AlchemyVarbits.HIGH) === AlchemyMode.HIGH ? 'High-Alchemy' : 'Low-Alchemy';
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map(
+        (item, slot) => item !== -1 && <AlchemyItemSlot item={item} count={bag.count(slot)} slot={slot} verb={verb} />,
+      )}
+    </layer>
+  );
+}

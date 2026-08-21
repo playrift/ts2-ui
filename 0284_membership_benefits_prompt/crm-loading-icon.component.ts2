@@ -1,0 +1,72 @@
+import { CS2, useUniverse } from 'ts2';
+import { scaled } from '../lib/lib.engine';
+import { CosineDegrees, LoadingIcon, LoadingRingItems, SineDegrees } from './membership-benefits-prompt.constants';
+
+export function CrmLoadingIcon(): Component {
+  const universe = useUniverse();
+  const size: Int = Math.min(universe.width, universe.height) / LoadingIcon.SIZE_DIVISOR;
+  const centerX: Int = (universe.width - size) / 2;
+  const centerY: Int = (universe.height - size) / 2;
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {LoadingRingItems.map((item, index) => (
+        <LoadingRingItem item={item} index={index} centerX={centerX} centerY={centerY} size={size} />
+      ))}
+    </layer>
+  );
+}
+
+function LoadingRingItem({
+  item,
+  index,
+  centerX,
+  centerY,
+  size,
+}: {
+  item: Item;
+  index: Int;
+  centerX: Int;
+  centerY: Int;
+  size: Int;
+}): Component {
+  const angle: Int = index * LoadingIcon.DEGREES_PER_ITEM + Math.min(index + 1, LoadingIcon.DEGREES_SPARE);
+
+  const zoom: Int = Math.max(LoadingIcon.ZOOM_MAX - index * LoadingIcon.ZOOM_STEP, LoadingIcon.ZOOM_MIN);
+
+  return (
+    <model
+      x={centerX + scaled(cosDegrees(angle), LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      y={centerY + scaled(sinDegrees(angle), LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      w={size}
+      h={size}
+      item={item}
+      itemCount={LoadingIcon.STACK}
+      pitch={LoadingIcon.PITCH}
+      yaw={LoadingIcon.YAW}
+      roll={LoadingIcon.ROLL}
+      zoom={zoom}
+      onTimer={(event) => {
+        if (CS2.cc_find(event.component, event.subId)) {
+          const next: Int = CS2.cc_model_zoom_get() + LoadingIcon.ZOOM_PER_CYCLE;
+          CS2.cc_model_angle_set(
+            0,
+            0,
+            LoadingIcon.PITCH,
+            LoadingIcon.YAW,
+            LoadingIcon.ROLL,
+            next > LoadingIcon.ZOOM_MAX ? LoadingIcon.ZOOM_MIN : next,
+          );
+        }
+      }}
+    />
+  );
+}
+
+function sinDegrees(degrees: Int): Int {
+  return SineDegrees.at(degrees);
+}
+
+function cosDegrees(degrees: Int): Int {
+  return CosineDegrees.at(degrees);
+}

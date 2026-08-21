@@ -1,0 +1,105 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Frame } from '../lib/frame.component';
+import { Varbits } from '../lib/game/varbits';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import {
+  ButtonSkinIn,
+  ButtonSkinOut,
+  DecantColors,
+  DecantFonts,
+  DecantGate,
+  DecantKeys,
+  DecantLayout,
+} from './decant.constants';
+
+export function DecantButton({ item, label, keyChar }: { item: Item; label: String; keyChar: String }): Component {
+  const [pressed, setPressed] = useState(0);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseEnter={() => {
+        setPressed(1);
+      }}
+      onMouseLeave={() => {
+        setPressed(0);
+      }}
+      onKey={(event) => {
+        if (dialogueMayAdvance(DecantGate.THIS_PANEL, DecantGate.NO_SUB) === false) {
+          return;
+        }
+
+        if (event.keyCode === DecantKeys.ESCAPE && useServerState(Varbits.KEYBINDING_ESC_TO_CLOSE) === 1) {
+          CS2.if_close();
+          return;
+        }
+
+        if (event.keyChar === DecantKeys.NO_CHAR) {
+          return;
+        }
+        if (keyChar.length === 0) {
+          return;
+        }
+        if (CS2.string_indexof_char(keyChar, event.keyChar as Int) === -1) {
+          return;
+        }
+
+        setPressed(1);
+        CS2.if_resume_pausebutton(event.component);
+      }}
+    >
+      {pressed === 1 ? (
+        <>
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={DecantColors.PRESSED_FILL} fill />
+          <Frame
+            topLeft={ButtonSkinIn.TOP_LEFT}
+            topRight={ButtonSkinIn.TOP_RIGHT}
+            bottomLeft={ButtonSkinIn.BOTTOM_LEFT}
+            bottomRight={ButtonSkinIn.BOTTOM_RIGHT}
+            left={ButtonSkinIn.LEFT}
+            top={ButtonSkinIn.TOP}
+            right={ButtonSkinIn.RIGHT}
+            bottom={ButtonSkinIn.BOTTOM}
+          />
+        </>
+      ) : (
+        <>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={ButtonSkinOut.FILL} tiling />
+          <Frame
+            topLeft={ButtonSkinOut.TOP_LEFT}
+            topRight={ButtonSkinOut.TOP_RIGHT}
+            bottomLeft={ButtonSkinOut.BOTTOM_LEFT}
+            bottomRight={ButtonSkinOut.BOTTOM_RIGHT}
+            left={ButtonSkinOut.LEFT}
+            top={ButtonSkinOut.TOP}
+            right={ButtonSkinOut.RIGHT}
+            bottom={ButtonSkinOut.BOTTOM}
+          />
+        </>
+      )}
+
+      <model
+        x="center"
+        y={{ center: DecantLayout.ITEM_DY }}
+        w={DecantLayout.ITEM_WIDTH}
+        h={DecantLayout.ITEM_HEIGHT}
+        item={item}
+        itemCount={2147483647}
+      />
+
+      <text
+        x="center"
+        y="bottom"
+        w="fill"
+        h={DecantLayout.LABEL_HEIGHT}
+        font={DecantFonts.LABEL}
+        color={DecantColors.TEXT}
+        align="center"
+        valign="middle"
+        text={label}
+      />
+    </layer>
+  );
+}

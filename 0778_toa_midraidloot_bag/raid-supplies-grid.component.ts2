@@ -1,0 +1,50 @@
+import { useInventory, useRef, useState } from 'ts2';
+import { clientClock, itemName } from '../lib/lib.engine';
+import { BagColor, FADE_CYCLES, RaidSupplies, Slot, Transparency } from './toa-midraidloot-bag.constants';
+
+function SupplySlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  const [restoreAt, setRestoreAt] = useState(0);
+  const cell = useRef();
+
+  return (
+    <sprite
+      ref={cell}
+      x={(slot % Slot.COLUMNS) * Slot.STRIDE_X}
+      y={(slot / Slot.COLUMNS) * Slot.STRIDE_Y}
+      w={Slot.W}
+      h={Slot.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={BagColor.SLOT_SHADOW}
+      dragDeadZone={Slot.DRAG_DEAD}
+      dragDeadTime={Slot.DRAG_DEAD}
+      options={['Withdraw-1', 'Withdraw-5', 'Withdraw-All', 'Drop', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}`}
+      onOptionSelect={() => {
+        cell.transparency = Transparency.FLASH;
+        setRestoreAt(clientClock() + FADE_CYCLES);
+      }}
+      onTimer={() => {
+        if (restoreAt === 0) {
+          return;
+        }
+        if (clientClock() < restoreAt) {
+          return;
+        }
+        cell.transparency = Transparency.CLEAR;
+        setRestoreAt(0);
+      }}
+    />
+  );
+}
+
+export function RaidSuppliesGrid(): Component {
+  const bag = useInventory(RaidSupplies.INV);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => item !== -1 && <SupplySlot item={item} count={bag.count(slot)} slot={slot} />)}
+    </layer>
+  );
+}

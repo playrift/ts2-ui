@@ -1,0 +1,114 @@
+import { useRef, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { setTransparency } from '../lib/lib.components';
+import { SupplyCounter } from './supply-counter.component';
+import { BrewColors, BrewToolsFonts, BrewToolsSounds, Button, Highlight, PRESS_CYCLES } from './brew-tools.constants';
+
+export function BrewToolButton({
+  label,
+  dx,
+  dy,
+  height,
+  take5,
+  model,
+  modelH,
+  zoom,
+  pitch,
+  yaw,
+  offsetX,
+  offsetY,
+  counts = -1,
+}: {
+  label: String;
+  dx: Int;
+  dy: Int;
+  height: Int;
+  take5: Boolean;
+  model: Model;
+  modelH: Int;
+  zoom: Int;
+  pitch: Int;
+  yaw: Int;
+  offsetX: Int;
+  offsetY: Int;
+  counts?: Item;
+}): Component {
+  const highlight = useRef();
+
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  return (
+    <layer
+      x={{ center: dx }}
+      y={{ center: dy }}
+      w={Button.WIDTH}
+      h={height}
+      options={['Take', take5 ? 'Take-5' : '']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onMouseRepeat={() => {
+        if (!onMobile() && pressedUntil === 0) {
+          setTransparency(highlight, Highlight.HOVER);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile() && pressedUntil === 0) {
+          setTransparency(highlight, Highlight.IDLE);
+        }
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(BrewToolsSounds.CLICK);
+        highlight.transparency = Highlight.PRESSED;
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+      onTimer={() => {
+        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+          highlight.transparency = Highlight.IDLE;
+          setPressedUntil(0);
+        }
+      }}
+    >
+      <rect
+        ref={highlight}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        fill
+        color={BrewColors.HIGHLIGHT}
+        transparency={Highlight.IDLE}
+      />
+
+      <model
+        x="center"
+        y="bottom"
+        w={Button.WIDTH}
+        h={modelH}
+        model={model}
+        zoom={zoom}
+        pitch={pitch}
+        yaw={yaw}
+        offsetX={offsetX}
+        offsetY={offsetY}
+      />
+
+      {counts !== -1 ? <SupplyCounter item={counts} /> : null}
+
+      <text
+        x="center"
+        y={0}
+        w={{ fill: Button.LABEL_INSET }}
+        h={Button.LABEL_HEIGHT}
+        text={label}
+        font={BrewToolsFonts.LABEL}
+        color={BrewColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

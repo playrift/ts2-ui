@@ -1,0 +1,117 @@
+import { CS2, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ADVANCE_DEBOUNCE,
+  AdvanceKey,
+  DialogueGate,
+  ObjectBoxColor,
+  ObjectBoxFonts,
+  ObjectSlot,
+} from './objectbox-double.constants';
+
+export function ObjectBoxDouble(): Component {
+  return (
+    <>
+      <model
+        x={ObjectSlot.FIRST_X}
+        y={ObjectSlot.FIRST_Y}
+        w={ObjectSlot.SIZE}
+        h={ObjectSlot.SIZE}
+        zoom={ObjectSlot.ZOOM}
+        pitch={ObjectSlot.PITCH}
+        yaw={ObjectSlot.YAW}
+      />
+
+      <text
+        x={96}
+        y={9}
+        w={380}
+        h={69}
+        font={ObjectBoxFonts.BODY}
+        color={ObjectBoxColor.MESSAGE}
+        align="center"
+        valign="middle"
+      />
+
+      <model
+        x={ObjectSlot.SECOND_X}
+        y={ObjectSlot.SECOND_Y}
+        w={ObjectSlot.SIZE}
+        h={ObjectSlot.SIZE}
+        zoom={ObjectSlot.ZOOM}
+        pitch={ObjectSlot.PITCH}
+        yaw={ObjectSlot.YAW}
+      />
+
+      <text
+        x={96}
+        y={80}
+        w={380}
+        h={17}
+        font={ObjectBoxFonts.BODY}
+        color={ObjectBoxColor.CONTINUE}
+        align="center"
+        continueOp
+        hover={{ color: ObjectBoxColor.CONTINUE_HOVER }}
+      />
+
+      <ObjectBoxAdvance />
+    </>
+  );
+}
+
+export function ObjectBoxAdvance(): Component {
+  const [deadline, setDeadline] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        onKey={(event) => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyCode !== AdvanceKey.SPACE) {
+            return;
+          }
+          CS2.if_resume_pausebutton(event.component);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+        onClick={(event) => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          CS2.if_resume_pausebutton(event.component);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (clientClock() < deadline) {
+          return;
+        }
+        if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+          return;
+        }
+        if (event.keyCode !== AdvanceKey.SPACE) {
+          return;
+        }
+        CS2.if_resume_pausebutton(event.component);
+        setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+      }}
+    />
+  );
+}

@@ -1,0 +1,79 @@
+import { useInventory, useRef, useServerState, useState } from 'ts2';
+import { clientClock, itemName } from '../lib/lib.engine';
+import { closeInterface } from '../lib/lib.helpers';
+import {
+  EmptySlotIcons,
+  Fade,
+  QuiverInventories,
+  QuiverParams,
+  QuiverSlot,
+  QuiverVarps,
+} from './dizanas-quiver.constants';
+
+export function QuiverAmmoSlot(): Component {
+  const carried = useInventory(QuiverInventories.CARRIED);
+  const ammo = useServerState(QuiverVarps.AMMO) as Item;
+  const amount: Int = useServerState(QuiverVarps.AMOUNT);
+
+  const icon = useRef();
+  const [restoreAt, setRestoreAt] = useState(0);
+
+  let found: Boolean = false;
+  let scan: Int = 0;
+  while (scan < carried.size) {
+    if (carried[scan] !== -1) {
+      if (carried.param(scan, QuiverParams.IS_QUIVER) === 1) {
+        found = true;
+      }
+    }
+    scan = scan + 1;
+  }
+  if (!found) {
+    closeInterface();
+    return null;
+  }
+
+  if (amount > 0 && ammo !== -1) {
+    return (
+      <layer
+        x={{ center: -5 }}
+        y="center"
+        w={36}
+        h={36}
+        dragTarget
+        options={[`Remove <col=ff981f>${itemName(ammo)}`]}
+        onOptionSelect={() => {
+          icon.transparency = Fade.PRESSED;
+          setRestoreAt(clientClock() + Fade.CYCLES);
+        }}
+      >
+        <sprite
+          ref={icon}
+          x={2}
+          y={2}
+          w={36}
+          h={32}
+          item={ammo}
+          itemCount={amount}
+          outline={1}
+          onTimer={() => {
+            if (restoreAt === 0) {
+              return;
+            }
+            if (clientClock() < restoreAt) {
+              return;
+            }
+            icon.transparency = Fade.REST;
+            setRestoreAt(0);
+          }}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer x={{ center: -5 }} y="center" w={36} h={36} dragTarget>
+      <sprite x="center" y="center" w={32} h={32} sprite={EmptySlotIcons.get(QuiverSlot.AMMO)} />
+    </layer>
+  );
+}

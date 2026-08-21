@@ -1,0 +1,43 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import {
+  ElectricitySounds,
+  POWER_GRID_SLOTS,
+  PowerGridOps,
+  PowerGridSegments,
+  PowerGridShape,
+  PowerGridView,
+} from './lovaquest-electricity.constants';
+
+export function PowerGrid(): Component {
+  return (
+    <>
+      {POWER_GRID_SLOTS.map((rotation, slot) => (
+        <model
+          x={PowerGridShape.CELL * (slot % PowerGridShape.COLUMNS)}
+          y={PowerGridShape.CELL * (slot / PowerGridShape.COLUMNS)}
+          w={PowerGridShape.CELL}
+          h={PowerGridShape.CELL}
+          model={PowerGridSegments.at(slot)}
+          pitch={PowerGridView.PITCH}
+          yaw={PowerGridView.QUARTER_TURN * useServerState(rotation)}
+          zoom={PowerGridView.ZOOM}
+          options={['Rotate-right', 'Rotate-left']}
+          onOptionSelect={(event) => {
+            if (event.option !== PowerGridOps.ROTATE_RIGHT && event.option !== PowerGridOps.ROTATE_LEFT) {
+              return;
+            }
+            playSound(ElectricitySounds.ROTATE);
+            predictServerState(
+              rotation,
+              (useServerState(rotation) +
+                (event.option === PowerGridOps.ROTATE_RIGHT ? PowerGridOps.TURN_RIGHT : PowerGridOps.TURN_LEFT)) %
+                PowerGridView.TURNS,
+            );
+          }}
+        />
+      ))}
+    </>
+  );
+}

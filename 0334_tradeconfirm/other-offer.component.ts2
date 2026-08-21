@@ -1,0 +1,65 @@
+import { CS2, intArray, useInventory } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { FLASH_MS, Offer, OtherInventory, TradeColors, TradeFonts, TradeInventories } from './trade-confirm.constants';
+import { offerText, splitsIntoColumns, tradeSlotChangedAt } from './trade-confirm.helpers';
+import { OfferRow } from './offer-row.component';
+
+export function OtherOffer(): Component {
+  const trade = useInventory(TradeInventories.OFFER);
+  const slots: Int = trade.size;
+  const half: Int = (slots + 1) / 2;
+
+  const flashingSince: Int = clientClock() - FLASH_MS;
+
+  const item = intArray<Item>(28);
+  const rank = intArray(28);
+  let counted: Int = 0;
+  let placed: Int = 0;
+  let slot: Int = 0;
+  while (slot < slots) {
+    item[slot] = CS2.invother_item_get(OtherInventory.OFFER, slot);
+    rank[slot] = placed;
+    if (item[slot] !== -1) {
+      placed = placed + 1;
+      counted = counted + 1;
+    } else if (tradeSlotChangedAt(slot) > flashingSince) {
+      counted = counted + 1;
+    }
+    slot = slot + 1;
+  }
+
+  const twoColumns: Boolean = splitsIntoColumns(counted, half);
+  const columnWidth: Int = twoColumns ? Offer.HALF : Offer.WIDTH;
+
+  return (
+    <layer w="fill" h="fill">
+      {item.map(
+        (offered, index) =>
+          offered !== -1 && (
+            <OfferRow
+              line={offerText(offered, CS2.invother_num_get(OtherInventory.OFFER, index))}
+              x={twoColumns && rank[index] % 2 === 1 ? Offer.HALF : 0}
+              y={twoColumns ? (rank[index] / 2) * Offer.ROW_STEP : rank[index] * Offer.ROW_STEP}
+              w={columnWidth}
+              twoColumns={twoColumns}
+            />
+          ),
+      )}
+
+      {placed === 0 && (
+        <text
+          x={0}
+          y={0}
+          w={Offer.WIDTH}
+          h={Offer.ROW_HEIGHT}
+          text="Absolutely nothing!"
+          font={TradeFonts.LARGE}
+          color={TradeColors.EMPTY}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+    </layer>
+  );
+}

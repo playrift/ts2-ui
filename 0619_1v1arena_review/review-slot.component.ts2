@@ -1,0 +1,64 @@
+import { useInventory, useRef, useState } from 'ts2';
+import { clientClock, itemName } from '../lib/lib.engine';
+import {
+  EmptySlotIcons,
+  Fade,
+  Icon,
+  ReviewArt,
+  ReviewColors,
+  ReviewInventories,
+  ThickOutlineItems,
+} from './arena-review.constants';
+
+export function ReviewSlot({ slot }: { slot: Int }): Component {
+  const stash = useInventory(ReviewInventories.SNAPSHOT);
+  const icon = useRef();
+  const [restoreAt, setRestoreAt] = useState(0);
+
+  const item = stash[slot];
+
+  if (item !== -1) {
+    return (
+      <layer
+        w={Icon.SLOT}
+        h={Icon.SLOT}
+        options={['', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+        onOptionSelect={() => {
+          icon.transparency = Fade.PRESSED;
+          setRestoreAt(clientClock() + Fade.CYCLES);
+        }}
+      >
+        <sprite x="center" y="center" w={Icon.SLOT} h={Icon.SLOT} sprite={ReviewArt.SLOT_PLATE} />
+        <sprite
+          ref={icon}
+          x={{ center: 2 }}
+          y="center"
+          w={Icon.W}
+          h={Icon.H}
+          item={item}
+          itemCount={stash.count(slot)}
+          outline={ThickOutlineItems.get(item) === true ? 2 : 1}
+          shadowColor={ReviewColors.ICON_SHADOW}
+          onTimer={() => {
+            if (restoreAt === 0) {
+              return;
+            }
+            if (clientClock() < restoreAt) {
+              return;
+            }
+            icon.transparency = Fade.REST;
+            setRestoreAt(0);
+          }}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer w={Icon.SLOT} h={Icon.SLOT}>
+      <sprite x="center" y="center" w={Icon.SLOT} h={Icon.SLOT} sprite={ReviewArt.SLOT_PLATE} />
+      <sprite x="center" y="center" w={Icon.EMPTY} h={Icon.EMPTY} sprite={EmptySlotIcons.get(slot)} />
+    </layer>
+  );
+}

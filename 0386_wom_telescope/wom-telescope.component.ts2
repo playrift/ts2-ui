@@ -1,0 +1,46 @@
+import { useState, useUniverse } from 'ts2';
+
+import { TelescopeColors, TelescopeModels } from './wom-telescope.constants';
+import { telescopeSide, telescopeZoom } from './wom-telescope.helpers';
+
+export function WomTelescope(): Component {
+  const universe = useUniverse();
+  const measuredWidth: Int = universe.width;
+  const measuredHeight: Int = universe.height;
+
+  const [seenWidth, setSeenWidth] = useState(0);
+  const [seenHeight, setSeenHeight] = useState(0);
+
+  universe.onResize = () => {
+    setSeenWidth(universe.width);
+    setSeenHeight(universe.height);
+  };
+
+  const width: Int = seenWidth === 0 ? measuredWidth : seenWidth;
+  const height: Int = seenHeight === 0 ? measuredHeight : seenHeight;
+
+  const side: Int = telescopeSide(height);
+  const zoom: Int = telescopeZoom(side);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y="center" w="fill" h="fill">
+        {height >= side && (
+          <>
+            <rect x="center" y="top" w="fill" h={(height - side) / 2} fill color={TelescopeColors.MASK} />
+            <rect x="center" y="bottom" w="fill" h={(height - side) / 2} fill color={TelescopeColors.MASK} />
+          </>
+        )}
+        {width >= side && (
+          <>
+            <rect x="left" y="center" w={(width - side) / 2} h="fill" fill color={TelescopeColors.MASK} />
+            <rect x="right" y="center" w={(width - side) / 2} h="fill" fill color={TelescopeColors.MASK} />
+          </>
+        )}
+      </layer>
+
+      <model x="center" y="center" w="fill" h="fill" model={TelescopeModels.BACK} zoom={zoom} />
+      <model x="center" y="center" w="fill" h="fill" model={TelescopeModels.FRONT} zoom={zoom} transparent />
+    </layer>
+  );
+}

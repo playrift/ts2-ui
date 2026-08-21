@@ -1,0 +1,66 @@
+import { useInterval, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { IntroColors, IntroFonts, IntroLayout, IntroTiming } from './speedrunning-intro.constants';
+
+export function IntroButton({ label, offset }: { label: String; offset: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const [pressed, setPressed] = useState(0);
+  const [pinnedUntil, setPinnedUntil] = useState(0);
+
+  useInterval(
+    () => {
+      if (pinnedUntil > 0 && clientClock() >= pinnedUntil) {
+        setPinnedUntil(0);
+        setPressed(0);
+      }
+    },
+    { everyMs: 20 },
+  );
+
+  return (
+    <layer
+      x={{ center: offset }}
+      y={{ bottom: IntroLayout.BUTTON_BOTTOM }}
+      w={IntroLayout.BUTTON_WIDTH}
+      h={IntroLayout.BUTTON_HEIGHT}
+      options={[label]}
+      onMouseRepeat={() => {
+        if (!mobile && pinnedUntil === 0) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!mobile && pinnedUntil === 0) {
+          setPressed(0);
+        }
+      }}
+      onOptionSelect={() => {
+        if (pinnedUntil === 0) {
+          playSound(Sounds.CLICK);
+          setPressed(1);
+          setPinnedUntil(clientClock() + IntroTiming.PRESS_CYCLES);
+        }
+      }}
+    >
+      {pressed === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={IntroFonts.BODY}
+        color={IntroColors.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
