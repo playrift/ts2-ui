@@ -1,0 +1,222 @@
+import { onUpdated, useInventory, useRef, useServerState, useState } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { gravestoneTransmitFee } from '../lib/game/varcs';
+import { pressRetrievalButton, retrievalButtonHover, unlockFeeText } from './gravestone-retrieval.helpers';
+import {
+  Fade,
+  Panel,
+  RetrievalArt,
+  RetrievalBar,
+  RetrievalColor,
+  RetrievalFonts,
+  RetrievalInventories,
+  RetrievalVarps,
+  ServiceFeeAmount,
+  ServiceFeeItem,
+  ServiceNames,
+  Slot,
+} from './gravestone-retrieval.constants';
+
+export function GravestoneRetrieval(): Component {
+  const service: Int = useServerState(RetrievalVarps.SERVICE);
+  const coffer: Int = useServerState(RetrievalVarps.COFFER);
+  const bankAll: Int = useServerState(RetrievalVarps.BANK_ALL);
+  const [transmitFee] = useState(gravestoneTransmitFee);
+
+  const held = useInventory(RetrievalInventories.HELD);
+
+  const pane = useRef();
+  const primaryIcon = useRef();
+  const bankIcon = useRef();
+  const discardIcon = useRef();
+  const label = useRef();
+  const feeLabel = useRef();
+
+  const feeItem: ItemName = ServiceFeeItem.get(service);
+  const declaredFee: Int = ServiceFeeAmount.get(service);
+  const fee: Int = declaredFee === -1 ? transmitFee : declaredFee;
+  const locked: Int = feeItem !== -1 ? (fee > 0 ? 1 : 0) : 0;
+
+  const banking: Int = locked === 1 ? 0 : bankAll === 1 ? 1 : 0;
+
+  let extent: Int = 0;
+  let slot: Int = 0;
+  while (slot < Slot.COUNT) {
+    if (held[slot] !== -1) {
+      extent = Slot.INSET_Y + (slot / Slot.COLUMNS) * Slot.STRIDE_Y + Slot.H;
+    }
+    slot = slot + 1;
+  }
+
+  onUpdated(() => {
+    pane.scrollY = pane.scrollY;
+  });
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorder title={ServiceNames.at(service)} titleColor={SteelborderColor.TITLE} flags={0} />
+      </layer>
+
+      <layer x="center" y={40} w={{ fill: 20 }} h={{ fill: 90 }}>
+        <layer
+          ref={pane}
+          x={2}
+          y="center"
+          w={{ fill: 20 }}
+          h={{ fill: 4 }}
+          scrollHeight={extent > Panel.PANE_H ? extent : 0}
+        >
+          {held.map(
+            (item, index) =>
+              item !== -1 && (
+                <sprite
+                  x={Slot.INSET_X + (index % Slot.COLUMNS) * Slot.STRIDE_X}
+                  y={Slot.INSET_Y + (index / Slot.COLUMNS) * Slot.STRIDE_Y}
+                  w={Slot.W}
+                  h={Slot.H}
+                  item={item}
+                  itemCount={held.count(index)}
+                  outline={Slot.OUTLINE}
+                  shadowColor={RetrievalColor.SLOT_SHADOW}
+                  options={['', 'Take-All', '', '', '', '', '', '', 'Value', 'Examine']}
+                  optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                  onOptionSelect={(event) => {
+                    flashFor(event.self, Fade.SLOT_PRESSED, Fade.REST);
+                  }}
+                />
+              ),
+          )}
+        </layer>
+
+        <layer x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+          <ScrollbarVertical
+            content={pane}
+            track={RetrievalBar.TRACK}
+            capTopSprite={RetrievalBar.CAP_TOP}
+            thumbSprite={RetrievalBar.THUMB}
+            capBottomSprite={RetrievalBar.CAP_BOTTOM}
+            arrowUp={RetrievalBar.ARROW_UP}
+            arrowDown={RetrievalBar.ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer x="center" y={{ bottom: 10 }} w={{ fill: 20 }} h={36}>
+        <sprite
+          x="right"
+          y="center"
+          w={36}
+          h={36}
+          sprite={RetrievalArt.BUTTON}
+          options={[locked === 1 ? 'Unlock' : 'Take-All']}
+          onMouseRepeat={() => {
+            retrievalButtonHover(1, primaryIcon, locked, label, feeLabel);
+          }}
+          onMouseLeave={() => {
+            retrievalButtonHover(0, primaryIcon, locked, label, feeLabel);
+          }}
+          onOptionSelect={(event) => {
+            pressRetrievalButton(event.self, primaryIcon, locked, label, feeLabel);
+          }}
+        />
+
+        <sprite
+          ref={primaryIcon}
+          x={{ right: 4 }}
+          y="center"
+          w={29}
+          h={22}
+          sprite={locked === 1 ? RetrievalArt.ICON_LOCKED : RetrievalArt.ICON_TAKE_ALL}
+        />
+
+        <sprite
+          x={{ right: 40 }}
+          y="center"
+          w={36}
+          h={36}
+          sprite={RetrievalArt.BUTTON}
+          hide={banking === 1 ? false : true}
+          options={['Bank-All']}
+          onMouseRepeat={() => {
+            retrievalButtonHover(1, bankIcon, 0, label, feeLabel);
+          }}
+          onMouseLeave={() => {
+            retrievalButtonHover(0, bankIcon, 0, label, feeLabel);
+          }}
+          onOptionSelect={(event) => {
+            pressRetrievalButton(event.self, bankIcon, 0, label, feeLabel);
+          }}
+        />
+        <sprite
+          ref={bankIcon}
+          x={{ right: 44 }}
+          y="center"
+          w={29}
+          h={22}
+          sprite={RetrievalArt.ICON_BANK_ALL}
+          hide={banking === 1 ? false : true}
+        />
+
+        <sprite
+          x={0}
+          y="center"
+          w={36}
+          h={36}
+          sprite={RetrievalArt.BUTTON}
+          options={['Discard-All']}
+          onMouseRepeat={() => {
+            retrievalButtonHover(1, discardIcon, 0, label, feeLabel);
+          }}
+          onMouseLeave={() => {
+            retrievalButtonHover(0, discardIcon, 0, label, feeLabel);
+          }}
+          onOptionSelect={(event) => {
+            pressRetrievalButton(event.self, discardIcon, 0, label, feeLabel);
+          }}
+        />
+        <sprite ref={discardIcon} x={3} y="center" w={29} h={22} sprite={RetrievalArt.ICON_DISCARD_ALL} />
+
+        <layer x={0} y={0} w={378} h={36} />
+        <sprite x={0} y={0} w={32} h={32} />
+
+        <text
+          ref={label}
+          x={40}
+          y="center"
+          w={banking === 1 ? { fill: 120 } : { fill: 80 }}
+          h="fill"
+          font={RetrievalFonts.LABEL}
+          color={RetrievalColor.LABEL}
+          lineHeight={Panel.LINE_HEIGHT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+
+        <text
+          ref={feeLabel}
+          x="center"
+          y="center"
+          w={{ fill: 80 }}
+          h="fill"
+          text={locked === 1 ? unlockFeeText(feeItem, fee, coffer) : ''}
+          hide
+          font={RetrievalFonts.LABEL}
+          color={RetrievalColor.LABEL}
+          lineHeight={Panel.LINE_HEIGHT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    </>
+  );
+}

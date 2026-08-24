@@ -1,0 +1,252 @@
+import { useRef, useServerState } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { OfferRow } from './offer-row.component';
+import { SelectButton } from './select-button.component';
+import { SigilSlot } from './sigil-slot.component';
+import {
+  Layout,
+  ScrollbarSprites as Bar,
+  SigilColor,
+  SigilFonts,
+  SigilTables,
+  SigilVarbits,
+  SigilVarps,
+  Transparency,
+} from './deadman-sigils.constants';
+import {
+  offerBody,
+  offerBodyHeight,
+  offerBodyPadded,
+  offerTitle,
+  offerTitleHeight,
+  slotBody,
+  slotTextHeight,
+  slotTitle,
+  slotTitleLines,
+} from './deadman-sigils.helpers';
+
+export function DeadmanSigils(): Component {
+  const offer1: Int = useServerState(SigilVarps.OFFER_1);
+  const offer2: Int = useServerState(SigilVarps.OFFER_2);
+  const offer3: Int = useServerState(SigilVarps.OFFER_3);
+  const attuned0: Int = useServerState(SigilVarbits.SLOT_0);
+  const attuned1: Int = useServerState(SigilVarbits.SLOT_1);
+  const attuned2: Int = useServerState(SigilVarbits.SLOT_2);
+
+  const offersPane = useRef();
+  const slotsPane = useRef();
+
+  const struct1: Row = SigilTables.SIGILS.get(offer1);
+  const title1: String = offerTitle(struct1);
+  const body1: String = offerBody(struct1);
+  const titleH1: Int = offerTitleHeight(title1);
+  const bodyH1: Int = offerBodyPadded(titleH1, offerBodyHeight(body1));
+  const rowH1: Int = titleH1 + bodyH1;
+
+  const struct2: Row = SigilTables.SIGILS.get(offer2);
+  const title2: String = offerTitle(struct2);
+  const body2: String = offerBody(struct2);
+  const titleH2: Int = offerTitleHeight(title2);
+  const bodyH2: Int = offerBodyPadded(titleH2, offerBodyHeight(body2));
+  const rowH2: Int = titleH2 + bodyH2;
+
+  const struct3: Row = SigilTables.SIGILS.get(offer3);
+  const title3: String = offerTitle(struct3);
+  const body3: String = offerBody(struct3);
+  const titleH3: Int = offerTitleHeight(title3);
+  const bodyH3: Int = offerBodyPadded(titleH3, offerBodyHeight(body3));
+  const rowH3: Int = titleH3 + bodyH3;
+
+  const rowY1: Int = Layout.OFFER_PAD + Layout.HEADING_H;
+  const rowY2: Int = rowY1 + rowH1;
+  const rowY3: Int = rowY2 + rowH2;
+  const offersContentH: Int = rowY3 + rowH3 + 2;
+
+  let offersHidden: Boolean = true;
+  let offersBoxH: Int = Layout.OFFER_BOX_DEF_H;
+  let offersScroll: Int = 0;
+  let offersReserve: Int = 0;
+  if (offer1 !== 0 || offer2 !== 0 || offer3 !== 0) {
+    offersHidden = false;
+    offersBoxH = Math.min(offersContentH, Layout.OFFER_BOX_MAX_H);
+    offersScroll = offersContentH > Layout.OFFER_BOX_MAX_H ? offersContentH : 0;
+    offersReserve = offersBoxH + Layout.OFFER_PAD;
+  }
+
+  const sigil0: Row = SigilTables.SIGILS.get(attuned0);
+  const sigil1: Row = SigilTables.SIGILS.get(attuned1);
+  const sigil2: Row = SigilTables.SIGILS.get(attuned2);
+
+  const slotTitle0: String = slotTitle(sigil0);
+  const slotTitle1: String = slotTitle(sigil1);
+  const slotTitle2: String = slotTitle(sigil2);
+  const slotTitleH: Int =
+    Layout.SLOT_TEXT_PAD +
+    Layout.SLOT_TEXT_LINE *
+      Math.max(Math.max(slotTitleLines(slotTitle0), slotTitleLines(slotTitle1)), slotTitleLines(slotTitle2));
+
+  const slotBody0: String = slotBody(sigil0);
+  const slotBody1: String = slotBody(sigil1);
+  const slotBody2: String = slotBody(sigil2);
+  const slotBodyH0: Int = slotTextHeight(slotBody0);
+  const slotBodyH1: Int = slotTextHeight(slotBody1);
+  const slotBodyH2: Int = slotTextHeight(slotBody2);
+
+  const slotsH: Int = Math.max(
+    Math.max(Layout.SLOT_TAIL + slotTitleH + slotBodyH0, Layout.SLOT_TAIL + slotTitleH + slotBodyH1),
+    Layout.SLOT_TAIL + slotTitleH + slotBodyH2,
+  );
+
+  const wanted: Int = Math.max(Layout.PANEL_H, slotsH + Layout.SLOT_BOX_RESERVE + offersReserve + Layout.PANEL_SLACK);
+  const panelH: Int = Math.min(Math.min(Layout.PANEL_MAX_H, Layout.PARENT_H - Layout.PARENT_INSET), wanted);
+  const slotsPaneH: Int = panelH - Layout.SLOT_BOX_RESERVE - offersReserve - 4;
+  const slotsScroll: Int = slotsH > slotsPaneH ? slotsH : 0;
+
+  return (
+    <layer x="center" y="center" w="fill" h={panelH}>
+      <SteelBorderEntrypoint title="Attuned Sigils" />
+
+      <layer x="center" y={Layout.OFFER_BOX_Y} w={{ fill: 20 }} h={offersBoxH} hide={offersHidden}>
+        <layer ref={offersPane} x={2} y="center" w={{ fill: 20 }} h={{ fill: 4 }} scrollHeight={offersScroll}>
+          <layer x="center" y="center" w="fill" h="fill">
+            {offersHidden === false && (
+              <>
+                <text
+                  x="center"
+                  y={Layout.OFFER_PAD}
+                  w={{ fill: 6 }}
+                  h={Layout.HEADING_H}
+                  text="First, choose a free sigil:"
+                  font={SigilFonts.BODY}
+                  color={SigilColor.LABEL}
+                  align="center"
+                  valign="middle"
+                  shadow
+                />
+                <OfferRow
+                  sigil={offer1}
+                  y={rowY1}
+                  transparency={Transparency.ROW_ODD}
+                  title={title1}
+                  titleH={titleH1}
+                  body={body1}
+                  bodyH={bodyH1}
+                  height={rowH1}
+                />
+                <OfferRow
+                  sigil={offer2}
+                  y={rowY2}
+                  transparency={Transparency.ROW_EVEN}
+                  title={title2}
+                  titleH={titleH2}
+                  body={body2}
+                  bodyH={bodyH2}
+                  height={rowH2}
+                />
+                <OfferRow
+                  sigil={offer3}
+                  y={rowY3}
+                  transparency={Transparency.ROW_ODD}
+                  title={title3}
+                  titleH={titleH3}
+                  body={body3}
+                  bodyH={bodyH3}
+                  height={rowH3}
+                />
+              </>
+            )}
+          </layer>
+
+          <SelectButton
+            x={Layout.OFFER_BUTTON_X}
+            y={rowY1 + (rowH1 - Layout.BUTTON_H) / 2}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+          />
+          <SelectButton
+            x={Layout.OFFER_BUTTON_X}
+            y={rowY2 + (rowH2 - Layout.BUTTON_H) / 2}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+          />
+          <SelectButton
+            x={Layout.OFFER_BUTTON_X}
+            y={rowY3 + (rowH3 - Layout.BUTTON_H) / 2}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+          />
+        </layer>
+
+        <layer x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+          <ScrollbarVertical
+            content={offersPane}
+            track={Bar.TRACK}
+            capTopSprite={Bar.CAP_TOP}
+            thumbSprite={Bar.THUMB}
+            capBottomSprite={Bar.CAP_BOTTOM}
+            arrowUp={Bar.ARROW_UP}
+            arrowDown={Bar.ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.SLOT_BOX_BOTTOM }}
+        w={{ fill: 20 }}
+        h={{ fill: Layout.SLOT_BOX_RESERVE + offersReserve }}
+      >
+        <layer ref={slotsPane} x={1} y="center" w={{ fill: 18 }} h={{ fill: 4 }} scrollHeight={slotsScroll}>
+          <layer x={0} y="bottom" w={Layout.SLOT_W} h="fill">
+            <SigilSlot
+              slot={0}
+              sigil={sigil0}
+              title={slotTitle0}
+              titleH={slotTitleH}
+              body={slotBody0}
+              bodyH={slotBodyH0}
+            />
+          </layer>
+          <layer x="center" y="bottom" w={Layout.SLOT_W} h="fill">
+            <SigilSlot
+              slot={1}
+              sigil={sigil1}
+              title={slotTitle1}
+              titleH={slotTitleH}
+              body={slotBody1}
+              bodyH={slotBodyH1}
+            />
+          </layer>
+          <layer x="right" y="bottom" w={Layout.SLOT_W} h="fill">
+            <SigilSlot
+              slot={2}
+              sigil={sigil2}
+              title={slotTitle2}
+              titleH={slotTitleH}
+              body={slotBody2}
+              bodyH={slotBodyH2}
+            />
+          </layer>
+        </layer>
+
+        <layer x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+          <ScrollbarVertical
+            content={slotsPane}
+            track={Bar.TRACK}
+            capTopSprite={Bar.CAP_TOP}
+            thumbSprite={Bar.THUMB}
+            capBottomSprite={Bar.CAP_BOTTOM}
+            arrowUp={Bar.ARROW_UP}
+            arrowDown={Bar.ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+    </layer>
+  );
+}

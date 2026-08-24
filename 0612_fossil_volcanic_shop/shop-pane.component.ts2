@@ -1,0 +1,79 @@
+import { useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ShopEntry } from './shop-entry.component';
+import { Colors, Frame, Layout, Shade, ShopBar, ShopStock, ShopVarbits } from './fossil-volcanic-shop.constants';
+
+export function ShopPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const paneWidth: Int = universe.width - Frame.PANE_W_INSET;
+  const paneHeight: Int = universe.height - Frame.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+  const rows: Int = (Layout.STOCK + 1) / 2;
+  const content: Int = rows * Layout.ROW_H;
+
+  const waterUnlocked: Int = useServerState(ShopVarbits.WATER_UNLOCKED);
+  const soilUnlocked: Int = useServerState(ShopVarbits.SOIL_UNLOCKED);
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Frame.PANE_X}
+        y="center"
+        w={{ fill: Frame.PANE_W_INSET }}
+        h={{ fill: Frame.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={content > paneHeight ? content : 0}
+      >
+        {ShopStock.map((item, index) => (
+          <ShopEntry
+            item={item}
+            index={index}
+            half={half}
+            paneWidth={paneWidth}
+            waterUnlocked={waterUnlocked}
+            soilUnlocked={soilUnlocked}
+          />
+        ))}
+
+        {Layout.STOCK % 2 === 1 ? (
+          <rect
+            x="right"
+            y={(rows - 1) * Layout.ROW_H}
+            w={{ fill: half }}
+            h={Layout.ROW_H}
+            color={Colors.CELL}
+            fill
+            transparency={(rows - 1) % 2 === 0 ? Shade.DARK : Shade.LIGHT}
+          />
+        ) : null}
+
+        {content <= paneHeight ? (
+          <rect
+            x="center"
+            y="bottom"
+            w="fill"
+            h={{ fill: content }}
+            color={Colors.FILLER}
+            fill
+            transparency={Shade.FILLER}
+          />
+        ) : null}
+      </layer>
+
+      <layer x={{ right: Frame.BAR_X }} y="center" w={Frame.BAR_W} h={{ fill: Frame.PANE_H_INSET }}>
+        <ScrollbarVertical
+          content={list}
+          track={ShopBar.TRACK}
+          capTopSprite={ShopBar.CAP_TOP}
+          thumbSprite={ShopBar.THUMB}
+          capBottomSprite={ShopBar.CAP_BOTTOM}
+          arrowUp={ShopBar.ARROW_UP}
+          arrowDown={ShopBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

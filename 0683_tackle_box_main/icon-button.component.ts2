@@ -1,0 +1,67 @@
+import { stopTimer, useRef } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Button, PRESS_CYCLES, TackleBoxSounds, Transparency } from './tackle-box-main.constants';
+
+function pressFor(button: ComponentId, pressedSkin: ComponentId, cycles: Int): void {
+  const restoreAt: Int = clientClock() + cycles;
+  pressedSkin.hide = false;
+  button.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    pressedSkin.hide = true;
+    stopTimer(button);
+  };
+}
+
+export function IconButton({ icon, label }: { icon: Sprite; label: String }): Component {
+  const me = useRef();
+  const glyph = useRef();
+  const pressed = useRef();
+
+  return (
+    <layer
+      ref={me}
+      w="fill"
+      h="fill"
+      options={[label]}
+      onMouseRepeat={() => {
+        glyph.transparency = Transparency.ICON_HOVER;
+      }}
+      onMouseLeave={() => {
+        glyph.transparency = Transparency.ICON_REST;
+      }}
+      onOptionSelect={() => {
+        playSound(TackleBoxSounds.CLICK);
+        pressFor(me, pressed, PRESS_CYCLES);
+      }}
+    >
+      <StoneButtonOutFilled>
+        <sprite
+          ref={glyph}
+          x="center"
+          y="center"
+          w={Button.ICON_W}
+          h={Button.ICON_H}
+          sprite={icon}
+          transparency={Transparency.ICON_REST}
+        />
+      </StoneButtonOutFilled>
+
+      <layer ref={pressed} hide w="fill" h="fill">
+        <StoneButtonPressedFilled>
+          <sprite
+            x="center"
+            y="center"
+            w={Button.ICON_W}
+            h={Button.ICON_H}
+            sprite={icon}
+            transparency={Transparency.ICON_REST}
+          />
+        </StoneButtonPressedFilled>
+      </layer>
+    </layer>
+  );
+}

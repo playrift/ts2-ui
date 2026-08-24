@@ -1,0 +1,98 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { clanButtonPressed } from '../lib/game/varcs';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import { StoneButtonDraw } from './stone-button.component';
+import {
+  CreationFonts,
+  CreationSounds,
+  CreationVarbits,
+  Layout,
+  StoneButtonFlags,
+} from './gim-creation-sidepanel.constants';
+
+const LIVE_LABEL = '<col=ff981f>Invite</col>';
+const FLAT_LABEL = '<col=808080>Invite</col>';
+const OPTION = 'Invite';
+
+export function InviteButton(): Component {
+  const gimLeader: Int = useServerState(CreationVarbits.GIM_LEADER);
+  const gimMember: Int = useServerState(CreationVarbits.GIM_MEMBER);
+  const founder: Int = useServerState(CreationVarbits.CLAN_FOUNDER);
+  const [targetMode, setTargetMode] = useState(clanButtonPressed);
+  const [hovered, setHovered] = useState(0);
+
+  setTargetMode(0);
+
+  const inTargetMode: Int = targetMode;
+  const hover: Int = hovered;
+  let skin: Int = hover;
+  if (inTargetMode === 1) {
+    skin = 1;
+  }
+
+  let group: Int = 0;
+  if (gimLeader === 1 || gimMember === 1) {
+    group = 1;
+  }
+
+  return (
+    <>
+      {gimLeader === 1 || founder === 1 ? (
+        <layer
+          x={Layout.NARROW_BUTTON_X}
+          y={{ bottom: Layout.BUTTON_ROW_TOP }}
+          w={Layout.NARROW_BUTTON_WIDTH}
+          h={Layout.BUTTON_HEIGHT}
+          options={[OPTION]}
+          spellTargets={['player']}
+          targetVerb={OPTION}
+          optionSubject=""
+          onMouseRepeat={() => {
+            if (!onMobile()) {
+              setHovered(1);
+            }
+          }}
+          onMouseLeave={() => setHovered(0)}
+          onTargetEnter={() => {
+            setTargetMode(1);
+            playSound(CreationSounds.CLICK);
+            chatMessage(`You're now in Invite Target Mode. ${textDevice('Left click', 'Tap')} someone to invite them.`);
+          }}
+          onTargetLeave={() => {
+            setTargetMode(0);
+            chatMessage("You're no longer in Invite Target Mode.");
+          }}
+        >
+          <StoneButtonDraw label={LIVE_LABEL} font={CreationFonts.BODY} pressed={skin} flags={StoneButtonFlags.PLAIN} />
+        </layer>
+      ) : (
+        <layer
+          x={Layout.NARROW_BUTTON_X}
+          y={{ bottom: Layout.BUTTON_ROW_TOP }}
+          w={Layout.NARROW_BUTTON_WIDTH}
+          h={Layout.BUTTON_HEIGHT}
+          options={[OPTION]}
+          spellTargets={['player']}
+          onOptionSelect={() => {
+            if (group === 1) {
+              inviteNotGroupLeader();
+            } else {
+              inviteNotLeader();
+            }
+          }}
+        >
+          <StoneButtonDraw label={FLAT_LABEL} font={CreationFonts.BODY} flags={StoneButtonFlags.PLAIN} />
+        </layer>
+      )}
+    </>
+  );
+}
+
+export function inviteNotLeader(): void {
+  chatMessage('Only the leader can do that.');
+}
+
+export function inviteNotGroupLeader(): void {
+  chatMessage('Only the group leader can do that.');
+}

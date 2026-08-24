@@ -1,0 +1,64 @@
+import { useInventory, useRef } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  Chest,
+  Fade,
+  Layout,
+  PartyDropColors,
+  PartyDropInventories,
+  PartyDropScrollbar,
+} from './partydrop-main.constants';
+
+function ChestSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  return (
+    <sprite
+      x={Chest.MARGIN + (slot % Chest.COLUMNS) * Chest.STRIDE_X}
+      y={(slot / Chest.COLUMNS) * Chest.STRIDE_Y}
+      w={Chest.W}
+      h={Chest.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={PartyDropColors.SLOT_SHADOW}
+      options={['', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Fade.PRESSED, Fade.REST);
+      }}
+    />
+  );
+}
+
+export function ChestPane(): Component {
+  const pane = useRef();
+  const chest = useInventory(PartyDropInventories.CHEST);
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y="center"
+        w={Layout.PANE_W}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={Chest.EXTENT}
+      >
+        {chest.map((item, slot) => item !== -1 && <ChestSlot item={item} count={chest.count(slot)} slot={slot} />)}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.PANE_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={PartyDropScrollbar.TRACK}
+          capTopSprite={PartyDropScrollbar.CAP_TOP}
+          thumbSprite={PartyDropScrollbar.THUMB}
+          capBottomSprite={PartyDropScrollbar.CAP_BOTTOM}
+          arrowUp={PartyDropScrollbar.ARROW_UP}
+          arrowDown={PartyDropScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

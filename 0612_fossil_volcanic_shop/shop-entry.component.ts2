@@ -1,0 +1,135 @@
+import { CS2 } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { opsound } from '../lib/lib.helpers';
+import { ccSetTransparency } from './cc-settrans';
+import { Colors, Layout, Shade, ShopFonts, ShopItems, ShopOps, ShopPrices } from './fossil-volcanic-shop.constants';
+
+export function ShopEntry({
+  item,
+  index,
+  half,
+  paneWidth,
+  waterUnlocked,
+  soilUnlocked,
+}: {
+  item: ItemName;
+  index: Int;
+  half: Int;
+  paneWidth: Int;
+  waterUnlocked: Int;
+  soilUnlocked: Int;
+}): Component {
+  const row: Int = index / 2;
+  const y: Int = row * Layout.ROW_H;
+  const shade: Int = index % 2 === row % 2 ? Shade.LIGHT : Shade.DARK;
+  const cellX: Int = index % 2 === 0 ? 0 : paneWidth - half;
+  const textWidth: Int = half - Layout.TEXT_X;
+  const price: Int = ShopPrices.get(item as Item);
+  const owned: Int =
+    item === ShopItems.HEAT_PROOF_VESSEL && waterUnlocked === 1
+      ? 1
+      : item === ShopItems.ASH_COVERED_TOME && soilUnlocked === 1
+        ? 1
+        : 0;
+
+  return (
+    <>
+      {item === ShopItems.HEAT_PROOF_VESSEL || item === ShopItems.ASH_COVERED_TOME ? (
+        <rect
+          x={index % 2 === 0 ? 0 : 'right'}
+          y={y}
+          w={index % 2 === 0 ? half : { fill: half }}
+          h={Layout.ROW_H}
+          color={Colors.CELL}
+          fill
+          transparency={shade}
+          options={[
+            'Value',
+            item === ShopItems.HEAT_PROOF_VESSEL ? 'Unlock' : 'Buy',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            'Examine',
+          ]}
+          optionSubject={`<col=ff9040>${itemName(item as Item)}</col>`}
+          onMouseEnter={(event) => ccSetTransparency(event.component, event.subId, Shade.HOVER)}
+          onMouseLeave={(event) => ccSetTransparency(event.component, event.subId, shade)}
+          onOptionSelect={(event) => opsound(event.option, ShopOps.CLICK_MASK)}
+        />
+      ) : (
+        <rect
+          x={index % 2 === 0 ? 0 : 'right'}
+          y={y}
+          w={index % 2 === 0 ? half : { fill: half }}
+          h={Layout.ROW_H}
+          color={Colors.CELL}
+          fill
+          transparency={shade}
+          options={['Value', 'Buy-1', 'Buy-5', 'Buy-10', 'Buy-50', 'Buy-X', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(item as Item)}</col>`}
+          onMouseEnter={(event) => ccSetTransparency(event.component, event.subId, Shade.HOVER)}
+          onMouseLeave={(event) => ccSetTransparency(event.component, event.subId, shade)}
+          onOptionSelect={(event) => opsound(event.option, ShopOps.CLICK_MASK)}
+        />
+      )}
+
+      <sprite
+        x={cellX + Layout.ICON_X}
+        y={y + Layout.ICON_INSET}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        item={CS2.item_uncert(item as Item)}
+        itemCount={-1}
+        outline={1}
+        shadowColor={Colors.ICON_SHADOW}
+      />
+
+      <text
+        x={cellX + Layout.TEXT_X}
+        y={y}
+        w={textWidth}
+        h={Layout.NAME_H}
+        text={
+          item === ShopItems.HEAT_PROOF_VESSEL
+            ? 'Large water container'
+            : item === ShopItems.ASH_COVERED_TOME
+              ? 'Ultra-fertile soil spell'
+              : itemName(item as Item)
+        }
+        font={ShopFonts.NAME}
+        color={Colors.NAME}
+        shadow
+        align="left"
+        valign="middle"
+      />
+
+      <text
+        x={cellX + Layout.TEXT_X}
+        y={y + Layout.NAME_H}
+        w={textWidth}
+        h={Layout.PRICE_H}
+        text={
+          owned === 1
+            ? '<col=ff0000>Already unlocked</col>'
+            : price > 1
+              ? `${groupDigits(price, ',')} points`
+              : price === 1
+                ? '1 point'
+                : price === 0
+                  ? 'Free'
+                  : 'Unavailable'
+        }
+        font={ShopFonts.PRICE}
+        color={Colors.PRICE}
+        shadow={owned === 1 ? false : true}
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}

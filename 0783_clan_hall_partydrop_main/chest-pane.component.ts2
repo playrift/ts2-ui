@@ -1,0 +1,78 @@
+import { CS2, intArray, useInventory, useRef } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  ClanPartyDropColors,
+  ClanPartyDropInventories,
+  ClanPartyDropScrollbar,
+  Chest,
+  Fade,
+  Layout,
+  OtherInventory,
+} from './clan-hall-partydrop-main.constants';
+
+function ChestSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  return (
+    <sprite
+      x={Chest.MARGIN + (slot % Chest.COLUMNS) * Chest.STRIDE_X}
+      y={(slot / Chest.COLUMNS) * Chest.STRIDE_Y}
+      w={Chest.W}
+      h={Chest.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={ClanPartyDropColors.SLOT_SHADOW}
+      options={['', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Fade.PRESSED, Fade.REST);
+      }}
+    />
+  );
+}
+
+export function ClanChestPane(): Component {
+  const pane = useRef();
+  const chest = useInventory(ClanPartyDropInventories.CHEST);
+  const slots: Int = chest.size;
+
+  const held = intArray<Item>(Chest.SLOTS);
+  let slot: Int = 0;
+  while (slot < slots) {
+    held[slot] = CS2.invother_item_get(OtherInventory.CHEST, slot);
+    slot = slot + 1;
+  }
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y="center"
+        w={Layout.PANE_W}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={Chest.EXTENT}
+      >
+        {held.map(
+          (item, index) =>
+            item !== -1 && (
+              <ChestSlot item={item} count={CS2.invother_num_get(OtherInventory.CHEST, index)} slot={index} />
+            ),
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.PANE_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ClanPartyDropScrollbar.TRACK}
+          capTopSprite={ClanPartyDropScrollbar.CAP_TOP}
+          thumbSprite={ClanPartyDropScrollbar.THUMB}
+          capBottomSprite={ClanPartyDropScrollbar.CAP_BOTTOM}
+          arrowUp={ClanPartyDropScrollbar.ARROW_UP}
+          arrowDown={ClanPartyDropScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

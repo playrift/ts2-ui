@@ -1,0 +1,92 @@
+import { useRef, useState } from 'ts2';
+
+import { magicToString, selectedQuantity } from '../0126_farming_tools_side/carried-tools.shared';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { flashFor } from '../lib/lib.components';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { itemName } from '../lib/lib.engine';
+import { storageGetCarried } from './ii-elnock-storage-side.carried';
+import { IconFlash, StorageColors, StorageEnums, StorageFonts, StorageSlot } from './ii-elnock-storage-side.constants';
+
+export function StorageToolSlot({ table, item, label }: { table: Enum; item: Item; label: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const icon = useRef();
+
+  const [total, shown] = storageGetCarried(table, item);
+
+  const color: Int = total > 0 ? StorageColors.HAVE : StorageColors.NONE;
+
+  const stackable: Int = StorageEnums.TOOL_QUANTITIES.get(item);
+  const [store1, store2, store3, store4] = storeOptions(stackable, selectedQuantity(table));
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+      options={[store1, store2, store3, store4, '', '', '', '', '', 'Examine']}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        flashFor(icon, IconFlash.PRESSED, IconFlash.CLEAR);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <text
+        x="center"
+        y={StorageSlot.CAPTION_Y}
+        w={{ fill: StorageSlot.CAPTION_INSET }}
+        h={StorageSlot.CAPTION_HEIGHT}
+        text={label}
+        font={StorageFonts.SLOT}
+        color={color}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <text
+        x={{ center: StorageSlot.COUNT_DX }}
+        y={{ center: StorageSlot.COUNT_DY }}
+        w={{ fill: StorageSlot.COUNT_INSET_X }}
+        h={{ fill: StorageSlot.COUNT_INSET_Y }}
+        text={magicToString(total)}
+        font={StorageFonts.SLOT}
+        color={color}
+        shadow
+        align="left"
+        valign="middle"
+      />
+
+      <sprite
+        ref={icon}
+        x={{ right: StorageSlot.ICON_RIGHT }}
+        y={{ bottom: StorageSlot.ICON_BOTTOM }}
+        w={StorageSlot.ICON_W}
+        h={StorageSlot.ICON_H}
+        item={shown}
+        itemCount={-1}
+        outline={StorageSlot.ICON_OUTLINE}
+        shadowColor={StorageColors.ICON_SHADOW}
+      />
+    </layer>
+  );
+}
+
+function storeOptions(stackable: Int, mode: Int): [String, String, String, String] {
+  if (stackable <= 1) {
+    return ['Store', '', '', ''];
+  }
+  switch (mode) {
+    case 0:
+      return ['Store-1', 'Store-5', 'Store-X', 'Store-All'];
+    case 1:
+      return ['Store-5', 'Store-1', 'Store-X', 'Store-All'];
+    case 3:
+      return ['Store-X', 'Store-1', 'Store-5', 'Store-All'];
+    case 2:
+      return ['Store-All', 'Store-1', 'Store-5', 'Store-X'];
+  }
+  return ['', '', '', ''];
+}

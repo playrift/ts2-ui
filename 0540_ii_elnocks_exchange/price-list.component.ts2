@@ -1,0 +1,194 @@
+import { CS2, useInventory, useUniverse } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { groupDigits } from '../lib/lib.format';
+import { Colors, ExchangeEnums, ExchangeFonts, ExchangeParams, Layout } from './elnocks-exchange.constants';
+
+const PRICE_ROWS = [1, 2, 3, 4];
+
+export function PriceList(): Component {
+  const universe = useUniverse();
+  const cellWidth: Int = universe.width / Layout.COLUMNS;
+  const rowHeight: Int = universe.height / Layout.ROWS;
+  const paneWidth: Int = universe.width;
+
+  return (
+    <>
+      {PRICE_ROWS.map((key, index) => (
+        <PriceRow
+          row={ExchangeEnums.PRICES.get(key)}
+          rowY={rowHeight * index}
+          cellWidth={cellWidth}
+          rowHeight={rowHeight}
+          paneWidth={paneWidth}
+        />
+      ))}
+    </>
+  );
+}
+
+function PriceRow({
+  row,
+  rowY,
+  cellWidth,
+  rowHeight,
+  paneWidth,
+}: {
+  row: Row;
+  rowY: Int;
+  cellWidth: Int;
+  rowHeight: Int;
+  paneWidth: Int;
+}): Component {
+  if (row === -1) {
+    return null;
+  }
+
+  if (row.int(ExchangeParams.ANY_IMPLING) === 1) {
+    return (
+      <>
+        <sprite
+          x={Layout.ANY_ICON_X}
+          y={rowY + Layout.ANY_ICON_Y}
+          w={Layout.PRICE_ICON}
+          h={Layout.PRICE_ICON}
+          sprite={row.sprite(ExchangeParams.SPRITE_1)}
+        />
+        <text
+          x={Layout.ANY_TEXT_X}
+          y={rowY}
+          w={paneWidth - Layout.ANY_TEXT_W_INSET}
+          h={rowHeight}
+          text={`x${stringOf(row.int(ExchangeParams.COUNT_1))} of any un-noted impling type`}
+          font={ExchangeFonts.LABEL}
+          color={Colors.LABEL}
+          shadow
+          align="left"
+          valign="middle"
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PriceCell
+        item={row.int(ExchangeParams.ITEM_1) as Item}
+        need={row.int(ExchangeParams.COUNT_1)}
+        icon={row.sprite(ExchangeParams.SPRITE_1)}
+        label={row.text(ExchangeParams.LABEL_1)}
+        plus={1}
+        cellX={cellWidth * 0}
+        rowY={rowY}
+        cellWidth={cellWidth}
+        rowHeight={rowHeight}
+      />
+      <PriceCell
+        item={row.int(ExchangeParams.ITEM_2) as Item}
+        need={row.int(ExchangeParams.COUNT_2)}
+        icon={row.sprite(ExchangeParams.SPRITE_2)}
+        label={row.text(ExchangeParams.LABEL_2)}
+        plus={1}
+        cellX={cellWidth * 1}
+        rowY={rowY}
+        cellWidth={cellWidth}
+        rowHeight={rowHeight}
+      />
+      <PriceCell
+        item={row.int(ExchangeParams.ITEM_3) as Item}
+        need={row.int(ExchangeParams.COUNT_3)}
+        icon={row.sprite(ExchangeParams.SPRITE_3)}
+        label={row.text(ExchangeParams.LABEL_3)}
+        plus={0}
+        cellX={cellWidth * 2}
+        rowY={rowY}
+        cellWidth={cellWidth}
+        rowHeight={rowHeight}
+      />
+    </>
+  );
+}
+
+function PriceCell({
+  item,
+  need,
+  icon,
+  label,
+  plus,
+  cellX,
+  rowY,
+  cellWidth,
+  rowHeight,
+}: {
+  item: Item;
+  need: Int;
+  icon: Sprite;
+  label: String;
+  plus: Int;
+  cellX: Int;
+  rowY: Int;
+  cellWidth: Int;
+  rowHeight: Int;
+}): Component {
+  const carried = useInventory(Inventories.INV);
+  const have: Int = carried.total(item) + carried.total(CS2.item_cert(item));
+
+  return (
+    <>
+      {icon !== -1 && (
+        <sprite
+          x={cellX + Layout.PRICE_ICON_X}
+          y={rowY + (rowHeight / 2 - Layout.PRICE_ICON_HALF)}
+          w={Layout.PRICE_ICON}
+          h={Layout.PRICE_ICON}
+          sprite={icon}
+        />
+      )}
+
+      <text
+        x={cellX + Layout.PRICE_TEXT_X}
+        y={rowY + Layout.PRICE_NAME_Y}
+        w={cellWidth - Layout.PRICE_TEXT_W_INSET}
+        h={rowHeight - Layout.PRICE_NAME_H_INSET}
+        text={label}
+        font={ExchangeFonts.LABEL}
+        color={Colors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <text
+        x={cellX + Layout.PRICE_TEXT_X}
+        y={rowY + Layout.PRICE_TALLY_Y}
+        w={cellWidth - Layout.PRICE_TEXT_W_INSET}
+        h={Layout.PRICE_TALLY_H}
+        text={
+          have <= Layout.TALLY_CAP
+            ? `${groupDigits(have, Layout.THOUSANDS)}/${stringOf(need)}`
+            : `${groupDigits(Layout.TALLY_CAP, Layout.THOUSANDS)}+/${stringOf(need)}`
+        }
+        font={ExchangeFonts.LABEL}
+        color={have >= need ? Colors.ENOUGH : Colors.SHORT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      {plus === 1 && (
+        <text
+          x={cellX + (cellWidth - Layout.PLUS_RIGHT)}
+          y={rowY + (rowHeight / 2 - Layout.GLYPH_HALF)}
+          w={Layout.GLYPH}
+          h={Layout.GLYPH}
+          text="+"
+          font={ExchangeFonts.OPERATOR}
+          color={Colors.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+    </>
+  );
+}

@@ -1,0 +1,51 @@
+import { CS2, useInventory } from 'ts2';
+
+import { MAX_INT, QuantityTable } from '../0126_farming_tools_side/carried-tools.shared';
+import { Inventories } from '../lib/game/inventories';
+import { StorageItems } from './ii-elnock-storage-side.constants';
+
+export function carriedOrWorn(item: Item): Int {
+  const carried = useInventory(Inventories.INV);
+  const worn = useInventory(Inventories.WORN);
+  let loose: Int = carried.total(item);
+  loose = loose + worn.total(item);
+  const noted: Item = CS2.item_cert(item);
+  if (noted === item) {
+    return loose;
+  }
+  const certs: Int = carried.total(noted);
+  if (MAX_INT - loose < certs) {
+    return MAX_INT;
+  }
+  return loose + certs;
+}
+
+export function elnockGetCarried(item: Item): [Int, Item] {
+  let magic: Int = 0;
+  let plain: Int = 0;
+
+  switch (item) {
+    case StorageItems.BUTTERFLY_NET:
+      magic = carriedOrWorn(StorageItems.MAGIC_BUTTERFLY_NET);
+      plain = carriedOrWorn(StorageItems.BUTTERFLY_NET);
+      if (magic > 0) {
+        if (MAX_INT - plain < magic) {
+          return [MAX_INT, StorageItems.MAGIC_BUTTERFLY_NET];
+        }
+        return [magic + plain, StorageItems.MAGIC_BUTTERFLY_NET];
+      }
+      return [plain, StorageItems.BUTTERFLY_NET];
+    case StorageItems.IMP_REPELLENT:
+      return [carriedOrWorn(StorageItems.IMP_REPELLENT), StorageItems.IMP_REPELLENT];
+    case StorageItems.IMPLING_JAR:
+      return [carriedOrWorn(StorageItems.IMPLING_JAR), StorageItems.IMPLING_JAR];
+  }
+  return [0, -1];
+}
+
+export function storageGetCarried(table: Enum, item: Item): [Int, Item] {
+  if (table === QuantityTable.ELNOCK_STORAGE) {
+    return elnockGetCarried(item);
+  }
+  return [0, -1];
+}

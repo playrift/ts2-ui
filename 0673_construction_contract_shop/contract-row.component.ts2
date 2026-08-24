@@ -1,0 +1,121 @@
+import { CS2, useRef } from 'ts2';
+import { membersWorld, textWidth } from '../lib/lib.engine';
+import { costPoints } from '../0645_br_reward_shop/pest-rewards.shared';
+import { refuseContract, selectContract } from './construction-contract-shop.state';
+import {
+  ContractColor,
+  ContractFonts,
+  ContractIcons,
+  ContractItems,
+  ContractLabels,
+  ContractLayout,
+} from './construction-contract-shop.constants';
+
+export function ContractRow({
+  index,
+  rowX,
+  rowY,
+  cellW,
+  selected,
+  points,
+  price,
+}: {
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+  selected: Int;
+  points: Int;
+  price: Int;
+}): Component {
+  const priceLine = useRef();
+
+  const listed: ItemName = ContractItems.at(index);
+  const icon: ItemName = listed === -1 ? ContractIcons.PLACEHOLDER : listed;
+  const label: String = ContractLabels.at(index);
+  const textW: Int = cellW - ContractLayout.TEXT_X;
+
+  const refusal: Int = CS2.item_members(icon as Item) === 1 && !membersWorld() ? 1 : points < price ? 2 : 0;
+
+  const refusalText: String =
+    refusal === 1
+      ? "You must be on a members' world to purchase that item."
+      : `You need ${costPoints(price)} to claim that reward.`;
+
+  const priceRest: Int =
+    selected === index ? ContractColor.SELECTED : refusal !== 0 ? ContractColor.BLOCKED : ContractColor.PRICE_REST;
+  const priceHover: Int =
+    selected === index ? ContractColor.SELECTED : refusal !== 0 ? ContractColor.BLOCKED : ContractColor.PRICE_HOVER;
+
+  return (
+    <>
+      <rect
+        x={rowX}
+        y={rowY}
+        w={cellW}
+        h={ContractLayout.ROW_H}
+        color={ContractColor.HIT}
+        fill
+        transparency={ContractLayout.HIT_TRANSPARENCY}
+        options={[label]}
+        onMouseRepeat={() => {
+          priceLine.color = priceHover;
+        }}
+        onMouseLeave={() => {
+          priceLine.color = priceRest;
+        }}
+        onOptionSelect={() => {
+          if (refusal === 0) {
+            selectContract(index);
+          } else {
+            refuseContract(refusalText);
+          }
+        }}
+      />
+
+      <sprite
+        x={rowX + ContractLayout.ICON_X}
+        y={rowY}
+        w={ContractLayout.ICON_W}
+        h={ContractLayout.ICON_H}
+        item={icon}
+        itemCount={-1}
+        outline={1}
+        shadowColor={ContractColor.ICON_SHADOW}
+      />
+
+      <text
+        x={rowX + ContractLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={ContractLayout.ROW_H}
+        text={label}
+        font={
+          textWidth(label, ContractLayout.MEASURE_W, ContractFonts.NAME) > textW
+            ? ContractFonts.PRICE
+            : ContractFonts.NAME
+        }
+        color={
+          refusal !== 0 ? ContractColor.BLOCKED : selected === index ? ContractColor.SELECTED : ContractColor.AVAILABLE
+        }
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      <text
+        ref={priceLine}
+        x={rowX + ContractLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={ContractLayout.ROW_H}
+        text={price > 0 ? costPoints(price) : 'Free'}
+        font={ContractFonts.PRICE}
+        color={priceRest}
+        shadow
+        align="left"
+        valign="bottom"
+      />
+    </>
+  );
+}

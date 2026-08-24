@@ -1,0 +1,108 @@
+import { useRef, useState } from 'ts2';
+
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { flashFor } from '../lib/lib.components';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { itemName } from '../lib/lib.engine';
+import { magicToString, QuantityTable, selectedQuantity } from './carried-tools.shared';
+import { farmingToolsGetCarried } from './farming-tools-side.carried';
+import {
+  FarmingItems,
+  FarmingToolsEnums,
+  FarmingToolsFonts,
+  IconFlash,
+  ToolColors,
+  ToolSlot,
+} from './farming-tools-side.constants';
+
+export function FarmingToolSlot({ item, label }: { item: Item; label: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const icon = useRef();
+
+  const [total, carried] = farmingToolsGetCarried(item);
+
+  const color: Int = total > 0 ? ToolColors.HAVE : ToolColors.NONE;
+
+  let shown: Item = carried;
+  let caption: String = label;
+  if (item === FarmingItems.WATERING_CAN) {
+    if (shown === -1) {
+      shown = FarmingItems.WATERING_CAN;
+    }
+    caption = itemName(shown);
+  }
+
+  const stackable: Int = FarmingToolsEnums.TOOL_QUANTITIES.get(item);
+  const [store1, store2, store3, store4] = storeOptions(stackable, selectedQuantity(QuantityTable.FARMING_TOOLS));
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+      options={[store1, store2, store3, store4, '', '', '', '', '', 'Examine']}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        flashFor(icon, IconFlash.PRESSED, IconFlash.CLEAR);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <text
+        x="center"
+        y={ToolSlot.CAPTION_Y}
+        w={{ fill: ToolSlot.CAPTION_INSET }}
+        h={ToolSlot.CAPTION_HEIGHT}
+        text={caption}
+        font={FarmingToolsFonts.SLOT}
+        color={color}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <text
+        x={{ center: ToolSlot.COUNT_DX }}
+        y={{ center: ToolSlot.COUNT_DY }}
+        w={{ fill: ToolSlot.COUNT_INSET_X }}
+        h={{ fill: ToolSlot.COUNT_INSET_Y }}
+        text={magicToString(total)}
+        font={FarmingToolsFonts.SLOT}
+        color={color}
+        shadow
+        align="left"
+        valign="middle"
+      />
+
+      <sprite
+        ref={icon}
+        x={{ right: ToolSlot.ICON_RIGHT }}
+        y={{ bottom: ToolSlot.ICON_BOTTOM }}
+        w={ToolSlot.ICON_W}
+        h={ToolSlot.ICON_H}
+        item={shown}
+        itemCount={-1}
+        outline={ToolSlot.ICON_OUTLINE}
+        shadowColor={ToolColors.ICON_SHADOW}
+      />
+    </layer>
+  );
+}
+
+function storeOptions(stackable: Int, mode: Int): [String, String, String, String] {
+  if (stackable <= 1) {
+    return ['Store', '', '', ''];
+  }
+  switch (mode) {
+    case 0:
+      return ['Store-1', 'Store-5', 'Store-X', 'Store-All'];
+    case 1:
+      return ['Store-5', 'Store-1', 'Store-X', 'Store-All'];
+    case 3:
+      return ['Store-X', 'Store-1', 'Store-5', 'Store-All'];
+    case 2:
+      return ['Store-All', 'Store-1', 'Store-5', 'Store-X'];
+  }
+  return ['', '', '', ''];
+}

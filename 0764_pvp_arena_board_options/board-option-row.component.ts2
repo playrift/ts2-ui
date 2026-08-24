@@ -1,0 +1,140 @@
+import { CS2, useRef, useServerState, useState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { openControl } from './board-options.state';
+import { paintDropdownControl } from './dropdown-control';
+import {
+  BoardOptionDataset,
+  BoardOptionsColor,
+  BoardOptionsFonts,
+  BoardOptionsLayout,
+  BoardOptionsSounds,
+  BoardOptionsSprites,
+  BoardOptionsVarps,
+  BoardOptionsWash,
+  BuildIcons,
+  BuildNames,
+  RankIcons,
+  RankNames,
+} from './pvp-arena-board-options.constants';
+
+export function BoardOptionRow({
+  index,
+  heading,
+  dataset,
+  bitStart,
+  bitEnd,
+}: {
+  index: Int;
+  heading: String;
+  dataset: Int;
+  bitStart: Int;
+  bitEnd: Int;
+}): Component {
+  const strip = useRef();
+  const chevron = useRef();
+  const value = useRef();
+
+  const editing: Int = useServerState(BoardOptionsVarps.EDITING);
+  const chosen: Int = CS2.bit_range_get(editing, bitStart, bitEnd);
+  const label: String = dataset === BoardOptionDataset.BUILDS ? BuildNames.at(chosen) : RankNames.at(chosen);
+  const icon: Sprite = dataset === BoardOptionDataset.BUILDS ? BuildIcons.at(chosen) : RankIcons.at(chosen);
+
+  const [open, setOpen] = useState(openControl);
+  let lit: Int = 0;
+  if (open === index) {
+    lit = 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        ref={strip}
+        x="center"
+        y="bottom"
+        w="fill"
+        h={BoardOptionsLayout.control.h}
+        sprite={BoardOptionsSprites.CONTROL}
+        tiling
+        transparency={lit === 1 ? BoardOptionsWash.CLEAR : BoardOptionsWash.OPAQUE}
+        onMouseEnter={() => {
+          if (lit !== 1 && !onMobile()) {
+            paintDropdownControl(strip, chevron, value, true);
+          }
+        }}
+        onMouseLeave={() => {
+          if (lit !== 1) {
+            paintDropdownControl(strip, chevron, value, false);
+          }
+        }}
+        onClick={() => {
+          playSound(BoardOptionsSounds.SELECT);
+          setOpen(index);
+        }}
+      />
+
+      <rect
+        x="center"
+        y="bottom"
+        w="fill"
+        h={BoardOptionsLayout.control.h}
+        fill={false}
+        color={BoardOptionsColor.CONTROL_EDGE}
+      />
+
+      <rect
+        x="center"
+        y={{ bottom: BoardOptionsLayout.control.innerBottom }}
+        w={{ fill: BoardOptionsLayout.control.innerInset }}
+        h={BoardOptionsLayout.control.innerH}
+        fill={false}
+        color={BoardOptionsColor.CONTROL_INNER}
+      />
+
+      <sprite
+        ref={chevron}
+        x={{ right: BoardOptionsLayout.chevron.right }}
+        y={{ bottom: BoardOptionsLayout.chevron.bottom }}
+        w={BoardOptionsLayout.chevron.size}
+        h={BoardOptionsLayout.chevron.size}
+        sprite={lit === 1 ? BoardOptionsSprites.ARROW_UP : BoardOptionsSprites.ARROW_DOWN}
+        transparency={BoardOptionsWash.OPAQUE}
+      />
+
+      <text
+        ref={value}
+        x={BoardOptionsLayout.value.withIcon.x}
+        y={{ bottom: BoardOptionsLayout.value.bottom }}
+        w={{ fill: BoardOptionsLayout.value.withIcon.inset }}
+        h={BoardOptionsLayout.value.h}
+        text={label}
+        font={BoardOptionsFonts.VALUE}
+        color={lit === 1 ? BoardOptionsColor.LABEL_HOT : BoardOptionsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={BoardOptionsLayout.icon.x}
+        y={{ bottom: BoardOptionsLayout.icon.bottom }}
+        w={BoardOptionsLayout.icon.size}
+        h={BoardOptionsLayout.icon.size}
+        sprite={icon}
+      />
+
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={{ fill: BoardOptionsLayout.heading.drop }}
+        text={`${heading}:`}
+        font={BoardOptionsFonts.LABEL}
+        color={BoardOptionsColor.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

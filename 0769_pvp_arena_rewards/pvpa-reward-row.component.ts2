@@ -1,0 +1,130 @@
+import { CS2, useRef } from 'ts2';
+import { membersWorld } from '../lib/lib.engine';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { costPoints } from '../0645_br_reward_shop/pest-rewards.shared';
+import { refusePvpaReward, selectPvpaReward } from './pvp-arena-rewards.state';
+import {
+  PvpaBodies,
+  PvpaColor,
+  PvpaCounts,
+  PvpaFonts,
+  PvpaIcons,
+  PvpaItems,
+  PvpaLayout,
+  PvpaWash,
+} from './pvp-arena-rewards.constants';
+
+export function PvpaRewardRow({
+  index,
+  rowY,
+  rowH,
+  titleH,
+  bodyH,
+  wrapWidth,
+  title,
+  selected,
+  points,
+  price,
+  mobile,
+}: {
+  index: Int;
+  rowY: Int;
+  rowH: Int;
+  titleH: Int;
+  bodyH: Int;
+  wrapWidth: Int;
+  title: String;
+  selected: Int;
+  points: Int;
+  price: Int;
+  mobile: Int;
+}): Component {
+  const wash = useRef();
+
+  const listed: ItemName = PvpaItems.at(index);
+  const icon: ItemName = listed === -1 ? PvpaIcons.PLACEHOLDER : listed;
+  const count: Int = PvpaCounts.at(index);
+  const body: String = PvpaBodies.at(index);
+
+  const refusal: Int = CS2.item_members(icon as Item) === 1 && !membersWorld() ? 1 : points < price ? 2 : 0;
+
+  const refusalText: String =
+    refusal === 1
+      ? "You must be on a members' world to purchase that item."
+      : `You need ${costPoints(price)} to claim that reward.`;
+
+  const washRest: Int = refusal === 0 && selected === index ? PvpaWash.SELECTED : PvpaWash.REST;
+
+  const priceColor: Int = refusal !== 0 ? PvpaColor.PRICE_BLOCKED : PvpaColor.PRICE_REST;
+
+  const washHover: Int = refusal === 0 && selected !== index && mobile === 0 ? PvpaWash.HOVER : washRest;
+
+  return (
+    <>
+      <rect
+        ref={wash}
+        x={0}
+        y={rowY}
+        w="fill"
+        h={rowH}
+        color={PvpaColor.CELL}
+        fill
+        transparency={washRest}
+        options={['Select']}
+        optionSubject={`<col=ff9040>${title}</col>`}
+        onMouseRepeat={() => ccSetTrans(wash, washHover)}
+        onMouseLeave={() => ccSetTrans(wash, washRest)}
+        onOptionSelect={() => {
+          if (refusal !== 0) {
+            refusePvpaReward(refusalText);
+          } else if (selected !== index) {
+            selectPvpaReward(index);
+          }
+        }}
+      />
+
+      <model x={0} y={rowY} w={PvpaLayout.MODEL_W} h={rowH} item={icon} itemCount={count === 1 ? -1 : count} />
+
+      <text
+        x={{ right: PvpaLayout.TEXT_RIGHT }}
+        y={rowY}
+        w={wrapWidth}
+        h={titleH}
+        text={title}
+        font={PvpaFonts.TITLE}
+        color={
+          refusal !== 0 ? PvpaColor.TITLE_BLOCKED : selected === index ? PvpaColor.TITLE_SELECTED : PvpaColor.TITLE_REST
+        }
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <text
+        x={{ right: PvpaLayout.TEXT_RIGHT }}
+        y={rowY + titleH}
+        w={wrapWidth}
+        h={bodyH}
+        text={body}
+        font={PvpaFonts.BODY}
+        color={PvpaColor.BODY}
+        shadow
+        align="left"
+        valign="middle"
+      />
+
+      <text
+        x={{ right: PvpaLayout.PRICE_RIGHT }}
+        y={rowY + rowH - PvpaLayout.PRICE_H}
+        w={wrapWidth}
+        h={PvpaLayout.PRICE_H}
+        text={price > 0 ? costPoints(price) : 'Free'}
+        font={PvpaFonts.TITLE}
+        color={priceColor}
+        shadow
+        align="left"
+        valign="top"
+      />
+    </>
+  );
+}

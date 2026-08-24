@@ -1,0 +1,132 @@
+import { useInventory, useState, useUniverse } from 'ts2';
+import { itemName, scaled } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { deadmanWorld } from './deadman-world.helpers';
+import {
+  DeadmanColor,
+  DeadmanFonts,
+  DeadmanInventories,
+  DeathType,
+  DeadmanWorld,
+  Fade,
+  HalfStack,
+  Layout,
+} from './deadmanprotect.constants';
+import { selectedTab } from './deadmanprotect.state';
+
+function bankLossHoldsAnything(): Boolean {
+  const lost = useInventory(DeadmanInventories.LOSE_DUMMY);
+  if (
+    lost[0] !== -1 ||
+    lost[1] !== -1 ||
+    lost[2] !== -1 ||
+    lost[3] !== -1 ||
+    lost[4] !== -1 ||
+    lost[5] !== -1 ||
+    lost[6] !== -1 ||
+    lost[7] !== -1 ||
+    lost[8] !== -1 ||
+    lost[9] !== -1 ||
+    lost[10] !== -1 ||
+    lost[11] !== -1 ||
+    lost[12] !== -1 ||
+    lost[13] !== -1 ||
+    lost[14] !== -1 ||
+    lost[15] !== -1 ||
+    lost[16] !== -1 ||
+    lost[17] !== -1 ||
+    lost[18] !== -1 ||
+    lost[19] !== -1 ||
+    lost[20] !== -1 ||
+    lost[21] !== -1 ||
+    lost[22] !== -1 ||
+    lost[23] !== -1 ||
+    lost[24] !== -1 ||
+    lost[25] !== -1 ||
+    lost[26] !== -1 ||
+    lost[27] !== -1
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function BankLossCell({
+  item,
+  count,
+  index,
+  originX,
+}: {
+  item: Item;
+  count: Int;
+  index: Int;
+  originX: Int;
+}): Component {
+  const shown: Int = Math.min(
+    count,
+    Math.max(HalfStack.FLOOR, scaled(HalfStack.NUMERATOR, HalfStack.DENOMINATOR, count)),
+  );
+
+  return (
+    <sprite
+      x={originX + (index % Layout.CELL_COLUMNS) * Layout.CELL_STRIDE_X}
+      y={Layout.CELL_ORIGIN_Y + (index / Layout.CELL_COLUMNS) * Layout.CELL_STRIDE_Y}
+      w={Layout.CELL_W}
+      h={Layout.CELL_H}
+      item={item}
+      itemCount={shown}
+      outline={1}
+      shadowColor={DeadmanColor.ITEM_SHADOW}
+      optionSubject={`<col=ff9040>${itemName(item)}`}
+      options={['Examine']}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Fade.PRESSED, Fade.REST);
+      }}
+    />
+  );
+}
+
+function bankLossVisible(tab: Int, world: Int): Boolean {
+  if (tab === DeathType.PVM) {
+    return false;
+  }
+  if (world !== DeadmanWorld.EVENT_HALF_BANK) {
+    return false;
+  }
+  return bankLossHoldsAnything();
+}
+
+export function BankLossList(): Component {
+  const [tab] = useState(selectedTab);
+  const world: Int = deadmanWorld();
+  const lost = useInventory(DeadmanInventories.LOSE_DUMMY);
+  const universe = useUniverse();
+
+  const originX: Int = (universe.width - Layout.GRID_W) / 2;
+
+  if (!bankLossVisible(tab, world)) {
+    return (
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text="None"
+        font={DeadmanFonts.BODY}
+        color={DeadmanColor.NONE_LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    );
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {lost.map(
+        (item, slot) =>
+          item !== -1 && <BankLossCell item={item} count={lost.count(slot)} index={slot} originX={originX} />,
+      )}
+    </layer>
+  );
+}

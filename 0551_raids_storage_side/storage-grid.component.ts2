@@ -1,0 +1,161 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { isDonatable } from './raids-storage-side.helpers';
+import {
+  FADE_CYCLES,
+  Grid,
+  Storage,
+  StorageColors,
+  StorageItems,
+  StorageSounds,
+  StorageVarbits,
+  Transparency,
+} from './raids-storage-side.constants';
+
+function StoredSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  const cell = useRef();
+
+  return (
+    <sprite
+      ref={cell}
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.CLEAR}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={['Store', 'Store-5', 'Store-10', 'Store-All', 'Store-X', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option === 10) {
+          return;
+        }
+        playSound(StorageSounds.SELECT);
+        flashFor(cell, Transparency.FLASH, Transparency.CLEAR);
+      }}
+    />
+  );
+}
+
+function BlankSlot({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={StorageItems.BLANK}
+      itemCount={1}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+    />
+  );
+}
+
+function DonatableSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  const cell = useRef();
+
+  return (
+    <sprite
+      ref={cell}
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.CLEAR}
+      options={['Donate', 'Donate-5', 'Donate-10', 'Donate-All', 'Donate-X', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option === 10) {
+          return;
+        }
+        playSound(StorageSounds.SELECT);
+        flashFor(cell, Transparency.FLASH, Transparency.CLEAR);
+      }}
+    />
+  );
+}
+
+function RefusedSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.REFUSED}
+      options={['', '', '', '', '', '', '', '', '', 'Donate']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+    />
+  );
+}
+
+function HiddenSlot({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      hide
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+    />
+  );
+}
+
+function StorageSlot({
+  item,
+  count,
+  slot,
+  privateStorage,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  privateStorage: Int;
+}): Component {
+  if (privateStorage === 1 && item === -1) {
+    return <BlankSlot slot={slot} />;
+  }
+  if (privateStorage === 1) {
+    return <StoredSlot item={item} count={count} slot={slot} />;
+  }
+  if (item === -1) {
+    return <HiddenSlot slot={slot} />;
+  }
+  if (isDonatable(item)) {
+    return <DonatableSlot item={item} count={count} slot={slot} />;
+  }
+  return <RefusedSlot item={item} count={count} slot={slot} />;
+}
+
+export function StorageGrid(): Component {
+  const bag = useInventory(Storage.INV);
+  const privateStorage: Int = useServerState(StorageVarbits.PRIVATE_STORAGE);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <StorageSlot item={item} count={bag.count(slot)} slot={slot} privateStorage={privateStorage} />
+      ))}
+    </layer>
+  );
+}

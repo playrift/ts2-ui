@@ -1,0 +1,53 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+
+export const MAX_INT = 2147483647;
+
+export function magicToString(value: Int): String {
+  if (value >= MAX_INT) {
+    return '*';
+  }
+  if (value >= 10000000) {
+    return `${stringOf(value / 1000000)}M`;
+  }
+  if (value >= 10000) {
+    return `${stringOf(value / 1000)}K`;
+  }
+  return stringOf(value);
+}
+
+export enum QuantityTable {
+  FARMING_TOOLS = 2193,
+  HALLOWED_TOOLS = 342,
+  ELNOCK_STORAGE = 2850,
+  DEPOSIT_BOX = 2737,
+}
+
+export function selectedQuantity(table: Enum): Int {
+  if (table === QuantityTable.FARMING_TOOLS || table === QuantityTable.HALLOWED_TOOLS) {
+    return useServerState(Varbits.FARMING_TOOLS_SELECTEDQUANTITY);
+  }
+  if (table === QuantityTable.ELNOCK_STORAGE) {
+    return useServerState(Varbits.II_ELNOCK_STORAGE_SELECTEDQUANTITY);
+  }
+  if (table === QuantityTable.DEPOSIT_BOX) {
+    return useServerState(Varbits.DEPOSITBOX_MODE);
+  }
+  return 0;
+}
+
+export function carriedTotal(item: Item): Int {
+  const carried = useInventory(Inventories.INV);
+  const loose: Int = carried.total(item);
+  const noted: Item = CS2.item_cert(item);
+  if (noted === item) {
+    return loose;
+  }
+  const certs: Int = carried.total(noted);
+  if (MAX_INT - loose < certs) {
+    return MAX_INT;
+  }
+  return loose + certs;
+}

@@ -1,0 +1,138 @@
+import { useServerState } from 'ts2';
+import { hasBit, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { Trophies, TROPHY_COUNT, Trophy } from './trophies.data';
+import {
+  Fade,
+  Layout,
+  TrophyArt,
+  TrophyColors,
+  TrophyFonts,
+  TrophySounds,
+  TrophyVarps,
+} from './poh-trophy-menu.constants';
+
+export function TrophyRow({ tier, title, min, max }: { tier: Int; title: String; min: Int; max: Int }): Component {
+  const unlockedTiers: Int = useServerState(TrophyVarps.TIERS);
+  const displayed: Int = useServerState(TrophyVarps.DISPLAYED);
+  const set: Int = useServerState(TrophyVarps.SET);
+  const owned: Int = useServerState(TrophyVarps.OWNED);
+
+  let highlightX: Int = -1;
+  let drawn: Int = 0;
+  let i: Int = 0;
+  while (i < TROPHY_COUNT) {
+    const trophy: Trophy = Trophies.at(i);
+    if (trophy.set === set && trophy.level >= min && trophy.level < max) {
+      if (trophy.id === displayed) {
+        highlightX = Layout.INSET + drawn * Layout.STRIDE;
+      }
+      drawn = drawn + 1;
+    }
+    i = i + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.BACKING_INSET }}
+        h={{ fill: Layout.BACKING_INSET }}
+        sprite={unlockedTiers >= tier ? TrophyArt.BACKING_UNLOCKED : TrophyArt.BACKING_LOCKED}
+        tiling
+      />
+
+      {highlightX !== -1 && (
+        <rect
+          x={highlightX - 2}
+          y={{ bottom: Layout.HIGHLIGHT_BOTTOM }}
+          w={Layout.HIGHLIGHT_WIDTH}
+          h={Layout.HIGHLIGHT_HEIGHT}
+          color={TrophyColors.HIGHLIGHT}
+          fill
+          transparency={Fade.HIGHLIGHT}
+        />
+      )}
+
+      {Trophies.filter((trophy) => trophy.set === set && trophy.level >= min && trophy.level < max).map(
+        (trophy, index) =>
+          hasBit(owned, trophy.id) ? (
+            <sprite
+              x={Layout.INSET + index * Layout.STRIDE}
+              y={{ bottom: Layout.ICON_BOTTOM }}
+              w={Layout.ICON_WIDTH}
+              h={Layout.ICON_HEIGHT}
+              item={trophy.item}
+              itemCount={1}
+              outline={1}
+              shadowColor={TrophyColors.ICON_SHADOW}
+              transparency={Fade.OWNED_REST}
+              options={['Display', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${trophy.label}</col>`}
+              onOptionSelect={(event) => {
+                if (event.option === 1) {
+                  playSound(TrophySounds.CLICK);
+                }
+                flashFor(event.self, Fade.OWNED_PRESSED, Fade.OWNED_REST);
+              }}
+            />
+          ) : (
+            <sprite
+              x={Layout.INSET + index * Layout.STRIDE}
+              y={{ bottom: Layout.ICON_BOTTOM }}
+              w={Layout.ICON_WIDTH}
+              h={Layout.ICON_HEIGHT}
+              item={trophy.item}
+              itemCount={1}
+              outline={1}
+              shadowColor={TrophyColors.ICON_SHADOW}
+              transparency={Fade.MISSING_REST}
+              options={['', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${trophy.label}</col>`}
+              onOptionSelect={(event) => {
+                if (event.option === 1) {
+                  playSound(TrophySounds.CLICK);
+                }
+                flashFor(event.self, Fade.MISSING_PRESSED, Fade.MISSING_REST);
+              }}
+            />
+          ),
+      )}
+
+      <text
+        x="center"
+        y="top"
+        w={{ fill: Layout.HEADING_INSET }}
+        h={Layout.HEADING_HEIGHT}
+        text={title}
+        font={TrophyFonts.HEADING}
+        color={TrophyColors.HEADING}
+        shadow
+        valign="bottom"
+      />
+
+      <ThinStoneBox />
+
+      {highlightX !== -1 && (
+        <>
+          <rect
+            x={highlightX - 2}
+            y={{ bottom: Layout.HIGHLIGHT_BOTTOM }}
+            w={Layout.HIGHLIGHT_WIDTH}
+            h={Layout.HIGHLIGHT_HEIGHT}
+            color={TrophyColors.HIGHLIGHT_OUTER}
+          />
+          <rect
+            x={highlightX - 1}
+            y={{ bottom: Layout.HIGHLIGHT_INNER_BOTTOM }}
+            w={Layout.HIGHLIGHT_INNER_WIDTH}
+            h={Layout.HIGHLIGHT_INNER_HEIGHT}
+            color={TrophyColors.HIGHLIGHT_INNER}
+          />
+        </>
+      )}
+    </layer>
+  );
+}

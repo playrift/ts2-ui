@@ -1,0 +1,25 @@
+import { CS2 } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { MAX_INT, Pulse, SEPARATOR } from './ge-pricechecker.constants';
+
+export function geOffersPulsate(target: ComponentId, epoch: Int, from: Int, to: Int): void {
+  const raw: Int = (clientClock() - epoch) % Pulse.PERIOD;
+  const phase: Int = raw >= Pulse.HALF ? Pulse.PERIOD - raw : raw;
+  target.transparency = from + CS2.interpolate(0, phase, 0, Pulse.HALF, to - from);
+}
+
+export function priceLabel(count: Int, price: Int): String {
+  const total: Int = MAX_INT / count < price ? MAX_INT : count * price;
+
+  if (count > 1) {
+    if (total >= 0) {
+      if (total < MAX_INT) {
+        return `${groupDigits(count, SEPARATOR)} x ${groupDigits(price, SEPARATOR)}<br>= ${groupDigits(total, SEPARATOR)}`;
+      }
+    }
+    return `${groupDigits(count, SEPARATOR)} x ${groupDigits(price, SEPARATOR)}`;
+  }
+
+  return groupDigits(price, SEPARATOR);
+}

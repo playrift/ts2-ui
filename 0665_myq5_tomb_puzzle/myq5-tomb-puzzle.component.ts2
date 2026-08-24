@@ -1,0 +1,244 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import { playSound } from '../lib/lib.engine';
+import { closeInterface, graphicSwapperUnlessMobile, onMobile } from '../lib/lib.helpers';
+import {
+  TOMB_CLUE_TEXT,
+  TOMB_FIVE,
+  TOMB_HOVER_TRANSPARENCY,
+  TOMB_RULERS,
+  TombArt,
+  TombColors,
+  TombFonts,
+  TombLayout,
+  TombPuzzleCompleted,
+  TombSounds,
+  TombVarps,
+} from './myq5-tomb-puzzle.constants';
+import {
+  cycleTile,
+  lineClue,
+  lineColor,
+  lineTotal,
+  tileState,
+  tombBoardSolved,
+  tombSolved,
+} from './myq5-tomb-puzzle.state';
+
+export function Myq5TombPuzzle(): Component {
+  return (
+    <>
+      <layer x="center" y="center" w={TombLayout.frame} h={TombLayout.frame}>
+        <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={TombArt.BACKDROP} tiling />
+
+        <layer x="center" y="center" w={TombLayout.plate} h={TombLayout.plate}>
+          <layer x="center" y={7} w={TombLayout.grid} h={TombLayout.ruler}>
+            {TOMB_RULERS.map((cell) => (
+              <text
+                x={cell.index * TombLayout.tile}
+                y={0}
+                w={TombLayout.tile}
+                h="fill"
+                text={cell.label}
+                font={TombFonts.LABEL}
+                color={TombColors.RULER}
+                shadow
+                align="center"
+                valign="middle"
+              />
+            ))}
+          </layer>
+
+          <layer x={6} y="center" w={TombLayout.ruler} h={TombLayout.grid}>
+            {TOMB_RULERS.map((cell) => (
+              <text
+                x={0}
+                y={cell.index * TombLayout.tile}
+                w="fill"
+                h={TombLayout.tile}
+                text={cell.label}
+                font={TombFonts.LABEL}
+                color={TombColors.RULER}
+                shadow
+                align="center"
+                valign="middle"
+              />
+            ))}
+          </layer>
+
+          <layer x="center" y={{ bottom: 3 }} w={TombLayout.grid} h={TombLayout.clue}>
+            {TOMB_FIVE.map((column) => (
+              <text
+                x={column * TombLayout.tile}
+                y={2}
+                w={TombLayout.tile}
+                h="fill"
+                text={TOMB_CLUE_TEXT}
+                font={TombFonts.LABEL}
+                color={TombColors.LABEL}
+                shadow
+                align="center"
+              />
+            ))}
+          </layer>
+
+          <layer x="center" y={{ bottom: 3 }} w={TombLayout.grid} h={TombLayout.clue}>
+            <TombColumnTotals />
+          </layer>
+
+          <layer x={{ right: 2 }} y="center" w={TombLayout.clue} h={TombLayout.grid}>
+            {TOMB_FIVE.map((row) => (
+              <text
+                x={0}
+                y={5 + row * TombLayout.tile}
+                w="fill"
+                h={TombLayout.tile}
+                text={TOMB_CLUE_TEXT}
+                font={TombFonts.LABEL}
+                color={TombColors.LABEL}
+                shadow
+                align="center"
+              />
+            ))}
+          </layer>
+
+          <layer x={{ right: 2 }} y="center" w={TombLayout.clue} h={TombLayout.grid}>
+            <TombRowTotals />
+          </layer>
+
+          <layer x="center" y="center" w={TombLayout.grid} h={TombLayout.grid}>
+            <TombGrid />
+          </layer>
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <layer
+        x={{ center: TombLayout.close.x }}
+        y={{ center: TombLayout.close.y }}
+        w={TombLayout.close.w}
+        h={TombLayout.close.h}
+        options={['Close']}
+        onOptionSelect={() => closeInterface()}
+      >
+        <sprite
+          x={TombLayout.closeIcon.x}
+          y="center"
+          w={TombLayout.closeIcon.w}
+          h={TombLayout.closeIcon.h}
+          sprite={TombArt.CLOSE}
+          onMouseEnter={(event) => graphicSwapperUnlessMobile(event.component, TombArt.CLOSE_HOVER)}
+          onMouseLeave={(event) => graphicSwapperUnlessMobile(event.component, TombArt.CLOSE)}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function TombGrid(): Component {
+  const marked: Int = useServerState(TombVarps.TILE_MARKED);
+  const flagged: Int = useServerState(TombVarps.TILE_FLAGGED);
+  const [hovered, setHovered] = useState(-1);
+
+  const highlight: Int = onMobile() ? -1 : hovered;
+
+  predictServerState(TombPuzzleCompleted, tombBoardSolved(marked, flagged) ? 1 : 0);
+
+  return (
+    <>
+      {TOMB_FIVE.map((row) =>
+        TOMB_FIVE.map((column) => (
+          <sprite
+            x={column * TombLayout.tile}
+            y={row * TombLayout.tile}
+            w={TombLayout.tile}
+            h={TombLayout.tile}
+            sprite={tileSprite(tileState(marked, flagged, row * 5 + column), highlight, row * 5 + column)}
+            transparency={highlight === row * 5 + column ? TOMB_HOVER_TRANSPARENCY : 0}
+            options={['Toggle']}
+            onOptionSelect={() => {
+              if (tombSolved()) {
+                return;
+              }
+              playSound(TombSounds.TOGGLE);
+              cycleTile(row * 5 + column);
+            }}
+            onMouseRepeat={() => setHovered(row * 5 + column)}
+            onMouseLeave={() => setHovered(-1)}
+          />
+        )),
+      )}
+    </>
+  );
+}
+
+export function tileSprite(state: Int, highlight: Int, index: Int): Sprite {
+  if (highlight === index) {
+    if (state === 1) {
+      return TombArt.TILE_FLAGGED_HOVER;
+    }
+    if (state === 2) {
+      return TombArt.TILE_MARKED_HOVER;
+    }
+    return TombArt.TILE_BLANK_HOVER;
+  }
+  if (state === 1) {
+    return TombArt.TILE_FLAGGED;
+  }
+  if (state === 2) {
+    return TombArt.TILE_MARKED;
+  }
+  return TombArt.TILE_BLANK;
+}
+
+export function TombColumnTotals(): Component {
+  const marked: Int = useServerState(TombVarps.TILE_MARKED);
+  const flagged: Int = useServerState(TombVarps.TILE_FLAGGED);
+  const clue: Int = lineClue();
+
+  return (
+    <>
+      {TOMB_FIVE.map((column) => (
+        <text
+          x={column * TombLayout.tile}
+          y={0}
+          w={TombLayout.tile}
+          h="fill"
+          text={`(${stringOf(lineTotal(marked, flagged, column))})`}
+          color={lineColor(lineTotal(marked, flagged, column), clue)}
+          font={TombFonts.LABEL}
+          shadow
+          align="center"
+          valign="bottom"
+        />
+      ))}
+    </>
+  );
+}
+
+export function TombRowTotals(): Component {
+  const marked: Int = useServerState(TombVarps.TILE_MARKED);
+  const flagged: Int = useServerState(TombVarps.TILE_FLAGGED);
+  const clue: Int = lineClue();
+
+  return (
+    <>
+      {TOMB_FIVE.map((row) => (
+        <text
+          x={0}
+          y={row * TombLayout.tile}
+          w="fill"
+          h={TombLayout.tile}
+          text={`(${stringOf(lineTotal(marked, flagged, row + 5))})`}
+          color={lineColor(lineTotal(marked, flagged, row + 5), clue)}
+          font={TombFonts.LABEL}
+          shadow
+          align="center"
+          valign="bottom"
+        />
+      ))}
+    </>
+  );
+}

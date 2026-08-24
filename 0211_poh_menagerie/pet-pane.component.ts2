@@ -1,0 +1,130 @@
+import { intArray, useInventory, useRef, useServerState } from 'ts2';
+import { hasBit, itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  Fade,
+  Grid,
+  MenagerieBar,
+  MenagerieColors,
+  MenagerieInventories,
+  MenagerieSounds,
+  MenagerieVarps,
+  StoredPets,
+} from './poh-menagerie.constants';
+
+export function PetPane(): Component {
+  const ownedLow: Int = useServerState(MenagerieVarps.OWNED_0_31);
+  const ownedMid: Int = useServerState(MenagerieVarps.OWNED_32_62);
+  const ownedHigh: Int = useServerState(MenagerieVarps.OWNED_63_93);
+  const stored = useInventory(MenagerieInventories.PETS);
+
+  const list = useRef();
+
+  const tableSlot = intArray(67);
+  const inventorySlot = intArray(12);
+
+  let drawn: Int = 0;
+  let row: Int = 0;
+  while (row < Grid.TABLE_ROWS) {
+    if (
+      (row < Grid.BITS_0_31 && hasBit(ownedLow, row)) ||
+      (row >= Grid.BITS_0_31 && row < Grid.BITS_32_62 && hasBit(ownedMid, row - Grid.BITS_0_31)) ||
+      (row >= Grid.BITS_32_62 && hasBit(ownedHigh, row - Grid.BITS_32_62))
+    ) {
+      tableSlot[row] = drawn;
+      drawn = drawn + 1;
+    } else {
+      tableSlot[row] = -1;
+    }
+    row = row + 1;
+  }
+
+  let slot: Int = 0;
+  while (slot < Grid.INVENTORY_SLOTS) {
+    if (stored[slot] !== -1) {
+      inventorySlot[slot] = drawn;
+      drawn = drawn + 1;
+    } else {
+      inventorySlot[slot] = -1;
+    }
+    slot = slot + 1;
+  }
+
+  const extent: Int = drawn > 0 ? ((drawn - 1) / Grid.COLUMNS) * Grid.ROW_STEP + Grid.TAIL : 0;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={3}
+        y={21}
+        w={Grid.LIST_WIDTH}
+        h={Grid.LIST_HEIGHT}
+        scrollHeight={extent > Grid.LIST_HEIGHT ? extent : 0}
+      >
+        {StoredPets.map(
+          (pet, index) =>
+            tableSlot[index] !== -1 && (
+              <sprite
+                x={Grid.STRIDE * (tableSlot[index] % Grid.COLUMNS)}
+                y={(tableSlot[index] / Grid.COLUMNS) * Grid.ROW_STEP}
+                w={Grid.ICON_WIDTH}
+                h={Grid.ICON_HEIGHT}
+                item={pet}
+                itemCount={1}
+                outline={1}
+                shadowColor={MenagerieColors.ICON_SHADOW}
+                options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+                optionSubject={`<col=ff9040>${itemName(pet as Item)}</col>`}
+                onOptionSelect={(event) => {
+                  if (event.option !== 1) {
+                    return;
+                  }
+                  playSound(MenagerieSounds.CLICK);
+                  flashFor(event.self, Fade.PRESSED, Fade.REST);
+                }}
+              />
+            ),
+        )}
+
+        {stored.map(
+          (item, index) =>
+            inventorySlot[index] !== -1 && (
+              <sprite
+                x={Grid.STRIDE * (inventorySlot[index] % Grid.COLUMNS)}
+                y={(inventorySlot[index] / Grid.COLUMNS) * Grid.ROW_STEP}
+                w={Grid.ICON_WIDTH}
+                h={Grid.ICON_HEIGHT}
+                item={item}
+                itemCount={1}
+                outline={1}
+                shadowColor={MenagerieColors.ICON_SHADOW}
+                options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+                optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                onOptionSelect={(event) => {
+                  if (event.option !== 1) {
+                    return;
+                  }
+                  playSound(MenagerieSounds.CLICK);
+                  flashFor(event.self, Fade.PRESSED, Fade.REST);
+                }}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={261} y={21} w={16} h={Grid.LIST_HEIGHT}>
+        <ScrollbarVertical
+          content={list}
+          track={MenagerieBar.TRACK}
+          capTopSprite={MenagerieBar.CAP_TOP}
+          thumbSprite={MenagerieBar.THUMB}
+          capBottomSprite={MenagerieBar.CAP_BOTTOM}
+          arrowUp={MenagerieBar.ARROW_UP}
+          arrowDown={MenagerieBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

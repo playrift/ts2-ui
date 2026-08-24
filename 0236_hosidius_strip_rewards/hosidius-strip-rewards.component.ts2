@@ -1,0 +1,483 @@
+import { CS2, onUpdated, useServerState, useSkillBase } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { itemName, playSound } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { RewardItemCell } from './reward-item-cell.component';
+import { RewardPriceCell } from './reward-price-cell.component';
+import {
+  CAN_ICON_SHADOW,
+  CanRecharge,
+  OPSOUND_MASK,
+  RewardPrices,
+  RewardStock,
+  Skills,
+  TitheColor,
+  TitheCost,
+  TitheFonts,
+  TitheGrid,
+  TitheItems,
+  TitheLayout,
+  TitheScene,
+  TitheSounds,
+  TitheSprites,
+  TitheVarbits,
+  TitheVarps,
+} from './hosidius-strip-rewards.constants';
+
+export function HosidiusStripRewards(): Component {
+  onUpdated(() => {
+    playSound(TitheSounds.REFRESH);
+  });
+
+  const points = useServerState(TitheVarbits.POINTS);
+  const canCharge = useServerState(TitheVarps.CAN_CHARGE);
+  const hasCan = useServerState(TitheVarps.HAS_CAN);
+  const hasSeedBox = useServerState(TitheVarps.HAS_SEED_BOX);
+  const female = useServerState(TitheVarps.FEMALE);
+  const hasHerbSack = useServerState(TitheVarps.HAS_HERB_SACK);
+  const autoWeed = useServerState(TitheVarbits.AUTO_WEED);
+  const evilGrapes = useServerState(TitheVarbits.EVIL_GRAPES);
+  const herblore = useSkillBase(Skills.HERBLORE);
+
+  const canCost: Int =
+    hasCan > 0
+      ? CanRecharge.FULL_PRICE - CS2.interpolate(0, canCharge, 0, CanRecharge.FULL_CHARGE, CanRecharge.FULL_PRICE)
+      : TitheCost.BUY_CAN;
+
+  const hatItem: Item = female === 1 ? TitheItems.HAT_FEMALE : TitheItems.HAT_MALE;
+  const torsoItem: Item = female === 1 ? TitheItems.TORSO_FEMALE : TitheItems.TORSO_MALE;
+  const legsItem: Item = female === 1 ? TitheItems.LEGS_FEMALE : TitheItems.LEGS_MALE;
+  const feetItem: Item = female === 1 ? TitheItems.FEET_FEMALE : TitheItems.FEET_MALE;
+
+  const hatCost: Int = RewardPrices.get(TitheItems.HAT_FEMALE);
+  const torsoCost: Int = RewardPrices.get(TitheItems.TORSO_FEMALE);
+  const legsCost: Int = RewardPrices.get(TitheItems.LEGS_FEMALE);
+  const feetCost: Int = RewardPrices.get(TitheItems.FEET_FEMALE);
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title="Farmer Gricoller's Rewards" />
+      </layer>
+
+      <model
+        x={TitheLayout.SCENE_X}
+        y={TitheLayout.SCENE_Y}
+        w={TitheLayout.SCENE_W}
+        h={TitheLayout.SCENE_H}
+        model={TitheScene.MODEL}
+        zoom={TitheScene.ZOOM}
+        pitch={TitheScene.PITCH}
+        yaw={TitheScene.YAW}
+        roll={TitheScene.ROLL}
+        offsetX={TitheScene.OFFSET_X}
+        offsetY={TitheScene.OFFSET_Y}
+      />
+
+      <text
+        x="center"
+        y={TitheLayout.POINTS_Y}
+        w={TitheLayout.POINTS_W}
+        h={TitheLayout.POINTS_H}
+        font={TitheFonts.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+        color={TitheColor.LABEL}
+        text={`Points: ${groupDigits(points, ',')}`}
+      />
+
+      <layer x="center" y={TitheLayout.GRID_Y} w={TitheLayout.GRID_W} h={TitheLayout.GRID_H}>
+        {RewardStock.filter((name) => name !== TitheItems.GRAPE_BLESSING || evilGrapes >= TitheGrid.GRAPES_MIN).map(
+          (name, i) => (
+            <RewardItemCell
+              name={name}
+              col={i % TitheGrid.COLUMNS}
+              rowY={(i / TitheGrid.COLUMNS) * TitheGrid.ROW_STEP}
+            />
+          ),
+        )}
+      </layer>
+
+      <layer x="center" y={TitheLayout.GRID_Y} w={TitheLayout.GRID_W} h={TitheLayout.GRID_H}>
+        {RewardStock.filter((name) => name !== TitheItems.GRAPE_BLESSING || evilGrapes >= TitheGrid.GRAPES_MIN).map(
+          (name, i) => (
+            <RewardPriceCell
+              name={name}
+              points={points}
+              col={i % TitheGrid.COLUMNS}
+              rowY={(i / TitheGrid.COLUMNS) * TitheGrid.ROW_STEP}
+            />
+          ),
+        )}
+      </layer>
+
+      <layer
+        x={TitheLayout.CAN_X}
+        y={{ bottom: TitheLayout.PLATE_BOTTOM }}
+        w={TitheLayout.PLATE_W}
+        h={TitheLayout.PLATE_H}
+        options={['', '', '', '', '', hasCan > 0 ? 'Recharge' : 'Buy', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(TitheItems.CAN)}</col>`}
+        onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+      >
+        <text
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.HEADING}
+          align="center"
+          valign="middle"
+          shadow
+          color={TitheColor.LABEL}
+          text="Gricoller's can:"
+        />
+        <sprite
+          x="center"
+          y="center"
+          w={TitheLayout.ICON_W}
+          h={TitheLayout.ICON_H}
+          item={TitheItems.CAN}
+          itemCount={1}
+          outline={1}
+          shadowColor={CAN_ICON_SHADOW}
+        />
+        <text
+          x="center"
+          y="bottom"
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.PRICE}
+          align="center"
+          valign="middle"
+          shadow
+          color={points < canCost ? TitheColor.RED : TitheColor.WHITE}
+          text={hasCan > 0 ? `Recharge can: ${stringOf(canCost)}` : `Buy can: ${stringOf(canCost)}`}
+        />
+      </layer>
+
+      <layer
+        x={{ center: TitheLayout.SEED_BOX_X }}
+        y={{ bottom: TitheLayout.PLATE_BOTTOM }}
+        w={TitheLayout.PLATE_W}
+        h={TitheLayout.PLATE_H}
+        options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(TitheItems.SEED_BOX)}</col>`}
+        onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+      >
+        <text
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.HEADING}
+          align="center"
+          valign="middle"
+          shadow
+          color={TitheColor.LABEL}
+          text="Seed box:"
+        />
+        <text
+          y="bottom"
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.PRICE}
+          align="center"
+          valign="middle"
+          shadow
+          color={hasSeedBox > 0 || points < TitheCost.SEED_BOX ? TitheColor.RED : TitheColor.WHITE}
+          text={hasSeedBox > 0 ? 'Already owned' : `Buy seed box: ${stringOf(TitheCost.SEED_BOX)}`}
+        />
+        <sprite
+          x="center"
+          y="center"
+          w={TitheLayout.ICON_W}
+          h={TitheLayout.ICON_H}
+          item={TitheItems.SEED_BOX}
+          itemCount={1}
+          outline={1}
+        />
+      </layer>
+
+      <layer
+        x={{ center: TitheLayout.HERB_SACK_X }}
+        y={{ bottom: TitheLayout.PLATE_BOTTOM }}
+        w={TitheLayout.PLATE_W}
+        h={TitheLayout.PLATE_H}
+        options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(TitheItems.HERB_SACK)}</col>`}
+        onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+      >
+        <text
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.HEADING}
+          align="center"
+          valign="middle"
+          shadow
+          color={TitheColor.LABEL}
+          text="Herb sack:"
+        />
+        <text
+          y="bottom"
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.PRICE}
+          align="center"
+          valign="middle"
+          shadow
+          color={
+            hasHerbSack > 0 || points < TitheCost.HERB_SACK || herblore < TitheCost.HERB_SACK_HERBLORE
+              ? TitheColor.RED
+              : TitheColor.WHITE
+          }
+          text={hasHerbSack > 0 ? 'Already owned' : `Buy herb sack: ${stringOf(TitheCost.HERB_SACK)}`}
+        />
+        <sprite
+          x="center"
+          y="center"
+          w={TitheLayout.ICON_W}
+          h={TitheLayout.ICON_H}
+          item={TitheItems.HERB_SACK}
+          itemCount={1}
+          outline={1}
+        />
+      </layer>
+
+      <layer
+        x={{ right: TitheLayout.AUTO_WEED_RIGHT }}
+        y={{ bottom: TitheLayout.PLATE_BOTTOM }}
+        w={TitheLayout.PLATE_W}
+        h={TitheLayout.PLATE_H}
+        options={[
+          '',
+          '',
+          '',
+          '',
+          '',
+          autoWeed === 0 ? 'Buy' : autoWeed === 1 ? 'Activate' : 'Deactivate',
+          '',
+          '',
+          '',
+          'Examine',
+        ]}
+        optionSubject="<col=ff9040>Auto-weed</col>"
+        onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+      >
+        <text
+          x="center"
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.HEADING}
+          align="center"
+          valign="middle"
+          shadow
+          color={TitheColor.LABEL}
+          text="Auto-weed"
+        />
+        <text
+          x="center"
+          y="bottom"
+          w="fill"
+          h={TitheLayout.PLATE_TEXT_H}
+          font={TitheFonts.PRICE}
+          align="center"
+          valign="middle"
+          shadow
+          color={
+            autoWeed === 0
+              ? points < TitheCost.AUTO_WEED
+                ? TitheColor.RED
+                : TitheColor.WHITE
+              : autoWeed === 1
+                ? TitheColor.RED
+                : TitheColor.WHITE
+          }
+          text={
+            autoWeed === 0
+              ? `Buy Auto-weed: ${stringOf(TitheCost.AUTO_WEED)}`
+              : autoWeed === 1
+                ? 'Deactivated'
+                : 'Activated'
+          }
+        />
+        <sprite
+          x="center"
+          y="center"
+          w={TitheLayout.ICON_W}
+          h={TitheLayout.ICON_H}
+          item={TitheItems.SEED_BOX}
+          itemCount={1}
+          outline={1}
+        />
+        {autoWeed !== 0 && (
+          <sprite
+            x={{ right: TitheLayout.INDICATOR_RIGHT }}
+            y={TitheLayout.INDICATOR_Y}
+            w={TitheLayout.INDICATOR}
+            h={TitheLayout.INDICATOR}
+            tiling
+            sprite={autoWeed === 1 ? TitheSprites.CROSS : TitheSprites.TICK}
+          />
+        )}
+      </layer>
+
+      <layer
+        x={{ right: TitheLayout.OUTFIT_RIGHT }}
+        y={TitheLayout.OUTFIT_Y}
+        w={TitheLayout.OUTFIT_W}
+        h={TitheLayout.OUTFIT_H}
+      >
+        <text
+          x="center"
+          w="fill"
+          h={TitheLayout.OUTFIT_TITLE_H}
+          font={TitheFonts.HEADING}
+          align="center"
+          valign="middle"
+          shadow
+          color={TitheColor.LABEL}
+          text="Farmer's outfit"
+        />
+
+        <layer
+          x="center"
+          y={TitheLayout.OUTFIT_ROW_1_Y}
+          w="fill"
+          h={TitheLayout.OUTFIT_ROW_H}
+          options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(hatItem)}</col>`}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        >
+          <text
+            x={{ right: 0 }}
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.HEADING}
+            align="center"
+            valign="middle"
+            shadow
+            color={TitheColor.LABEL}
+            text="Farmer's hat"
+          />
+          <text
+            x={{ right: 0 }}
+            y="bottom"
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.PRICE}
+            align="center"
+            valign="middle"
+            shadow
+            color={points < hatCost ? TitheColor.RED : TitheColor.WHITE}
+            text={`Buy hat: ${stringOf(hatCost)}`}
+          />
+          <sprite y="center" w={TitheLayout.ICON_W} h={TitheLayout.ICON_H} item={hatItem} itemCount={1} outline={1} />
+        </layer>
+
+        <layer
+          x="center"
+          y={TitheLayout.OUTFIT_ROW_2_Y}
+          w="fill"
+          h={TitheLayout.OUTFIT_ROW_H}
+          options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(torsoItem)}</col>`}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        >
+          <text
+            x={{ right: 0 }}
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.HEADING}
+            align="center"
+            valign="middle"
+            shadow
+            color={TitheColor.LABEL}
+            text="Farmer's torso"
+          />
+          <text
+            x={{ right: 0 }}
+            y="bottom"
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.PRICE}
+            align="center"
+            valign="middle"
+            shadow
+            color={points < torsoCost ? TitheColor.RED : TitheColor.WHITE}
+            text={`Buy jacket: ${stringOf(torsoCost)}`}
+          />
+          <sprite y="center" w={TitheLayout.ICON_W} h={TitheLayout.ICON_H} item={torsoItem} itemCount={1} outline={1} />
+        </layer>
+
+        <layer
+          x={0}
+          y={TitheLayout.OUTFIT_ROW_3_Y}
+          w="fill"
+          h={TitheLayout.OUTFIT_ROW_H}
+          options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(legsItem)}</col>`}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        >
+          <text
+            x={{ right: 0 }}
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.HEADING}
+            align="center"
+            valign="middle"
+            shadow
+            color={TitheColor.LABEL}
+            text="Farmer's legs"
+          />
+          <text
+            x={{ right: 0 }}
+            y="bottom"
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.PRICE}
+            align="center"
+            valign="middle"
+            shadow
+            color={points < legsCost ? TitheColor.RED : TitheColor.WHITE}
+            text={`Buy legs: ${stringOf(legsCost)}`}
+          />
+          <sprite y="center" w={TitheLayout.ICON_W} h={TitheLayout.ICON_H} item={legsItem} itemCount={1} outline={1} />
+        </layer>
+
+        <layer
+          x="center"
+          y={TitheLayout.OUTFIT_ROW_4_Y}
+          w="fill"
+          h={TitheLayout.OUTFIT_ROW_H}
+          options={['', '', '', '', '', 'Buy', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(feetItem)}</col>`}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        >
+          <text
+            x={{ right: 0 }}
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.HEADING}
+            align="center"
+            valign="middle"
+            shadow
+            color={TitheColor.LABEL}
+            text="Farmer's boots"
+          />
+          <text
+            x={{ right: 0 }}
+            y="bottom"
+            w={{ fill: TitheLayout.OUTFIT_LABEL_INSET }}
+            h={TitheLayout.OUTFIT_LABEL_H}
+            font={TitheFonts.PRICE}
+            align="center"
+            valign="middle"
+            shadow
+            color={points < feetCost ? TitheColor.RED : TitheColor.WHITE}
+            text={`Buy boots: ${stringOf(feetCost)}`}
+          />
+          <sprite y="center" w={TitheLayout.ICON_W} h={TitheLayout.ICON_H} item={feetItem} itemCount={1} outline={1} />
+        </layer>
+      </layer>
+    </>
+  );
+}

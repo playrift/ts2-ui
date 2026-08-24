@@ -1,0 +1,114 @@
+import { CS2, useRef, useState } from 'ts2';
+
+import { QuantityTable, selectedQuantity } from '../0126_farming_tools_side/carried-tools.shared';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { farmingToolsGetStored } from './farming-tools.stored';
+import {
+  FarmingItems,
+  FarmingToolsEnums,
+  FarmingToolsFonts,
+  IconFlash,
+  ToolColors,
+  ToolSlot,
+} from './farming-tools.constants';
+
+export function FarmingToolMainSlot({ item, label }: { item: Item; label: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const icon = useRef();
+
+  const [stored, held] = farmingToolsGetStored(item);
+
+  const color: Int = stored > 0 ? ToolColors.HAVE : ToolColors.NONE;
+
+  const capacity: Int = FarmingToolsEnums.TOOL_QUANTITIES.get(item);
+
+  let shown: Item = held;
+  let caption: String = label;
+  if (item === FarmingItems.WATERING_CAN) {
+    if (shown === -1) {
+      shown = FarmingItems.WATERING_CAN;
+    }
+    caption = itemName(shown);
+  }
+
+  const noted: Item = CS2.item_cert(shown);
+  let banknotes: String = '';
+  if (capacity > 1 && noted !== shown) {
+    banknotes = 'Banknotes';
+  }
+  const [remove1, remove2, remove3, remove4] = removeOptions(capacity, selectedQuantity(QuantityTable.FARMING_TOOLS));
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+      options={[remove1, remove2, remove3, remove4, '', '', '', '', banknotes, 'Examine']}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        flashFor(icon, IconFlash.PRESSED, IconFlash.CLEAR);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <text
+        x="center"
+        y={ToolSlot.CAPTION_Y}
+        w="fill"
+        h={ToolSlot.CAPTION_HEIGHT}
+        text={caption}
+        font={FarmingToolsFonts.SLOT}
+        color={color}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <text
+        x={{ center: ToolSlot.COUNT_DX }}
+        y="bottom"
+        w={{ fill: ToolSlot.COUNT_INSET }}
+        h="fill"
+        text={`${stringOf(stored)}/${stringOf(capacity)}`}
+        font={FarmingToolsFonts.SLOT}
+        color={color}
+        shadow
+        align="left"
+        valign="middle"
+      />
+
+      <sprite
+        ref={icon}
+        x={{ right: ToolSlot.ICON_RIGHT }}
+        y={ToolSlot.ICON_Y}
+        w={ToolSlot.ICON_W}
+        h={ToolSlot.ICON_H}
+        item={shown}
+        itemCount={-1}
+        outline={ToolSlot.ICON_OUTLINE}
+        shadowColor={ToolColors.ICON_SHADOW}
+      />
+    </layer>
+  );
+}
+
+function removeOptions(capacity: Int, mode: Int): [String, String, String, String] {
+  if (capacity <= 1) {
+    return ['Remove', '', '', ''];
+  }
+  switch (mode) {
+    case 0:
+      return ['Remove-1', 'Remove-5', 'Remove-X', 'Remove-All'];
+    case 1:
+      return ['Remove-5', 'Remove-1', 'Remove-X', 'Remove-All'];
+    case 3:
+      return ['Remove-X', 'Remove-1', 'Remove-5', 'Remove-All'];
+    case 2:
+      return ['Remove-All', 'Remove-1', 'Remove-5', 'Remove-X'];
+  }
+  return ['', '', '', ''];
+}

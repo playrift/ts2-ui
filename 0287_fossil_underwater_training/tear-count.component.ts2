@@ -1,0 +1,72 @@
+import { CS2, onMounted, onUpdated, useInventory, useRef, useUniverse } from 'ts2';
+import { itemName, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import {
+  Counter,
+  EXCHANGE_CAP,
+  TrainingColor,
+  TrainingFont,
+  TrainingInventory,
+  TrainingItem,
+} from './fossil-underwater-training.constants';
+
+function tearLabel(held: Int): String {
+  if (held > EXCHANGE_CAP) {
+    return `Only <col=ffffff>${groupDigits(EXCHANGE_CAP, ',')}</col> may be exchanged.`;
+  }
+  return `<col=ffffff>${groupDigits(held, ',')}</col> x ${itemName(TrainingItem.GLISTENING_TEAR)}`;
+}
+
+function showTears(slot: Ref, count: Int): void {
+  slot.item = TrainingItem.GLISTENING_TEAR;
+  CS2.cc_item_nonum_set(TrainingItem.GLISTENING_TEAR, count);
+}
+
+export function TearCount(): Component {
+  const carried = useInventory(TrainingInventory.CARRIED);
+  const held: Int = carried.total(TrainingItem.GLISTENING_TEAR);
+
+  const universe = useUniverse();
+  const boxWidth: Int = universe.width;
+
+  const label: String = tearLabel(held);
+  const shown: Int = held > EXCHANGE_CAP ? EXCHANGE_CAP : held;
+
+  const labelWidth: Int = textWidth(label, boxWidth, TrainingFont.COUNTER);
+  const inset: Int = (boxWidth - (Counter.ICON_WIDTH + Counter.GAP + labelWidth)) / 2;
+
+  const icon = useRef();
+  onMounted(() => {
+    showTears(icon, shown);
+  });
+  onUpdated(() => {
+    showTears(icon, shown);
+  });
+
+  return (
+    <>
+      <sprite
+        ref={icon}
+        x={inset}
+        y="bottom"
+        w={Counter.ICON_WIDTH}
+        h={Counter.ICON_HEIGHT}
+        outline={1}
+        shadowColor={TrainingColor.ICON_SHADOW}
+      />
+
+      <text
+        x={{ right: inset }}
+        y="bottom"
+        w={labelWidth}
+        h={Counter.ICON_HEIGHT}
+        text={label}
+        font={TrainingFont.COUNTER}
+        color={TrainingColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}

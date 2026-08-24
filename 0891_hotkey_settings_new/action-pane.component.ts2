@@ -1,0 +1,121 @@
+import { useRef, useServerState, useState, useUniverse } from 'ts2';
+import { actionsFilterType, osmHotkeySettingsInfoExpandIndex } from '../lib/game/varcs';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { textLineCount } from '../lib/lib.engine';
+import { ActionRow } from './action-row.component';
+import {
+  ACTION_COUNT,
+  ActionParams,
+  Actions,
+  HotkeyFonts,
+  HotkeyVarbits,
+  Hotkeys,
+  Layout,
+  Row as RowLayout,
+  ScrollbarSprites as Bar,
+  TutorialVarps,
+} from './hotkey-settings-new.constants';
+import { hotkeyAt } from './hotkey-settings-new.helpers';
+
+export function ActionPane({ frame }: { frame: Ref }): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [rawFilter] = useState(actionsFilterType);
+  const filter: Int = rawFilter < 0 ? 0 : rawFilter;
+  const [expandIndex] = useState(osmHotkeySettingsInfoExpandIndex);
+
+  const loadout: Int = useServerState(HotkeyVarbits.LOADOUT_VIEWED);
+  const tutorial: Int = useServerState(TutorialVarps.TUTORIAL);
+  const tutorial2: Int = useServerState(TutorialVarps.TUTORIAL_2);
+  const current: Row = Hotkeys.get(hotkeyAt(loadout, -1));
+
+  const listWidth: Int = universe.width - Layout.actionListInset;
+
+  const expandedRow: Row = Actions.at(expandIndex);
+  let expandExtra: Int = 0;
+  if (expandedRow !== -1) {
+    if (filter === 0 || expandedRow.int(ActionParams.CATEGORY) === filter) {
+      expandExtra =
+        RowLayout.INFO_PAD +
+        RowLayout.INFO_LINE *
+          textLineCount(expandedRow.text(ActionParams.DESCRIPTION), listWidth - RowLayout.INFO_PAD, HotkeyFonts.BODY);
+    }
+  }
+
+  let visibleRows: Int = 0;
+  let key: Int = 0;
+  while (key < ACTION_COUNT) {
+    const candidate: Row = Actions.at(key);
+    if (filter === 0 || candidate.int(ActionParams.CATEGORY) === filter) {
+      visibleRows = visibleRows + 1;
+    }
+    key = key + 1;
+  }
+  const contentHeight: Int = visibleRows * RowLayout.HEIGHT + expandExtra;
+
+  return (
+    <>
+      <layer
+        x={Layout.contentRight.x}
+        y={Layout.contentRight.y}
+        w={{ fill: Layout.contentRight.insetW }}
+        h={{ fill: Layout.contentRight.insetH }}
+      >
+        <layer
+          ref={list}
+          x="center"
+          y="center"
+          w={{ fill: Layout.actionList.insetWH }}
+          h={{ fill: Layout.actionList.insetWH }}
+          scrollHeight={contentHeight}
+        >
+          {Actions.filter((action) => filter === 0 || action.int(ActionParams.CATEGORY) === filter).map(
+            (action, visible) => (
+              <ActionRow
+                action={action}
+                rawIndex={action.int(ActionParams.ACTION_ID) - 1}
+                top={
+                  visible * RowLayout.HEIGHT + (expandIndex < action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0)
+                }
+                boxHeight={
+                  RowLayout.HEIGHT + (expandIndex === action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0)
+                }
+                infoHeight={expandIndex === action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0}
+                listWidth={listWidth}
+                expandIndex={expandIndex}
+                loadout={loadout}
+                current={current}
+                tutorial={tutorial}
+                tutorial2={tutorial2}
+                frame={frame}
+              />
+            ),
+          )}
+        </layer>
+
+        <layer x="center" y="center" w={{ fill: Layout.actionList.insetWH }} h={{ fill: Layout.actionList.insetWH }} />
+
+        <ThinBox />
+      </layer>
+
+      <layer
+        x={{ right: Layout.scrollbar.right }}
+        y={Layout.scrollbar.y}
+        w={Layout.scrollbar.w}
+        h={{ fill: Layout.scrollbar.insetH }}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={Bar.TRACK}
+          capTopSprite={Bar.CAP_TOP}
+          thumbSprite={Bar.THUMB}
+          capBottomSprite={Bar.CAP_BOTTOM}
+          arrowUp={Bar.ARROW_UP}
+          arrowDown={Bar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

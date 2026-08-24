@@ -1,0 +1,58 @@
+import { useInventory, useServerState } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import {
+  Fade,
+  Offer,
+  PartyDropColors,
+  PartyDropInventories,
+  PartyDropVarbits,
+  Quantity,
+} from './partydrop-main.constants';
+
+function withdrawOptions(mode: Int): [String, String, String, String, String] {
+  switch (mode) {
+    case Quantity.FIVE:
+      return ['Withdraw 5', 'Withdraw 1', '', 'Withdraw X', 'Withdraw All'];
+    case Quantity.X:
+      return ['Withdraw X', 'Withdraw 1', 'Withdraw 5', '', 'Withdraw All'];
+    case Quantity.ALL:
+      return ['Withdraw All', 'Withdraw 1', 'Withdraw 5', 'Withdraw X', ''];
+  }
+  return ['Withdraw 1', '', 'Withdraw 5', 'Withdraw X', 'Withdraw All'];
+}
+
+function OfferSlot({ item, count, slot, mode }: { item: Item; count: Int; slot: Int; mode: Int }): Component {
+  const [op1, op2, op3, op4, op5] = withdrawOptions(mode);
+
+  return (
+    <sprite
+      x={Offer.MARGIN + slot * Offer.STRIDE_X}
+      y="center"
+      w={Offer.W}
+      h={Offer.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={PartyDropColors.SLOT_SHADOW}
+      options={[op1, op2, op3, op4, op5, '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Fade.PRESSED, Fade.REST);
+      }}
+    />
+  );
+}
+
+export function OfferSlots(): Component {
+  const offer = useInventory(PartyDropInventories.OFFER);
+  const mode: Int = useServerState(PartyDropVarbits.QUANTITY);
+
+  return (
+    <layer w="fill" h="fill">
+      {offer.map(
+        (item, slot) => item !== -1 && <OfferSlot item={item} count={offer.count(slot)} slot={slot} mode={mode} />,
+      )}
+    </layer>
+  );
+}

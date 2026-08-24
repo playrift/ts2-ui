@@ -1,0 +1,166 @@
+import { predictServerState, useServerState, useState, useUniverse } from 'ts2';
+import { opsound } from '../lib/lib.helpers';
+import { Clock } from './clock.component';
+import {
+  Layout,
+  NoSprite,
+  SideChannelColor,
+  SideChannelTables,
+  SideChannelVarbits,
+  TabSlots,
+  TabSprites,
+} from './side-channels.constants';
+
+export function SideChannels(): Component {
+  return (
+    <>
+      <layer x="center" y={0} w="fill" h={Layout.strip.h}>
+        {TabSlots.map((slot) => (
+          <SideChannelTab index={slot.index} dx={slot.dx} />
+        ))}
+
+        <layer x={0} y="bottom" w="fill" h={1}>
+          <SideChannelRule />
+        </layer>
+      </layer>
+
+      <layer x="center" y="bottom" w={{ fill: Layout.clock.boxFill.w }} h={{ fill: Layout.clock.boxFill.h }}>
+        <Clock />
+      </layer>
+    </>
+  );
+}
+
+export function SideChannelTab({ index, dx }: { index: Int; dx: Int }): Component {
+  const selected: Int = useServerState(SideChannelVarbits.TAB_SELECTED);
+  const glass: Int = useServerState(SideChannelVarbits.TRANSPARENCY);
+  const [hovered, setHovered] = useState(0);
+
+  const label: String = SideChannelTables.TAB_LABELS.get(index);
+  const icon: Sprite = SideChannelTables.TAB_ICONS.get(index);
+
+  if (selected === index) {
+    return (
+      <layer x={{ center: dx }} y={0} w={Layout.tab.w} h="fill" options={[label]} onOptionSelect={() => opsound(0, 0)}>
+        <TabSkin
+          cap={glass === 1 ? TabSprites.GLASS_SELECTED_CAP : TabSprites.SOLID_SELECTED_CAP}
+          mid={glass === 1 ? TabSprites.GLASS_SELECTED_MID : TabSprites.SOLID_SELECTED_MID}
+          icon={icon}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={{ center: dx }}
+      y={0}
+      w={Layout.tab.w}
+      h="fill"
+      options={[label]}
+      onOptionSelect={() => {
+        predictServerState(SideChannelVarbits.TAB_SELECTED, index);
+      }}
+      onMouseEnter={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    >
+      <TabSkin
+        cap={
+          glass === 1 ? (hovered === 1 ? TabSprites.GLASS_HOVER_CAP : TabSprites.GLASS_IDLE_CAP) : TabSprites.SOLID_CAP
+        }
+        mid={
+          glass === 1 ? (hovered === 1 ? TabSprites.GLASS_HOVER_MID : TabSprites.GLASS_IDLE_MID) : TabSprites.SOLID_MID
+        }
+        glowCap={
+          glass === 1 ? NoSprite.NONE : hovered === 1 ? TabSprites.SOLID_HOVER_GLOW_CAP : TabSprites.SOLID_IDLE_GLOW_CAP
+        }
+        glowMid={
+          glass === 1 ? NoSprite.NONE : hovered === 1 ? TabSprites.SOLID_HOVER_GLOW_MID : TabSprites.SOLID_IDLE_GLOW_MID
+        }
+        icon={icon}
+      />
+    </layer>
+  );
+}
+
+function TabSkin({
+  cap,
+  mid,
+  icon,
+  glowCap = -1,
+  glowMid = -1,
+}: {
+  cap: Sprite;
+  mid: Sprite;
+  icon: Sprite;
+  glowCap?: Sprite;
+  glowMid?: Sprite;
+}): Component {
+  return (
+    <>
+      <sprite
+        x="left"
+        y="bottom"
+        w={Layout.skin.glowCap.w}
+        h={Layout.skin.glowCap.h}
+        sprite={glowCap}
+        transparency={Layout.skin.glowTransparency}
+      />
+      <sprite
+        x="right"
+        y="bottom"
+        w={Layout.skin.glowCap.w}
+        h={Layout.skin.glowCap.h}
+        sprite={glowCap}
+        transparency={Layout.skin.glowTransparency}
+        hflip
+      />
+      <sprite
+        x="center"
+        y="bottom"
+        w={{ fill: Layout.skin.mid.fill }}
+        h={Layout.skin.mid.h}
+        sprite={glowMid}
+        transparency={Layout.skin.glowTransparency}
+      />
+
+      <sprite x="left" y="bottom" w={Layout.skin.cap.w} h={Layout.skin.cap.h} sprite={cap} />
+      <sprite x="right" y="bottom" w={Layout.skin.cap.w} h={Layout.skin.cap.h} sprite={cap} hflip />
+      <sprite x="center" y="bottom" w={{ fill: Layout.skin.mid.fill }} h={Layout.skin.mid.h} sprite={mid} />
+
+      <sprite
+        x="center"
+        y={{ bottom: Layout.skin.icon.bottom }}
+        w={Layout.skin.icon.w}
+        h={Layout.skin.icon.h}
+        sprite={icon}
+      />
+    </>
+  );
+}
+
+export function SideChannelRule(): Component {
+  const selected: Int = useServerState(SideChannelVarbits.TAB_SELECTED);
+  const glass: Int = useServerState(SideChannelVarbits.TRANSPARENCY);
+  const color: Int = glass === 1 ? SideChannelColor.RULE_GLASS : SideChannelColor.RULE_SOLID;
+  const strip = useUniverse();
+
+  return (
+    <>
+      {TabSlots.map((slot) =>
+        selected === slot.index ? (
+          <>
+            <line x={0} y="bottom" w={((strip.width - Layout.tab.w) / 2 + slot.dx) * 2} h={1} color={color} />
+            <line
+              x={(strip.width - Layout.tab.w) / 2 + slot.dx + Layout.tab.w}
+              y="bottom"
+              w={Layout.rule.len}
+              h={1}
+              color={color}
+            />
+          </>
+        ) : null,
+      )}
+    </>
+  );
+}

@@ -1,0 +1,109 @@
+import { useRef, useServerState } from 'ts2';
+import { playerCoord } from '../lib/lib.engine';
+import { DestinationIcon } from './destination-icon.component';
+import { Layout, Marker, QuetzalArt, QuetzalVarps } from './quetzal-menu.constants';
+import { Quetzals } from './quetzal-menu.data';
+import { coordDistance, quetzalUnlocked } from './quetzal-menu.helpers';
+
+export function QuetzalMap(): Component {
+  const unlockedBits: Int = useServerState(QuetzalVarps.UNLOCKED);
+  const here: Coord = playerCoord();
+
+  const selectedBack = useRef();
+  const selectedFront = useRef();
+  const selectedLocked = useRef();
+  const selectedCurrent = useRef();
+
+  return (
+    <>
+      <layer x={Layout.icons.x} y={{ bottom: Layout.icons.y }} w={Layout.icons.w} h={Layout.icons.h}>
+        {Quetzals.map((destination) => (
+          <DestinationIcon
+            name={destination.name}
+            model={destination.model}
+            dx={destination.x}
+            dy={destination.y}
+            unlocked={quetzalUnlocked(destination.id, destination.autoUnlocked, unlockedBits)}
+            near={coordDistance(here, destination.coord) <= 10 ? 1 : 0}
+            back={selectedBack}
+            front={selectedFront}
+            locked={selectedLocked}
+            current={selectedCurrent}
+          />
+        ))}
+        {Quetzals.filter((destination) => !quetzalUnlocked(destination.id, destination.autoUnlocked, unlockedBits)).map(
+          (destination) => (
+            <model
+              x={destination.x}
+              y={{ bottom: destination.y }}
+              w={Layout.icon.size}
+              h={Layout.icon.size}
+              model={QuetzalArt.LOCKED}
+              pitch={Layout.icon.pitch}
+              zoom={Layout.icon.zoom}
+              orthogonal
+            />
+          ),
+        )}
+
+        {Quetzals.filter((destination) => coordDistance(here, destination.coord) <= 10).map((destination) => (
+          <model
+            x={destination.x}
+            y={{ bottom: destination.y }}
+            w={Layout.icon.size}
+            h={Layout.icon.size}
+            model={QuetzalArt.HERE_RING}
+            pitch={Layout.icon.pitch}
+            zoom={Layout.icon.zoom}
+            orthogonal
+          />
+        ))}
+      </layer>
+
+      <model
+        ref={selectedBack}
+        y={{ bottom: 0 }}
+        w={Layout.icon.size}
+        h={Layout.icon.size}
+        model={QuetzalArt.SELECTION_PLATE}
+        pitch={Layout.icon.pitch}
+        zoom={Layout.icon.zoom}
+        orthogonal
+        hide
+      />
+      <model
+        ref={selectedFront}
+        y={{ bottom: 0 }}
+        w={Layout.icon.size}
+        h={Layout.icon.size}
+        model={QuetzalArt.SELECTION_PLATE}
+        pitch={Layout.icon.pitch}
+        zoom={Layout.icon.zoom}
+        orthogonal
+        hide
+      />
+      <model
+        ref={selectedLocked}
+        y={{ bottom: 0 }}
+        w={Layout.icon.size}
+        h={Layout.icon.size}
+        model={QuetzalArt.LOCKED}
+        pitch={Layout.icon.pitch}
+        zoom={Layout.icon.zoom}
+        orthogonal
+        hide
+      />
+      <model
+        ref={selectedCurrent}
+        y={{ bottom: 0 }}
+        w={Layout.icon.size}
+        h={Layout.icon.size}
+        model={QuetzalArt.HERE_RING}
+        pitch={Layout.icon.pitch}
+        zoom={Layout.icon.zoom}
+        orthogonal
+        hide
+      />
+    </>
+  );
+}

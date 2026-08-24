@@ -1,0 +1,245 @@
+import { useServerState, useUniverse } from 'ts2';
+import { closeInterface } from '../lib/lib.helpers';
+import {
+  BasProgressVarbit,
+  PuzzleArt,
+  PuzzleColor,
+  PuzzleFonts,
+  PuzzleLayout,
+  PuzzlePieceIndexes,
+  PuzzlePieceItems,
+  PuzzleToken,
+  PuzzleVariant,
+  PuzzleVariantVarp,
+  SLOTS,
+  TILE_OP,
+  TILE_SUBJECT,
+  TileModel,
+} from './trail-slidepuzzle.constants';
+import { movePiece, pieceModel, puzzleItem, setPieceAt, tilesMovable } from './trail-slidepuzzle.helpers';
+
+export function SlidePuzzle(): Component {
+  return (
+    <>
+      <PuzzlePlate />
+
+      <PuzzleTokens />
+
+      <layer x="center" y="center" w={PuzzleLayout.BOARD} h={PuzzleLayout.BOARD}>
+        <PuzzleBoard />
+      </layer>
+
+      <sprite
+        right={PuzzleLayout.CLOSE_RIGHT}
+        y={PuzzleLayout.CLOSE_TOP}
+        w={PuzzleLayout.CLOSE_W}
+        h={PuzzleLayout.CLOSE_H}
+        sprite={PuzzleArt.CLOSE}
+        options={['Close']}
+        hover={{ sprite: PuzzleArt.CLOSE_HOVER }}
+        onOptionSelect={() => closeInterface()}
+      />
+    </>
+  );
+}
+
+export function PuzzlePlate(): Component {
+  const variant: Int = useServerState(PuzzleVariantVarp);
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w={PuzzleLayout.PLATE}
+      h={PuzzleLayout.PLATE}
+      color={variant === PuzzleVariant.LIGHT_PLATE ? PuzzleColor.PLATE_LIGHT : PuzzleColor.PLATE}
+      fill
+    />
+  );
+}
+
+export function PuzzleTokens(): Component {
+  const variant: Int = useServerState(PuzzleVariantVarp);
+
+  return (
+    <>
+      <model
+        x={{ center: -2 }}
+        y={{ center: -1 }}
+        w={PuzzleLayout.TOKEN}
+        h={PuzzleLayout.TOKEN}
+        model={PuzzleToken.TRAIL.model}
+        zoom={PuzzleToken.TRAIL.zoom}
+        pitch={PuzzleToken.TRAIL.pitch}
+        offsetX={PuzzleToken.TRAIL.offsetX}
+        offsetY={PuzzleToken.TRAIL.offsetY}
+        hide={reinitialisation(variant)}
+      />
+      <model
+        x={{ center: -2 }}
+        y={{ center: -1 }}
+        w={PuzzleLayout.TOKEN}
+        h={PuzzleLayout.TOKEN}
+        model={PuzzleToken.REINITIALISATION.model}
+        zoom={PuzzleToken.REINITIALISATION.zoom}
+        pitch={PuzzleToken.REINITIALISATION.pitch}
+        offsetX={PuzzleToken.REINITIALISATION.offsetX}
+        offsetY={PuzzleToken.REINITIALISATION.offsetY}
+        hide={trailPuzzle(variant)}
+      />
+    </>
+  );
+}
+
+function trailPuzzle(variant: Int): Boolean {
+  if (reinitialisation(variant)) {
+    return false;
+  }
+  return true;
+}
+
+function reinitialisation(variant: Int): Boolean {
+  if (variant === PuzzleVariant.REINITIALISATION) {
+    return true;
+  }
+  if (variant === PuzzleVariant.REINITIALISATION_DONE) {
+    return true;
+  }
+  return false;
+}
+
+export function PuzzleBoard(): Component {
+  const universe = useUniverse();
+  const pitchX: Int =
+    PuzzleLayout.TILE + (universe.width - PuzzleLayout.COLUMNS * PuzzleLayout.TILE) / (PuzzleLayout.COLUMNS - 1);
+  const pitchY: Int =
+    PuzzleLayout.TILE + (universe.height - PuzzleLayout.ROWS * PuzzleLayout.TILE) / (PuzzleLayout.ROWS - 1);
+
+  const variant: Int = useServerState(PuzzleVariantVarp);
+  const basProgress: Int = useServerState(BasProgressVarbit);
+  const indexes = PuzzlePieceIndexes.get(variant);
+  const items = PuzzlePieceItems.get(variant);
+
+  setPieceAt(0, pieceOf(indexes, items, variant, 0));
+  setPieceAt(1, pieceOf(indexes, items, variant, 1));
+  setPieceAt(2, pieceOf(indexes, items, variant, 2));
+  setPieceAt(3, pieceOf(indexes, items, variant, 3));
+  setPieceAt(4, pieceOf(indexes, items, variant, 4));
+  setPieceAt(5, pieceOf(indexes, items, variant, 5));
+  setPieceAt(6, pieceOf(indexes, items, variant, 6));
+  setPieceAt(7, pieceOf(indexes, items, variant, 7));
+  setPieceAt(8, pieceOf(indexes, items, variant, 8));
+  setPieceAt(9, pieceOf(indexes, items, variant, 9));
+  setPieceAt(10, pieceOf(indexes, items, variant, 10));
+  setPieceAt(11, pieceOf(indexes, items, variant, 11));
+  setPieceAt(12, pieceOf(indexes, items, variant, 12));
+  setPieceAt(13, pieceOf(indexes, items, variant, 13));
+  setPieceAt(14, pieceOf(indexes, items, variant, 14));
+  setPieceAt(15, pieceOf(indexes, items, variant, 15));
+  setPieceAt(16, pieceOf(indexes, items, variant, 16));
+  setPieceAt(17, pieceOf(indexes, items, variant, 17));
+  setPieceAt(18, pieceOf(indexes, items, variant, 18));
+  setPieceAt(19, pieceOf(indexes, items, variant, 19));
+  setPieceAt(20, pieceOf(indexes, items, variant, 20));
+  setPieceAt(21, pieceOf(indexes, items, variant, 21));
+  setPieceAt(22, pieceOf(indexes, items, variant, 22));
+  setPieceAt(23, pieceOf(indexes, items, variant, 23));
+  setPieceAt(24, pieceOf(indexes, items, variant, 24));
+
+  return (
+    <layer w="fill" h="fill">
+      {SLOTS.map((slot) => (
+        <PuzzleTile
+          slot={slot}
+          left={(slot % PuzzleLayout.COLUMNS) * pitchX}
+          top={(slot / PuzzleLayout.COLUMNS) * pitchY}
+          piece={pieceOf(indexes, items, variant, slot)}
+          mesh={pieceModel(variant, slot, basProgress)}
+          movable={tilesMovable(indexes, items, variant, basProgress)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function pieceOf(indexes: Map<Item, Int>, items: Map<Int, ItemName>, variant: Int, slot: Int): Int {
+  if (items === -1) {
+    return -1;
+  }
+  if (indexes === -1) {
+    return -1;
+  }
+  return indexes.get(puzzleItem(variant, slot));
+}
+
+function emptySlot(piece: Int): Boolean {
+  if (piece === -1) {
+    return true;
+  }
+  return false;
+}
+
+export function PuzzleTile({
+  slot,
+  left,
+  top,
+  piece,
+  mesh,
+  movable,
+}: {
+  slot: Int;
+  left: Int;
+  top: Int;
+  piece: Int;
+  mesh: number;
+  movable: Boolean;
+}): Component {
+  if (movable) {
+    return (
+      <>
+        <text
+          x={left}
+          y={top}
+          w={PuzzleLayout.TILE}
+          h={PuzzleLayout.TILE}
+          font={PuzzleFonts.TILE}
+          optionSubject={TILE_SUBJECT}
+          options={[TILE_OP]}
+          onOptionSelect={(event) => movePiece(event.option, slot)}
+          hide={emptySlot(piece)}
+        />
+        <model
+          x={left}
+          y={top}
+          w={PuzzleLayout.TILE}
+          h={PuzzleLayout.TILE}
+          pitch={TileModel.PITCH}
+          zoom={TileModel.ZOOM}
+          model={mesh}
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      <text
+        x={left}
+        y={top}
+        w={PuzzleLayout.TILE}
+        h={PuzzleLayout.TILE}
+        font={PuzzleFonts.TILE}
+        optionSubject={TILE_SUBJECT}
+        hide={emptySlot(piece)}
+      />
+      <model
+        x={left}
+        y={top}
+        w={PuzzleLayout.TILE}
+        h={PuzzleLayout.TILE}
+        pitch={TileModel.PITCH}
+        zoom={TileModel.ZOOM}
+        model={mesh}
+      />
+    </>
+  );
+}

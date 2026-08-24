@@ -1,0 +1,99 @@
+import { useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { QuantityButton } from './quantity-button.component';
+import { TicketSlot } from './ticket-slot.component';
+import {
+  ButtonVerb,
+  Caption,
+  Grid,
+  Panel,
+  Quantity,
+  TicketArt,
+  Tickets,
+  TicketVarbits,
+} from './rangingguild-ticketexchange.constants';
+
+export function RangingGuildTicketExchange(): Component {
+  const universe = useUniverse();
+  const pane = useRef();
+  const quantity: Int = useServerState(TicketVarbits.QUANTITY);
+
+  const selected: Int =
+    quantity === Quantity.ONE
+      ? Quantity.ONE
+      : quantity === Quantity.FIVE
+        ? Quantity.FIVE
+        : quantity === Quantity.X
+          ? Quantity.X
+          : Quantity.VALUE;
+
+  const paneWidth: Int = universe.width - Panel.PANE_INSET;
+  const stride: Int = (paneWidth - Grid.COLUMNS * Grid.SLOT_W) / Grid.COLUMN_GAPS + Grid.SLOT_W;
+
+  const contentHeight: Int = ((Grid.STOCK - 1) / Grid.COLUMNS) * stride + Grid.SLOT_H;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title="Ranging Guild Ticket Exchange" />
+      </layer>
+
+      <layer
+        ref={pane}
+        x="center"
+        y={Panel.PANE_Y}
+        w={{ fill: Panel.PANE_INSET }}
+        h={Panel.PANE_H}
+        scrollY={0}
+        scrollHeight={contentHeight > Panel.PANE_H ? contentHeight : 0}
+      >
+        {Tickets.map((ticket, index) => (
+          <TicketSlot ticket={ticket} index={index} stride={stride} selected={selected} />
+        ))}
+      </layer>
+
+      {contentHeight > Panel.PANE_H ? (
+        <layer x={{ right: Panel.SCROLLBAR_INSET }} y={Panel.PANE_Y} w={Panel.SCROLLBAR_W} h={Panel.PANE_H}>
+          <ScrollbarVertical
+            content={pane}
+            track={TicketArt.BAR_TRACK}
+            capTopSprite={TicketArt.BAR_CAP_TOP}
+            thumbSprite={TicketArt.BAR_THUMB}
+            capBottomSprite={TicketArt.BAR_CAP_BOTTOM}
+            arrowUp={TicketArt.BAR_ARROW_UP}
+            arrowDown={TicketArt.BAR_ARROW_DOWN}
+          />
+        </layer>
+      ) : null}
+
+      <layer x="center" y={{ bottom: Panel.BAR_INSET }} w="fill" h={Panel.BAR_H}>
+        <sprite
+          x="center"
+          y={Panel.DIVIDER_Y}
+          w={{ fill: Panel.DIVIDER_INSET }}
+          h={Panel.DIVIDER_H}
+          sprite={TicketArt.DIVIDER}
+          tiling
+        />
+
+        <QuantityButton
+          offset={-90}
+          verb={ButtonVerb.VALUE}
+          quantity={Quantity.VALUE}
+          caption={Caption.ICON}
+          selected={selected}
+        />
+        <QuantityButton offset={-30} verb={ButtonVerb.ONE} quantity={Quantity.ONE} caption={1} selected={selected} />
+        <QuantityButton offset={30} verb={ButtonVerb.FIVE} quantity={Quantity.FIVE} caption={5} selected={selected} />
+        <QuantityButton
+          offset={90}
+          verb={ButtonVerb.X}
+          quantity={Quantity.X}
+          caption={Caption.ANY}
+          selected={selected}
+        />
+      </layer>
+    </layer>
+  );
+}

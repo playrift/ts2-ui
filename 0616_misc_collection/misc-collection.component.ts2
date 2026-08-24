@@ -1,5 +1,6 @@
-import { useInventory, useRef, useState } from 'ts2';
-import { clientClock, itemName } from '../lib/lib.engine';
+import { useInventory, useRef } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
 import { closeInterface, graphicSwapperUnlessMobile } from '../lib/lib.helpers';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
 import {
@@ -16,9 +17,6 @@ import {
 export function MiscCollection(): Component {
   const list = useRef();
   const stash = useInventory(CollectionInventories.RESOURCES);
-
-  const [pressedSlot, setPressedSlot] = useState(-1);
-  const [restoreAt, setRestoreAt] = useState(0);
 
   let lastRowY: Int = 0;
   let slot: Int = 0;
@@ -52,15 +50,6 @@ export function MiscCollection(): Component {
         w={Grid.LIST_WIDTH}
         h={Grid.LIST_HEIGHT}
         scrollHeight={Grid.LIST_HEIGHT < extent ? extent : 0}
-        onTimer={() => {
-          if (pressedSlot === -1) {
-            return;
-          }
-          if (clientClock() < restoreAt) {
-            return;
-          }
-          setPressedSlot(-1);
-        }}
       >
         {stash.map(
           (item, index) =>
@@ -74,12 +63,10 @@ export function MiscCollection(): Component {
                 itemCount={stash.count(index)}
                 outline={1}
                 shadowColor={CollectionColors.ICON_SHADOW}
-                transparency={pressedSlot === index ? Fade.PRESSED : Fade.REST}
                 options={['', '', '', '', '', '', '', '', '', 'Examine']}
                 optionSubject={`<col=ff9040>${itemName(item)}</col>`}
                 onOptionSelect={(event) => {
-                  setPressedSlot(event.subId);
-                  setRestoreAt(clientClock() + Fade.CYCLES);
+                  flashFor(event.self, Fade.PRESSED, Fade.REST);
                 }}
               />
             ),

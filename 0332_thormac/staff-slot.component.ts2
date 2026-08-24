@@ -1,0 +1,68 @@
+import { useInventory, useRef, useUniverse } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { itemName } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { ccSetTrans } from './cc-settrans';
+import {
+  ENCHANT_OP_MASK,
+  HOVER_TRANSPARENCY,
+  IDLE_TRANSPARENCY,
+  OP_BASE_PREFIX,
+  Staff,
+  ThormacColor,
+  ThormacFonts,
+  ThormacLayout,
+  ThormacSprites,
+} from './thormac.constants';
+
+export function StaffSlot({ staff, twin = -1 }: { staff: Item; twin?: Item }): Component {
+  const carried = useInventory(Inventories.INV);
+  const slot = useUniverse();
+  const highlight = useRef();
+
+  slot.optionSubject = `${OP_BASE_PREFIX}${itemName(staff)}`;
+
+  const w: Int = slot.width;
+  const h: Int = slot.height - ThormacLayout.LABEL_H;
+
+  let held: Int = carried.total(staff);
+  if (staff === Staff.STEAM) {
+    held = held + carried.total(Staff.STEAM_TWIN);
+  }
+
+  slot.onMouseEnter = () => ccSetTrans(highlight, HOVER_TRANSPARENCY);
+  slot.onMouseLeave = () => ccSetTrans(highlight, IDLE_TRANSPARENCY);
+  if (held > 0) {
+    slot.onOptionSelect = (event) => opsound(event.option, ENCHANT_OP_MASK);
+  }
+
+  return (
+    <>
+      <model x={twin !== -1 ? ThormacLayout.TWIN_INSET : (w - h) / 2} y={0} w={h} h={h} item={staff} itemCount={1} />
+      {twin !== -1 && <model x={w - (h + ThormacLayout.TWIN_INSET)} y={0} w={h} h={h} item={twin} itemCount={1} />}
+      <sprite
+        ref={highlight}
+        x={0}
+        y={0}
+        w={w}
+        h={h}
+        sprite={ThormacSprites.HIGHLIGHT}
+        tiling
+        transparency={IDLE_TRANSPARENCY}
+      />
+      <text
+        x={0}
+        y={h}
+        w={w}
+        h={ThormacLayout.LABEL_H}
+        text={itemName(staff)}
+        font={ThormacFonts.LABEL}
+        shadow={false}
+        align="center"
+        valign="middle"
+        color={held > 0 ? ThormacColor.AVAILABLE : ThormacColor.UNAVAILABLE}
+      />
+    </>
+  );
+}

@@ -1,0 +1,145 @@
+import { clientClock, itemName, playSound } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { useState } from 'ts2';
+import { BookColor, BookFonts, BookSounds, BookState, Layout, REQUEST_CYCLES } from './horror-prayerbooks.constants';
+
+export function PrayerbookSlot({
+  god,
+  owned,
+  unfinished,
+  finished,
+}: {
+  god: String;
+  owned: Int;
+  unfinished: Item;
+  finished: Item;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const [requestedUntil, setRequestedUntil] = useState(0);
+
+  const shown: Item = owned >= BookState.COMPLETE ? finished : unfinished;
+  const subject: String = `<col=ff9040>${itemName(shown)}</col>`;
+
+  if (requestedUntil > 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={['', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={subject}
+        onTimer={() => {
+          if (clientClock() < requestedUntil) {
+            return;
+          }
+          setRequestedUntil(0);
+        }}
+      >
+        <StoneButtonPressedFilled />
+        <model
+          x="center"
+          y="center"
+          w={Layout.slot.W - Layout.face.ITEM_INSET}
+          h={Layout.slot.H - Layout.face.ITEM_INSET}
+          item={shown}
+          itemCount={1}
+        />
+        <text
+          x="center"
+          y={Layout.face.TITLE_Y}
+          w="fill"
+          h={Layout.face.TITLE_H}
+          text={god}
+          align="center"
+          valign="top"
+          shadow
+          font={BookFonts.TITLE}
+          color={BookColor.LABEL}
+        />
+        <text
+          x="center"
+          y={{ bottom: Layout.face.STATUS_Y }}
+          w="fill"
+          h={Layout.face.STATUS_H}
+          text="<col=7f7f7f>Requesting...</col>"
+          align="center"
+          valign="bottom"
+          shadow
+          font={BookFonts.STATUS}
+          color={BookColor.LABEL}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[
+        owned >= BookState.INCOMPLETE ? 'Take' : owned === BookState.MISSING ? 'Retrieve' : 'Unlock',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={subject}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(BookSounds.CLICK);
+        setRequestedUntil(clientClock() + REQUEST_CYCLES);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <model
+        x="center"
+        y="center"
+        w={Layout.slot.W - Layout.face.ITEM_INSET}
+        h={Layout.slot.H - Layout.face.ITEM_INSET}
+        item={shown}
+        itemCount={1}
+      />
+      <text
+        x="center"
+        y={Layout.face.TITLE_Y}
+        w="fill"
+        h={Layout.face.TITLE_H}
+        text={god}
+        align="center"
+        valign="top"
+        shadow
+        font={BookFonts.TITLE}
+        color={BookColor.LABEL}
+      />
+      <text
+        x="center"
+        y={{ bottom: Layout.face.STATUS_Y }}
+        w="fill"
+        h={Layout.face.STATUS_H}
+        text={
+          owned >= BookState.COMPLETE
+            ? '<col=00ff00>Complete</col>'
+            : owned === BookState.INCOMPLETE
+              ? 'Incomplete'
+              : owned === BookState.MISSING
+                ? 'Missing'
+                : '<col=ff0000>Not owned</col>'
+        }
+        align="center"
+        valign="bottom"
+        shadow
+        font={BookFonts.STATUS}
+        color={BookColor.LABEL}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,85 @@
+import { textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { RankColors, RankFonts, RankLayout, RankNames, RankTransparency } from './league-rank.constants';
+import { RankFlashArrow } from './rank-flash-arrow.component';
+
+export function RankRung({
+  index,
+  points,
+  thresholds,
+  icons,
+  font,
+  shadow,
+  textColor,
+}: {
+  index: Int;
+  points: Int;
+  thresholds: List<Int>;
+  icons: List<ItemName>;
+  font: Font;
+  shadow: Boolean;
+  textColor: Int;
+}): Component {
+  const threshold: Int = thresholds.at(index);
+  const next: Int = thresholds.at(index + 1);
+  const previous: Int = index > 0 ? thresholds.at(index - 1) : 0;
+
+  const reached: Int = points >= threshold ? 1 : 0;
+  const passed: Int = next > 0 && points >= next ? 1 : 0;
+  const previousReached: Int = previous > 0 && points >= previous ? 1 : 0;
+
+  const label: String = `${RankNames.at(index)} - ${groupDigits(threshold, ',')} points`;
+
+  return (
+    <>
+      <rect
+        w="fill"
+        h="fill"
+        fill
+        color={passed === 1 ? RankColors.PASSED : reached === 1 ? RankColors.CURRENT : RankColors.ROW_BACK}
+        transparency={index % 2 === 0 ? RankTransparency.EVEN : RankTransparency.ODD}
+      />
+
+      <sprite
+        x={RankLayout.ICON_X}
+        y="center"
+        w={RankLayout.ICON_W}
+        h={RankLayout.ICON_H}
+        item={icons.at(index)}
+        itemCount={1}
+      />
+
+      <text
+        x={RankLayout.LABEL_X}
+        y={0}
+        w={{ fill: RankLayout.LABEL_INSET }}
+        h="fill"
+        align="center"
+        valign="middle"
+        font={font}
+        shadow={shadow}
+        color={
+          passed === 1
+            ? RankColors.PASSED
+            : reached === 1
+              ? RankColors.CURRENT
+              : previousReached === 1 || index === 0
+                ? textColor
+                : RankColors.LOCKED
+        }
+        text={label}
+      />
+
+      {reached === 1 && passed === 0 ? (
+        <layer
+          x={{ center: RankLayout.ARROW_X + textWidth(label, RankLayout.MEASURE_W, RankFonts.MEASURE) / 2 }}
+          y="center"
+          w={RankLayout.ARROW_W}
+          h={RankLayout.ARROW_H}
+        >
+          <RankFlashArrow />
+        </layer>
+      ) : null}
+    </>
+  );
+}

@@ -1,0 +1,64 @@
+import { stopTimer, useRef, useServerState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import {
+  MenagerieArt,
+  MenagerieColors,
+  MenagerieFonts,
+  MenagerieSounds,
+  MenagerieVarbits,
+  PRESS_CYCLES,
+} from './poh-menagerie.constants';
+
+function pressRadio(target: ComponentId, resting: Sprite): void {
+  const restoreAt: Int = clientClock() + PRESS_CYCLES;
+  target.sprite = MenagerieArt.RADIO_PRESSED;
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.sprite = resting;
+    stopTimer(target);
+  };
+}
+
+export function RoamingToggle(): Component {
+  const roaming: Int = useServerState(MenagerieVarbits.ROAMING);
+  const resting: Sprite = roaming === 1 ? MenagerieArt.RADIO_ON : MenagerieArt.RADIO_OFF;
+
+  const radio = useRef();
+  const label = useRef();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Toggle']}
+      onMouseEnter={() => {
+        label.color = MenagerieColors.LABEL_HOVER;
+      }}
+      onMouseLeave={() => {
+        label.color = MenagerieColors.LABEL;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(MenagerieSounds.CLICK);
+        pressRadio(radio, resting);
+      }}
+    >
+      <sprite ref={radio} x={0} y="bottom" w={17} h={17} sprite={resting} />
+      <text
+        ref={label}
+        x={22}
+        y="bottom"
+        w={{ fill: 22 }}
+        h={17}
+        text="Allow pets to roam"
+        font={MenagerieFonts.LABEL}
+        color={MenagerieColors.LABEL}
+        valign="middle"
+      />
+    </layer>
+  );
+}

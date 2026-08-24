@@ -1,0 +1,219 @@
+import { useRef, useServerState, useState } from 'ts2';
+import { membersWorld } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { GimButton } from './gim-button.component';
+import { gimChoice } from './gim-leaving.state';
+import {
+  ButtonLabel,
+  GimArt,
+  GimChoice,
+  GimColor,
+  GimLeavingFonts,
+  GimLeavingVarbits,
+  GimScrollbar,
+  Ironman,
+  Layout,
+  Prose,
+  SELECT,
+  TITLE,
+} from './gim-leaving.constants';
+
+export function GimLeaving(): Component {
+  return (
+    <>
+      <layer w={Layout.ROOT_W} h={Layout.ROOT_H}>
+        <SteelBorder title={TITLE} titleColor={SteelborderColor.TITLE} flags={0} />
+      </layer>
+
+      <layer x={Layout.INSET} y={Layout.INSET} w={{ fill: 8 }} h={{ fill: 8 }}>
+        <layer w="fill" h={{ fill: Layout.OPTIONS_INSET }}>
+          <GimOptions />
+        </layer>
+
+        <layer y="bottom" w="fill" h={Layout.MESSAGE_H}>
+          <layer x={Layout.INSET} y={Layout.INSET} w={{ fill: 8 }} h={{ fill: 8 }}>
+            <MessagePane />
+
+            <rect w="fill" h="fill" color={GimColor.FRAME_OUTER} />
+            <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} color={GimColor.FRAME_INNER} />
+
+            <GimLeaveText />
+          </layer>
+        </layer>
+      </layer>
+
+      <layer w="fill" h="fill" />
+    </>
+  );
+}
+
+export function MessagePane(): Component {
+  const pane = useRef();
+
+  return (
+    <>
+      <layer ref={pane} w="fill" h={Layout.PANE_H} />
+
+      <layer x={{ right: Layout.BAR_INSET }} y={Layout.BAR_INSET} w={Layout.BAR_W} h={{ fill: 6 }} hide>
+        <ScrollbarVertical
+          content={pane}
+          track={GimScrollbar.TRACK}
+          capTopSprite={GimScrollbar.CAP_TOP}
+          thumbSprite={GimScrollbar.THUMB}
+          capBottomSprite={GimScrollbar.CAP_BOTTOM}
+          arrowUp={GimScrollbar.ARROW_UP}
+          arrowDown={GimScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function GimOptions(): Component {
+  const ironman: Int = useServerState(GimLeavingVarbits.IRONMAN);
+  const [choice, setChoice] = useState(gimChoice);
+
+  return (
+    <>
+      <layer w={ironman === Ironman.UNRANKED_GIM ? Layout.HALF_W : { fill: Layout.COLUMN_INSET }} h="fill">
+        <layer
+          x="center"
+          y="bottom"
+          w={Layout.BUTTON_W}
+          h={Layout.BUTTON_H}
+          options={[SELECT]}
+          onOptionSelect={() => setChoice(GimChoice.UNRANKED)}
+        >
+          <GimButton
+            label={
+              choice === GimChoice.UNRANKED
+                ? ButtonLabel.CONFIRM
+                : ironman === Ironman.UNRANKED_GIM
+                  ? ButtonLabel.GIM
+                  : ButtonLabel.UNRANKED
+            }
+            color={choice === GimChoice.UNRANKED ? GimColor.CONFIRM : GimColor.OPTION}
+          />
+        </layer>
+
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_BOTTOM }}
+          w={Layout.ICON}
+          h={Layout.ICON}
+          sprite={GimArt.GIM_ICON}
+        />
+      </layer>
+
+      <layer
+        x={Layout.COLUMN_MID_X}
+        w={{ fill: Layout.COLUMN_INSET }}
+        h="fill"
+        hide={ironman === Ironman.UNRANKED_GIM ? true : false}
+      >
+        <layer
+          x="center"
+          y="bottom"
+          w={Layout.BUTTON_W}
+          h={Layout.BUTTON_H}
+          options={[SELECT]}
+          onOptionSelect={() => setChoice(GimChoice.RANKED)}
+          hide={ironman === Ironman.UNRANKED_GIM ? true : false}
+        >
+          {ironman !== Ironman.UNRANKED_GIM && (
+            <GimButton
+              label={choice === GimChoice.RANKED ? ButtonLabel.CONFIRM : ButtonLabel.RANKED}
+              color={choice === GimChoice.RANKED ? GimColor.CONFIRM : GimColor.OPTION}
+            />
+          )}
+        </layer>
+
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_BOTTOM }}
+          w={Layout.ICON}
+          h={Layout.ICON}
+          sprite={GimArt.GIM_COMPETITIVE_ICON}
+          hide={ironman === Ironman.UNRANKED_GIM ? true : false}
+        />
+      </layer>
+
+      <layer x="right" w={ironman === Ironman.UNRANKED_GIM ? Layout.HALF_W : { fill: Layout.COLUMN_INSET }} h="fill">
+        <layer
+          x="center"
+          y="bottom"
+          w={Layout.BUTTON_W}
+          h={Layout.BUTTON_H}
+          options={[SELECT]}
+          onOptionSelect={() => setChoice(GimChoice.MAIN)}
+        >
+          <GimButton
+            label={choice === GimChoice.MAIN ? ButtonLabel.CONFIRM : ButtonLabel.MAIN}
+            color={choice === GimChoice.MAIN ? GimColor.CONFIRM : GimColor.OPTION}
+          />
+        </layer>
+
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_BOTTOM }}
+          w={Layout.ICON}
+          h={Layout.ICON}
+          sprite={GimArt.MAIN_ICON}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function GimLeaveText(): Component {
+  const ironman: Int = useServerState(GimLeavingVarbits.IRONMAN);
+  const [choice] = useState(gimChoice);
+  const members: Boolean = membersWorld();
+
+  if (choice < GimChoice.UNRANKED) {
+    return (
+      <text
+        x={{ center: 4 }}
+        y={{ center: 2 }}
+        w={{ fill: 8 }}
+        h={{ fill: 4 }}
+        text={Prose.PICK}
+        color={GimColor.TEXT}
+        font={GimLeavingFonts.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.LINE_HEIGHT}
+      />
+    );
+  }
+
+  const body: String =
+    choice === GimChoice.UNRANKED
+      ? ironman === Ironman.UNRANKED_GIM
+        ? Prose.UNRANKED_RETAIN
+        : Prose.UNRANKED_BECOME
+      : choice === GimChoice.RANKED
+        ? members
+          ? Prose.RANKED_MEMBERS
+          : Prose.RANKED_F2P
+        : Prose.MAIN;
+
+  return (
+    <text
+      x={{ center: 4 }}
+      y={{ center: 2 }}
+      w={{ fill: 8 }}
+      h={{ fill: 4 }}
+      text={body}
+      color={GimColor.TEXT}
+      font={GimLeavingFonts.BODY}
+      shadow
+      align="left"
+      valign="top"
+      lineHeight={Layout.LINE_HEIGHT}
+    />
+  );
+}

@@ -1,0 +1,124 @@
+import {
+  ActionParams,
+  HotkeyColor,
+  HotkeyFonts,
+  HotkeySprites,
+  Row as RowLayout,
+  ThinBoxColor,
+} from './hotkey-settings-new.constants';
+import { assignHotkey, endDrag, toggleInfoExpand, trackDrag } from './hotkey-settings-new.helpers';
+
+export function ActionRow({
+  action,
+  top,
+  boxHeight,
+  infoHeight,
+  listWidth,
+  rawIndex,
+  expandIndex,
+  loadout,
+  current,
+  tutorial,
+  tutorial2,
+  frame,
+}: {
+  action: Row;
+  top: Int;
+  boxHeight: Int;
+  infoHeight: Int;
+  listWidth: Int;
+  rawIndex: Int;
+  expandIndex: Int;
+  loadout: Int;
+  current: Row;
+  tutorial: Int;
+  tutorial2: Int;
+  frame: Ref;
+}): Component {
+  const iconW: Int = action.int(ActionParams.ICON_W);
+  const iconH: Int = action.int(ActionParams.ICON_H);
+  const actionId: Int = action.int(ActionParams.ACTION_ID);
+  const drop: Int = -1;
+
+  return (
+    <>
+      <sprite
+        x={RowLayout.ICON_X}
+        y={top + RowLayout.HEIGHT / 2 - iconH / 2}
+        w={iconW}
+        h={iconH}
+        sprite={action.sprite(ActionParams.ICON)}
+      />
+
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={RowLayout.HEIGHT}
+        text={action.text(ActionParams.NAME)}
+        font={HotkeyFonts.HEADER}
+        color={HotkeyColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={15}
+      />
+
+      <sprite
+        x={{ right: RowLayout.INFO_X }}
+        y={top + RowLayout.HEIGHT / 2 - RowLayout.INFO_ICON / 2}
+        w={RowLayout.INFO_ICON}
+        h={RowLayout.INFO_ICON}
+        sprite={HotkeySprites.INFO}
+      />
+
+      <rect
+        x={0}
+        y={top}
+        w={{ fill: RowLayout.CLICK_W }}
+        h={RowLayout.HEIGHT}
+        fill
+        color={HotkeyColor.HIT}
+        transparency={RowLayout.HIT_TRANSPARENCY}
+        dragDeadZone={RowLayout.DRAG_DEAD_ZONE}
+        dragDeadTime={RowLayout.DRAG_DEAD_TIME}
+        draggable={frame}
+        onDrag={(event) => trackDrag(actionId, event.mouseX, event.mouseY)}
+        onDragComplete={() => {
+          endDrag();
+          assignHotkey(action, loadout, drop, current, tutorial, tutorial2);
+        }}
+      />
+
+      <rect
+        x="right"
+        y={top}
+        w={RowLayout.CLICK_W}
+        h={RowLayout.HEIGHT}
+        fill
+        color={HotkeyColor.HIT}
+        transparency={RowLayout.HIT_TRANSPARENCY}
+        onClick={() => toggleInfoExpand(rawIndex, expandIndex)}
+      />
+
+      {infoHeight > 0 ? (
+        <text
+          x="center"
+          y={top + RowLayout.HEIGHT}
+          w={{ fill: RowLayout.INFO_PAD }}
+          h={infoHeight}
+          text={action.text(ActionParams.DESCRIPTION)}
+          font={HotkeyFonts.BODY}
+          color={HotkeyColor.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={15}
+        />
+      ) : null}
+
+      <rect x={0} y={top} w={listWidth} h={boxHeight} color={ThinBoxColor.OUTER} />
+      <rect x={1} y={top + 1} w={listWidth - 2} h={boxHeight - 2} color={ThinBoxColor.INNER} />
+    </>
+  );
+}

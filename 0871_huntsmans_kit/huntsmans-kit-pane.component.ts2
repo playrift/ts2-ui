@@ -1,0 +1,52 @@
+import { useInventory, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { KitSlot } from './kit-slot.component';
+import { Column, SLOTS, Slot, KitBar, KitInv, KitVarbits } from './huntsmans-kit.constants';
+
+export function HuntsmansKitPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const box = useInventory(KitInv.INV);
+  const armed: Int = useServerState(KitVarbits.QUANTITY);
+
+  const paneWidth: Int = universe.width - Column.BAR_W;
+  const gap: Int = (paneWidth - Slot.COLUMNS * Slot.W) / Slot.COLUMNS;
+  const margin: Int = gap / 2;
+  const content: Int = ((SLOTS - 1) / Slot.COLUMNS) * (Slot.H + gap) + Slot.H;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        y="center"
+        w={{ fill: Column.BAR_W }}
+        h="fill"
+        scrollHeight={content > universe.height ? content : 0}
+      >
+        {box.map((item, slot) => (
+          <KitSlot
+            item={item}
+            count={box.count(slot)}
+            slot={slot}
+            gap={gap}
+            margin={margin}
+            armed={armed}
+            pane={list}
+          />
+        ))}
+      </layer>
+
+      <layer x="right" y="center" w={Column.BAR_W} h="fill">
+        <ScrollbarVertical
+          content={list}
+          track={KitBar.TRACK}
+          capTopSprite={KitBar.CAP_TOP}
+          thumbSprite={KitBar.THUMB}
+          capBottomSprite={KitBar.CAP_BOTTOM}
+          arrowUp={KitBar.ARROW_UP}
+          arrowDown={KitBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

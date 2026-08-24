@@ -1,0 +1,74 @@
+import { useServerState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import { Leagues, RankColors, RankLayout, RankParams, RankRows, RankVarbits, RankVarps } from './league-rank.constants';
+import { markerAt, nextRankThreshold } from './league-rank.helpers';
+
+export function RankProgressBar(): Component {
+  const league: Int = useServerState(RankVarbits.LEAGUE);
+  const points: Int = useServerState(RankVarps.POINTS);
+
+  const style: Row = Leagues.get(league);
+  const ladder: Int = style.int(RankParams.THRESHOLDS);
+
+  if (ladder === -1) {
+    return null;
+  }
+
+  const thresholds: List<Int> = ladder as unknown as List<Int>;
+
+  const top: Int = thresholds.at(6);
+  const span: Int = RankLayout.BAR_SPAN;
+  const scaledWidth: Int = scaled(points, top, span);
+  const barWidth: Int = scaledWidth > span ? span - 1 : scaledWidth;
+
+  const nextAt: Int = nextRankThreshold(points, thresholds);
+  const caption: String =
+    nextAt < 0
+      ? 'Max rank achieved!'
+      : nextAt - points === 1
+        ? 'Next rank after 1 point.'
+        : `Next rank after ${stringOf(nextAt - points)} points.`;
+
+  return (
+    <>
+      <rect x={2} y={2} w={{ fill: 4 }} h={RankLayout.BAR_OUTLINE_H} color={RankColors.BAR_OUTLINE} />
+
+      <sprite
+        x={3}
+        y={3}
+        w={{ fill: 6 }}
+        h={RankLayout.BAR_TRACK_H}
+        sprite={style.sprite(RankParams.BAR_TRACK)}
+        tiling
+      />
+      <sprite x={3} y={3} w={barWidth} h={RankLayout.BAR_TRACK_H} sprite={style.sprite(RankParams.BAR_FILL)} tiling />
+
+      {RankRows.map((row) => (
+        <sprite
+          x={markerAt(thresholds.at(row), top, span) - 4}
+          y={1}
+          w={RankLayout.MARKER_W}
+          h={RankLayout.MARKER_H}
+          sprite={style.sprite(RankParams.MARKER)}
+        />
+      ))}
+
+      <text
+        x={1}
+        y={1}
+        w={{ fill: 2 }}
+        h={{ fill: 2 }}
+        align="center"
+        valign="middle"
+        font={style.int(RankParams.FONT) as Font}
+        shadow={style.int(RankParams.SHADOW) === 1 ? true : false}
+        color={style.int(RankParams.TEXT_COLOUR)}
+        text={caption}
+      />
+
+      <rect x={0} y={0} w="fill" h={RankLayout.EDGE_OUTER_H} color={RankColors.BAR_EDGE} />
+      <rect x={1} y={1} w={{ fill: 2 }} h={RankLayout.EDGE_INNER_H} color={RankColors.BAR_EDGE} />
+    </>
+  );
+}

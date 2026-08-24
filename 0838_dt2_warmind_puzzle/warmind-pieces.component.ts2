@@ -1,0 +1,105 @@
+import { useRef, useServerState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { Grid, WarmindCells, WarmindColors, WarmindItems, WarmindSounds } from './dt2-warmind-puzzle.constants';
+
+export function pieceCell(section: Int): Int {
+  switch (section) {
+    case 0:
+      return useServerState(WarmindCells.PIECE_0);
+    case 1:
+      return useServerState(WarmindCells.PIECE_1);
+    case 2:
+      return useServerState(WarmindCells.PIECE_2);
+    case 3:
+      return useServerState(WarmindCells.PIECE_3);
+    case 4:
+      return useServerState(WarmindCells.PIECE_4);
+    case 5:
+      return useServerState(WarmindCells.PIECE_5);
+    case 6:
+      return useServerState(WarmindCells.PIECE_6);
+    case 7:
+      return useServerState(WarmindCells.PIECE_7);
+  }
+  return -1;
+}
+
+export function cellIsFree(cell: Int): Boolean {
+  if (pieceCell(0) === cell) {
+    return false;
+  }
+  if (pieceCell(1) === cell) {
+    return false;
+  }
+  if (pieceCell(2) === cell) {
+    return false;
+  }
+  if (pieceCell(3) === cell) {
+    return false;
+  }
+  if (pieceCell(4) === cell) {
+    return false;
+  }
+  if (pieceCell(5) === cell) {
+    return false;
+  }
+  if (pieceCell(6) === cell) {
+    return false;
+  }
+  if (pieceCell(7) === cell) {
+    return false;
+  }
+  return true;
+}
+
+export function dropPiece(piece: ComponentId, cell: Int): void {
+  if (cell < 0 || cell >= Grid.CELLS) {
+    return;
+  }
+  if (cellIsFree(cell) === false) {
+    return;
+  }
+  piece.x = Grid.ORIGIN + Grid.STRIDE * (cell % Grid.ACROSS);
+  piece.y = Grid.ORIGIN + Grid.STRIDE * (cell / Grid.ACROSS);
+  playSound(WarmindSounds.PLACE);
+}
+
+export function WarmindPiece({ cell, board }: { cell: Int; board: Ref }): Component {
+  if (cell < 0 || cell >= Grid.CELLS) {
+    return null;
+  }
+
+  return (
+    <sprite
+      x={Grid.ORIGIN + Grid.STRIDE * (cell % Grid.ACROSS)}
+      y={Grid.ORIGIN + Grid.STRIDE * (cell / Grid.ACROSS)}
+      w={Grid.CELL}
+      h={Grid.CELL}
+      item={WarmindItems.CHARGED_CELL}
+      itemCount={1}
+      shadowColor={WarmindColors.PIECE_SHADOW}
+      draggable={board}
+      dragDeadZone={5}
+      dragDeadTime={5}
+      options={['Select']}
+      onDragComplete={(event) => {
+        dropPiece(event.self, event.dragTargetSubId);
+      }}
+    />
+  );
+}
+
+const SECTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+export function WarmindPieces(): Component {
+  const board = useRef();
+
+  return (
+    <layer ref={board} w="fill" h="fill">
+      {SECTIONS.map((section) => (
+        <WarmindPiece cell={pieceCell(section)} board={board} />
+      ))}
+    </layer>
+  );
+}

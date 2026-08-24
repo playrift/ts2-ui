@@ -1,0 +1,44 @@
+import { intArray, useServerState, useUniverse } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import { LightGridLayout, LightItems, LightPuzzleVarps } from './light-puzzle.constants';
+
+export function LightGrid(): Component {
+  const universe = useUniverse();
+  const width: Int = universe.width;
+  const height: Int = universe.height;
+
+  const gapX: Int = (width - LightGridLayout.CELL_W * LightGridLayout.ACROSS) / (LightGridLayout.ACROSS + 1);
+  const gapY: Int =
+    (height - LightGridLayout.CELL_H * LightGridLayout.ACROSS - LightGridLayout.TOP) / (LightGridLayout.ACROSS + 1);
+
+  const lights: Int = useServerState(LightPuzzleVarps.LIGHTS);
+
+  const lamps = intArray<Item>(25);
+
+  let cell: Int = 0;
+  while (cell < LightGridLayout.CELLS) {
+    if (hasBit(lights, cell)) {
+      lamps[cell] = LightItems.UNLIT;
+    } else {
+      lamps[cell] = LightItems.LIT;
+    }
+    cell = cell + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {lamps.map((lamp, index) => (
+        <sprite
+          x={gapX + (index % LightGridLayout.ACROSS) * (LightGridLayout.CELL_W + gapX) + LightGridLayout.NUDGE_X}
+          y={LightGridLayout.TOP + (index / LightGridLayout.ACROSS) * (LightGridLayout.CELL_H + gapY)}
+          w={LightGridLayout.CELL_W}
+          h={LightGridLayout.CELL_H}
+          item={lamp}
+          itemCount={LightGridLayout.NO_COUNT}
+          outline={LightGridLayout.OUTLINE}
+        />
+      ))}
+    </layer>
+  );
+}

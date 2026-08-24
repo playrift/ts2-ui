@@ -1,0 +1,136 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { playSound } from '../lib/lib.engine';
+import {
+  BrBuild,
+  BrSettingsArt,
+  BrSettingsFonts,
+  BrSettingsSounds,
+  BrSettingsVars,
+  BuildNames,
+  Fade,
+  Layout,
+  LmsSkill,
+  Palette,
+} from './br-settings.constants';
+import { SkillColumn } from './skill-column.component';
+
+const chooseBuild = (build: Int): void => {
+  playSound(BrSettingsSounds.SELECT);
+  predictServerState(BrSettingsVars.PREFERRED_BUILD, build);
+};
+
+function BuildRow({ row, label, base }: { row: Int; label: String; base: Int }): Component {
+  return (
+    <rect
+      x="center"
+      y={Layout.HEADER_H + Layout.ROW_H * row}
+      w="fill"
+      h={Layout.ROW_H}
+      color={Palette.WHITE}
+      fill
+      transparency={base}
+      options={[label]}
+      onOptionSelect={() => chooseBuild(row)}
+      onMouseRepeat={(event) => ccSetTrans(event.self, Fade.ROW_HOVER)}
+      onMouseLeave={(event) => ccSetTrans(event.self, base)}
+    />
+  );
+}
+
+function BuildIndicators(): Component {
+  const preferred: Int = useServerState(BrSettingsVars.PREFERRED_BUILD);
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x={0}
+        y={Layout.HEADER_H + Layout.RADIO_DY}
+        w={Layout.RADIO}
+        h={Layout.RADIO}
+        sprite={preferred === BrBuild.MAX_MED ? BrSettingsArt.RADIO_ON : BrSettingsArt.RADIO_OFF}
+      />
+      <sprite
+        x={0}
+        y={Layout.HEADER_H + Layout.ROW_H + Layout.RADIO_DY}
+        w={Layout.RADIO}
+        h={Layout.RADIO}
+        sprite={preferred === BrBuild.ZERKER ? BrSettingsArt.RADIO_ON : BrSettingsArt.RADIO_OFF}
+      />
+      <sprite
+        x={0}
+        y={Layout.HEADER_H + 2 * Layout.ROW_H + Layout.RADIO_DY}
+        w={Layout.RADIO}
+        h={Layout.RADIO}
+        sprite={preferred === BrBuild.PURE ? BrSettingsArt.RADIO_ON : BrSettingsArt.RADIO_OFF}
+      />
+    </layer>
+  );
+}
+
+function BuildLabel({ row, label }: { row: Int; label: String }): Component {
+  return (
+    <text
+      x="right"
+      y={Layout.HEADER_H + Layout.ROW_H * row + Layout.RADIO_DY}
+      w={{ fill: Layout.LABEL_INSET }}
+      h={Layout.RADIO}
+      text={label}
+      font={BrSettingsFonts.BODY}
+      color={Palette.GOLD}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+export function BuildGrid(): Component {
+  const maxMed: String = BuildNames.get(BrBuild.MAX_MED);
+  const zerker: String = BuildNames.get(BrBuild.ZERKER);
+  const pure: String = BuildNames.get(BrBuild.PURE);
+
+  return (
+    <layer x="center" y="center" w={{ fill: Layout.GRID_INSET }} h={{ fill: Layout.GRID_INSET }}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={BrSettingsArt.BACKING} tiling />
+
+      <BuildRow row={BrBuild.MAX_MED} label={maxMed} base={Fade.ROW_SHADED} />
+      <BuildRow row={BrBuild.ZERKER} label={zerker} base={Fade.ROW_CLEAR} />
+      <BuildRow row={BrBuild.PURE} label={pure} base={Fade.ROW_SHADED} />
+
+      <BuildIndicators />
+
+      <BuildLabel row={BrBuild.MAX_MED} label={maxMed} />
+      <BuildLabel row={BrBuild.ZERKER} label={zerker} />
+      <BuildLabel row={BrBuild.PURE} label={pure} />
+
+      <SkillColumn x={Layout.COLUMN_X} skill={LmsSkill.ATTACK} divider maxMed={99} zerker={75} pure={75} />
+      <SkillColumn x={Layout.COLUMN_X + Layout.COLUMN_W} skill={LmsSkill.STRENGTH} maxMed={99} zerker={99} pure={99} />
+      <SkillColumn
+        x={Layout.COLUMN_X + 2 * Layout.COLUMN_W}
+        skill={LmsSkill.DEFENCE}
+        divider
+        maxMed={75}
+        zerker={50}
+        pure={1}
+      />
+      <SkillColumn x={Layout.COLUMN_X + 3 * Layout.COLUMN_W} skill={LmsSkill.MAGIC} maxMed={99} zerker={99} pure={99} />
+      <SkillColumn
+        x={Layout.COLUMN_X + 4 * Layout.COLUMN_W}
+        skill={LmsSkill.RANGED}
+        divider
+        maxMed={99}
+        zerker={99}
+        pure={99}
+      />
+      <SkillColumn
+        x={Layout.COLUMN_X + 5 * Layout.COLUMN_W}
+        skill={LmsSkill.HITPOINTS}
+        maxMed={99}
+        zerker={99}
+        pure={99}
+      />
+    </layer>
+  );
+}

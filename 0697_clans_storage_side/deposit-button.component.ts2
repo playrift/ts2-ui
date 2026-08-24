@@ -1,0 +1,61 @@
+import { useRef, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ClanStorageColors, ClanStorageFonts, ClanStorageSounds, PRESS_CYCLES } from './clans-storage-side.constants';
+
+export function DepositButton({ label }: { label: String }): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const caption = useRef();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Deposit']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(ClanStorageSounds.CLICK);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+      onTimer={() => {
+        if (pressedUntil === 0) {
+          return;
+        }
+        if (clientClock() < pressedUntil) {
+          return;
+        }
+        setPressedUntil(0);
+      }}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          caption.color = ClanStorageColors.HOVER;
+        }
+      }}
+      onMouseLeave={() => {
+        caption.color = ClanStorageColors.LABEL;
+      }}
+    >
+      {pressedUntil === 0 ? <StoneButtonOutFilled /> : <StoneButtonPressedFilled />}
+
+      <text
+        ref={caption}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={ClanStorageFonts.LABEL}
+        color={ClanStorageColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

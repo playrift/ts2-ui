@@ -1,0 +1,118 @@
+import { useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { PestRewardsDivider } from './pest-rewards.shared';
+import { RewardRow } from './reward-row.component';
+import {
+  RewardBar,
+  RewardLayout,
+  RewardPrices,
+  RewardRows,
+  RewardToggles,
+  RewardVarbits,
+  RewardVarps,
+  SelectedReward,
+} from './br-reward-shop.constants';
+
+export function RewardPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedReward);
+
+  const points: Int = useServerState(RewardVarps.POINTS);
+  const wins: Int = useServerState(RewardVarps.WINS);
+
+  const ags: Int = useServerState(RewardVarbits.AGS_SPEC);
+  const bgs: Int = useServerState(RewardVarbits.BGS_SPEC);
+  const sgs: Int = useServerState(RewardVarbits.SGS_SPEC);
+  const zgs: Int = useServerState(RewardVarbits.ZGS_SPEC);
+
+  const prices = useInventory(RewardPrices);
+
+  const paneWidth: Int = universe.width - RewardLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - RewardLayout.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={RewardLayout.PANE_X}
+        y="center"
+        w={{ fill: RewardLayout.PANE_W_INSET }}
+        h={{ fill: RewardLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={RewardLayout.CONTENT_H >= paneHeight ? RewardLayout.CONTENT_H : 0}
+      >
+        {RewardRows.map((row) => (
+          <>
+            <RewardRow
+              index={row.left}
+              rowX={0}
+              rowY={row.y}
+              cellW={half}
+              selected={selected}
+              points={points}
+              wins={wins}
+              price={prices.count(row.left)}
+              toggle={
+                row.left === RewardToggles.AGS
+                  ? ags
+                  : row.left === RewardToggles.BGS
+                    ? bgs
+                    : row.left === RewardToggles.SGS
+                      ? sgs
+                      : row.left === RewardToggles.ZGS
+                        ? zgs
+                        : 0
+              }
+            />
+
+            {row.right !== -1 ? (
+              <RewardRow
+                index={row.right}
+                rowX={half}
+                rowY={row.y}
+                cellW={half}
+                selected={selected}
+                points={points}
+                wins={wins}
+                price={prices.count(row.right)}
+                toggle={
+                  row.right === RewardToggles.AGS
+                    ? ags
+                    : row.right === RewardToggles.BGS
+                      ? bgs
+                      : row.right === RewardToggles.SGS
+                        ? sgs
+                        : row.right === RewardToggles.ZGS
+                          ? zgs
+                          : 0
+                }
+              />
+            ) : null}
+
+            {row.divider !== -1 ? <PestRewardsDivider y={row.divider} /> : null}
+          </>
+        ))}
+      </layer>
+
+      <layer
+        x={{ right: RewardLayout.BAR_X }}
+        y="center"
+        w={RewardLayout.BAR_W}
+        h={{ fill: RewardLayout.PANE_H_INSET }}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={RewardBar.TRACK}
+          capTopSprite={RewardBar.CAP_TOP}
+          thumbSprite={RewardBar.THUMB}
+          capBottomSprite={RewardBar.CAP_BOTTOM}
+          arrowUp={RewardBar.ARROW_UP}
+          arrowDown={RewardBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

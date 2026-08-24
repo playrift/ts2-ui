@@ -1,0 +1,42 @@
+import { onUpdated, predictServerState, useInterval, useServerState, useState } from 'ts2';
+import { clockLastUpdate } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { ClockTiming, Layout, SideChannelColor, SideChannelFonts, SideChannelVarbits } from './side-channels.constants';
+
+export function Clock(): Component {
+  const minutes: Int = useServerState(SideChannelVarbits.CLOCK);
+  const [holdoff, setHoldoff] = useState(clockLastUpdate);
+
+  useInterval(
+    () => {
+      if (clientClock() < holdoff) {
+        return;
+      }
+      predictServerState(SideChannelVarbits.CLOCK, minutes + 1);
+      setHoldoff(clientClock() + ClockTiming.holdoffCycles);
+    },
+    { everyMs: 1000 },
+  );
+
+  onUpdated(() => {
+    setHoldoff(clientClock() + ClockTiming.holdoffCycles);
+  });
+
+  const hours: String = stringOf(minutes / ClockTiming.minutesPerHour).padStart(2, '0');
+  const past: String = stringOf(minutes % ClockTiming.minutesPerHour).padStart(2, '0');
+
+  return (
+    <text
+      x="right"
+      y={Layout.clock.y}
+      w={Layout.clock.w}
+      h={Layout.clock.h}
+      font={SideChannelFonts.CLOCK}
+      color={SideChannelColor.CLOCK}
+      shadow
+      align="center"
+      valign="middle"
+      text={`${hours}:${past} UTC`}
+    />
+  );
+}

@@ -1,0 +1,53 @@
+import { useInventory, useRef } from 'ts2';
+
+import { chatMessage, clientClock, itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { groupDigits } from '../lib/lib.format';
+import {
+  ClanStorage,
+  ClanStorageColors,
+  ClanStorageItems,
+  ClanStorageSounds,
+  ClanStorageText,
+  FLASH_CYCLES,
+  Layout,
+  SlotTransparency,
+} from './clans-storage-side.constants';
+
+export function CoinSlot(): Component {
+  const inv = useInventory(ClanStorage.INV);
+
+  const held: Int = inv.total(ClanStorageItems.COINS);
+
+  const slot = useRef();
+
+  const hint: String = held > 0 ? ClanStorageText.ELIGIBLE : ClanStorageText.NO_COINS_HINT;
+
+  const detail: String =
+    held > 0 ? `${groupDigits(held, ',')} x ${itemName(ClanStorageItems.COINS)}.` : ClanStorageText.NO_COINS;
+
+  const resting: Int = held > 0 ? SlotTransparency.HELD_REST : SlotTransparency.EMPTY_REST;
+  const flash: Int = held > 0 ? SlotTransparency.HELD_FLASH : SlotTransparency.EMPTY_FLASH;
+
+  return (
+    <sprite
+      ref={slot}
+      x="center"
+      y="center"
+      w={Layout.SLOT_W}
+      h={Layout.SLOT_H}
+      item={held > 0 ? ClanStorageItems.COINS : ClanStorageItems.COINS_1000}
+      itemCount={held > 0 ? held : -1}
+      outline={1}
+      shadowColor={ClanStorageColors.SLOT_SHADOW}
+      transparency={resting}
+      options={['Inspect', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(ClanStorageItems.COINS)}</col>`}
+      onOptionSelect={(event) => {
+        playSound(ClanStorageSounds.CLICK);
+        chatMessage(event.option === 1 ? hint : detail);
+        flashFor(slot, flash, resting);
+      }}
+    />
+  );
+}

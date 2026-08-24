@@ -1,0 +1,97 @@
+import { useServerState, useUniverse } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import {
+  Board,
+  Colors,
+  FossilFonts,
+  FossilGroupTitles,
+  FossilGroups,
+  FossilSlots,
+  Panes,
+  Stocked,
+} from './fossil-storage.constants';
+
+export function FossilBoard(): Component {
+  const universe = useUniverse();
+
+  const listWidth: Int = universe.width - Panes.LIST_INSET;
+  const listHeight: Int = universe.height - Panes.TITLES_INSET;
+
+  const rowStep: Int = Board.GAP + (listHeight - Board.ROW_INSET) / Board.ROWS;
+  const colStep: Int = Board.GAP + listWidth / Board.COLUMNS;
+  const colStepWide: Int = Board.GAP + listWidth / Board.COLUMNS_WIDE;
+
+  const content: Int = (Board.ROWS - 1) * rowStep + Board.CELL_H;
+
+  return (
+    <>
+      <layer x={Panes.TITLES_X} y={Panes.TITLES_Y} w={Panes.TITLES_W} h={{ fill: Panes.TITLES_INSET }}>
+        {FossilGroups.map((group) => (
+          <text
+            x={0}
+            y={group.row * rowStep}
+            w={Board.HEADING_W}
+            h={Board.HEADING_H}
+            text={FossilGroupTitles.get(group.head)}
+            font={FossilFonts.HEADING}
+            color={Colors.HEADING}
+            shadow
+            align="left"
+            valign="top"
+          />
+        ))}
+      </layer>
+
+      <layer
+        x={Panes.LIST_X}
+        y={Panes.LIST_Y}
+        w={{ fill: Panes.LIST_INSET }}
+        h={{ fill: Panes.TITLES_INSET }}
+        scrollHeight={content > listHeight ? content : 0}
+      >
+        {FossilSlots.map((slot) =>
+          useServerState(slot.stock) > 0 ? (
+            <sprite
+              x={Board.CELL_X0 + slot.col * (slot.wide === 1 ? colStepWide : colStep)}
+              y={slot.row * rowStep}
+              w={Board.CELL_W}
+              h={Board.CELL_H}
+              item={slot.item}
+              itemCount={useServerState(slot.stock)}
+              outline={Stocked.OUTLINE}
+              shadowColor={Colors.CELL_SHADOW}
+              transparency={Stocked.CLEAR}
+              options={[
+                'Withdraw',
+                'Withdraw 5',
+                'Withdraw 10',
+                'Withdraw All',
+                'Withdraw X',
+                '',
+                '',
+                '',
+                '',
+                'Examine',
+              ]}
+              optionSubject={`<col=ff9040>${itemName(slot.item)}</col>`}
+            />
+          ) : (
+            <sprite
+              x={Board.CELL_X0 + slot.col * (slot.wide === 1 ? colStepWide : colStep)}
+              y={slot.row * rowStep}
+              w={Board.CELL_W}
+              h={Board.CELL_H}
+              item={slot.item}
+              itemCount={useServerState(slot.stock)}
+              outline={Stocked.NO_OUTLINE}
+              shadowColor={Colors.CELL_SHADOW}
+              transparency={Stocked.DIM}
+              options={['', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(slot.item)}</col>`}
+            />
+          ),
+        )}
+      </layer>
+    </>
+  );
+}

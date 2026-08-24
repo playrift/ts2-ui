@@ -1,0 +1,99 @@
+import { useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ThinBox } from '../lib/thin-box.component';
+import { onMobile } from '../lib/lib.helpers';
+import { actionsFilterType } from '../lib/game/varcs';
+import {
+  ACTION_FILTER_COUNT,
+  ActionFilters,
+  DROPDOWN_ARROW_HOVER,
+  Dropdown,
+  HotkeyColor,
+  HotkeyFonts,
+  HotkeySprites,
+  HotkeyVarbits,
+  LOADOUT_COUNT,
+  Layout,
+  Loadouts,
+} from './hotkey-settings-new.constants';
+
+export function DropdownButton({
+  label,
+  entryCount,
+  color,
+}: {
+  label: String;
+  entryCount: Int;
+  color: Int;
+}): Component {
+  const universe = useUniverse();
+  const arrow = useRef();
+
+  const arrowInset: Int = (universe.height - Dropdown.ARROW) / 2;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Expand']}
+      onMouseEnter={() => {
+        if (!onMobile()) {
+          arrow.transparency = DROPDOWN_ARROW_HOVER;
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          arrow.transparency = 0;
+        }
+      }}
+    >
+      <sprite w="fill" h="fill" sprite={HotkeySprites.BACKING} tiling />
+      <ThinBox />
+      <sprite
+        ref={arrow}
+        x={{ right: arrowInset }}
+        y={arrowInset}
+        w={Dropdown.ARROW}
+        h={Dropdown.ARROW}
+        sprite={HotkeySprites.DROPDOWN_ARROW}
+        tiling
+        transparency={entryCount > 0 ? 0 : DROPDOWN_ARROW_HOVER}
+      />
+      <text
+        x={Dropdown.LABEL_INSET}
+        y={{ bottom: Dropdown.LABEL_INSET }}
+        w={{ fill: universe.height }}
+        h={{ fill: Dropdown.LABEL_INSET_H }}
+        text={label}
+        font={HotkeyFonts.LABEL}
+        color={color}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function LoadoutDropdown(): Component {
+  const selected: Int = useServerState(HotkeyVarbits.LOADOUT_VIEWED);
+  return (
+    <layer x={Layout.loadoutDropdown.x} y="center" w={Layout.loadoutDropdown.w} h={Layout.loadoutDropdown.h}>
+      <DropdownButton label={Loadouts.at(selected)} entryCount={LOADOUT_COUNT} color={HotkeyColor.LABEL} />
+    </layer>
+  );
+}
+
+export function FilterDropdown(): Component {
+  const [rawFilter] = useState(actionsFilterType);
+  const selected: Int = rawFilter < 0 ? 0 : rawFilter;
+  return (
+    <layer
+      x={{ right: Layout.filterDropdown.right }}
+      y="center"
+      w={Layout.filterDropdown.w}
+      h={Layout.filterDropdown.h}
+    >
+      <DropdownButton label={ActionFilters.at(selected)} entryCount={ACTION_FILTER_COUNT} color={HotkeyColor.LABEL} />
+    </layer>
+  );
+}

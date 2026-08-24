@@ -1,0 +1,79 @@
+import { stopTimer } from 'ts2';
+import { clientClock, itemName, playSound } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Fade, PRESS_CYCLES, RetrievalArt, RetrievalItems, RetrievalSounds } from './gravestone-retrieval.constants';
+
+export function retrievalButtonHover(
+  hovered: Int,
+  icon: ComponentId,
+  movesLabels: Int,
+  label: ComponentId,
+  feeLabel: ComponentId,
+): void {
+  if (hovered === 1) {
+    icon.transparency = Fade.HOVER;
+    if (movesLabels === 1) {
+      label.hide = true;
+      feeLabel.hide = false;
+    }
+    return;
+  }
+  icon.transparency = Fade.REST;
+  if (movesLabels === 1) {
+    label.hide = false;
+    feeLabel.hide = true;
+  }
+}
+
+export function pressRetrievalButton(
+  button: ComponentId,
+  icon: ComponentId,
+  movesLabels: Int,
+  label: ComponentId,
+  feeLabel: ComponentId,
+): void {
+  playSound(RetrievalSounds.PRESS);
+  button.sprite = RetrievalArt.BUTTON_PRESSED;
+  icon.transparency = Fade.REST;
+
+  const restoreAt: Int = clientClock() + PRESS_CYCLES;
+  button.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    if (movesLabels === 1) {
+      label.hide = false;
+      feeLabel.hide = true;
+    }
+    button.sprite = RetrievalArt.BUTTON;
+    stopTimer(button);
+  };
+}
+
+export function unlockFeeText(feeItem: ItemName, fee: Int, coffer: Int): String {
+  const feeObj: Item = feeItem as Item;
+
+  if (feeItem === RetrievalItems.COINS) {
+    const cofferLine: String = cofferBalanceText(feeItem, coffer);
+    if (fee > 1) {
+      return `Fee to unlock: <col=ffffff>${groupDigits(fee, ',')} x ${itemName(feeObj)}</col><br>${cofferLine}`;
+    }
+    return `Fee to unlock: <col=ffffff>${itemName(feeObj)}</col><br>${cofferLine}`;
+  }
+  if (fee > 1) {
+    return `Fee to unlock:<br><col=ffffff>${groupDigits(fee, ',')} x ${itemName(feeObj)}</col>`;
+  }
+  return `Fee to unlock:<br><col=ffffff>${itemName(feeObj)}</col>`;
+}
+
+function cofferBalanceText(feeItem: ItemName, coffer: Int): String {
+  const feeObj: Item = feeItem as Item;
+
+  if (coffer > 1) {
+    return `Death's Coffer: <col=ffffff>${groupDigits(coffer, ',')} x ${itemName(feeObj)}</col>`;
+  }
+  if (coffer === 1) {
+    return "Death's Coffer: <col=ffffff>One Coin</col>";
+  }
+  return "Death's Coffer: <col=ffffff>Empty</col>";
+}

@@ -1,0 +1,167 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import {
+  MAX_32BIT_INT,
+  TOMB_CLUE_DIGITS,
+  TOMB_CLUE_TEXT,
+  TombColors,
+  TombPuzzleCompleted,
+  TombVarps,
+} from './myq5-tomb-puzzle.constants';
+
+export function stringToIntLimit(text: String, limit: Int): Int {
+  let negative: Boolean = false;
+  let body: String = text;
+
+  if (body.indexOf('-', 0) === 0) {
+    negative = true;
+    body = body.substring(1, body.length);
+  }
+
+  let digits: Int = body.length;
+  if (limit !== -1 && limit > 0) {
+    digits = Math.min(limit, digits);
+  }
+
+  let total: Int = 0;
+
+  if (digits > 10 || (digits === 10 && stringToIntLimit(body, 1) > 2)) {
+    total = MAX_32BIT_INT;
+  } else {
+    let at: Int = 0;
+    while (at < digits) {
+      const digit: Int = '0123456789'.indexOf(body.substring(at, at + 1), 0);
+      if (digit !== -1) {
+        const place: Int = digit * Math.pow(10, digits - 1 - at);
+        if (MAX_32BIT_INT - place < total) {
+          total = MAX_32BIT_INT;
+          at = digits;
+        } else {
+          total = total + place;
+        }
+      }
+      at = at + 1;
+    }
+  }
+
+  if (negative) {
+    return 0 - total;
+  }
+  return total;
+}
+
+export function tileState(marked: Int, flagged: Int, index: Int): Int {
+  const isMarked: Boolean = hasBit(marked, index);
+  const isFlagged: Boolean = hasBit(flagged, index);
+
+  if (isMarked && isFlagged) {
+    return -1;
+  }
+  if (!isMarked && !isFlagged) {
+    return 0;
+  }
+  if (isMarked) {
+    return 2;
+  }
+  if (isFlagged) {
+    return 1;
+  }
+  return -1;
+}
+
+export function setTileState(index: Int, state: Int): Int {
+  const marked: Int = useServerState(TombVarps.TILE_MARKED);
+  const flagged: Int = useServerState(TombVarps.TILE_FLAGGED);
+
+  let nextMarked: Int = CS2.bit_clear(marked, index);
+  let nextFlagged: Int = CS2.bit_clear(flagged, index);
+
+  if (state === 2) {
+    nextMarked = CS2.bit_set(nextMarked, index);
+  } else if (state === 1) {
+    nextFlagged = CS2.bit_set(nextFlagged, index);
+  }
+
+  predictServerState(TombVarps.TILE_MARKED, nextMarked);
+  predictServerState(TombVarps.TILE_FLAGGED, nextFlagged);
+  return state;
+}
+
+export function cycleTile(index: Int): Int {
+  const marked: Int = useServerState(TombVarps.TILE_MARKED);
+  const flagged: Int = useServerState(TombVarps.TILE_FLAGGED);
+  const state: Int = tileState(marked, flagged, index);
+
+  if (state === 0) {
+    return setTileState(index, 2);
+  }
+  if (state === 2) {
+    return setTileState(index, 1);
+  }
+  if (state === 1) {
+    return setTileState(index, 0);
+  }
+  return -1;
+}
+
+export function tombSolved(): Boolean {
+  if (useServerState(TombPuzzleCompleted) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function tileScores(marked: Int, flagged: Int, index: Int): Int {
+  if (tileState(marked, flagged, index) === 2) {
+    return 1;
+  }
+  return 0;
+}
+
+export function lineTotal(marked: Int, flagged: Int, line: Int): Int {
+  if (line < 5) {
+    return (
+      tileScores(marked, flagged, line) +
+      tileScores(marked, flagged, line + 5) * 2 +
+      tileScores(marked, flagged, line + 10) * 3 +
+      tileScores(marked, flagged, line + 15) * 4 +
+      tileScores(marked, flagged, line + 20) * 5
+    );
+  }
+
+  const first: Int = (line - 5) * 5;
+  return (
+    tileScores(marked, flagged, first) +
+    tileScores(marked, flagged, first + 1) * 2 +
+    tileScores(marked, flagged, first + 2) * 3 +
+    tileScores(marked, flagged, first + 3) * 4 +
+    tileScores(marked, flagged, first + 4) * 5
+  );
+}
+
+export function lineClue(): Int {
+  return stringToIntLimit(TOMB_CLUE_TEXT, TOMB_CLUE_DIGITS);
+}
+
+export function lineColor(total: Int, clue: Int): Int {
+  if (total === clue) {
+    return TombColors.MATCH;
+  }
+  if (total > clue) {
+    return TombColors.OVER;
+  }
+  return TombColors.LABEL;
+}
+
+export function tombBoardSolved(marked: Int, flagged: Int): Boolean {
+  const clue: Int = lineClue();
+  let line: Int = 0;
+  while (line < 10) {
+    if (lineTotal(marked, flagged, line) !== clue) {
+      return false;
+    }
+    line = line + 1;
+  }
+  return true;
+}

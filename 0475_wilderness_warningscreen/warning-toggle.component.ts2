@@ -1,0 +1,87 @@
+import { CS2, useServerState } from 'ts2';
+import { getWarningSetting } from '../lib/lib.helpers';
+import { Sounds } from '../lib/lib.constants';
+import { playSound, textWidth } from '../lib/lib.engine';
+import {
+  DISABLE_OP,
+  ENABLE_OP,
+  Panel,
+  TOGGLE_TEXT,
+  Toggle,
+  WarningColors,
+  WarningFonts,
+  WarningScreenSprites,
+  WarningScreenVarbits,
+  WarningSetting,
+} from './wilderness-warningscreen.constants';
+
+export function ToggleFace({ icon }: { icon: Sprite }): Component {
+  return (
+    <>
+      <rect x={0} y={0} w={0} h={0} hide />
+
+      <sprite x={0} y="center" w={Toggle.ICON} h={Toggle.ICON} sprite={icon} />
+
+      <text
+        x="right"
+        y="center"
+        w="fill"
+        h="fill"
+        text={TOGGLE_TEXT}
+        font={WarningFonts.BODY}
+        color={WarningColors.BODY}
+        hover={{ color: WarningColors.TOGGLE_HOVER }}
+        shadow
+        align="right"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function WarningToggle(): Component {
+  const messageId: Int = useServerState(WarningScreenVarbits.MESSAGE_ID);
+  const setting: Int = getWarningSetting(messageId);
+
+  const width: Int = textWidth(TOGGLE_TEXT, Panel.WIDTH, WarningFonts.BODY) + Toggle.PADDING;
+
+  if (setting >= WarningSetting.OFF) {
+    return (
+      <layer
+        x="center"
+        w={width}
+        h="fill"
+        options={[ENABLE_OP]}
+        onOptionSelect={(event) => {
+          playSound(Sounds.CLICK);
+          CS2.if_resume_pausebutton(event.component);
+        }}
+      >
+        <ToggleFace icon={WarningScreenSprites.UNTICKED} />
+      </layer>
+    );
+  }
+
+  if (setting === WarningSetting.ON) {
+    return (
+      <layer
+        x="center"
+        w={width}
+        h="fill"
+        options={[DISABLE_OP]}
+        onOptionSelect={(event) => {
+          playSound(Sounds.CLICK);
+          CS2.if_resume_pausebutton(event.component);
+        }}
+      >
+        <ToggleFace icon={WarningScreenSprites.TICKED} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer x="center" w={width} h="fill">
+      <ToggleFace icon={-1} />
+    </layer>
+  );
+}

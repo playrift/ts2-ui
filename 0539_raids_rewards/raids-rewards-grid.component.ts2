@@ -1,0 +1,69 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import {
+  Colors,
+  FADE_CYCLES,
+  Grid,
+  RaidsRewards,
+  RaidsVarbits,
+  RewardItems,
+  RewardSounds,
+  SlotOp,
+  Transparency,
+} from './raids-rewards.constants';
+
+export function RaidsRewardSlot({ item, count, x, y }: { item: Item; count: Int; x: Int; y: Int }): Component {
+  const cell = useRef();
+
+  return (
+    <sprite
+      ref={cell}
+      x={x}
+      y={y}
+      w={Grid.SLOT_WIDTH}
+      h={Grid.SLOT_HEIGHT}
+      outline={1}
+      transparency={Transparency.CLEAR}
+      shadowColor={Colors.SLOT_SHADOW}
+      item={item}
+      itemCount={count}
+      options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option !== SlotOp.TAKE && event.option !== SlotOp.EXAMINE) {
+          return;
+        }
+        playSound(RewardSounds.SELECT);
+        flashFor(cell, Transparency.FLASH, Transparency.CLEAR);
+      }}
+    />
+  );
+}
+
+export function RaidsRewardsGrid(): Component {
+  const rewards = useInventory(RaidsRewards.INV);
+  const needsRewardBook = useServerState(RaidsVarbits.NEEDS_REWARD_BOOK);
+
+  return (
+    <layer w="fill" h="fill">
+      {rewards.map(
+        (item, slot) =>
+          item !== -1 && (
+            <RaidsRewardSlot
+              item={item}
+              count={rewards.count(slot)}
+              x={slot < Grid.FIRST_COLUMN_SLOTS ? 0 : Grid.COLUMN_X}
+              y={
+                slot < Grid.FIRST_COLUMN_SLOTS
+                  ? slot * Grid.ROW_PITCH
+                  : (slot - Grid.SECOND_COLUMN_BIAS) * Grid.ROW_PITCH
+              }
+            />
+          ),
+      )}
+
+      {needsRewardBook === 1 && <RaidsRewardSlot item={RewardItems.BOOK} count={1} x={Grid.COLUMN_X} y={0} />}
+    </layer>
+  );
+}

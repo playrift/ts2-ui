@@ -1,0 +1,57 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { playSound, scaled } from '../lib/lib.engine';
+import { BurnerColumn, BurnerLock, BurnerPush, BurnerRange, BurnerSounds, BurnerVarbits } from './bcs-burner.constants';
+
+export function burnerValue(column: Int): Int {
+  switch (column) {
+    case BurnerColumn.WEST:
+      return useServerState(BurnerVarbits.WEST);
+    case BurnerColumn.CENTRE:
+      return useServerState(BurnerVarbits.CENTRE);
+    case BurnerColumn.EAST:
+      return useServerState(BurnerVarbits.EAST);
+  }
+  return 0;
+}
+
+export function burnerAverage(): Int {
+  return (
+    (useServerState(BurnerVarbits.WEST) + useServerState(BurnerVarbits.CENTRE) + useServerState(BurnerVarbits.EAST)) /
+    BurnerRange.COLUMNS
+  );
+}
+
+export function burnersLocked(): Boolean {
+  const average: Int = burnerAverage();
+  if (average <= BurnerLock.HIGH && average >= BurnerLock.LOW) {
+    return true;
+  }
+  return false;
+}
+
+export function gaugeHeight(level: Int): Int {
+  if (level < BurnerRange.MAX) {
+    return scaled(BurnerRange.GAUGE_H, BurnerRange.MAX, minmax(0, BurnerRange.MAX, level));
+  }
+  return BurnerRange.GAUGE_H;
+}
+
+export function adjustBurners(west: Int, centre: Int, east: Int, column: Int, push: Int): void {
+  if (burnersLocked()) {
+    return;
+  }
+
+  const current: Int = burnerValue(column);
+  if ((current <= 0 && push === BurnerPush.DOWN) || (current >= BurnerRange.MAX && push === BurnerPush.UP)) {
+    playSound(BurnerSounds.BLOCKED);
+    return;
+  }
+
+  predictServerState(BurnerVarbits.WEST, minmax(0, BurnerRange.MAX, useServerState(BurnerVarbits.WEST) + west));
+  predictServerState(BurnerVarbits.CENTRE, minmax(0, BurnerRange.MAX, useServerState(BurnerVarbits.CENTRE) + centre));
+  predictServerState(BurnerVarbits.EAST, minmax(0, BurnerRange.MAX, useServerState(BurnerVarbits.EAST) + east));
+
+  playSound(BurnerSounds.ADJUST);
+}

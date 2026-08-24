@@ -1,0 +1,126 @@
+import { useState, useServerState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  Caption,
+  Exchange,
+  TrainingColor,
+  TrainingFont,
+  TrainingSound,
+  TrainingVarps,
+  WAIT_CYCLES,
+} from './fossil-underwater-training.constants';
+
+const PLEASE_WAIT = '<col=ff0000>Please wait..</col>';
+
+function exchangeDetail(kind: Int, agility: Int, thieving: Int, bothAgility: Int, bothThieving: Int): String {
+  if (kind === Exchange.AGILITY) {
+    return `<col=ffffff>${groupDigits(agility, ',')}</col> Agility XP`;
+  }
+  if (kind === Exchange.THIEVING) {
+    return `<col=ffffff>${groupDigits(thieving, ',')}</col> Thieving XP`;
+  }
+  return `<col=ffffff>${groupDigits(bothAgility, ',')}</col> Agility XP +<br><col=ffffff>${groupDigits(bothThieving, ',')}</col> Thieving XP`;
+}
+
+export function ExchangeButton({ kind, title }: { kind: Int; title: String }): Component {
+  const agility: Int = useServerState(TrainingVarps.AGILITY_XP);
+  const thieving: Int = useServerState(TrainingVarps.THIEVING_XP);
+  const bothAgility: Int = useServerState(TrainingVarps.BOTH_AGILITY_XP);
+  const bothThieving: Int = useServerState(TrainingVarps.BOTH_THIEVING_XP);
+
+  const [pressed, setPressed] = useState(0);
+  const [waitUntil, setWaitUntil] = useState(0);
+
+  const detail: String = exchangeDetail(kind, agility, thieving, bothAgility, bothThieving);
+  const subject: String = `<col=ff9040>${title}</col>`;
+
+  if (waitUntil !== 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={['Exchange-1', 'Exchange-5', 'Exchange-X', 'Exchange-All']}
+        optionSubject={subject}
+        onTimer={() => {
+          if (clientClock() < waitUntil) {
+            return;
+          }
+          setWaitUntil(0);
+        }}
+      >
+        <StoneButtonPressedFilled />
+        <text
+          x="center"
+          y={Caption.TOP}
+          w="fill"
+          h={Caption.HEIGHT}
+          text={PLEASE_WAIT}
+          font={TrainingFont.CAPTION}
+          color={TrainingColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <text
+          x="center"
+          y={{ bottom: Caption.DETAIL_BOTTOM }}
+          w="fill"
+          h={Caption.DETAIL_HEIGHT}
+          text={detail}
+          font={TrainingFont.DETAIL}
+          color={TrainingColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Exchange-1', 'Exchange-5', 'Exchange-X', 'Exchange-All']}
+      optionSubject={subject}
+      onMouseRepeat={() => setPressed(1)}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => {
+        if (event.option < 1 || event.option > 4) {
+          return;
+        }
+        playSound(TrainingSound.CLICK);
+        setWaitUntil(clientClock() + WAIT_CYCLES);
+      }}
+    >
+      {pressed !== 0 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <text
+        x="center"
+        y={Caption.TOP}
+        w="fill"
+        h={Caption.HEIGHT}
+        text={title}
+        font={TrainingFont.CAPTION}
+        color={TrainingColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="center"
+        y={{ bottom: Caption.DETAIL_BOTTOM }}
+        w="fill"
+        h={Caption.DETAIL_HEIGHT}
+        text={detail}
+        font={TrainingFont.DETAIL}
+        color={TrainingColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

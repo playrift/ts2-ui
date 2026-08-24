@@ -1,0 +1,142 @@
+import { CS2, useRef } from 'ts2';
+import { membersWorld, textWidth } from '../lib/lib.engine';
+import { costPoints } from './pest-rewards.shared';
+import { refuseReward, selectReward } from './br-reward-shop.state';
+import {
+  RewardColor,
+  RewardCounts,
+  RewardFonts,
+  RewardIcons,
+  RewardItems,
+  RewardLabels,
+  RewardLayout,
+  RewardWins,
+} from './br-reward-shop.constants';
+
+export function RewardRow({
+  index,
+  rowX,
+  rowY,
+  cellW,
+  selected,
+  points,
+  wins,
+  price,
+  toggle = 0,
+}: {
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+  selected: Int;
+  points: Int;
+  wins: Int;
+  price: Int;
+  toggle?: Int;
+}): Component {
+  const priceLine = useRef();
+
+  const listed: ItemName = RewardItems.at(index);
+  const icon: ItemName = listed === -1 ? RewardIcons.PLACEHOLDER : listed;
+  const stack: Int = RewardCounts.get(index);
+  const winsNeeded: Int = RewardWins.get(index);
+  const label: String = RewardLabels.at(index);
+  const textW: Int = cellW - RewardLayout.TEXT_X;
+
+  const refusal: Int =
+    CS2.item_members(icon as Item) === 1 && !membersWorld() ? 1 : wins < winsNeeded ? 2 : points < price ? 3 : 0;
+
+  const buyable: Int = refusal === 0 || toggle !== 0 ? 1 : 0;
+
+  const refusalText: String =
+    refusal === 1
+      ? "You must be on a members' world to purchase that item."
+      : refusal === 2
+        ? winsNeeded > 1
+          ? `You must achieve ${stringOf(winsNeeded)} wins before you can have that item.`
+          : 'You must achieve one win before you can have that item.'
+        : `You need ${costPoints(price)} to claim that reward.`;
+
+  const priceRest: Int =
+    selected === index ? RewardColor.SELECTED : refusal !== 0 ? RewardColor.BLOCKED : RewardColor.PRICE_REST;
+  const priceHover: Int =
+    selected === index ? RewardColor.SELECTED : refusal !== 0 ? RewardColor.BLOCKED : RewardColor.PRICE_HOVER;
+
+  return (
+    <>
+      <rect
+        x={rowX}
+        y={rowY}
+        w={cellW}
+        h={RewardLayout.ROW_H}
+        color={RewardColor.HIT}
+        fill
+        transparency={RewardLayout.HIT_TRANSPARENCY}
+        options={[label]}
+        onMouseRepeat={() => {
+          priceLine.color = priceHover;
+        }}
+        onMouseLeave={() => {
+          priceLine.color = priceRest;
+        }}
+        onOptionSelect={() => {
+          if (buyable === 1) {
+            selectReward(index);
+          } else {
+            refuseReward(refusalText);
+          }
+        }}
+      />
+
+      <sprite
+        x={rowX + RewardLayout.ICON_X}
+        y={rowY}
+        w={RewardLayout.ICON_W}
+        h={RewardLayout.ICON_H}
+        item={icon}
+        itemCount={stack === 1 ? -1 : stack}
+        outline={1}
+        shadowColor={RewardColor.ICON_SHADOW}
+      />
+
+      <text
+        x={rowX + RewardLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={RewardLayout.ROW_H}
+        text={label}
+        font={textWidth(label, RewardLayout.MEASURE_W, RewardFonts.NAME) > textW ? RewardFonts.PRICE : RewardFonts.NAME}
+        color={buyable === 0 ? RewardColor.BLOCKED : selected === index ? RewardColor.SELECTED : RewardColor.AVAILABLE}
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      <text
+        ref={priceLine}
+        x={rowX + RewardLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={RewardLayout.ROW_H}
+        text={
+          toggle === 1
+            ? 'Enable'
+            : toggle === 2
+              ? 'Disable'
+              : price > 0
+                ? costPoints(price)
+                : winsNeeded > 0
+                  ? winsNeeded > 1
+                    ? `${stringOf(winsNeeded)} wins`
+                    : 'One win'
+                  : 'Free'
+        }
+        font={RewardFonts.PRICE}
+        color={priceRest}
+        shadow
+        align="left"
+        valign="bottom"
+      />
+    </>
+  );
+}

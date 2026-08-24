@@ -1,0 +1,216 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonEntrypoint } from '../lib/stone-button-entrypoint.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedEntrypoint } from '../lib/stone-button-pressed-entrypoint.component';
+import {
+  BuffCellLayout,
+  BuffIconAngle,
+  RamarnoBuffs,
+  RamarnoColors,
+  RamarnoFonts,
+  RamarnoInventories,
+  RamarnoItems,
+  RamarnoLimits,
+  RamarnoModels,
+  RamarnoParams,
+  RamarnoVarbits,
+  RamarnoVarps,
+  ShardAngle,
+} from './camdozaal-ramarno-shop.constants';
+
+function buffStyle(slot: Int): Row {
+  if (slot === 1) {
+    return RamarnoBuffs.FISH_PREP;
+  }
+  if (slot === 2) {
+    return RamarnoBuffs.DEFENCE;
+  }
+  if (slot === 3) {
+    return RamarnoBuffs.MINING;
+  }
+  if (slot === 4) {
+    return RamarnoBuffs.REWARDS;
+  }
+  if (slot === 5) {
+    return RamarnoBuffs.TIMED_MULTI;
+  }
+  return RamarnoBuffs.FISH_CATCH;
+}
+
+function buffFlag(
+  slot: Int,
+  fishCatch: Int,
+  fishPrep: Int,
+  defence: Int,
+  mining: Int,
+  rewards: Int,
+  minutes: Int,
+): Int {
+  if (slot === 1) {
+    return fishPrep;
+  }
+  if (slot === 2) {
+    return defence;
+  }
+  if (slot === 3) {
+    return mining;
+  }
+  if (slot === 4) {
+    return rewards;
+  }
+  if (slot === 5) {
+    return minutes > 0 ? 1 : 0;
+  }
+  return fishCatch;
+}
+
+export function BuffCell({ slot }: { slot: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const raised = useRef();
+  const pressed = useRef();
+
+  const inv = useInventory(RamarnoInventories.INV);
+  const stored: Int = useServerState(RamarnoVarps.STORED_BARRONITE);
+
+  const fishCatch: Int = useServerState(RamarnoVarbits.FISH_CATCH);
+  const fishPrep: Int = useServerState(RamarnoVarbits.FISH_PREP);
+  const defence: Int = useServerState(RamarnoVarbits.DEFENCE);
+  const mining: Int = useServerState(RamarnoVarbits.MINING);
+  const rewards: Int = useServerState(RamarnoVarbits.REWARDS);
+  const minutes: Int = useServerState(RamarnoVarbits.TIMED_REMAINING);
+
+  const carried: Int = inv.total(RamarnoItems.BARRONITE_SHARD as Item);
+  const flag: Int = buffFlag(slot, fishCatch, fishPrep, defence, mining, rewards, minutes);
+  const active: Boolean = flag === 1 ? true : false;
+
+  const style: Row = buffStyle(slot);
+  const title: String = style.text(RamarnoParams.TITLE);
+  const description: String = style.text(RamarnoParams.DESCRIPTION);
+  const icon: Model = style.int(RamarnoParams.MODEL) as Model;
+  const cost: Int = style.int(RamarnoParams.COST);
+
+  const available: Int = RamarnoLimits.MAX_INT - stored < carried ? RamarnoLimits.MAX_INT : stored + carried;
+  const affordable: Boolean = cost <= available ? true : false;
+
+  const status: String = active
+    ? slot === 5
+      ? `<col=0dc10d>Time: ${stringOf(minutes)} min</col>`
+      : '<col=0dc10d>Active</col>'
+    : '<col=9f9f9f>Inactive</col>';
+
+  const priceColor: Int = active || !affordable ? RamarnoColors.MUTED : RamarnoColors.ACTIVE;
+
+  return (
+    <>
+      {active ? (
+        <layer w="fill" h="fill">
+          <StoneButtonOutFilled />
+        </layer>
+      ) : mobile ? (
+        <layer w="fill" h="fill">
+          <StoneButton />
+        </layer>
+      ) : (
+        <layer
+          w="fill"
+          h="fill"
+          onMouseRepeat={() => {
+            raised.hide = true;
+            pressed.hide = false;
+          }}
+          onMouseLeave={() => {
+            raised.hide = false;
+            pressed.hide = true;
+          }}
+        >
+          <layer ref={raised} w="fill" h="fill">
+            <StoneButtonEntrypoint />
+          </layer>
+          <layer ref={pressed} w="fill" h="fill" hide>
+            <StoneButtonPressedEntrypoint />
+          </layer>
+        </layer>
+      )}
+
+      <text
+        x={BuffCellLayout.STATUS_X}
+        y="bottom"
+        w={{ fill: BuffCellLayout.STATUS_INSET }}
+        h={BuffCellLayout.STATUS_H}
+        text={status}
+        font={RamarnoFonts.BOLD}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x="center"
+        y={BuffCellLayout.TITLE_Y}
+        w={{ fill: BuffCellLayout.TITLE_INSET }}
+        h={BuffCellLayout.TITLE_H}
+        text={title}
+        font={RamarnoFonts.BOLD}
+        align="center"
+        valign="middle"
+        shadow
+        color={RamarnoColors.HEADING}
+      />
+
+      <model
+        x="center"
+        y={BuffCellLayout.ICON_Y}
+        w={{ fill: BuffCellLayout.ICON_INSET }}
+        h={BuffCellLayout.ICON_H}
+        model={icon}
+        offsetX={BuffIconAngle.OFFSET_X}
+        offsetY={BuffIconAngle.OFFSET_Y}
+        pitch={BuffIconAngle.PITCH}
+        yaw={BuffIconAngle.YAW}
+        roll={BuffIconAngle.ROLL}
+        zoom={BuffIconAngle.ZOOM}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: BuffCellLayout.DESC_BOTTOM }}
+        w={{ fill: BuffCellLayout.DESC_INSET }}
+        h={BuffCellLayout.DESC_H}
+        text={description}
+        font={RamarnoFonts.BODY}
+        align="center"
+        valign="bottom"
+        lineHeight={BuffCellLayout.DESC_LINE_HEIGHT}
+        shadow
+        color={RamarnoColors.WHITE}
+      />
+
+      <text
+        x={{ right: BuffCellLayout.PRICE_RIGHT }}
+        y="bottom"
+        w={{ fill: BuffCellLayout.PRICE_INSET }}
+        h={BuffCellLayout.PRICE_H}
+        text={stringOf(cost)}
+        font={RamarnoFonts.BODY}
+        align="right"
+        valign="middle"
+        shadow
+        color={priceColor}
+      />
+
+      <model
+        x={{ right: BuffCellLayout.SHARD_RIGHT }}
+        y={{ bottom: BuffCellLayout.SHARD_BOTTOM }}
+        w={BuffCellLayout.SHARD}
+        h={BuffCellLayout.SHARD}
+        model={RamarnoModels.SHARD}
+        pitch={ShardAngle.PITCH}
+        yaw={ShardAngle.YAW}
+        zoom={ShardAngle.ZOOM}
+      />
+    </>
+  );
+}

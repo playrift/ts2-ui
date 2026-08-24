@@ -1,0 +1,116 @@
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  DragScroll,
+  EXAMINE_OP,
+  Quantity,
+  Slot,
+  KitColor,
+  KitSounds,
+  Transparency,
+} from './huntsmans-kit.constants';
+
+function dragScroll(pane: Ref, mouseY: Int): void {
+  const at: Int = pane.scrollY;
+  const fromTop: Int = mouseY - at;
+
+  if (fromTop < DragScroll.TOP_BAND) {
+    pane.scrollY = Math.max(0, at - (fromTop < DragScroll.TOP_FAST ? DragScroll.FAST : DragScroll.SLOW));
+    return;
+  }
+
+  const fromBottom: Int = pane.height - Slot.H - mouseY;
+  if (fromBottom < DragScroll.BOTTOM_BAND) {
+    pane.scrollY =
+      at +
+      (fromBottom < DragScroll.BOTTOM_FASTEST
+        ? DragScroll.FASTEST
+        : fromBottom < DragScroll.BOTTOM_FAST
+          ? DragScroll.FAST
+          : DragScroll.SLOW);
+  }
+}
+
+export function KitSlot({
+  item,
+  count,
+  slot,
+  gap,
+  margin,
+  armed,
+  pane,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  gap: Int;
+  margin: Int;
+  armed: Int;
+  pane: Ref;
+}): Component {
+  const x: Int = margin + (slot % Slot.COLUMNS) * (Slot.W + gap);
+  const y: Int = (slot / Slot.COLUMNS) * (Slot.H + gap);
+
+  if (item === -1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Slot.W}
+        h={Slot.H}
+        shadowColor={KitColor.SLOT_SHADOW}
+        outline={Slot.OUTLINE}
+        dragDeadZone={Slot.DRAG_DEAD}
+        dragDeadTime={Slot.DRAG_DEAD}
+        transparency={Transparency.BLANK}
+        item={BLANK_ITEM}
+        itemCount={1}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Slot.W}
+      h={Slot.H}
+      shadowColor={KitColor.SLOT_SHADOW}
+      outline={Slot.OUTLINE}
+      dragDeadZone={Slot.DRAG_DEAD}
+      dragDeadTime={Slot.DRAG_DEAD}
+      transparency={Transparency.FILLED}
+      item={item}
+      itemCount={count}
+      options={[
+        armed === Quantity.FIVE
+          ? 'Withdraw-5'
+          : armed === Quantity.X
+            ? 'Withdraw-X'
+            : armed === Quantity.ALL
+              ? 'Withdraw-All'
+              : 'Withdraw-1',
+        armed === Quantity.ONE ? '' : 'Withdraw-1',
+        armed === Quantity.FIVE ? '' : 'Withdraw-5',
+        armed === Quantity.X ? '' : 'Withdraw-X',
+        armed === Quantity.ALL ? '' : 'Withdraw-All',
+        '',
+        '',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option !== EXAMINE_OP) {
+          playSound(KitSounds.CLICK);
+        }
+        flashFor(event.self, Transparency.FLASH, Transparency.FILLED);
+      }}
+      onDrag={(event) => {
+        dragScroll(pane, event.mouseY);
+      }}
+    />
+  );
+}

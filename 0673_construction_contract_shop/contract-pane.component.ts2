@@ -1,0 +1,80 @@
+import { useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { PestRewardsDivider } from '../0645_br_reward_shop/pest-rewards.shared';
+import { ContractRow } from './contract-row.component';
+import {
+  ContractBar,
+  ContractLayout,
+  ContractPrices,
+  ContractRows,
+  ContractVarps,
+  SelectedContract,
+} from './construction-contract-shop.constants';
+
+export function ContractPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedContract);
+  const points: Int = useServerState(ContractVarps.POINTS);
+  const prices = useInventory(ContractPrices);
+
+  const paneWidth: Int = universe.width - ContractLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - ContractLayout.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={ContractLayout.PANE_X}
+        y="center"
+        w={{ fill: ContractLayout.PANE_W_INSET }}
+        h={{ fill: ContractLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={ContractLayout.CONTENT_H >= paneHeight ? ContractLayout.CONTENT_H : 0}
+      >
+        {ContractRows.map((row) => (
+          <>
+            <ContractRow
+              index={row.left}
+              rowX={0}
+              rowY={row.y}
+              cellW={half}
+              selected={selected}
+              points={points}
+              price={prices.count(row.left)}
+            />
+            <ContractRow
+              index={row.right}
+              rowX={half}
+              rowY={row.y}
+              cellW={half}
+              selected={selected}
+              points={points}
+              price={prices.count(row.right)}
+            />
+            {row.divider !== -1 ? <PestRewardsDivider y={row.divider} /> : null}
+          </>
+        ))}
+      </layer>
+
+      <layer
+        x={{ right: ContractLayout.BAR_X }}
+        y="center"
+        w={ContractLayout.BAR_W}
+        h={{ fill: ContractLayout.PANE_H_INSET }}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={ContractBar.TRACK}
+          capTopSprite={ContractBar.CAP_TOP}
+          thumbSprite={ContractBar.THUMB}
+          capBottomSprite={ContractBar.CAP_BOTTOM}
+          arrowUp={ContractBar.ARROW_UP}
+          arrowDown={ContractBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

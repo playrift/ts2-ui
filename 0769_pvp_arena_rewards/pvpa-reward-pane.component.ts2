@@ -1,0 +1,93 @@
+import { useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { PvpaRewardRow } from './pvpa-reward-row.component';
+import { pvpaBodyHeight, pvpaRowTitle, pvpaTitleHeight } from './pvp-arena-rewards.state';
+import {
+  PvpaBar,
+  PvpaBodies,
+  PvpaLayout,
+  PvpaPrices,
+  PvpaVarps,
+  SelectedPvpaReward,
+} from './pvp-arena-rewards.constants';
+
+export function PvpaRewardPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedPvpaReward);
+  const points: Int = useServerState(PvpaVarps.POINTS);
+  const prices = useInventory(PvpaPrices);
+  const mobile: Int = onMobile() ? 1 : 0;
+
+  const paneWidth: Int = universe.width - PvpaLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - PvpaLayout.PANE_H_INSET;
+  const wrapWidth: Int = paneWidth - PvpaLayout.TEXT_INSET;
+
+  const title0: String = pvpaRowTitle(0);
+  const titleH0: Int = pvpaTitleHeight(title0, wrapWidth);
+  const bodyH0: Int = pvpaBodyHeight(PvpaBodies.at(0), wrapWidth);
+  const rowH0: Int = titleH0 + bodyH0 + PvpaLayout.ROW_PAD;
+
+  const y1: Int = PvpaLayout.FIRST_Y + rowH0 + PvpaLayout.ROW_GAP;
+  const title1: String = pvpaRowTitle(1);
+  const titleH1: Int = pvpaTitleHeight(title1, wrapWidth);
+  const bodyH1: Int = pvpaBodyHeight(PvpaBodies.at(1), wrapWidth);
+  const rowH1: Int = titleH1 + bodyH1 + PvpaLayout.ROW_PAD;
+
+  const content: Int = y1 + rowH1 + PvpaLayout.ROW_GAP;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={PvpaLayout.PANE_X}
+        y="center"
+        w={{ fill: PvpaLayout.PANE_W_INSET }}
+        h={{ fill: PvpaLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={content >= paneHeight ? content : 0}
+      >
+        <PvpaRewardRow
+          index={0}
+          rowY={PvpaLayout.FIRST_Y}
+          rowH={rowH0}
+          titleH={titleH0}
+          bodyH={bodyH0}
+          wrapWidth={wrapWidth}
+          title={title0}
+          selected={selected}
+          points={points}
+          price={prices.count(0)}
+          mobile={mobile}
+        />
+        <PvpaRewardRow
+          index={1}
+          rowY={y1}
+          rowH={rowH1}
+          titleH={titleH1}
+          bodyH={bodyH1}
+          wrapWidth={wrapWidth}
+          title={title1}
+          selected={selected}
+          points={points}
+          price={prices.count(1)}
+          mobile={mobile}
+        />
+      </layer>
+
+      <layer x={{ right: PvpaLayout.BAR_X }} y="center" w={PvpaLayout.BAR_W} h={{ fill: PvpaLayout.PANE_H_INSET }}>
+        <ScrollbarVertical
+          content={list}
+          track={PvpaBar.TRACK}
+          capTopSprite={PvpaBar.CAP_TOP}
+          thumbSprite={PvpaBar.THUMB}
+          capBottomSprite={PvpaBar.CAP_BOTTOM}
+          arrowUp={PvpaBar.ARROW_UP}
+          arrowDown={PvpaBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,89 @@
+import { useInventory, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import {
+  ClanPartyDropFonts,
+  ClanPartyDropInventories,
+  ClanPartyDropSounds,
+  CONFIRM_CYCLES,
+  Layout,
+  Offer,
+  OP_SOUND_MASK,
+} from './clan-hall-partydrop-main.constants';
+
+export function ConfirmButton(): Component {
+  const offer = useInventory(ClanPartyDropInventories.OFFER);
+  const [hovered, setHovered] = useState(0);
+  const [confirmedUntil, setConfirmedUntil] = useState(0);
+  const skin: Int = hovered;
+
+  let held: Int = 0;
+  let slot: Int = 0;
+  while (slot < Offer.SLOTS) {
+    if (offer[slot] !== -1) {
+      held = 1;
+    }
+    slot = slot + 1;
+  }
+
+  if (held === 0) {
+    return (
+      <layer
+        x={{ right: Layout.CONFIRM_RIGHT }}
+        y={{ center: Layout.CONFIRM_DY }}
+        w={Layout.CONFIRM_W}
+        h={Layout.CONFIRM_H}
+        options={['*']}
+        onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+      >
+        <StoneButtonDraw label="<col=9f9f9f>Confirm</col>" font={ClanPartyDropFonts.BUTTON} pressed={1} />
+      </layer>
+    );
+  }
+
+  if (clientClock() < confirmedUntil) {
+    return (
+      <layer
+        x={{ right: Layout.CONFIRM_RIGHT }}
+        y={{ center: Layout.CONFIRM_DY }}
+        w={Layout.CONFIRM_W}
+        h={Layout.CONFIRM_H}
+        onTimer={() => {
+          if (clientClock() < confirmedUntil) {
+            return;
+          }
+          setConfirmedUntil(0);
+        }}
+      >
+        <StoneButtonDraw label="<col=ffffff>Confirm</col>" font={ClanPartyDropFonts.BUTTON} pressed={1} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={{ right: Layout.CONFIRM_RIGHT }}
+      y={{ center: Layout.CONFIRM_DY }}
+      w={Layout.CONFIRM_W}
+      h={Layout.CONFIRM_H}
+      options={['Confirm']}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(ClanPartyDropSounds.SELECT);
+        setHovered(0);
+        setConfirmedUntil(clientClock() + CONFIRM_CYCLES);
+      }}
+    >
+      <StoneButtonDraw label="Confirm" font={ClanPartyDropFonts.BUTTON} pressed={skin} />
+    </layer>
+  );
+}

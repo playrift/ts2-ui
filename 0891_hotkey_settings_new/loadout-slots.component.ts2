@@ -1,0 +1,85 @@
+import { useServerState } from 'ts2';
+import { opsound } from '../lib/lib.helpers';
+import {
+  ActionParams,
+  EMPTY_SLOT_ITEM,
+  HotkeyColor,
+  HotkeyFonts,
+  HotkeySprites,
+  HotkeyVarbits,
+  Hotkeys,
+  Layout,
+  OPSOUND_MASK,
+  SLOT_ROWS,
+} from './hotkey-settings-new.constants';
+import { hotkeyAt, slotClearHidden } from './hotkey-settings-new.helpers';
+
+export function LoadoutSlots(): Component {
+  const loadout: Int = useServerState(HotkeyVarbits.LOADOUT_VIEWED);
+
+  return (
+    <layer x={Layout.slotBox.x} y={Layout.slotBox.y} w={{ fill: Layout.slotBox.insetW }} h={Layout.slotBox.h}>
+      {SLOT_ROWS.map((row, slot) => (
+        <LoadoutSlot y={row.y} h={row.h} clearY={row.clearY} hotkey={hotkeyAt(loadout, slot)} />
+      ))}
+    </layer>
+  );
+}
+
+function LoadoutSlot({ y, h, clearY, hotkey }: { y: Int; h: Int; clearY: Int; hotkey: Int }): Component {
+  const action: Row = Hotkeys.get(hotkey);
+
+  let filled: Int = 0;
+  if (hotkey >= 0) {
+    filled = 1;
+  }
+  let missing: Int = 0;
+  if (action === -1) {
+    missing = 1;
+  }
+
+  return (
+    <layer y={y} w="fill" h={h}>
+      {filled === 0 ? (
+        <sprite y="center" w={Layout.slotIcon.w} h={Layout.slotIcon.h} />
+      ) : missing === 1 ? (
+        <sprite y="center" w={Layout.slotIcon.w} h={Layout.slotIcon.h} item={EMPTY_SLOT_ITEM} itemCount={-1} />
+      ) : (
+        <sprite y="center" w={Layout.slotIcon.w} h={Layout.slotIcon.h} sprite={action.sprite(ActionParams.ICON)} />
+      )}
+
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Layout.slotLabel.insetW }}
+        h="fill"
+        text={filled === 0 ? '' : missing === 1 ? '---' : action.text(ActionParams.NAME)}
+        font={HotkeyFonts.LABEL}
+        color={HotkeyColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <layer y="center" w={{ fill: Layout.slotDrop.insetW }} h="fill" dragTarget />
+
+      <layer
+        x="right"
+        y={{ center: clearY }}
+        w={Layout.slotClear.w}
+        h="fill"
+        hide={slotClearHidden(filled, missing)}
+        options={['Clear slot']}
+        onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+      >
+        <sprite
+          x={{ right: Layout.slotClearIcon.right }}
+          y="center"
+          w={Layout.slotClearIcon.w}
+          h={Layout.slotClearIcon.h}
+          sprite={HotkeySprites.CLEAR_SLOT}
+        />
+      </layer>
+    </layer>
+  );
+}

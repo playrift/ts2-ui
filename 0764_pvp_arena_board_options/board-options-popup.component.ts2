@@ -1,0 +1,192 @@
+import { useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { onMobile } from '../lib/lib.helpers';
+import { dismissDropdown, openControl } from './board-options.state';
+import { DropdownEntry } from './dropdown-entry.component';
+import {
+  BoardOptionEntries,
+  BoardOptionsBar,
+  BoardOptionsColor,
+  BoardOptionsLayout,
+  BoardOptionsSprites,
+  BoardOptionsVarps,
+  BoardOptionsWash,
+  BuildIcons,
+  BuildNames,
+  RankIcons,
+  RankNames,
+} from './pvp-arena-board-options.constants';
+
+export function BoardOptionsPopup(): Component {
+  const [open] = useState(openControl);
+  if (open < 0) {
+    return null;
+  }
+
+  const pane0 = useRef();
+  const pane1 = useRef();
+  const pane2 = useRef();
+
+  const universe = useUniverse();
+  const panelH: Int = universe.height;
+  const panelW: Int = universe.width;
+
+  const editing: Int = useServerState(BoardOptionsVarps.EDITING);
+
+  const mobile: Boolean = onMobile();
+  const entryH: Int = mobile ? BoardOptionsLayout.entry.mobileH : BoardOptionsLayout.entry.h;
+  const entries: Int = open === 2 ? BoardOptionEntries.BUILDS : BoardOptionEntries.RANKS;
+
+  const rowY: Int = BoardOptionsLayout.row.absFirstY + open * BoardOptionsLayout.row.gap;
+  const contentH: Int = entries * entryH;
+  const wantH: Int = contentH + BoardOptionsLayout.popup.padding;
+  const boxY: Int = mobile
+    ? Math.max(0, rowY + BoardOptionsLayout.entry.h - wantH)
+    : rowY + BoardOptionsLayout.row.h - 1;
+  const room: Int = mobile ? rowY + BoardOptionsLayout.entry.h - boxY : panelH - boxY;
+  const boxH: Int = wantH > room ? room : wantH;
+  const scrollH: Int = wantH > room ? contentH : 0;
+
+  return (
+    <layer w="fill" h="fill" x="center" y="center" noClickThrough onClick={() => dismissDropdown()}>
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        fill
+        color={BoardOptionsColor.BACKDROP}
+        transparency={BoardOptionsWash.CLEAR}
+      />
+
+      <layer x={BoardOptionsLayout.bodyX} y={boxY} w={panelW - BoardOptionsLayout.body.inset} h={boxH}>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={BoardOptionsSprites.LIST} tiling />
+
+        <layer
+          ref={pane0}
+          x={BoardOptionsLayout.popup.paneX}
+          y="center"
+          w={{ fill: BoardOptionsLayout.popup.contentInset }}
+          h={{ fill: BoardOptionsLayout.popup.vInset }}
+          hide={open === 0 ? false : true}
+          scrollHeight={open === 0 ? scrollH : 0}
+          scrollY={0}
+        >
+          {open === 0 && (
+            <>
+              {RankNames.map((name, i) => (
+                <DropdownEntry
+                  index={i}
+                  name={name}
+                  icon={RankIcons.at(i)}
+                  entryHeight={entryH}
+                  editing={editing}
+                  bitStart={0}
+                  bitEnd={2}
+                />
+              ))}
+            </>
+          )}
+        </layer>
+
+        <layer
+          ref={pane1}
+          x={BoardOptionsLayout.popup.paneX}
+          y="center"
+          w={{ fill: BoardOptionsLayout.popup.contentInset }}
+          h={{ fill: BoardOptionsLayout.popup.vInset }}
+          hide={open === 1 ? false : true}
+          scrollHeight={open === 1 ? scrollH : 0}
+          scrollY={0}
+        >
+          {open === 1 && (
+            <>
+              {RankNames.map((name, i) => (
+                <DropdownEntry
+                  index={i}
+                  name={name}
+                  icon={RankIcons.at(i)}
+                  entryHeight={entryH}
+                  editing={editing}
+                  bitStart={3}
+                  bitEnd={5}
+                />
+              ))}
+            </>
+          )}
+        </layer>
+
+        <layer
+          ref={pane2}
+          x={BoardOptionsLayout.popup.paneX}
+          y="center"
+          w={{ fill: BoardOptionsLayout.popup.contentInset }}
+          h={{ fill: BoardOptionsLayout.popup.vInset }}
+          hide={open === 2 ? false : true}
+          scrollHeight={open === 2 ? scrollH : 0}
+          scrollY={0}
+        >
+          {open === 2 && (
+            <>
+              {BuildNames.map((name, i) => (
+                <DropdownEntry
+                  index={i}
+                  name={name}
+                  icon={BuildIcons.at(i)}
+                  entryHeight={entryH}
+                  editing={editing}
+                  bitStart={6}
+                  bitEnd={7}
+                />
+              ))}
+            </>
+          )}
+        </layer>
+
+        <layer
+          x={{ right: BoardOptionsLayout.popup.scrollbarRight }}
+          y="center"
+          w={BoardOptionsLayout.popup.scrollbarW}
+          h={{ fill: BoardOptionsLayout.popup.vInset }}
+        >
+          {open === 0 && (
+            <ScrollbarVertical
+              content={pane0}
+              track={BoardOptionsBar.TRACK}
+              capTopSprite={BoardOptionsBar.CAP_TOP}
+              thumbSprite={BoardOptionsBar.THUMB}
+              capBottomSprite={BoardOptionsBar.CAP_BOTTOM}
+              arrowUp={BoardOptionsBar.ARROW_UP}
+              arrowDown={BoardOptionsBar.ARROW_DOWN}
+            />
+          )}
+          {open === 1 && (
+            <ScrollbarVertical
+              content={pane1}
+              track={BoardOptionsBar.TRACK}
+              capTopSprite={BoardOptionsBar.CAP_TOP}
+              thumbSprite={BoardOptionsBar.THUMB}
+              capBottomSprite={BoardOptionsBar.CAP_BOTTOM}
+              arrowUp={BoardOptionsBar.ARROW_UP}
+              arrowDown={BoardOptionsBar.ARROW_DOWN}
+            />
+          )}
+          {open === 2 && (
+            <ScrollbarVertical
+              content={pane2}
+              track={BoardOptionsBar.TRACK}
+              capTopSprite={BoardOptionsBar.CAP_TOP}
+              thumbSprite={BoardOptionsBar.THUMB}
+              capBottomSprite={BoardOptionsBar.CAP_BOTTOM}
+              arrowUp={BoardOptionsBar.ARROW_UP}
+              arrowDown={BoardOptionsBar.ARROW_DOWN}
+            />
+          )}
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+    </layer>
+  );
+}

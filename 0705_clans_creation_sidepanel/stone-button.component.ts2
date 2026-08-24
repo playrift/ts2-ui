@@ -1,0 +1,132 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { onMobile } from '../lib/lib.helpers';
+import { hasBit } from '../lib/lib.engine';
+import { CreationColor, CreationFonts, CreationVarbits, StoneButtonFlags } from './clans-creation-sidepanel.constants';
+
+export function StoneButtonDraw({
+  label,
+  font,
+  pressed = 0,
+  flags = 0,
+}: {
+  label: String;
+  font: Font;
+  pressed?: Int;
+  flags?: Int;
+}): Component {
+  if (hasBit(flags, StoneButtonFlags.FILLED_BIT)) {
+    return (
+      <>
+        {pressed === 1 ? (
+          <StoneButtonPressedFilled>
+            <StoneButtonLabel label={label} font={font} />
+          </StoneButtonPressedFilled>
+        ) : (
+          <StoneButtonFilled>
+            <StoneButtonLabel label={label} font={font} />
+          </StoneButtonFilled>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {pressed === 1 ? (
+        <StoneButtonPressed>
+          <StoneButtonLabel label={label} font={font} />
+        </StoneButtonPressed>
+      ) : (
+        <StoneButton>
+          <StoneButtonLabel label={label} font={font} />
+        </StoneButton>
+      )}
+    </>
+  );
+}
+
+function StoneButtonLabel({ label, font }: { label: String; font: Font }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={label}
+      font={font}
+      color={CreationColor.HEADING}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+export function StoneButtonInit({ label, font, flags = 0 }: { label: String; font: Font; flags?: Int }): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={label} font={font} pressed={skin} flags={flags} />
+    </layer>
+  );
+}
+
+export function CreationStoneButton({
+  liveLabel,
+  flatLabel,
+  option,
+  flags = 0,
+}: {
+  liveLabel: String;
+  flatLabel: String;
+  option: String;
+  flags?: Int;
+}): Component {
+  const gimLeader: Int = useServerState(CreationVarbits.GIM_LEADER);
+  const founder: Int = useServerState(CreationVarbits.CLAN_FOUNDER);
+  const [pressed, setPressed] = useState(0);
+
+  let live: Int = 0;
+  let label: String = flatLabel;
+  if (gimLeader === 1 || founder === 1) {
+    live = 1;
+    label = liveLabel;
+  }
+
+  let skin: Int = 0;
+  if (live === 1) {
+    skin = pressed;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={label} font={CreationFonts.BODY} pressed={skin} flags={flags} />
+    </layer>
+  );
+}

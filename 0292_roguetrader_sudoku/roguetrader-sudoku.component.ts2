@@ -1,0 +1,373 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { itemName } from '../lib/lib.engine';
+import { closeInterface, graphicSwapper } from '../lib/lib.helpers';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import {
+  Board,
+  CellSlots,
+  Difficulty,
+  LargePuzzles,
+  OPEN_CASKET,
+  Outline,
+  Palette,
+  PaletteSlots,
+  RuneItem,
+  Runes,
+  SmallPuzzles,
+  SudokuArt,
+  SudokuColor,
+  SudokuFont,
+  SudokuVarbits,
+} from './roguetrader-sudoku.constants';
+import { cannotRemoveRune, placeRune, selectRune, tileRune, transposedDigit } from './roguetrader-sudoku.helpers';
+
+export function RogueTraderSudoku(): Component {
+  return (
+    <layer w={512} h={334}>
+      <layer w="fill" h="fill">
+        <sprite x="center" y="center" w="fill" h="fill" sprite={SudokuArt.BACKDROP} />
+        <rect y={150} w={511} h={19} color={SudokuColor.BAND} fill />
+        <rect x={{ right: 5 }} y="center" w={47} h={195} color={SudokuColor.PLATE_DARK} fill />
+        <rect x={{ right: 10 }} y="center" w={37} h={185} color={SudokuColor.PLATE_LIGHT} fill />
+      </layer>
+
+      <SidePanel />
+      <BoardPanel />
+
+      <sprite
+        x={{ right: 5 }}
+        y={5}
+        w={26}
+        h={23}
+        sprite={SudokuArt.CLOSE}
+        onMouseEnter={(event) => graphicSwapper(event.component, SudokuArt.CLOSE_HOVER)}
+        onMouseLeave={(event) => graphicSwapper(event.component, SudokuArt.CLOSE)}
+        options={['Close']}
+        onOptionSelect={() => {
+          closeInterface();
+        }}
+      />
+    </layer>
+  );
+}
+
+function SidePanel(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+
+  if (difficulty === Difficulty.SMALL) {
+    predictServerState(SudokuVarbits.TRANSPOSE, 0);
+  }
+
+  return (
+    <layer
+      x={difficulty === Difficulty.SMALL ? 50 : 5}
+      y="center"
+      w={difficulty === Difficulty.SMALL ? { fill: 415 } : 95}
+      h={difficulty === Difficulty.SMALL ? { fill: 180 } : 226}
+    >
+      <CasketBox />
+      <RunePalette />
+      <OpenCasketButton />
+    </layer>
+  );
+}
+
+function CasketBox(): Component {
+  return (
+    <layer y="center" w="fill" h="fill">
+      <sprite w="fill" h="fill" sprite={SudokuArt.BOX_FILL} />
+      <SteelFrame backdrop={false} />
+    </layer>
+  );
+}
+
+function RunePalette(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+  const selected: Int = useServerState(SudokuVarbits.SELECTED_RUNE);
+  const shown: Int = difficulty === Difficulty.LARGE ? Palette.largeLast + 1 : Palette.smallLast + 1;
+
+  return (
+    <layer y="center" w="fill" h="fill">
+      {PaletteSlots.filter((slot) => slot < shown).map((slot) => (
+        <RuneSlot slot={slot} selected={selected} />
+      ))}
+    </layer>
+  );
+}
+
+function RuneSlot({ slot, selected }: { slot: Int; selected: Int }): Component {
+  const rune: Item = Runes.at(slot);
+  const x: Int = slot % 2 === 0 ? Palette.leftX : Palette.rightX;
+  const y: Int = Palette.firstY + (slot / 2) * Palette.rowH;
+  const outline: Int = slot === selected ? Outline.MARKED : Outline.NORMAL;
+
+  if (slot === 0) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Palette.slotW}
+        h={Palette.slotH}
+        item={rune}
+        itemCount={-1}
+        shadowColor={SudokuColor.ICON_SHADOW}
+        outline={outline}
+        options={['Remove Runes']}
+        onOptionSelect={() => {
+          selectRune(slot);
+        }}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Palette.slotW}
+      h={Palette.slotH}
+      item={rune}
+      itemCount={-1}
+      shadowColor={SudokuColor.ICON_SHADOW}
+      outline={outline}
+      optionSubject={`<col=ff9040>${itemName(rune)}</col>`}
+      options={['Select']}
+      onOptionSelect={() => {
+        selectRune(slot);
+      }}
+    />
+  );
+}
+
+function OpenCasketButton(): Component {
+  const [pressed, setPressed] = useState(0);
+
+  return (
+    <layer
+      x="center"
+      y={{ bottom: 6 }}
+      w={80}
+      h={25}
+      options={[OPEN_CASKET]}
+      onMouseRepeat={() => setPressed(1)}
+      onMouseLeave={() => setPressed(0)}
+    >
+      {pressed === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={OPEN_CASKET}
+        font={SudokuFont.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        color={pressed === 1 ? SudokuColor.LABEL_PRESSED : SudokuColor.LABEL}
+      />
+    </layer>
+  );
+}
+
+function BoardPanel(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+
+  return (
+    <layer
+      x={{ center: difficulty === Difficulty.SMALL ? 23 : 24 }}
+      y="center"
+      w={difficulty === Difficulty.SMALL ? 164 : 354}
+      h={difficulty === Difficulty.SMALL ? 148 : 318}
+    >
+      <BoardFrames />
+      <BoardItems />
+      <BoardCells />
+    </layer>
+  );
+}
+
+function BoardFrames(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+  const size: Int = difficulty === Difficulty.LARGE ? Board.largeSize : Board.smallSize;
+  const block: Int = difficulty === Difficulty.LARGE ? Board.largeBlock : Board.smallBlock;
+  const cells: Int = size * size;
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite w="fill" h="fill" sprite={SudokuArt.BOX_FILL} />
+      {CellSlots.filter((slot) => slot < cells).map((slot) => (
+        <BoardCellSkin slot={slot} size={size} block={block} />
+      ))}
+      <SteelFrame backdrop={false} />
+    </layer>
+  );
+}
+
+function BoardCellSkin({ slot, size, block }: { slot: Int; size: Int; block: Int }): Component {
+  const x: Int = Board.originX + (slot % size) * Board.cellW;
+  const y: Int = Board.originY + (slot / size) * Board.cellH;
+  const blockRow: Int = slot / size / block;
+  const blockColumn: Int = (slot % size) / block;
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        w={Board.cellW}
+        h={Board.cellH}
+        fill
+        color={(blockRow + blockColumn) % 2 === 0 ? SudokuColor.BLOCK_LIGHT : SudokuColor.BLOCK_DARK}
+      />
+      <rect x={x} y={y} w={Board.cellW} h={Board.cellH} color={SudokuColor.GRID} />
+    </>
+  );
+}
+
+function BoardItems(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+  const puzzleId: Int = useServerState(SudokuVarbits.PUZZLE_ID);
+  const transpose: Int = useServerState(SudokuVarbits.TRANSPOSE);
+  const size: Int = difficulty === Difficulty.LARGE ? Board.largeSize : Board.smallSize;
+  const cells: Int = size * size;
+  const solution: Map<Int, Int> =
+    difficulty === Difficulty.LARGE ? LargePuzzles.get(puzzleId) : SmallPuzzles.get(puzzleId);
+
+  return (
+    <layer w="fill" h="fill">
+      {CellSlots.filter((slot) => slot < cells).map((slot) => (
+        <BoardTileIcon
+          slot={slot}
+          size={size}
+          given={transpose !== 0 ? transposedDigit(solution.get(slot)) : solution.get(slot)}
+          placed={Runes.at(tileRune(slot))}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function BoardTileIcon({ slot, size, given, placed }: { slot: Int; size: Int; given: Int; placed: Item }): Component {
+  const x: Int = Board.originX + Board.iconInsetX + (slot % size) * Board.cellW;
+  const y: Int = Board.originY + Board.iconInsetY + (slot / size) * Board.cellH;
+
+  if (given > 0) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Board.iconW}
+        h={Board.iconH}
+        item={Runes.at(given)}
+        itemCount={-1}
+        shadowColor={SudokuColor.ICON_SHADOW}
+        outline={Outline.MARKED}
+      />
+    );
+  }
+  if (placed === RuneItem.BLANK) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Board.iconW}
+        h={Board.iconH}
+        shadowColor={SudokuColor.ICON_SHADOW}
+        outline={Outline.NORMAL}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Board.iconW}
+      h={Board.iconH}
+      item={placed}
+      itemCount={-1}
+      shadowColor={SudokuColor.ICON_SHADOW}
+      outline={Outline.NORMAL}
+    />
+  );
+}
+
+function BoardCells(): Component {
+  const difficulty: Int = useServerState(SudokuVarbits.GAME_DIFFICULTY);
+  const puzzleId: Int = useServerState(SudokuVarbits.PUZZLE_ID);
+  const transpose: Int = useServerState(SudokuVarbits.TRANSPOSE);
+  const selected: Int = useServerState(SudokuVarbits.SELECTED_RUNE);
+  const size: Int = difficulty === Difficulty.LARGE ? Board.largeSize : Board.smallSize;
+  const cells: Int = size * size;
+  const solution: Map<Int, Int> =
+    difficulty === Difficulty.LARGE ? LargePuzzles.get(puzzleId) : SmallPuzzles.get(puzzleId);
+
+  return (
+    <layer w="fill" h="fill">
+      {CellSlots.filter((slot) => slot < cells).map((slot) => (
+        <BoardCell
+          slot={slot}
+          size={size}
+          difficulty={difficulty}
+          puzzleId={puzzleId}
+          selected={selected}
+          given={transpose !== 0 ? transposedDigit(solution.get(slot)) : solution.get(slot)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function BoardCell({
+  slot,
+  size,
+  difficulty,
+  puzzleId,
+  selected,
+  given,
+}: {
+  slot: Int;
+  size: Int;
+  difficulty: Int;
+  puzzleId: Int;
+  selected: Int;
+  given: Int;
+}): Component {
+  const x: Int = Board.originX + (slot % size) * Board.cellW;
+  const y: Int = Board.originY + (slot / size) * Board.cellH;
+
+  if (given > 0) {
+    return (
+      <rect
+        x={x}
+        y={y}
+        w={Board.cellW}
+        h={Board.cellH}
+        fill
+        transparency={255}
+        optionSubject={`<col=ff9040>${itemName(Runes.at(given))}</col>`}
+        options={['Examine']}
+        onOptionSelect={() => {
+          cannotRemoveRune();
+        }}
+      />
+    );
+  }
+
+  return (
+    <rect
+      x={x}
+      y={y}
+      w={Board.cellW}
+      h={Board.cellH}
+      fill
+      transparency={255}
+      options={[selected !== 0 ? `Place <col=ff9040>${itemName(Runes.at(selected))}</col>` : 'Remove Rune']}
+      onOptionSelect={() => {
+        placeRune(difficulty, puzzleId, slot);
+      }}
+    />
+  );
+}

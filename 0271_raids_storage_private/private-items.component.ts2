@@ -1,0 +1,128 @@
+import { useInventory, useRef, useUniverse } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { dragScroll } from './raids-storage-private.helpers';
+import {
+  Grid,
+  Layout,
+  PrivateInventory,
+  StorageColors,
+  StorageFonts,
+  StorageItems,
+  StorageSounds,
+  StorageSprites,
+  Transparency,
+} from './raids-storage-private.constants';
+
+function StoredSlot({ item, count, slot, pane }: { item: Item; count: Int; slot: Int; pane: Ref }): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.CLEAR}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={['Withdraw', 'Withdraw-5', 'Withdraw-10', 'Withdraw-All', 'Withdraw-X', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option === 10) {
+          return;
+        }
+        playSound(StorageSounds.SELECT);
+        flashFor(event.self, Transparency.FLASH, Transparency.CLEAR);
+      }}
+      onDrag={(event) => {
+        dragScroll(pane, event.mouseY);
+      }}
+    />
+  );
+}
+
+function BlankSlot({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={StorageItems.BLANK}
+      itemCount={1}
+      outline={1}
+      shadowColor={StorageColors.SLOT_SHADOW}
+      transparency={Transparency.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+    />
+  );
+}
+
+export function PrivateItems(): Component {
+  const bag = useInventory(PrivateInventory.STORAGE);
+  const pane = useRef();
+  const universe = useUniverse();
+
+  let stored: Int = 0;
+  let slot: Int = 0;
+  while (slot < bag.size) {
+    if (bag[slot] !== -1) {
+      stored = stored + 1;
+    }
+    slot = slot + 1;
+  }
+
+  const extent: Int = ((bag.size - 1) / Grid.COLUMNS) * Grid.STRIDE_Y + Grid.H;
+  const paneHeight: Int = universe.height - Layout.PANE_H_INSET;
+
+  return (
+    <>
+      <text
+        x={Layout.COUNT_X}
+        y={Layout.COUNT_Y}
+        w={Layout.COUNT_W}
+        h={Layout.COUNT_H}
+        text={`${stored}`}
+        font={StorageFonts.SMALL}
+        color={StorageColors.LABEL}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y={Layout.PANE_Y}
+        w={{ fill: Layout.PANE_W_INSET }}
+        h={{ fill: Layout.PANE_H_INSET }}
+        scrollHeight={extent > paneHeight ? extent : 0}
+      >
+        {bag.map((item, index) =>
+          item === -1 ? (
+            <BlankSlot slot={index} />
+          ) : (
+            <StoredSlot item={item} count={bag.count(index)} slot={index} pane={pane} />
+          ),
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_X }} y={Layout.PANE_Y} w={Layout.BAR_W} h={{ fill: Layout.PANE_H_INSET }}>
+        <ScrollbarVertical
+          content={pane}
+          track={StorageSprites.BAR_TRACK}
+          capTopSprite={StorageSprites.BAR_CAP_TOP}
+          thumbSprite={StorageSprites.BAR_THUMB}
+          capBottomSprite={StorageSprites.BAR_CAP_BOTTOM}
+          arrowUp={StorageSprites.BAR_ARROW_UP}
+          arrowDown={StorageSprites.BAR_ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

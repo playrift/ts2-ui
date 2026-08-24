@@ -1,0 +1,136 @@
+import { useState } from 'ts2';
+
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { rotateEmblem } from './bcs-pillar.state';
+import { Layout, PillarColor, PillarFonts, PillarLabels, PillarSounds, PRESS_CYCLES } from './bcs-pillar.constants';
+
+export function ButtonFace({
+  sprite = -1,
+  label,
+  pressed,
+  dimmed = 0,
+}: {
+  sprite?: Sprite;
+  label: String;
+  pressed: Int;
+  dimmed?: Int;
+}): Component {
+  return (
+    <>
+      {pressed === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      {sprite !== -1 ? (
+        <sprite x="center" y="center" w={Layout.FACE_W} h={Layout.FACE_H} sprite={sprite} />
+      ) : (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={dimmed === 1 ? PillarLabels.DIMMED : label}
+          font={PillarFonts.BUTTON}
+          color={PillarColor.BUTTON_LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+    </>
+  );
+}
+
+export function RotateButton({ sprite, label, delta }: { sprite: Sprite; label: String; delta: Int }): Component {
+  const [pressed, setPressed] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[label]}
+        onOptionSelect={() => rotateEmblem(delta)}
+        onMouseLeave={() => setPressed(0)}
+      >
+        <ButtonFace sprite={sprite} label={label} pressed={0} />
+      </layer>
+    );
+  }
+
+  const face: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      onOptionSelect={() => rotateEmblem(delta)}
+      onMouseRepeat={() => setPressed(1)}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <ButtonFace sprite={sprite} label={label} pressed={face} />
+    </layer>
+  );
+}
+
+export function ConfirmButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const [deadline, setDeadline] = useState(0);
+
+  if (deadline !== 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        onTimer={() => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          setDeadline(0);
+          setPressed(0);
+        }}
+      >
+        <ButtonFace label={PillarLabels.CONFIRM} pressed={1} dimmed={1} />
+      </layer>
+    );
+  }
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[PillarLabels.CONFIRM]}
+        onOptionSelect={() => {
+          playSound(PillarSounds.CONFIRM);
+          setPressed(1);
+          setDeadline(clientClock() + PRESS_CYCLES);
+        }}
+        onMouseLeave={() => setPressed(0)}
+      >
+        <ButtonFace label={PillarLabels.CONFIRM} pressed={0} />
+      </layer>
+    );
+  }
+
+  const face: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[PillarLabels.CONFIRM]}
+      onOptionSelect={() => {
+        playSound(PillarSounds.CONFIRM);
+        setPressed(1);
+        setDeadline(clientClock() + PRESS_CYCLES);
+      }}
+      onMouseRepeat={() => setPressed(1)}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <ButtonFace label={PillarLabels.CONFIRM} pressed={face} />
+    </layer>
+  );
+}

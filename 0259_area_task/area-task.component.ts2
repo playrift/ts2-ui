@@ -1,0 +1,196 @@
+import { useRef, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import {
+  AreaTaskColors,
+  AreaTaskFonts,
+  BACKDROP_ALPHA,
+  BAR_ALPHA,
+  CONTENT_HEIGHT,
+  DIARY_ORDER,
+  DiaryNames,
+  Layout,
+  OUTLINE_ALPHA,
+  ROW_HOVER,
+  ROW_IDLE,
+  ScrollbarSprites,
+  TIERS,
+} from './area-task.constants';
+import { diaryColour, segmentFill, segmentFillColour, tierCount, tierTotal } from './area-task.helpers';
+
+export function DiaryRow({ diary, rowY }: { diary: Int; rowY: Int }): Component {
+  const universe = useUniverse();
+  const barX: Int = (universe.width - Layout.bar.w) / 2;
+
+  const highlight = useRef();
+  const label = useRef();
+  const counter = useRef();
+
+  const colour: Int = diaryColour(diary);
+  const name: String = DiaryNames.at(diary);
+
+  const done: Int = tierCount(diary, 0) + tierCount(diary, 1) + tierCount(diary, 2) + tierCount(diary, 3);
+  const tasks: Int = tierTotal(diary, 0) + tierTotal(diary, 1) + tierTotal(diary, 2) + tierTotal(diary, 3);
+
+  return (
+    <layer y={rowY} w="fill" h={Layout.row.height}>
+      <rect
+        x="center"
+        w={{ fill: Layout.row.inset }}
+        h={Layout.row.rect.h}
+        color={AreaTaskColors.ORANGE}
+        transparency={OUTLINE_ALPHA}
+        options={[`Open <col=ff9040>${name} Journal</col>`, `Wiki <col=ff9040>${name} Journal</col>`]}
+      />
+
+      <rect
+        ref={highlight}
+        x="center"
+        y={Layout.row.rect.y}
+        w={{ fill: Layout.row.inset }}
+        h={Layout.row.rect.h}
+        fill
+        color={AreaTaskColors.WHITE}
+        transparency={ROW_IDLE}
+        onMouseEnter={() => {
+          highlight.transparency = ROW_HOVER;
+          label.color = AreaTaskColors.HOVER;
+          counter.color = AreaTaskColors.HOVER;
+        }}
+        onMouseLeave={() => {
+          highlight.transparency = ROW_IDLE;
+          label.color = colour;
+          counter.color = colour;
+        }}
+      />
+
+      <text
+        ref={label}
+        x={Layout.label.x}
+        y={Layout.label.y}
+        w={Layout.label.w}
+        h={Layout.label.h}
+        text={name}
+        font={AreaTaskFonts.ROW}
+        shadow
+        color={colour}
+      />
+      <text
+        ref={counter}
+        x={{ right: Layout.count.right }}
+        y={Layout.count.y}
+        w={Layout.count.w}
+        h={Layout.count.h}
+        text={`${stringOf(done)}/${stringOf(tasks)}`}
+        font={AreaTaskFonts.ROW}
+        align="right"
+        shadow
+        color={colour}
+      />
+
+      <rect
+        x="center"
+        y={Layout.bar.y}
+        w={Layout.bar.w}
+        h={Layout.bar.h}
+        fill
+        color={AreaTaskColors.BLACK}
+        transparency={BAR_ALPHA}
+      />
+
+      {TIERS.map((tier) => (
+        <rect
+          x={barX + tier * Layout.segment.pitch}
+          y={Layout.bar.y}
+          w={Layout.segment.w}
+          h={Layout.bar.h}
+          color={AreaTaskColors.BLACK}
+        />
+      ))}
+      {TIERS.map((tier) => (
+        <rect
+          x={barX + tier * Layout.segment.pitch + 1}
+          y={Layout.segment.fillY}
+          w={segmentFill(diary, tier)}
+          h={Layout.segment.fillH}
+          fill
+          color={segmentFillColour(diary, tier)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+export function DiaryList(): Component {
+  return (
+    <>
+      {DIARY_ORDER.map((diary, index) => (
+        <DiaryRow diary={diary} rowY={Layout.row.top + index * Layout.row.height} />
+      ))}
+    </>
+  );
+}
+
+export function DiaryPane(): Component {
+  const pane = useRef();
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        y={Layout.pane.top}
+        w={{ fill: Layout.pane.inset }}
+        h={{ fill: Layout.pane.top }}
+        scrollHeight={CONTENT_HEIGHT}
+        scrollY={0}
+      >
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={AreaTaskColors.BLACK}
+          transparency={BACKDROP_ALPHA}
+          optionSubject=" "
+        />
+        <DiaryList />
+      </layer>
+
+      <layer y={Layout.pane.top} w={{ fill: Layout.pane.inset }} h={{ fill: Layout.pane.top }}>
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <layer x="right" y={Layout.pane.top} w={Layout.scrollbar.w} h={{ fill: Layout.pane.top }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function AreaTask(): Component {
+  return (
+    <layer w={Layout.panel.w} h={Layout.panel.h}>
+      <text
+        x="center"
+        w={{ fill: Layout.header.inset }}
+        h={Layout.header.h}
+        text="Achievement Diaries"
+        font={AreaTaskFonts.TITLE}
+        align="center"
+        valign="middle"
+        shadow
+        color={AreaTaskColors.ORANGE}
+      />
+      <DiaryPane />
+    </layer>
+  );
+}

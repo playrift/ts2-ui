@@ -1,0 +1,34 @@
+import { useServerState } from 'ts2';
+import { hasBit } from '../lib/lib.engine';
+import { DeadmanVarps, DeadmanWorld, WorldFlag } from './deadmanprotect.constants';
+
+export function privateEventWorld(): Int {
+  const flags: Int = useServerState(DeadmanVarps.MAP_FLAGS_CACHED);
+  if (
+    hasBit(flags, WorldFlag.PRIVATE_EVENT) &&
+    !hasBit(flags, WorldFlag.NOT_PRIVATE_EVENT) &&
+    hasBit(flags, WorldFlag.EVENT_MEMBER)
+  ) {
+    return 4;
+  }
+  return 0;
+}
+
+export function deadmanWorldOf(flags: Int): Int {
+  const priv: Int = privateEventWorld();
+  if (priv === 1 || priv === 4) {
+    return DeadmanWorld.EVENT_CARRIED_ONLY;
+  }
+  if (hasBit(flags, WorldFlag.DEADMAN)) {
+    if (hasBit(flags, WorldFlag.DEADMAN_CARRIED_ONLY) || hasBit(flags, WorldFlag.DEADMAN_TOURNAMENT)) {
+      return DeadmanWorld.EVENT_CARRIED_ONLY;
+    }
+    return DeadmanWorld.EVENT_HALF_BANK;
+  }
+  return DeadmanWorld.NONE;
+}
+
+export function deadmanWorld(): Int {
+  const flags: Int = useServerState(DeadmanVarps.MAP_FLAGS_CACHED);
+  return deadmanWorldOf(flags);
+}

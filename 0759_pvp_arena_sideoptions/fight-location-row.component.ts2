@@ -1,0 +1,71 @@
+import { stopTimer, useRef, useServerState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import {
+  FLASH_CYCLES,
+  RowWash,
+  SideOptionsColor,
+  SideOptionsLayout,
+  SideOptionsSounds,
+  SideOptionsSprites,
+  SideOptionsVarps,
+} from './pvp-arena-sideoptions.constants';
+
+export function FightLocationRow({ label, flag, index }: { label: String; flag: Sprite; index: Int }): Component {
+  const wash = useRef();
+  const radio = useRef();
+  const selected: Int = useServerState(SideOptionsVarps.LOCATION);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Select']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onMouseRepeat={() => ccSetTrans(wash, RowWash.HOVER)}
+      onMouseLeave={() => ccSetTrans(wash, RowWash.REST)}
+      onOptionSelect={() => {
+        playSound(SideOptionsSounds.SELECT);
+        wash.transparency = RowWash.PRESSED;
+        radio.sprite = SideOptionsSprites.RADIO_ON;
+
+        const restoreAt: Int = clientClock() + FLASH_CYCLES;
+        wash.onTimer = () => {
+          if (clientClock() < restoreAt) {
+            return;
+          }
+          wash.transparency = RowWash.REST;
+          stopTimer(wash);
+        };
+      }}
+    >
+      <rect
+        ref={wash}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        fill
+        color={SideOptionsColor.HIGHLIGHT}
+        transparency={RowWash.REST}
+      />
+
+      <sprite
+        ref={radio}
+        x={SideOptionsLayout.radio.x}
+        y="center"
+        w={SideOptionsLayout.radio.size}
+        h={SideOptionsLayout.radio.size}
+        sprite={selected === index ? SideOptionsSprites.RADIO_ON : SideOptionsSprites.RADIO_OFF}
+      />
+
+      <sprite
+        x={SideOptionsLayout.flag.x}
+        y="center"
+        w={SideOptionsLayout.flag.w}
+        h={SideOptionsLayout.flag.h}
+        sprite={flag}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,43 @@
+import { useState } from 'ts2';
+
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedEntrypoint } from '../lib/stone-button-pressed-entrypoint.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { LightButtonOp, LightButtonSkin, LightPuzzleSounds, LightPuzzleTiming } from './light-puzzle.constants';
+
+export function LightBoxButton(): Component {
+  const [skin, setSkin] = useState(LightButtonSkin.REST);
+
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[LightButtonOp.LABEL]}
+      optionSubject={LightButtonOp.SUBJECT}
+      onMouseEnter={() => setSkin(LightButtonSkin.HOVER)}
+      onMouseLeave={() => setSkin(LightButtonSkin.REST)}
+      onOptionSelect={() => {
+        setSkin(LightButtonSkin.PRESSED);
+        playSound(LightPuzzleSounds.PRESS);
+        setPressedUntil(clientClock() + LightPuzzleTiming.PRESS_CYCLES);
+      }}
+      onTimer={() => {
+        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+          setSkin(LightButtonSkin.REST);
+          setPressedUntil(0);
+        }
+      }}
+    >
+      {skin === LightButtonSkin.HOVER ? (
+        <StoneButtonPressedEntrypoint />
+      ) : skin === LightButtonSkin.PRESSED ? (
+        <StoneButtonOutFilled />
+      ) : (
+        <StoneButtonFilled />
+      )}
+    </layer>
+  );
+}

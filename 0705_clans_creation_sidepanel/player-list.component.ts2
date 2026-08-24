@@ -1,0 +1,167 @@
+import { CS2, useServerState } from 'ts2';
+import { chatMessage } from '../lib/lib.engine';
+import { CreationColor, CreationFonts, CreationVarbits, Layout } from './clans-creation-sidepanel.constants';
+
+export function PlayerList({
+  first = '',
+  second = '',
+  third = '',
+  fourth = '',
+  fifth = '',
+  exclude = '',
+}: {
+  first?: String;
+  second?: String;
+  third?: String;
+  fourth?: String;
+  fifth?: String;
+  exclude?: String;
+}): Component {
+  return (
+    <>
+      <PlayerRow name={first} index={0} exclude={exclude} />
+      <PlayerRow name={second} index={1} exclude={exclude} />
+      <PlayerRow name={third} index={2} exclude={exclude} />
+      <PlayerRow name={fourth} index={3} exclude={exclude} />
+      <PlayerRow name={fifth} index={4} exclude={exclude} />
+    </>
+  );
+}
+
+function PlayerRow({ name, index, exclude }: { name: String; index: Int; exclude: String }): Component {
+  const label: String = `${stringOf(index + 1)}. ${name}`;
+  const y: Int = Layout.ROW_PITCH * index + Layout.ROW_FIRST_Y;
+
+  if (CS2.string_length(name) === 0) {
+    return (
+      <text
+        x={Layout.ROW_X}
+        y={y}
+        w={{ fill: Layout.ROW_RIGHT_INSET }}
+        h={Layout.ROW_HEIGHT}
+        text={label}
+        font={CreationFonts.BODY}
+        color={CreationColor.ROW}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    );
+  }
+
+  if (CS2.compare(exclude, CS2.tags_remove(name)) === 0) {
+    return (
+      <text
+        x={Layout.ROW_X}
+        y={y}
+        w={{ fill: Layout.ROW_RIGHT_INSET }}
+        h={Layout.ROW_HEIGHT}
+        text={label}
+        font={CreationFonts.BODY}
+        color={CreationColor.ROW}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    );
+  }
+
+  const founder: Int = useServerState(CreationVarbits.CLAN_FOUNDER);
+  const gimLeader: Int = useServerState(CreationVarbits.GIM_LEADER);
+
+  return (
+    <>
+      {founder === 1 || gimLeader === 1 ? (
+        <>
+          {CS2.friend_test(name) ? (
+            <text
+              x={Layout.ROW_X}
+              y={y}
+              w={{ fill: Layout.ROW_RIGHT_INSET }}
+              h={Layout.ROW_HEIGHT}
+              text={label}
+              font={CreationFonts.BODY}
+              color={CreationColor.ROW}
+              align="left"
+              valign="middle"
+              shadow
+              optionSubject={name}
+              options={['Kick', '', 'Remove friend']}
+              onOptionSelect={(event) => playerRowOption(event.option, event.optionSubject)}
+            />
+          ) : (
+            <text
+              x={Layout.ROW_X}
+              y={y}
+              w={{ fill: Layout.ROW_RIGHT_INSET }}
+              h={Layout.ROW_HEIGHT}
+              text={label}
+              font={CreationFonts.BODY}
+              color={CreationColor.ROW}
+              align="left"
+              valign="middle"
+              shadow
+              optionSubject={name}
+              options={['Kick', '', '', 'Add friend', 'Add ignore']}
+              onOptionSelect={(event) => playerRowOption(event.option, event.optionSubject)}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {CS2.friend_test(name) ? (
+            <text
+              x={Layout.ROW_X}
+              y={y}
+              w={{ fill: Layout.ROW_RIGHT_INSET }}
+              h={Layout.ROW_HEIGHT}
+              text={label}
+              font={CreationFonts.BODY}
+              color={CreationColor.ROW}
+              align="left"
+              valign="middle"
+              shadow
+              optionSubject={name}
+              options={['', '', 'Remove friend']}
+              onOptionSelect={(event) => playerRowOption(event.option, event.optionSubject)}
+            />
+          ) : (
+            <text
+              x={Layout.ROW_X}
+              y={y}
+              w={{ fill: Layout.ROW_RIGHT_INSET }}
+              h={Layout.ROW_HEIGHT}
+              text={label}
+              font={CreationFonts.BODY}
+              color={CreationColor.ROW}
+              align="left"
+              valign="middle"
+              shadow
+              optionSubject={name}
+              options={['', '', '', 'Add friend', 'Add ignore']}
+              onOptionSelect={(event) => playerRowOption(event.option, event.optionSubject)}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+export function playerRowOption(option: Int, subject: String): void {
+  const player: String = CS2.tags_remove(subject);
+  switch (option) {
+    case 1:
+      chatMessage(`Removing ${player} from the party.`);
+      return;
+    case 3:
+      CS2.friend_del(player);
+      return;
+    case 4:
+      CS2.friend_add(player);
+      return;
+    case 5:
+      CS2.ignore_add(player);
+      return;
+  }
+}
