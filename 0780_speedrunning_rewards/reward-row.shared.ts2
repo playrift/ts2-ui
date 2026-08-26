@@ -1,0 +1,45 @@
+import { CS2 } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { hasBit, membersWorld } from '../lib/lib.engine';
+import { RewardParams, THOUSANDS } from './speedrunning-rewards.constants';
+
+export function rewardOwned(row: Row, purchasedBits: Int): Int {
+  if (row.int(RewardParams.RECLAIMABLE) === 0) {
+    return 0;
+  }
+  return hasBit(purchasedBits, row.int(RewardParams.UNLOCK_BIT)) ? 1 : 0;
+}
+
+export function rewardRefusal(item: ItemName, purchased: Int, cost: Int, points: Int): Int {
+  if (CS2.item_members(item as Item) === 1 && !membersWorld()) {
+    return 1;
+  }
+  if (purchased === 0 && points < cost) {
+    return 2;
+  }
+  return 0;
+}
+
+export function rewardPrice(purchased: Int, cost: Int): String {
+  if (purchased === 1) {
+    return 'Free to reclaim';
+  }
+  if (cost === 1) {
+    return `${groupDigits(cost, THOUSANDS)} point`;
+  }
+  return `${groupDigits(cost, THOUSANDS)} points`;
+}
+
+export function refusalMessage(refusal: Int, purchased: Int, cost: Int): String {
+  if (refusal === 1) {
+    return purchased === 1
+      ? "You must be on a members' world to reclaim that reward."
+      : "You must be on a members' world to purchase that reward.";
+  }
+  if (refusal === 2) {
+    return cost === 1
+      ? `You need ${groupDigits(cost, THOUSANDS)} Speedrun Point to purchase that reward.`
+      : `You need ${groupDigits(cost, THOUSANDS)} Speedrun Points to purchase that reward.`;
+  }
+  return '';
+}

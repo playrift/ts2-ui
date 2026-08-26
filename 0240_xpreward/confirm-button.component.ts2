@@ -1,0 +1,94 @@
+import { CS2, useState } from 'ts2';
+
+import { chatMessage, clientClock, playSound } from '../lib/lib.engine';
+import { SkillTile, SkillTilePressed } from './skill-tile.component';
+import {
+  CONFIRM,
+  NEED_A_SKILL,
+  PRESS_CYCLES,
+  XpRewardColor,
+  XpRewardFonts,
+  XpRewardSounds,
+} from './xpreward.constants';
+
+export function ConfirmButton({ chosen, label }: { chosen: Int; label: String }): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[CONFIRM]}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <SkillTilePressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={label}
+          font={XpRewardFonts.CONFIRM}
+          color={XpRewardColor.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  if (chosen === 0) {
+    return (
+      <layer w="fill" h="fill" options={[CONFIRM]} onOptionSelect={() => chatMessage(NEED_A_SKILL)}>
+        <SkillTile />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={CONFIRM}
+          font={XpRewardFonts.CONFIRM}
+          color={XpRewardColor.DISABLED}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CONFIRM]}
+      onOptionSelect={(event) => {
+        playSound(XpRewardSounds.SELECT);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+        CS2.if_resume_pausebutton(event.component);
+      }}
+    >
+      <SkillTile />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={XpRewardFonts.CONFIRM}
+        color={XpRewardColor.ARMED}
+        hover={{ color: XpRewardColor.WHITE }}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

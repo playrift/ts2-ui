@@ -1,0 +1,527 @@
+import {
+  CS2,
+  intArray,
+  onMounted,
+  onUpdated,
+  predictServerState,
+  useRef,
+  useServerState,
+  useState,
+  useUniverse,
+} from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { groupDigits } from '../lib/lib.format';
+import { itemName } from '../lib/lib.engine';
+import { StoneButtonEntrypoint } from '../lib/stone-button-entrypoint.component';
+import { StoneButtonPressedEntrypoint } from '../lib/stone-button-pressed-entrypoint.component';
+import {
+  CategoryList,
+  CategoryNames,
+  CategoryOrder,
+  CategoryProducts,
+  CategoryRows,
+  CustomQuantityPending,
+  FletchAlpha,
+  FletchBar,
+  FletchColor,
+  FletchFonts,
+  FletchSkills,
+  FletchSprites,
+  FletchTitles,
+  FletchVarbits,
+  Layout,
+  Quantity,
+  RecipeGrid,
+  RecipeScrollY,
+  Recipes,
+} from './fletching-table.constants';
+import {
+  categoryHeadingY,
+  customQuantitySelected,
+  defaultQuantityOp,
+  favouriteAt,
+  favouriteSlotOf,
+  gridColumns,
+  gridColumnWidth,
+  levelDiscount,
+  productRows,
+  recipeLevel,
+  recipeRowOf,
+} from './fletching-table.helpers';
+
+export function FletchingTable(): Component {
+  const universe = useUniverse();
+  const [seen, setSeen] = useState(0);
+  universe.onResize = () => {
+    setSeen(universe.height);
+  };
+
+  const source: Int = useServerState(FletchVarbits.SOURCE);
+  const quantity: Int = useServerState(FletchVarbits.QUANTITY);
+  const fletching: Int = CS2.stat(FletchSkills.FLETCHING);
+  const discount: Int = levelDiscount(source);
+  const mobile: Boolean = onMobile();
+
+  const [savedScroll, setSavedScroll] = useState(RecipeScrollY);
+  const [pending, setPending] = useState(CustomQuantityPending);
+
+  const measured: Int = seen > 0 ? seen : universe.height;
+  const panelH: Int = Math.min(Layout.PANEL_MAX_H, measured - Layout.PANEL_H_INSET);
+  const bodyH: Int = panelH - Layout.BODY_H_INSET;
+  const recipeH: Int = bodyH - Layout.QUANTITY_H;
+
+  const rowH: Int = CategoryList.ROW_H + (mobile ? CategoryList.ROW_H_MOBILE_EXTRA : 0);
+  const categoryContentH: Int = Recipes.CATEGORIES * rowH;
+
+  const columns: Int = gridColumns(mobile);
+  const columnW: Int = gridColumnWidth(columns);
+
+  const headingY = intArray(Recipes.CATEGORIES);
+  const slotItem = intArray<ItemName>(Recipes.SLOTS);
+  const slotX = intArray(Recipes.SLOTS);
+  const slotY = intArray(Recipes.SLOTS);
+
+  let cursor: Int = RecipeGrid.TOP_PAD;
+  let slot: Int = 0;
+  let category: Int = 0;
+  while (category < Recipes.CATEGORIES) {
+    const id: Int = CategoryOrder.at(category);
+    headingY[category] = cursor;
+    cursor = cursor + RecipeGrid.HEADING_ADVANCE + RecipeGrid.RULE_ADVANCE;
+
+    const products: List<ItemName> = CategoryProducts.get(id);
+    let listed: Int = 0;
+    if (id === Recipes.FAVOURITES) {
+      listed = Recipes.FAVOURITE_SLOTS;
+    } else if ((products as unknown as Int) !== -1) {
+      listed = products.length;
+    }
+
+    let placed: Int = 0;
+    let index: Int = 0;
+    while (index < listed) {
+      const product: ItemName = id === Recipes.FAVOURITES ? favouriteAt(index) : products.at(index);
+      slotItem[slot] = product;
+      if (product !== -1) {
+        slotX[slot] = columnW * (placed % columns) + columnW / 2;
+        slotY[slot] = cursor + (placed / columns) * RecipeGrid.ROW_ADVANCE;
+        placed = placed + 1;
+      }
+      slot = slot + 1;
+      index = index + 1;
+    }
+    cursor = cursor + productRows(id, columns) * RecipeGrid.ROW_ADVANCE;
+    category = category + 1;
+  }
+  const recipeContentH: Int = cursor;
+
+  const custom: Boolean = customQuantitySelected(quantity, pending);
+
+  const categories = useRef();
+  const recipes = useRef();
+
+  const restore: Int = recipeContentH >= recipeH ? savedScroll : 0;
+  onMounted(() => {
+    recipes.scrollY = restore;
+  });
+  onUpdated(() => {
+    recipes.scrollY = restore;
+  });
+  const raised0 = useRef();
+  const pressed0 = useRef();
+  const raised1 = useRef();
+  const pressed1 = useRef();
+  const raised2 = useRef();
+  const pressed2 = useRef();
+  const raised3 = useRef();
+  const pressed3 = useRef();
+  const raised4 = useRef();
+  const pressed4 = useRef();
+
+  return (
+    <layer x="center" y={{ bottom: (measured - panelH) / 2 }} w={Layout.PANEL_W} h={panelH}>
+      <SteelBorder
+        title={source === 1 ? FletchTitles.TABLE : FletchTitles.KNIFE}
+        titleColor={SteelborderColor.TITLE}
+        flags={0}
+      />
+
+      <layer x="center" y={Layout.BODY_Y} w={{ fill: Layout.BODY_W_INSET }} h={{ fill: Layout.BODY_H_INSET }}>
+        <layer x={0} y={0} w={Layout.LEFT_PERCENT} h="fill">
+          <layer
+            ref={categories}
+            x={0}
+            y={0}
+            w={{ fill: Layout.BAR_W }}
+            h="fill"
+            scrollY={0}
+            scrollHeight={categoryContentH > bodyH ? categoryContentH : 0}
+          >
+            <layer w="fill" h="fill">
+              {CategoryOrder.map((id, index) => (
+                <rect
+                  x={0}
+                  y={index * rowH}
+                  w="fill"
+                  h={rowH}
+                  fill
+                  color={index % 2 === 0 ? FletchColor.STRIPE_EVEN : FletchColor.STRIPE_ODD}
+                  transparency={index % 2 === 0 ? FletchAlpha.STRIPE_EVEN : FletchAlpha.STRIPE_ODD}
+                />
+              ))}
+            </layer>
+
+            <layer w="fill" h="fill">
+              {CategoryRows.map((index) => (
+                <text
+                  x={CategoryList.TEXT_X}
+                  y={index * rowH}
+                  w={{ fill: CategoryList.TEXT_W_INSET }}
+                  h={rowH}
+                  text={CategoryNames.at(CategoryOrder.at(index))}
+                  font={FletchFonts.CATEGORY}
+                  color={FletchColor.LABEL}
+                  shadow
+                  align="left"
+                  valign="middle"
+                  hover={{ color: FletchColor.HOVER }}
+                  options={['Select']}
+                  onOptionSelect={() => {
+                    recipes.scrollY = categoryHeadingY(index, columns);
+                    setSavedScroll(recipes.scrollY);
+                  }}
+                />
+              ))}
+            </layer>
+          </layer>
+
+          <layer x="right" y={0} w={Layout.BAR_W} h="fill">
+            <ScrollbarVertical
+              content={categories}
+              track={FletchBar.TRACK}
+              capTopSprite={FletchBar.CAP_TOP}
+              thumbSprite={FletchBar.THUMB}
+              capBottomSprite={FletchBar.CAP_BOTTOM}
+              arrowUp={FletchBar.ARROW_UP}
+              arrowDown={FletchBar.ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+
+        <layer x="right" y={0} w={Layout.RIGHT_PERCENT} h="fill">
+          <layer
+            ref={recipes}
+            x={0}
+            y={0}
+            w={{ fill: Layout.BAR_W }}
+            h={{ fill: Layout.QUANTITY_H }}
+            scrollY={restore}
+            scrollHeight={recipeContentH >= recipeH ? recipeContentH : 0}
+          >
+            <layer w="fill" h="fill">
+              {CategoryOrder.map((id, index) => (
+                <text
+                  x={RecipeGrid.HEADING_X}
+                  y={headingY[index]}
+                  w={{ fill: RecipeGrid.HEADING_W_INSET }}
+                  h={RecipeGrid.HEADING_H}
+                  text={CategoryNames.at(id)}
+                  font={FletchFonts.HEADING}
+                  color={FletchColor.LABEL}
+                  shadow
+                />
+              ))}
+            </layer>
+
+            <layer w="fill" h="fill">
+              {CategoryOrder.map((id, index) => (
+                <sprite
+                  x={RecipeGrid.RULE_X}
+                  y={headingY[index] + RecipeGrid.HEADING_ADVANCE}
+                  w={{ fill: RecipeGrid.RULE_W_INSET }}
+                  h={RecipeGrid.RULE_H}
+                  sprite={FletchSprites.RULE}
+                  tiling
+                />
+              ))}
+            </layer>
+
+            <layer w="fill" h="fill">
+              {slotItem.map(
+                (product, at) =>
+                  product !== -1 && (
+                    <sprite
+                      x={slotX[at] - RecipeGrid.ICON_DX}
+                      y={slotY[at]}
+                      w={RecipeGrid.ICON_W}
+                      h={RecipeGrid.ICON_H}
+                      item={product}
+                      itemCount={CS2.item_stackable(product as unknown as Item) ? 10000 : 0}
+                      itemCountMode="never"
+                      outline={RecipeGrid.ICON_OUTLINE}
+                      shadowColor={FletchColor.SHADOW}
+                      optionSubject={`<col=ff9040>${itemName(product as unknown as Item)}</col>`}
+                      options={[
+                        defaultQuantityOp(quantity),
+                        'Fletch-1',
+                        'Fletch-5',
+                        'Fletch-10',
+                        'Fletch-X',
+                        'Fletch-All',
+                        '',
+                        favouriteSlotOf(product) !== -1 ? 'Remove-Favourite' : 'Favourite',
+                      ]}
+                    />
+                  ),
+              )}
+            </layer>
+
+            <layer w="fill" h="fill">
+              {slotItem.map(
+                (product, at) =>
+                  product !== -1 && (
+                    <text
+                      x={slotX[at] - RecipeGrid.LABEL_DX}
+                      y={slotY[at] + RecipeGrid.ICON_H}
+                      w={RecipeGrid.LABEL_W}
+                      h={RecipeGrid.LABEL_H}
+                      text={captionOf(product, fletching, discount)}
+                      font={FletchFonts.CAPTION}
+                      color={FletchColor.LABEL}
+                      shadow
+                      align="center"
+                      valign="top"
+                      lineHeight={RecipeGrid.LABEL_LINE_H}
+                      optionSubject={`<col=ff9040>${itemName(product as unknown as Item)}</col>`}
+                      options={[
+                        defaultQuantityOp(quantity),
+                        'Fletch-1',
+                        'Fletch-5',
+                        'Fletch-10',
+                        'Fletch-X',
+                        'Fletch-All',
+                        '',
+                        favouriteSlotOf(product) !== -1 ? 'Remove-Favourite' : 'Favourite',
+                      ]}
+                    />
+                  ),
+              )}
+            </layer>
+          </layer>
+
+          <layer x="right" y={0} w={Layout.BAR_W} h={{ fill: Layout.QUANTITY_H }}>
+            <ScrollbarVertical
+              content={recipes}
+              track={FletchBar.TRACK}
+              capTopSprite={FletchBar.CAP_TOP}
+              thumbSprite={FletchBar.THUMB}
+              capBottomSprite={FletchBar.CAP_BOTTOM}
+              arrowUp={FletchBar.ARROW_UP}
+              arrowDown={FletchBar.ARROW_DOWN}
+            />
+          </layer>
+
+          <layer x="center" y="bottom" w={Layout.QUANTITY_W} h={Layout.QUANTITY_H}>
+            <line x={0} y={0} w="fill" h={0} color={FletchColor.SHADOW} lineWidth={Layout.RULE_LINE_W} />
+
+            <layer
+              x={Layout.BUTTON_X}
+              y="center"
+              w={Layout.BUTTON_W}
+              h={Layout.BUTTON_H}
+              options={['Make-1']}
+              onMouseEnter={() => {
+                raised0.hide = true;
+                pressed0.hide = false;
+              }}
+              onMouseLeave={() => {
+                raised0.hide = false;
+                pressed0.hide = true;
+              }}
+              onOptionSelect={() => {
+                predictServerState(FletchVarbits.QUANTITY, Quantity.ONE);
+                setPending(0);
+              }}
+            >
+              <text
+                w="fill"
+                h="fill"
+                text="1"
+                font={FletchFonts.CAPTION}
+                color={quantity === Quantity.ONE ? FletchColor.HOVER : FletchColor.LABEL}
+                shadow
+                align="center"
+                valign="middle"
+              />
+              <layer ref={raised0} w="fill" h="fill">
+                <StoneButtonEntrypoint />
+              </layer>
+              <layer ref={pressed0} hide w="fill" h="fill">
+                <StoneButtonPressedEntrypoint />
+              </layer>
+            </layer>
+            <layer
+              x={Layout.BUTTON_X + Layout.BUTTON_PITCH}
+              y="center"
+              w={Layout.BUTTON_W}
+              h={Layout.BUTTON_H}
+              options={['Make-5']}
+              onMouseEnter={() => {
+                raised1.hide = true;
+                pressed1.hide = false;
+              }}
+              onMouseLeave={() => {
+                raised1.hide = false;
+                pressed1.hide = true;
+              }}
+              onOptionSelect={() => {
+                predictServerState(FletchVarbits.QUANTITY, Quantity.FIVE);
+                setPending(0);
+              }}
+            >
+              <text
+                w="fill"
+                h="fill"
+                text="5"
+                font={FletchFonts.CAPTION}
+                color={quantity === Quantity.FIVE ? FletchColor.HOVER : FletchColor.LABEL}
+                shadow
+                align="center"
+                valign="middle"
+              />
+              <layer ref={raised1} w="fill" h="fill">
+                <StoneButtonEntrypoint />
+              </layer>
+              <layer ref={pressed1} hide w="fill" h="fill">
+                <StoneButtonPressedEntrypoint />
+              </layer>
+            </layer>
+            <layer
+              x={Layout.BUTTON_X + Layout.BUTTON_PITCH * 2}
+              y="center"
+              w={Layout.BUTTON_W}
+              h={Layout.BUTTON_H}
+              options={['Make-10']}
+              onMouseEnter={() => {
+                raised2.hide = true;
+                pressed2.hide = false;
+              }}
+              onMouseLeave={() => {
+                raised2.hide = false;
+                pressed2.hide = true;
+              }}
+              onOptionSelect={() => {
+                predictServerState(FletchVarbits.QUANTITY, Quantity.TEN);
+                setPending(0);
+              }}
+            >
+              <text
+                w="fill"
+                h="fill"
+                text="10"
+                font={FletchFonts.CAPTION}
+                color={quantity === Quantity.TEN ? FletchColor.HOVER : FletchColor.LABEL}
+                shadow
+                align="center"
+                valign="middle"
+              />
+              <layer ref={raised2} w="fill" h="fill">
+                <StoneButtonEntrypoint />
+              </layer>
+              <layer ref={pressed2} hide w="fill" h="fill">
+                <StoneButtonPressedEntrypoint />
+              </layer>
+            </layer>
+            <layer
+              x={Layout.BUTTON_X + Layout.BUTTON_PITCH * 3}
+              y="center"
+              w={Layout.BUTTON_W}
+              h={Layout.BUTTON_H}
+              options={[quantity > 0 ? `Default quantity: ${groupDigits(quantity, ',')}` : '', 'Set custom quantity']}
+              onMouseEnter={() => {
+                raised3.hide = true;
+                pressed3.hide = false;
+              }}
+              onMouseLeave={() => {
+                raised3.hide = false;
+                pressed3.hide = true;
+              }}
+              onOptionSelect={() => {
+                setPending(1);
+              }}
+            >
+              <text
+                w="fill"
+                h="fill"
+                text="X"
+                font={FletchFonts.CAPTION}
+                color={custom ? FletchColor.HOVER : FletchColor.LABEL}
+                shadow
+                align="center"
+                valign="middle"
+              />
+              <layer ref={raised3} w="fill" h="fill">
+                <StoneButtonEntrypoint />
+              </layer>
+              <layer ref={pressed3} hide w="fill" h="fill">
+                <StoneButtonPressedEntrypoint />
+              </layer>
+            </layer>
+            <layer
+              x={Layout.BUTTON_X + Layout.BUTTON_PITCH * 4}
+              y="center"
+              w={Layout.BUTTON_W}
+              h={Layout.BUTTON_H}
+              options={['Make-All']}
+              onMouseEnter={() => {
+                raised4.hide = true;
+                pressed4.hide = false;
+              }}
+              onMouseLeave={() => {
+                raised4.hide = false;
+                pressed4.hide = true;
+              }}
+              onOptionSelect={() => {
+                predictServerState(FletchVarbits.QUANTITY, Quantity.ALL);
+                setPending(0);
+              }}
+            >
+              <text
+                w="fill"
+                h="fill"
+                text="All"
+                font={FletchFonts.CAPTION}
+                color={quantity === Quantity.ALL ? FletchColor.HOVER : FletchColor.LABEL}
+                shadow
+                align="center"
+                valign="middle"
+              />
+              <layer ref={raised4} w="fill" h="fill">
+                <StoneButtonEntrypoint />
+              </layer>
+              <layer ref={pressed4} hide w="fill" h="fill">
+                <StoneButtonPressedEntrypoint />
+              </layer>
+            </layer>
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function captionOf(product: ItemName, fletching: Int, discount: Int): String {
+  const row: DbRow = recipeRowOf(product);
+  const required: Int = Math.max(1, recipeLevel(row) - discount);
+  const name: String = itemName(product as unknown as Item);
+  if ((row as unknown as Int) === -1) {
+    return name;
+  }
+  if (fletching >= required) {
+    return `${name}<br><col=00ff00>Level: ${stringOf(required)}`;
+  }
+  return `<col=9f9f9f>${name}<br><col=ff0000>Level: ${stringOf(required)}`;
+}

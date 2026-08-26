@@ -1,0 +1,98 @@
+import { predictServerState } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import { StructBoxFrame } from './struct-box-frame.component';
+import { Cell, CellBox, ForestryVarbits, KitColor, KitFonts, KitSounds, Quantity } from './forestry-kit-main.constants';
+
+export function KitCell({
+  item,
+  count,
+  rowKey,
+  visible,
+  columns,
+  cellWidth,
+  selected,
+  armed,
+  mobile,
+}: {
+  item: Item;
+  count: Int;
+  rowKey: Int;
+  visible: Int;
+  columns: Int;
+  cellWidth: Int;
+  selected: Int;
+  armed: Int;
+  mobile: Int;
+}): Component {
+  const left: Int = (visible % columns) * (cellWidth + Cell.GAP) + Cell.GAP;
+  const top: Int = (visible / columns) * (Cell.HEIGHT + Cell.GAP) + Cell.GAP;
+
+  const rest: Int = selected === 1 ? KitColor.TEXT : KitColor.CELL_REST;
+  const hovered: Int = mobile === 1 || selected === 1 ? rest : KitColor.CELL_HOVER;
+
+  return (
+    <layer x={left} y={top} w={cellWidth} h={Cell.HEIGHT}>
+      <rect
+        x={1}
+        y={1}
+        w={cellWidth - 2}
+        h={Cell.HEIGHT - 2}
+        fill
+        color={rest}
+        hover={{ color: hovered }}
+        options={[
+          'Select',
+          armed === Quantity.FIVE
+            ? 'Withdraw-5'
+            : armed === Quantity.ALL
+              ? 'Withdraw-All'
+              : armed === Quantity.X
+                ? 'Withdraw-X'
+                : 'Withdraw-1',
+          armed === Quantity.FIVE || armed === Quantity.ALL || armed === Quantity.X ? 'Withdraw-1' : '',
+          armed === Quantity.FIVE ? '' : 'Withdraw-5',
+          armed === Quantity.X ? '' : 'Withdraw-X',
+          armed === Quantity.ALL ? '' : 'Withdraw-All',
+          '',
+          '',
+          '',
+          'Examine',
+        ]}
+        optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+        onOptionSelect={(event) => {
+          if (event.option === Cell.SELECT_OP) {
+            playSound(KitSounds.CLICK);
+            predictServerState(ForestryVarbits.SELECTED_ITEM, selected === 1 ? 0 : rowKey);
+          }
+        }}
+      />
+
+      <StructBoxFrame x={0} y={0} w={cellWidth} h={Cell.HEIGHT} style={CellBox.STYLE} />
+
+      <sprite
+        x={cellWidth / 2 - Cell.ITEM_W / 2}
+        y={Cell.ITEM_DY}
+        w={Cell.ITEM_W}
+        h={Cell.ITEM_H}
+        item={item}
+        itemCount={count}
+        outline={Cell.OUTLINE}
+        shadowColor={KitColor.SLOT_SHADOW}
+      />
+
+      <text
+        x={Cell.NAME_X}
+        y={Cell.NAME_TOP + Cell.ITEM_DY + Cell.NAME_DY}
+        w={cellWidth - Cell.NAME_TRIM}
+        h={Cell.NAME_H}
+        text={itemName(item)}
+        font={KitFonts.BODY}
+        color={KitColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Cell.NAME_LINE}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,277 @@
+import { CS2, useRef, useState, useUniverse } from 'ts2';
+
+import { oculusHidehint } from '../lib/game/varcs';
+import { SteelborderColor } from '../lib/lib.constants';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { SteelBorder } from '../lib/steel-border.component';
+import { KeyboardKey } from './keyboard-key.component';
+import { oculusFlashColour } from './oculus.flashers';
+import {
+  ArrowAngle,
+  KeyRow,
+  OculusColor,
+  OculusFonts,
+  OculusKey,
+  OculusArt,
+  PANEL_TITLE,
+  Panel,
+  Slide,
+  SteelBorderFlags,
+} from './oculus.constants';
+
+export function OculusControls(): Component {
+  const [parked, setParked] = useState(oculusHidehint);
+  const [slideFrom, setSlideFrom] = useState(0);
+
+  const panel = useRef();
+  const toggleHint = useRef();
+  const exitHint = useRef();
+  const resetHint = useRef();
+
+  const stage = useUniverse();
+  const travel: Int = (stage.height + Panel.H) / 2;
+  const parkedStill: Int = slideFrom === 0 ? parked : 0;
+  const step: Int =
+    slideFrom === 0 ? 0 : parked === 1 ? Slide.CYCLES - (clientClock() - slideFrom) : clientClock() - slideFrom + 1;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (event.keyCode !== OculusKey.TOGGLE) {
+          return;
+        }
+        if (slideFrom !== 0) {
+          return;
+        }
+        setSlideFrom(clientClock());
+      }}
+      onTimer={() => {
+        if (slideFrom !== 0) {
+          const elapsed: Int = clientClock() - slideFrom;
+          const stageH: Int = stage.height;
+          const panelH: Int = panel.height;
+          const reach: Int = (stageH + panelH) / 2;
+          const centreY: Int = (stageH - panelH) / 2;
+          if (parked === 1) {
+            const left: Int = Slide.CYCLES - elapsed;
+            if (left <= 0) {
+              setParked(0);
+              setSlideFrom(0);
+              return;
+            }
+            panel.hide = false;
+            panel.y = centreY - scaled(CS2.pow(left, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
+          } else {
+            if (elapsed >= Slide.CYCLES) {
+              setParked(1);
+              setSlideFrom(0);
+              return;
+            }
+            panel.y = centreY - scaled(CS2.pow(elapsed + 1, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
+          }
+        } else if (parked === 1) {
+          return;
+        }
+
+        const tint: Int = oculusFlashColour();
+        toggleHint.color = tint;
+        exitHint.color = tint;
+        resetHint.color = tint;
+      }}
+    >
+      <layer
+        ref={panel}
+        x="center"
+        y={{ center: 0 - scaled(CS2.pow(step, 2), CS2.pow(Slide.EASE_SPAN, 2), travel) }}
+        w={Panel.W}
+        h={Panel.H}
+        hide={parkedStill === 1 ? true : false}
+      >
+        <SteelBorder title={PANEL_TITLE} titleColor={SteelborderColor.TITLE} flags={SteelBorderFlags.NO_CLOSE} />
+
+        <layer x="center" y={{ bottom: Panel.INSET_BOTTOM }} w={{ fill: Panel.INSET_W }} h={{ fill: Panel.INSET_H }}>
+          <layer x={0} y="center" w={Panel.COLUMN_W} h="fill">
+            <layer x={0} y={KeyRow.ROW1_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="F1" />
+            </layer>
+            <text
+              ref={toggleHint}
+              x="right"
+              y={KeyRow.ROW1_Y}
+              w={{ fill: KeyRow.LABEL_INSET_CAP }}
+              h={KeyRow.CAP}
+              text="Toggle this panel"
+              font={OculusFonts.LABEL}
+              color={OculusColor.LABEL}
+              valign="middle"
+              shadow
+            />
+
+            <layer x={{ center: KeyRow.W_DX }} y={KeyRow.ROW2_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="W" />
+            </layer>
+            <layer x={{ center: KeyRow.A_DX }} y={KeyRow.ROW3_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="A" />
+            </layer>
+            <layer x={{ center: KeyRow.S_DX }} y={KeyRow.ROW3_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="S" />
+            </layer>
+            <layer x={{ center: KeyRow.D_DX }} y={KeyRow.ROW3_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="D" />
+            </layer>
+            <layer x={{ center: KeyRow.R_DX }} y={KeyRow.ROW2_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="R" />
+            </layer>
+            <layer x={{ center: KeyRow.F_DX }} y={KeyRow.ROW3_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="F" />
+            </layer>
+
+            <text
+              x="center"
+              y={KeyRow.HINT_Y}
+              w="fill"
+              h={KeyRow.HINT_H}
+              text="WASD & RF: <col=ffffff>Move</col> camera"
+              font={OculusFonts.HINT}
+              color={OculusColor.HINT}
+              align="center"
+              valign="middle"
+              shadow
+            />
+
+            <layer x={0} y={KeyRow.ROW4_Y} w={KeyRow.PAGE_W} h={KeyRow.CAP}>
+              <KeyboardKey label="PAGE DOWN" />
+            </layer>
+            <layer x="right" y={KeyRow.ROW4_Y} w={{ fill: KeyRow.PAGE_W }} h={KeyRow.CAP}>
+              <KeyboardKey label="PAGE UP" />
+            </layer>
+
+            <text
+              x="center"
+              y="bottom"
+              w="fill"
+              h={{ fill: KeyRow.FOOTNOTE_INSET_H }}
+              text="Slower / Faster movement<br>Hold <col=ffffff>SHIFT</col> to go extra slow."
+              font={OculusFonts.HINT}
+              color={OculusColor.HINT}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          </layer>
+
+          <layer x="right" y="center" w={Panel.COLUMN_W} h="fill">
+            <layer x={0} y={KeyRow.ROW1_Y} w={KeyRow.CAP} h={KeyRow.CAP}>
+              <KeyboardKey label="ESC" />
+            </layer>
+            <text
+              ref={exitHint}
+              x="right"
+              y={KeyRow.ROW1_Y}
+              w={{ fill: KeyRow.LABEL_INSET_CAP }}
+              h={KeyRow.CAP}
+              text="EXIT VIEWER"
+              font={OculusFonts.LABEL}
+              color={OculusColor.LABEL}
+              valign="middle"
+              shadow
+            />
+
+            <sprite x="center" y={KeyRow.ROW2_Y} w={KeyRow.CAP} h={KeyRow.CAP} sprite={OculusArt.KEY_SQUARE} />
+            <sprite
+              x="center"
+              y={KeyRow.ROW2_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.ARROW}
+              angle2d={ArrowAngle.UP}
+            />
+            <sprite
+              x={{ center: KeyRow.ARROW_LEFT_DX }}
+              y={KeyRow.ROW3_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.KEY_SQUARE}
+            />
+            <sprite
+              x={{ center: KeyRow.ARROW_LEFT_DX }}
+              y={KeyRow.ROW3_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.ARROW}
+              angle2d={ArrowAngle.LEFT}
+            />
+            <sprite x="center" y={KeyRow.ROW3_Y} w={KeyRow.CAP} h={KeyRow.CAP} sprite={OculusArt.KEY_SQUARE} />
+            <sprite
+              x="center"
+              y={KeyRow.ROW3_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.ARROW}
+              angle2d={ArrowAngle.DOWN}
+            />
+            <sprite
+              x={{ center: KeyRow.ARROW_RIGHT_DX }}
+              y={KeyRow.ROW3_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.KEY_SQUARE}
+            />
+            <sprite
+              x={{ center: KeyRow.ARROW_RIGHT_DX }}
+              y={KeyRow.ROW3_Y}
+              w={KeyRow.CAP}
+              h={KeyRow.CAP}
+              sprite={OculusArt.ARROW}
+              angle2d={ArrowAngle.RIGHT}
+            />
+
+            <text
+              x="center"
+              y={KeyRow.HINT_Y}
+              w="fill"
+              h={KeyRow.ROTATE_HINT_H}
+              text="Arrows / Drag scrollwheel:<br><col=ffffff>Rotate</col> camera"
+              font={OculusFonts.HINT}
+              color={OculusColor.HINT}
+              align="center"
+              valign="middle"
+              shadow
+            />
+
+            <layer x={0} y={KeyRow.ROW4_Y} w={KeyRow.SPACE_W} h={KeyRow.CAP}>
+              <KeyboardKey label="SPACE" />
+            </layer>
+            <text
+              ref={resetHint}
+              x="right"
+              y={KeyRow.ROW4_Y}
+              w={{ fill: KeyRow.LABEL_INSET_SPACE }}
+              h={KeyRow.CAP}
+              text="Reset position"
+              font={OculusFonts.LABEL}
+              color={OculusColor.LABEL}
+              valign="middle"
+              shadow
+            />
+
+            <text
+              x="center"
+              y="bottom"
+              w="fill"
+              h={{ fill: KeyRow.FOOTNOTE_INSET_H }}
+              text="Press <col=ffffff>SPACE</col> to bring the camera back if it gets lost."
+              font={OculusFonts.HINT}
+              color={OculusColor.HINT}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}

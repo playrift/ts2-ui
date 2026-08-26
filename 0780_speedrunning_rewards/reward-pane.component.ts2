@@ -1,0 +1,87 @@
+import { useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { RewardCell, RewardHit } from './reward-row.component';
+import {
+  RewardBar,
+  RewardLayout,
+  Rewards,
+  RewardStock,
+  SelectedReward,
+  SpeedrunVarps,
+} from './speedrunning-rewards.constants';
+
+export function RewardPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedReward);
+  const points: Int = useServerState(SpeedrunVarps.POINTS);
+  const purchasedBits: Int = useServerState(SpeedrunVarps.PURCHASED);
+
+  const paneWidth: Int = universe.width - RewardLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - RewardLayout.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+  const contentHeight: Int = RewardLayout.ROW_Y0 + ((RewardStock.ROWS + 1) / 2) * RewardLayout.ROW_STRIDE;
+  const rightX: Int = half - RewardLayout.ODD_SHIFT + RewardLayout.ROW_X;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={RewardLayout.PANE_X}
+        y={RewardLayout.PANE_Y}
+        w={{ fill: RewardLayout.PANE_W_INSET }}
+        h={{ fill: RewardLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={contentHeight > paneHeight ? contentHeight : 0}
+      >
+        <layer w="fill" h="fill">
+          {Rewards.map((row, index) => (
+            <RewardHit
+              row={row}
+              index={index}
+              rowX={index % 2 === 0 ? RewardLayout.ROW_X : rightX}
+              rowY={RewardLayout.ROW_Y0 + (index / 2) * RewardLayout.ROW_STRIDE}
+              cellW={half}
+              selected={selected}
+              points={points}
+              purchasedBits={purchasedBits}
+            />
+          ))}
+        </layer>
+
+        <layer w="fill" h="fill">
+          {Rewards.map((row, index) => (
+            <RewardCell
+              row={row}
+              index={index}
+              rowX={index % 2 === 0 ? RewardLayout.ROW_X : rightX}
+              rowY={RewardLayout.ROW_Y0 + (index / 2) * RewardLayout.ROW_STRIDE}
+              cellW={half}
+              selected={selected}
+              points={points}
+              purchasedBits={purchasedBits}
+            />
+          ))}
+        </layer>
+      </layer>
+
+      <layer
+        x={{ right: RewardLayout.BAR_X }}
+        y={RewardLayout.PANE_Y}
+        w={RewardLayout.BAR_W}
+        h={{ fill: RewardLayout.PANE_H_INSET }}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={RewardBar.TRACK}
+          capTopSprite={RewardBar.CAP_TOP}
+          thumbSprite={RewardBar.THUMB}
+          capBottomSprite={RewardBar.CAP_BOTTOM}
+          arrowUp={RewardBar.ARROW_UP}
+          arrowDown={RewardBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

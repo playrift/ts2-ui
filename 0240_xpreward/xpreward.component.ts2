@@ -1,0 +1,159 @@
+import { CS2, intArray, useServerState, useSkillBase, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { closeInterface, graphicSwapperUnlessMobile } from '../lib/lib.helpers';
+import { ConfirmButton } from './confirm-button.component';
+import { SkillTile, SkillTilePressed } from './skill-tile.component';
+import {
+  CloseArt,
+  CONFIRM,
+  Lamp,
+  Layout,
+  MarkerSlots,
+  SKILL_COUNT,
+  SkillCells,
+  Skills,
+  XpRewardColor,
+  XpRewardFonts,
+  XpRewardSounds,
+  XpRewardVarps,
+} from './xpreward.constants';
+import { SkillIcons, SkillNames, SkillOrder } from './xpreward.data';
+import { iconFade, tileFade, xpRewardAllowed } from './xpreward.helpers';
+
+export function XpReward(): Component {
+  return (
+    <>
+      {MarkerSlots.map(() => (
+        <rect x={0} y={0} w={Layout.MARKER} h={Layout.MARKER} hide />
+      ))}
+
+      <model
+        x="center"
+        y="center"
+        w={Layout.LAMP}
+        h={Layout.LAMP}
+        model={Lamp.MODEL}
+        zoom={Lamp.ZOOM}
+        pitch={Lamp.PITCH}
+        yaw={Lamp.YAW}
+        offsetX={Lamp.OFFSET_X}
+        offsetY={Lamp.OFFSET_Y}
+      />
+
+      <XpRewardGrid w="fill" h="fill" />
+
+      <text
+        x="center"
+        y={{ center: Layout.MESSAGE_Y }}
+        w={Layout.MESSAGE_W}
+        h={Layout.MESSAGE_H}
+        font={XpRewardFonts.MESSAGE}
+        color={XpRewardColor.MESSAGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <CloseButton />
+    </>
+  );
+}
+
+export function XpRewardGrid(): Component {
+  const [picked, setPicked] = useState(0);
+
+  const minLevel: Int = useServerState(XpRewardVarps.IF1);
+  const mask: Int = useServerState(XpRewardVarps.IF2);
+
+  const levels = intArray(SKILL_COUNT);
+  levels[0] = useSkillBase(Skills.ATTACK);
+  levels[1] = useSkillBase(Skills.DEFENCE);
+  levels[2] = useSkillBase(Skills.STRENGTH);
+  levels[3] = useSkillBase(Skills.HITPOINTS);
+  levels[4] = useSkillBase(Skills.RANGED);
+  levels[5] = useSkillBase(Skills.PRAYER);
+  levels[6] = useSkillBase(Skills.MAGIC);
+  levels[7] = useSkillBase(Skills.COOKING);
+  levels[8] = useSkillBase(Skills.WOODCUTTING);
+  levels[9] = useSkillBase(Skills.FLETCHING);
+  levels[10] = useSkillBase(Skills.FISHING);
+  levels[11] = useSkillBase(Skills.FIREMAKING);
+  levels[12] = useSkillBase(Skills.CRAFTING);
+  levels[13] = useSkillBase(Skills.SMITHING);
+  levels[14] = useSkillBase(Skills.MINING);
+  levels[15] = useSkillBase(Skills.HERBLORE);
+  levels[16] = useSkillBase(Skills.AGILITY);
+  levels[17] = useSkillBase(Skills.THIEVING);
+  levels[18] = useSkillBase(Skills.SLAYER);
+  levels[19] = useSkillBase(Skills.FARMING);
+  levels[20] = useSkillBase(Skills.RUNECRAFT);
+  levels[21] = useSkillBase(Skills.HUNTER);
+  levels[22] = useSkillBase(Skills.CONSTRUCTION);
+  levels[23] = useSkillBase(Skills.SAILING);
+
+  const pickedSkill: Skill = SkillOrder.get(picked);
+  const chosen: Int =
+    pickedSkill !== -1 && xpRewardAllowed(minLevel, mask, pickedSkill, CS2.stat_base(pickedSkill), 0) === false
+      ? 0
+      : picked;
+
+  const label: String = chosen === 0 ? CONFIRM : `Confirm: ${SkillNames.get(SkillOrder.get(chosen))}`;
+
+  return (
+    <layer w="fill" h="fill">
+      {SkillCells.map((cell) => (
+        <layer
+          x={{ center: cell.x }}
+          y={{ center: cell.y }}
+          w={Layout.CELL}
+          h={Layout.CELL}
+          options={[SkillNames.get(cell.skill)]}
+          onOptionSelect={() => {
+            if (xpRewardAllowed(minLevel, mask, cell.skill, CS2.stat_base(cell.skill), 1)) {
+              playSound(XpRewardSounds.SELECT);
+              setPicked(cell.slot);
+            } else {
+              setPicked(0);
+            }
+          }}
+        >
+          {cell.slot === chosen ? (
+            <SkillTilePressed fade={tileFade(mask, cell.skill)} />
+          ) : (
+            <SkillTile fade={tileFade(mask, cell.skill)} />
+          )}
+
+          <sprite
+            x={{ center: cell.dx }}
+            y="center"
+            w={Layout.ICON}
+            h={Layout.ICON}
+            sprite={SkillIcons.get(cell.skill)}
+            transparency={iconFade(minLevel, mask, cell.skill, levels[cell.skill])}
+          />
+        </layer>
+      ))}
+
+      <layer x="center" y={{ center: Layout.CONFIRM_Y }} w={Layout.CONFIRM_W} h={Layout.CONFIRM_H}>
+        <ConfirmButton chosen={chosen} label={label} />
+      </layer>
+    </layer>
+  );
+}
+
+export function CloseButton(): Component {
+  return (
+    <sprite
+      x={{ center: Layout.CLOSE_X }}
+      y={{ center: Layout.CLOSE_Y }}
+      w={Layout.CLOSE_W}
+      h={Layout.CLOSE_H}
+      sprite={CloseArt.REST}
+      options={['Close']}
+      onOptionSelect={() => closeInterface()}
+      onMouseEnter={(event) => graphicSwapperUnlessMobile(event.component, CloseArt.HOVER)}
+      onMouseLeave={(event) => graphicSwapperUnlessMobile(event.component, CloseArt.REST)}
+    />
+  );
+}

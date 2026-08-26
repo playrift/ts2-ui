@@ -1,0 +1,73 @@
+import { onUpdated, useInventory, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile } from '../lib/lib.helpers';
+import { KitCell } from './kit-cell.component';
+import { ForestryItems, KIT_ROWS } from './forestry-kit.data';
+import { Bar, Cell, ForestryVarbits, KitInv, Layout } from './forestry-kit-main.constants';
+
+export function KitListPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const kit = useInventory(KitInv.KIT);
+  const selectedKey: Int = useServerState(ForestryVarbits.SELECTED_ITEM);
+  const armed: Int = useServerState(ForestryVarbits.SELECTED_QUANTITY);
+  const mobile: Int = onMobile() ? 1 : 0;
+
+  const paneWidth: Int = universe.width - Layout.pane.contentInsetW;
+  const columns: Int = paneWidth / Cell.TARGET_W;
+  const cellWidth: Int = (paneWidth - (columns + 1) * Cell.GAP) / columns;
+
+  let visibleCells: Int = 0;
+  let scan: Int = 0;
+  while (scan < KIT_ROWS) {
+    const candidate = ForestryItems.at(scan);
+    if (candidate.hideUntilOwned === 0 || kit.total(candidate.item) > 0) {
+      visibleCells = visibleCells + 1;
+    }
+    scan = scan + 1;
+  }
+  const content: Int = ((visibleCells + columns - 1) / columns) * (Cell.HEIGHT + Cell.GAP) + Cell.GAP;
+
+  onUpdated(() => {
+    list.scrollY = list.scrollY;
+  });
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.pane.inset}
+        y={Layout.pane.inset}
+        w={{ fill: Layout.pane.contentInsetW }}
+        h={{ fill: Layout.pane.contentInsetH }}
+        scrollHeight={content}
+      >
+        {ForestryItems.filter((row) => row.hideUntilOwned === 0 || kit.total(row.item) > 0).map((row, key, visible) => (
+          <KitCell
+            item={row.item}
+            count={kit.total(row.item)}
+            rowKey={key}
+            visible={visible}
+            columns={columns}
+            cellWidth={cellWidth}
+            selected={key === selectedKey ? 1 : 0}
+            armed={armed}
+            mobile={mobile}
+          />
+        ))}
+      </layer>
+
+      <layer x="right" w={Layout.pane.scrollerW} h="fill">
+        <ScrollbarVertical
+          content={list}
+          track={Bar.TRACK}
+          capTopSprite={Bar.CAP_TOP}
+          thumbSprite={Bar.THUMB}
+          capBottomSprite={Bar.CAP_BOTTOM}
+          arrowUp={Bar.ARROW_UP}
+          arrowDown={Bar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

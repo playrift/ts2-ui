@@ -1,0 +1,64 @@
+import { costPoints } from '../0645_br_reward_shop/pest-rewards.shared';
+import { costPts, refusePestReward, selectPestReward } from './pest-rewardshop.state';
+import { PestColor, PestCosts, PestFonts, PestLayout, PestLevels, SkillNames } from './pest-rewardshop.constants';
+
+export function PestXpButton({
+  index,
+  skill,
+  x,
+  y,
+  w,
+  level,
+  points,
+  selected,
+}: {
+  index: Int;
+  skill: Skill;
+  x: Int;
+  y: Int;
+  w: Int;
+  level: Int;
+  points: Int;
+  selected: Int;
+}): Component {
+  const cost: Int = PestCosts.at(index);
+
+  const refusal: String =
+    level < PestLevels.TRAINING
+      ? `The Void Knights will not offer training in skills for which you have a level under ${stringOf(PestLevels.TRAINING)}.`
+      : points < cost
+        ? `You need ${costPoints(cost)} to claim that reward.`
+        : '';
+
+  const rest: Int = selected === index ? PestColor.SELECTED : refusal.length > 0 ? PestColor.BLOCKED : PestColor.REST;
+  const hover: Int = selected === index ? PestColor.SELECTED : refusal.length > 0 ? PestColor.BLOCKED : PestColor.HOVER;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      w={w}
+      h={PestLayout.ROW_H}
+      text={costPts(cost)}
+      font={PestFonts.PRICE}
+      color={rest}
+      shadow
+      align="left"
+      valign="bottom"
+      options={[`${SkillNames.get(skill)} XP: ${costPoints(cost)}`]}
+      onMouseRepeat={(event) => {
+        event.self.color = hover;
+      }}
+      onMouseLeave={(event) => {
+        event.self.color = rest;
+      }}
+      onOptionSelect={() => {
+        if (refusal.length > 0) {
+          refusePestReward(refusal);
+        } else {
+          selectPestReward(index);
+        }
+      }}
+    />
+  );
+}

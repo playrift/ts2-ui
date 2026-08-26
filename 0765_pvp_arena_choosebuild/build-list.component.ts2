@@ -1,0 +1,249 @@
+import { stopTimer, useRef, useServerState, useUniverse } from 'ts2';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import {
+  Build,
+  ChooseBuildColor,
+  ChooseBuildFonts,
+  ChooseBuildLayout,
+  ChooseBuildSounds,
+  ChooseBuildSprites,
+  ChooseBuildVarbits,
+  FLASH_CYCLES,
+  LABEL_MEASURE_WIDTH,
+  RadioWash,
+  RowWash,
+  SettledBattleType,
+} from './pvp-arena-choosebuild.constants';
+
+const BuildName = {
+  MAX_MED: 'Max/Med',
+  ZERKER: 'Zerker',
+  PURE: '1 Def Pure',
+};
+
+const Heading = {
+  CHOOSE: '<col=ffb83f>Select a character build for this fight</col>',
+  SETTLED: '<col=ffb83f>Character build for this fight</col>',
+  BROWSE: '<col=ffb83f>View the stats for each build</col>',
+};
+
+export function BuildList(): Component {
+  const universe = useUniverse();
+  const canEdit: Int = useServerState(ChooseBuildVarbits.CAN_EDIT_BUILD);
+  const battleType: Int = useServerState(ChooseBuildVarbits.BATTLE_TYPE);
+  const build: Int = useServerState(ChooseBuildVarbits.BUILD);
+
+  const text0: Int = textWidth(BuildName.MAX_MED, LABEL_MEASURE_WIDTH, ChooseBuildFonts.LABEL);
+  const text1: Int = textWidth(BuildName.ZERKER, LABEL_MEASURE_WIDTH, ChooseBuildFonts.LABEL);
+  const text2: Int = textWidth(BuildName.PURE, LABEL_MEASURE_WIDTH, ChooseBuildFonts.LABEL);
+  const hit0: Int = text0 + ChooseBuildLayout.buildRow.pad;
+  const hit1: Int = text1 + ChooseBuildLayout.buildRow.pad;
+  const hit2: Int = text2 + ChooseBuildLayout.buildRow.pad;
+
+  const gap: Int = (universe.width - (hit0 + hit1 + hit2)) / 4;
+  const x0: Int = gap;
+  const x1: Int = gap + hit0 + gap;
+  const x2: Int = gap + hit0 + gap + hit1 + gap;
+
+  const label0: Int = x0 + ChooseBuildLayout.buildRow.labelInset;
+  const label1: Int = x1 + ChooseBuildLayout.buildRow.labelInset;
+  const label2: Int = x2 + ChooseBuildLayout.buildRow.labelInset;
+  const radio0: Int = label0 + text0 + ChooseBuildLayout.buildRow.radioGap;
+  const radio1: Int = label1 + text1 + ChooseBuildLayout.buildRow.radioGap;
+  const radio2: Int = label2 + text2 + ChooseBuildLayout.buildRow.radioGap;
+
+  let settled: Int = 0;
+  if (canEdit !== 1) {
+    if (
+      battleType === SettledBattleType.A ||
+      battleType === SettledBattleType.B ||
+      battleType === SettledBattleType.C ||
+      battleType === SettledBattleType.D
+    ) {
+      settled = 1;
+    }
+  }
+
+  let heading: String = Heading.BROWSE;
+  let offSprite: Sprite = ChooseBuildSprites.RADIO_OFF;
+  let offWash: Int = RadioWash.LIT;
+  if (canEdit === 1) {
+    heading = Heading.CHOOSE;
+  } else if (settled === 1) {
+    heading = Heading.SETTLED;
+    offSprite = ChooseBuildSprites.RADIO_OFF_DIM;
+    offWash = RadioWash.DIMMED;
+  }
+
+  let chosen: Int = Build.MAX_MED;
+  if (build === Build.ZERKER) {
+    chosen = Build.ZERKER;
+  } else if (build === Build.PURE) {
+    chosen = Build.PURE;
+  }
+
+  const wash0 = useRef();
+  const wash1 = useRef();
+  const wash2 = useRef();
+
+  return (
+    <>
+      <rect
+        ref={wash0}
+        x={x0}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={hit0}
+        h={ChooseBuildLayout.buildRow.h}
+        fill
+        color={ChooseBuildColor.HIGHLIGHT}
+        transparency={RowWash.REST}
+        options={[BuildName.MAX_MED]}
+        onMouseRepeat={() => ccSetTrans(wash0, RowWash.HOVER)}
+        onMouseLeave={() => ccSetTrans(wash0, RowWash.REST)}
+        onOptionSelect={() => {
+          playSound(ChooseBuildSounds.SELECT);
+          wash0.transparency = RowWash.PRESSED;
+
+          const restoreAt: Int = clientClock() + FLASH_CYCLES;
+          wash0.onTimer = () => {
+            if (clientClock() < restoreAt) {
+              return;
+            }
+            wash0.transparency = RowWash.REST;
+            stopTimer(wash0);
+          };
+        }}
+      />
+      <rect
+        ref={wash1}
+        x={x1}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={hit1}
+        h={ChooseBuildLayout.buildRow.h}
+        fill
+        color={ChooseBuildColor.HIGHLIGHT}
+        transparency={RowWash.REST}
+        options={[BuildName.ZERKER]}
+        onMouseRepeat={() => ccSetTrans(wash1, RowWash.HOVER)}
+        onMouseLeave={() => ccSetTrans(wash1, RowWash.REST)}
+        onOptionSelect={() => {
+          playSound(ChooseBuildSounds.SELECT);
+          wash1.transparency = RowWash.PRESSED;
+          const restoreAt: Int = clientClock() + FLASH_CYCLES;
+          wash1.onTimer = () => {
+            if (clientClock() < restoreAt) {
+              return;
+            }
+            wash1.transparency = RowWash.REST;
+            stopTimer(wash1);
+          };
+        }}
+      />
+      <rect
+        ref={wash2}
+        x={x2}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={hit2}
+        h={ChooseBuildLayout.buildRow.h}
+        fill
+        color={ChooseBuildColor.HIGHLIGHT}
+        transparency={RowWash.REST}
+        options={[BuildName.PURE]}
+        onMouseRepeat={() => ccSetTrans(wash2, RowWash.HOVER)}
+        onMouseLeave={() => ccSetTrans(wash2, RowWash.REST)}
+        onOptionSelect={() => {
+          playSound(ChooseBuildSounds.SELECT);
+          wash2.transparency = RowWash.PRESSED;
+          const restoreAt: Int = clientClock() + FLASH_CYCLES;
+          wash2.onTimer = () => {
+            if (clientClock() < restoreAt) {
+              return;
+            }
+            wash2.transparency = RowWash.REST;
+            stopTimer(wash2);
+          };
+        }}
+      />
+
+      <text
+        x="center"
+        y={ChooseBuildLayout.buildRow.headingY}
+        w={{ fill: ChooseBuildLayout.buildRow.headingInset }}
+        h={ChooseBuildLayout.buildRow.headingH}
+        text={heading}
+        font={ChooseBuildFonts.BOLD}
+        color={ChooseBuildColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={label0}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={text0}
+        h={ChooseBuildLayout.buildRow.h}
+        text={BuildName.MAX_MED}
+        font={ChooseBuildFonts.LABEL}
+        color={ChooseBuildColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={radio0}
+        y={{ bottom: ChooseBuildLayout.buildRow.radioBottom }}
+        w={ChooseBuildLayout.buildRow.radio}
+        h={ChooseBuildLayout.buildRow.radio}
+        sprite={chosen === Build.MAX_MED ? ChooseBuildSprites.RADIO_ON : offSprite}
+        transparency={chosen === Build.MAX_MED ? RadioWash.LIT : offWash}
+      />
+
+      <text
+        x={label1}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={text1}
+        h={ChooseBuildLayout.buildRow.h}
+        text={BuildName.ZERKER}
+        font={ChooseBuildFonts.LABEL}
+        color={ChooseBuildColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={radio1}
+        y={{ bottom: ChooseBuildLayout.buildRow.radioBottom }}
+        w={ChooseBuildLayout.buildRow.radio}
+        h={ChooseBuildLayout.buildRow.radio}
+        sprite={chosen === Build.ZERKER ? ChooseBuildSprites.RADIO_ON : offSprite}
+        transparency={chosen === Build.ZERKER ? RadioWash.LIT : offWash}
+      />
+
+      <text
+        x={label2}
+        y={{ bottom: ChooseBuildLayout.buildRow.bottom }}
+        w={text2}
+        h={ChooseBuildLayout.buildRow.h}
+        text={BuildName.PURE}
+        font={ChooseBuildFonts.LABEL}
+        color={ChooseBuildColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={radio2}
+        y={{ bottom: ChooseBuildLayout.buildRow.radioBottom }}
+        w={ChooseBuildLayout.buildRow.radio}
+        h={ChooseBuildLayout.buildRow.radio}
+        sprite={chosen === Build.PURE ? ChooseBuildSprites.RADIO_ON : offSprite}
+        transparency={chosen === Build.PURE ? RadioWash.LIT : offWash}
+      />
+
+      <rect x="center" y="center" w="fill" h="fill" color={ChooseBuildColor.RULE_DARK} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={ChooseBuildColor.RULE_LIGHT} />
+    </>
+  );
+}

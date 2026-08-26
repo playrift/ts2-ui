@@ -1,0 +1,110 @@
+import { useInventory, useServerState } from 'ts2';
+import { ThinBox } from '../lib/thin-box.component';
+import { groupDigits } from '../lib/lib.format';
+import { itemName } from '../lib/lib.engine';
+import { ButtonState, CofferButton, CofferConfirmButton } from './coffer-button.component';
+import {
+  ACCEPTABLE_VALUE,
+  Button,
+  CofferColor,
+  CofferFonts,
+  CofferInventories,
+  CofferVarps,
+  MAX_INT,
+  Quantity,
+  Readout,
+  THOUSANDS,
+} from './death-coffer.constants';
+
+export function CofferPanel(): Component {
+  const slot: Int = useServerState(CofferVarps.SLOT);
+  const quantity: Int = useServerState(CofferVarps.QUANTITY);
+  const unitValue: Int = useServerState(CofferVarps.UNIT_VALUE);
+  const pack = useInventory(CofferInventories.INV);
+
+  let chosen: Item = -1;
+  if (slot >= 0 && slot < pack.size) {
+    chosen = pack[slot];
+  }
+
+  let nameText: String = 'Select an item...';
+  let valueText: String = '---';
+  let confirmLabel: String = '';
+  let confirm: Int = ButtonState.DEAD;
+  let one: Int = ButtonState.DEAD;
+  let five: Int = ButtonState.DEAD;
+  let anyAmount: Int = ButtonState.DEAD;
+  let all: Int = ButtonState.DEAD;
+
+  if (chosen !== -1) {
+    nameText = itemName(chosen);
+
+    one = quantity === Quantity.ONE ? ButtonState.LATCHED : ButtonState.LIVE;
+    five = quantity === Quantity.FIVE ? ButtonState.LATCHED : ButtonState.LIVE;
+    all = quantity === Quantity.ALL ? ButtonState.LATCHED : ButtonState.LIVE;
+    anyAmount =
+      quantity !== Quantity.ONE && quantity !== Quantity.FIVE && quantity !== Quantity.ALL
+        ? ButtonState.LATCHED
+        : ButtonState.LIVE;
+
+    if (quantity > 0) {
+      const held: Int = pack.total(chosen);
+      const count: Int = Math.min(quantity, held);
+      const counted: String = groupDigits(count, THOUSANDS);
+      const each: String = groupDigits(unitValue, THOUSANDS);
+      confirm = ButtonState.LIVE;
+
+      if (unitValue >= ACCEPTABLE_VALUE) {
+        valueText = count > 1 ? `${counted} x ${each} coins` : `${each} coins`;
+        confirmLabel =
+          MAX_INT / unitValue < count ? 'Many coins' : `${groupDigits(count * unitValue, THOUSANDS)} coins`;
+      } else if (unitValue === 1) {
+        valueText = count > 1 ? `${counted} x <col=ff0000>1 coin</col>` : '<col=ff0000>1 coin</col>';
+        confirmLabel = 'Unacceptable item';
+      } else {
+        valueText = count > 1 ? `${counted} x <col=ff0000>${each} coins</col>` : `<col=ff0000>${each} coins</col>`;
+        confirmLabel = 'Unacceptable item';
+      }
+    } else {
+      valueText = 'Select a quantity...';
+    }
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <CofferButton label="1" state={one} dy={Button.ONE_DY} />
+      <CofferButton label="5" state={five} dy={Button.FIVE_DY} />
+      <CofferButton label="X" state={anyAmount} dy={Button.X_DY} />
+      <CofferButton label="All" state={all} dy={Button.ALL_DY} />
+
+      <CofferConfirmButton label={confirmLabel} state={confirm} />
+
+      <text
+        x="center"
+        y={Readout.NAME_Y}
+        w="fill"
+        h={Readout.NAME_H}
+        text={nameText}
+        font={CofferFonts.NAME}
+        color={CofferColor.BODY}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x="center"
+        y={Readout.VALUE_Y}
+        w="fill"
+        h={Readout.VALUE_H}
+        text={valueText}
+        font={CofferFonts.SMALL}
+        color={CofferColor.BODY}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <ThinBox />
+    </layer>
+  );
+}

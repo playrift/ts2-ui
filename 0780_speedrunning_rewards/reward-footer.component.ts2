@@ -1,0 +1,97 @@
+import { useServerState, useState } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { PestRewardsConfirm, pressConfirm, releaseConfirm } from '../0645_br_reward_shop/pest-rewards.shared';
+import { openConfirm } from './speedrunning-rewards.state';
+import {
+  RewardColor,
+  RewardFonts,
+  RewardFrame,
+  RewardParams,
+  Rewards,
+  SelectedReward,
+  SpeedrunVarps,
+  THOUSANDS,
+} from './speedrunning-rewards.constants';
+
+export function RewardPoints(): Component {
+  const points: Int = useServerState(SpeedrunVarps.POINTS);
+
+  return (
+    <text
+      x={RewardFrame.POINTS_X}
+      y={{ bottom: RewardFrame.POINTS_BOTTOM }}
+      w={RewardFrame.POINTS_W}
+      h={RewardFrame.POINTS_H}
+      text={`Speedrun Points: <col=ffffff>${groupDigits(points, THOUSANDS)}`}
+      font={RewardFonts.POINTS}
+      color={RewardColor.LABEL}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+function SpeedrunConfirmDisabled(): Component {
+  return (
+    <layer w="fill" h="fill">
+      <StoneButtonPressedFilled />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Confirm"
+        font={RewardFonts.BODY}
+        color={RewardColor.CONFIRM_DISABLED}
+        shadow={false}
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function RewardConfirm(): Component {
+  const [selected] = useState(SelectedReward);
+  const mobile: Boolean = onMobile();
+
+  const label: String = selected === -1 ? '' : Rewards.at(selected).text(RewardParams.NAME);
+
+  return (
+    <layer
+      x={{ right: RewardFrame.BUTTON_RIGHT }}
+      y={{ bottom: RewardFrame.BUTTON_BOTTOM }}
+      w={RewardFrame.BUTTON_W}
+      h={RewardFrame.BUTTON_H}
+    >
+      <layer w="fill" h="fill">
+        {selected !== -1 ? <PestRewardsConfirm label={label} /> : <SpeedrunConfirmDisabled />}
+      </layer>
+
+      {selected !== -1 ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          options={['Confirm']}
+          optionSubject={`<col=ff981f>${label}</col>`}
+          onMouseRepeat={() => {
+            if (!mobile) {
+              pressConfirm();
+            }
+          }}
+          onMouseLeave={() => {
+            if (!mobile) {
+              releaseConfirm();
+            }
+          }}
+          onOptionSelect={() => openConfirm()}
+        />
+      ) : null}
+    </layer>
+  );
+}

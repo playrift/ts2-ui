@@ -1,0 +1,93 @@
+import { onUpdated, useRef, useServerState, useState } from 'ts2';
+import { playSound } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { selectNzoneTab } from './nzone-rewards.state';
+import {
+  NzoneActiveTab,
+  NzoneColor,
+  NzoneFonts,
+  NzoneLayout,
+  NzoneSounds,
+  NzoneSprites,
+  NzoneTabs,
+  NzoneVarps,
+} from './nzone-rewards.constants';
+
+export function NzoneRewardsTabs(): Component {
+  const [tab] = useState(NzoneActiveTab);
+
+  return (
+    <layer w="fill" h="fill">
+      {NzoneTabs.map((entry) => (
+        <NzoneTabButton label={entry.label} x={entry.x} active={tab === entry.tab ? 1 : 0} tab={entry.tab} />
+      ))}
+
+      <NzoneRewardPoints />
+    </layer>
+  );
+}
+
+export function NzoneTabButton({ label, x, active, tab }: { label: String; x: Int; active: Int; tab: Int }): Component {
+  const caption = useRef();
+
+  return (
+    <>
+      {active === 1 ? (
+        <sprite x={x} y={0} w={NzoneLayout.TAB_W} h={NzoneLayout.TAB_H} sprite={NzoneSprites.TAB_ACTIVE} />
+      ) : (
+        <sprite
+          x={x}
+          y={0}
+          w={NzoneLayout.TAB_W}
+          h={NzoneLayout.TAB_H}
+          sprite={NzoneSprites.TAB_IDLE}
+          options={[label]}
+          onMouseEnter={() => {
+            caption.color = NzoneColor.HOVER;
+          }}
+          onMouseLeave={() => {
+            caption.color = NzoneColor.LABEL;
+          }}
+          onOptionSelect={() => selectNzoneTab(tab)}
+        />
+      )}
+
+      <text
+        ref={caption}
+        x={x}
+        y={0}
+        w={NzoneLayout.TAB_W}
+        h={NzoneLayout.TAB_H}
+        text={label}
+        font={NzoneFonts.SMALL}
+        color={NzoneColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function NzoneRewardPoints(): Component {
+  const points: Int = useServerState(NzoneVarps.POINTS);
+
+  onUpdated(() => {
+    playSound(NzoneSounds.POINTS);
+  });
+
+  return (
+    <text
+      x={NzoneLayout.POINTS_X}
+      y={0}
+      w={{ fill: NzoneLayout.POINTS_X }}
+      h="fill"
+      text={`Reward points: ${groupDigits(points, ',')}`}
+      font={NzoneFonts.BODY}
+      color={NzoneColor.LABEL}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}

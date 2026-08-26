@@ -1,0 +1,98 @@
+import { useInventory, useServerState } from 'ts2';
+import { KitButton } from './kit-button.component';
+import { ForestryItems, KIT_ROWS } from './forestry-kit.data';
+import { ForestryVarbits, KitInv, Layout } from './forestry-kit-main.constants';
+
+export function FillEmptyBar(): Component {
+  const kit = useInventory(KitInv.KIT);
+  const backpack = useInventory(KitInv.BACKPACK);
+
+  let carrying: Int = 0;
+  let scan: Int = 0;
+  while (scan < KIT_ROWS) {
+    const candidate = ForestryItems.at(scan);
+    if (backpack.total(candidate.item) > 0) {
+      carrying = 1;
+    }
+    scan = scan + 1;
+  }
+
+  let stored: Int = 0;
+  let slot: Int = 0;
+  while (slot < kit.size) {
+    if (kit.count(slot) > 0) {
+      stored = 1;
+    }
+    slot = slot + 1;
+  }
+
+  return (
+    <>
+      <layer x={{ center: Layout.iconButton.fill }} w={Layout.iconButton.w} h="fill" options={['Fill']}>
+        <KitButton label="Fill" enabled={carrying} />
+      </layer>
+
+      <layer x={{ center: Layout.iconButton.empty }} w={Layout.iconButton.w} h="fill" options={['Empty']}>
+        <KitButton label="Empty" enabled={stored} />
+      </layer>
+    </>
+  );
+}
+
+export function WithdrawBar(): Component {
+  const kit = useInventory(KitInv.KIT);
+  const selectedKey: Int = useServerState(ForestryVarbits.SELECTED_ITEM);
+  const row = ForestryItems.get(selectedKey);
+
+  const chosen: Int = selectedKey >= 1 && selectedKey <= KIT_ROWS ? 1 : 0;
+  let held: Int = 0;
+  if (chosen === 1) {
+    held = kit.total(row.item);
+  }
+  const any: Int = held < 1 ? 0 : 1;
+  const five: Int = held < 5 ? 0 : 1;
+
+  return (
+    <>
+      <layer
+        x={{ center: Layout.qtyButton.one }}
+        y="bottom"
+        w={Layout.qtyButton.size}
+        h={Layout.qtyButton.size}
+        options={['Withdraw 1']}
+      >
+        <KitButton label="1" enabled={any} />
+      </layer>
+
+      <layer
+        x={{ center: Layout.qtyButton.five }}
+        y="bottom"
+        w={Layout.qtyButton.size}
+        h={Layout.qtyButton.size}
+        options={['Withdraw 5']}
+      >
+        <KitButton label="5" enabled={five} />
+      </layer>
+
+      <layer
+        x={{ center: Layout.qtyButton.x }}
+        y="bottom"
+        w={Layout.qtyButton.size}
+        h={Layout.qtyButton.size}
+        options={['Withdraw X']}
+      >
+        <KitButton label="X" enabled={any} />
+      </layer>
+
+      <layer
+        x={{ center: Layout.qtyButton.all }}
+        y="bottom"
+        w={Layout.qtyButton.size}
+        h={Layout.qtyButton.size}
+        options={['Withdraw All']}
+      >
+        <KitButton label="All" enabled={any} />
+      </layer>
+    </>
+  );
+}

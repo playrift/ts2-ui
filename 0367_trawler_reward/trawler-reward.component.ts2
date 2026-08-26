@@ -1,10 +1,21 @@
-import { onMounted, sessionState, useState } from 'ts2';
+import { createRef } from 'ts2';
 import { StoneButtonEntrypoint } from '../lib/stone-button-entrypoint.component';
 import { StoneBorderNoClose } from './stone-border-no-close.component';
 import { setTransparency } from '../lib/lib.components';
 import { Dimmer, Fade, RewardColor, RewardFont, RewardSprite } from './trawler-reward.constants';
 
-const DiscardConfirming = sessionState(0);
+const noclickSheet = createRef('trawler_reward_noclick');
+const confirmDialogue = createRef('trawler_reward_confirmation');
+
+function showDiscardConfirmation(): void {
+  confirmDialogue.hide = false;
+  noclickSheet.hide = false;
+}
+
+function hideDiscardConfirmation(): void {
+  confirmDialogue.hide = true;
+  noclickSheet.hide = true;
+}
 
 export function TrawlerReward(): Component {
   return (
@@ -38,9 +49,8 @@ export function TrawlerReward(): Component {
 }
 
 function DiscardAllButton(): Component {
-  const [, setConfirming] = useState(DiscardConfirming);
   return (
-    <layer x={0} y="bottom" w={40} h={40} options={['Discard-all']} onOptionSelect={() => setConfirming(1)}>
+    <layer x={0} y="bottom" w={40} h={40} options={['Discard-all']} onOptionSelect={() => showDiscardConfirmation()}>
       <sprite
         x={0}
         y={0}
@@ -55,25 +65,12 @@ function DiscardAllButton(): Component {
   );
 }
 
-function dialogueDown(confirming: Int): Boolean {
-  if (confirming === 0) {
-    return true;
-  }
-  return false;
-}
-
 function ConfirmDialogue(): Component {
-  const [confirming, setConfirming] = useState(DiscardConfirming);
-
-  onMounted(() => {
-    setConfirming(0);
-  });
-
   return (
     <>
-      <layer x={0} y={0} w="fill" h="fill" hide={dialogueDown(confirming)} noClickThrough />
+      <layer ref={noclickSheet} x={0} y={0} w="fill" h="fill" hide noClickThrough />
 
-      <layer x="center" y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 40 }} hide={dialogueDown(confirming)}>
+      <layer ref={confirmDialogue} x="center" y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 40 }} hide>
         <rect
           x="center"
           y="center"
@@ -134,7 +131,7 @@ function ConfirmDialogue(): Component {
             />
           </layer>
 
-          <layer x="center" y={50} w={100} h={40} options={['No']} onOptionSelect={() => setConfirming(0)}>
+          <layer x="center" y={50} w={100} h={40} options={['No']} onOptionSelect={() => hideDiscardConfirmation()}>
             <sprite
               x={0}
               y={0}

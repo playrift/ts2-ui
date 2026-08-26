@@ -1,0 +1,314 @@
+import { CS2, useInventory, useServerState, useState, useUniverse } from 'ts2';
+import { ConvertStoneButton } from './convert-button.component';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { dismissDialog } from './bond-convert.helpers';
+import {
+  ConvertColors,
+  ConvertFonts,
+  ConvertInventories,
+  ConvertItems,
+  ConvertSounds,
+  ConvertSprites,
+  ConvertVarps,
+  Copy,
+  Layout,
+  MAX_INT,
+  SEPARATOR,
+} from './bond-convert.constants';
+
+export function ConvertForm(): Component {
+  const box = useUniverse();
+  const width: Int = box.width;
+
+  const backpack = useInventory(ConvertInventories.BACKPACK);
+  const bonds: Int = backpack.total(ConvertItems.BOND_UNTRADEABLE);
+  const carried: Int = backpack.total(ConvertItems.COINS);
+  const banked: Int = useServerState(ConvertVarps.BANK_COINS);
+  const cost: Int = useServerState(ConvertVarps.CONVERSION_COST);
+
+  let coins: Int = MAX_INT;
+  if (MAX_INT - carried >= banked) {
+    coins = carried + banked;
+  }
+
+  let affordable: Int = 0;
+  if (cost > 0) {
+    affordable = coins / cost;
+  }
+  const most: Int = Math.min(bonds, affordable);
+
+  const [wanted, setWanted] = useState(1);
+  const quantity: Int = Math.max(0, Math.min(wanted, most));
+  let acceptHidden: Boolean = true;
+  if (quantity > 0) {
+    acceptHidden = false;
+  }
+
+  let downFive: Int = 1;
+  if (quantity !== 5) {
+    downFive = Math.max(0, quantity - Layout.STEP_FIVE);
+  }
+  const downOne: Int = Math.max(0, quantity - 1);
+
+  let upOne: Int = quantity;
+  let upFive: Int = quantity;
+  let refused: Int = 0;
+  let refusal: String = '';
+  if (cost > 0) {
+    if (quantity + 1 > bonds) {
+      refused = 1;
+      refusal = Copy.NO_BONDS;
+    } else if (quantity + 1 > affordable) {
+      refused = 1;
+      refusal = Copy.NO_COINS;
+    } else {
+      upOne = quantity + 1;
+      upFive = Layout.STEP_FIVE;
+      if (quantity !== 1) {
+        upFive = quantity + Layout.STEP_FIVE;
+      }
+      upFive = Math.min(upFive, most);
+    }
+  }
+
+  const headingWidth: Int = Math.max(
+    CS2.parawidth(Copy.AVAILABLE, width, ConvertFonts.LABEL),
+    CS2.parawidth(Copy.NUMBER, width, ConvertFonts.LABEL),
+  );
+  const slotGap: Int = (width - (headingWidth + Layout.SLOT_W + Layout.SLOT_W)) / 3;
+  const numberGap: Int = (width - (headingWidth + Layout.FIELD_W)) / 2;
+  const stride: Int = (width - Layout.STEPPERS * Layout.STEPPER) / 4 + Layout.STEPPER;
+
+  const costHeadingWidth: Int = CS2.parawidth(Copy.COST, width, ConvertFonts.LABEL);
+  const costFieldWidth: Int =
+    CS2.parawidth(`${groupDigits(MAX_INT, SEPARATOR)} coins`, width, ConvertFonts.VALUE) + Layout.COST_PADDING;
+  const costGap: Int = (width - costHeadingWidth - costFieldWidth) / 2;
+
+  const footWidth: Int =
+    Layout.BUTTON_PADDING +
+    Math.max(
+      CS2.parawidth(Copy.CANCEL, width, ConvertFonts.LABEL),
+      CS2.parawidth(Copy.ACCEPT, width, ConvertFonts.LABEL),
+    );
+  const footGap: Int = (width - footWidth * 2 + 2) / 3;
+
+  return (
+    <layer w="fill" h="fill">
+      <text
+        x={0}
+        y={Layout.ROW_ITEMS_Y}
+        w="fill"
+        h={Layout.ROW_ITEMS_H}
+        text={Copy.AVAILABLE}
+        font={ConvertFonts.LABEL}
+        color={ConvertColors.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.LINE_HEIGHT}
+      />
+      <sprite
+        x={{ right: slotGap + Layout.SLOT_W + slotGap }}
+        y={Layout.ROW_ITEMS_Y}
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={ConvertItems.BOND_UNTRADEABLE}
+        itemCount={bonds}
+        shadowColor={ConvertColors.SLOT_SHADOW}
+        outline={1}
+      />
+      <sprite
+        x={{ right: slotGap }}
+        y={Layout.ROW_ITEMS_Y}
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={ConvertItems.COINS}
+        itemCount={coins}
+        shadowColor={ConvertColors.SLOT_SHADOW}
+        outline={1}
+      />
+
+      <text
+        x={0}
+        y={Layout.ROW_NUMBER_Y}
+        w="fill"
+        h={Layout.ROW_H}
+        text={Copy.NUMBER}
+        font={ConvertFonts.LABEL}
+        color={ConvertColors.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.LINE_HEIGHT}
+      />
+      <TextBackdrop right={numberGap} y={Layout.ROW_NUMBER_Y} width={Layout.FIELD_W} />
+      <text
+        x={{ right: numberGap }}
+        y={Layout.ROW_NUMBER_Y}
+        w={Layout.FIELD_W}
+        h={Layout.ROW_H}
+        text={stringOf(quantity)}
+        font={ConvertFonts.VALUE}
+        color={ConvertColors.VALUE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <layer
+        x={{ center: 0 - stride - stride }}
+        y={Layout.ROW_STEPPERS_Y}
+        w={Layout.STEPPER}
+        h={Layout.STEPPER}
+        options={[Copy.MINUS_FIVE]}
+        onOptionSelect={() => {
+          playSound(ConvertSounds.PRESS);
+          setWanted(downFive);
+        }}
+      >
+        <ConvertStoneButton label={Copy.MINUS_FIVE} font={ConvertFonts.LABEL} />
+      </layer>
+      <layer
+        x={{ center: 0 - stride }}
+        y={Layout.ROW_STEPPERS_Y}
+        w={Layout.STEPPER}
+        h={Layout.STEPPER}
+        options={[Copy.MINUS_ONE]}
+        onOptionSelect={() => {
+          playSound(ConvertSounds.PRESS);
+          setWanted(downOne);
+        }}
+      >
+        <ConvertStoneButton label={Copy.MINUS_ONE} font={ConvertFonts.LABEL} />
+      </layer>
+      <layer
+        x="center"
+        y={Layout.ROW_STEPPERS_Y}
+        w={Layout.STEPPER}
+        h={Layout.STEPPER}
+        options={[Copy.PLUS_ONE]}
+        onOptionSelect={() => {
+          if (refused === 1) {
+            playSound(ConvertSounds.REFUSED);
+            chatMessage(refusal);
+            return;
+          }
+          playSound(ConvertSounds.PRESS);
+          setWanted(upOne);
+        }}
+      >
+        <ConvertStoneButton label={Copy.PLUS_ONE} font={ConvertFonts.LABEL} />
+      </layer>
+      <layer
+        x={{ center: stride }}
+        y={Layout.ROW_STEPPERS_Y}
+        w={Layout.STEPPER}
+        h={Layout.STEPPER}
+        options={[Copy.PLUS_FIVE]}
+        onOptionSelect={() => {
+          if (refused === 1) {
+            playSound(ConvertSounds.REFUSED);
+            chatMessage(refusal);
+            return;
+          }
+          playSound(ConvertSounds.PRESS);
+          setWanted(upFive);
+        }}
+      >
+        <ConvertStoneButton label={Copy.PLUS_FIVE} font={ConvertFonts.LABEL} />
+      </layer>
+      <layer
+        x={{ center: stride + stride }}
+        y={Layout.ROW_STEPPERS_Y}
+        w={Layout.STEPPER}
+        h={Layout.STEPPER}
+        options={[Copy.ALL]}
+        onOptionSelect={() => {
+          playSound(ConvertSounds.PRESS);
+          setWanted(most);
+        }}
+      >
+        <ConvertStoneButton label={Copy.ALL} font={ConvertFonts.LABEL} />
+      </layer>
+
+      <text
+        x={0}
+        y={Layout.ROW_COST_Y}
+        w="fill"
+        h={Layout.ROW_H}
+        text={Copy.COST}
+        font={ConvertFonts.LABEL}
+        color={ConvertColors.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.LINE_HEIGHT}
+      />
+      <TextBackdrop right={costGap} y={Layout.ROW_COST_Y} width={costFieldWidth} />
+      <text
+        x={{ right: costGap }}
+        y={Layout.ROW_COST_Y}
+        w={costFieldWidth}
+        h={Layout.ROW_H}
+        text={quantity > 0 ? `${groupDigits(quantity * cost, SEPARATOR)} coins` : Copy.NO_COST}
+        font={ConvertFonts.VALUE}
+        color={ConvertColors.VALUE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <layer
+        x={quantity > 0 ? footGap : 'center'}
+        y="bottom"
+        w={footWidth}
+        h={{ fill: Layout.FOOT_Y }}
+        options={[CS2.tags_remove(Copy.CANCEL)]}
+        onOptionSelect={() => {
+          playSound(ConvertSounds.PRESS);
+          dismissDialog(0);
+        }}
+      >
+        <ConvertStoneButton label={Copy.CANCEL} font={ConvertFonts.LABEL} />
+      </layer>
+      <layer
+        x={{ right: footGap }}
+        y="bottom"
+        w={footWidth}
+        h={{ fill: Layout.FOOT_Y }}
+        hide={acceptHidden}
+        options={[CS2.tags_remove(Copy.ACCEPT)]}
+        onOptionSelect={() => {
+          playSound(ConvertSounds.PRESS);
+          dismissDialog(quantity);
+        }}
+      >
+        <ConvertStoneButton label={Copy.ACCEPT} font={ConvertFonts.LABEL} />
+      </layer>
+    </layer>
+  );
+}
+
+function TextBackdrop({ right, y, width }: { right: Int; y: Int; width: Int }): Component {
+  return (
+    <>
+      <sprite x={{ right: right }} y={y} w={Layout.CAP_W} h={Layout.ROW_H} sprite={ConvertSprites.FIELD_RIGHT} />
+      <sprite
+        x={{ right: right + Layout.CAP_W }}
+        y={y}
+        w={width - Layout.CAP_W - Layout.CAP_W}
+        h={Layout.ROW_H}
+        sprite={ConvertSprites.FIELD_MIDDLE}
+        tiling
+      />
+      <sprite
+        x={{ right: right + width - Layout.CAP_W }}
+        y={y}
+        w={Layout.CAP_W}
+        h={Layout.ROW_H}
+        sprite={ConvertSprites.FIELD_LEFT}
+      />
+    </>
+  );
+}

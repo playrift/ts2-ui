@@ -1,4 +1,9 @@
+import { CS2, createRef, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
 import { Fonts } from '../lib/game/fonts';
+import { onMobile } from '../lib/lib.helpers';
 
 const LABEL = Fonts.Q8_FULL;
 
@@ -7,6 +12,28 @@ enum ChatColors {
   CONTINUE = 0x0000ff,
   CONTINUE_HOVER = 0xffffff,
   BODY = 0x000000,
+}
+
+enum AdvanceKey {
+  SPACE = 83,
+}
+
+const ADVANCE_DEBOUNCE = 20;
+
+enum DialogueGate {
+  NO_TOPLEVEL = -1,
+  CHATBOX = 162,
+}
+
+const continueLine = createRef('chat_both_continue');
+
+function advanceFeedback(line: ComponentId): void {
+  if (CS2.if_text_get(line).length === 0) {
+    return;
+  }
+  CS2.if_resume_pausebutton(line);
+  line.text = 'Please wait...';
+  line.color = ChatColors.CONTINUE;
 }
 
 export function ChatBoth(): Component {
@@ -19,6 +46,7 @@ export function ChatBoth(): Component {
         <layer x="center" y="center" w={479} h={96}>
           <text x={{ center: 1 }} y={0} w={289} h={17} font={LABEL} color={ChatColors.NAME} align="center" />
           <text
+            ref={continueLine}
             x={{ center: 1 }}
             y={80}
             w={289}
@@ -42,6 +70,61 @@ export function ChatBoth(): Component {
           />
         </layer>
       </layer>
+
+      <ChatBothAdvance />
     </layer>
+  );
+}
+
+export function ChatBothAdvance(): Component {
+  const [deadline, setDeadline] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        onKey={(event) => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyCode !== AdvanceKey.SPACE) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+        onClick={() => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (clientClock() < deadline) {
+          return;
+        }
+        if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+          return;
+        }
+        if (event.keyCode !== AdvanceKey.SPACE) {
+          return;
+        }
+        advanceFeedback(continueLine);
+        setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+      }}
+    />
   );
 }

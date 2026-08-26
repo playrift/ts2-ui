@@ -1,0 +1,167 @@
+import { onUpdated, useInventory, useRef, useServerState } from 'ts2';
+import { closeInterface } from '../lib/lib.helpers';
+import { PouchCloseButton } from './pouch-close-button.component';
+import { PouchRow } from './pouch-row.component';
+import {
+  AMMO_SLOT,
+  Body,
+  Heading,
+  POUCH_ITEM,
+  PouchColor,
+  PouchFonts,
+  PouchInventories,
+  PouchTables,
+  PouchVarbits,
+  Row,
+} from './xbows-pouch.constants';
+
+export function XbowsPouch(): Component {
+  return (
+    <>
+      <layer w="fill" h="fill">
+        <PouchBody />
+      </layer>
+      <PouchCloseButton />
+    </>
+  );
+}
+
+export function PouchBody(): Component {
+  const body = useRef();
+
+  const worn = useInventory(PouchInventories.WORN);
+  const pack = useInventory(PouchInventories.INV);
+
+  const equipped: Item = worn[AMMO_SLOT];
+  const equippedCount: Int = worn.total(equipped);
+
+  const index1: Int = useServerState(PouchVarbits.SLOT_1);
+  const index2: Int = useServerState(PouchVarbits.SLOT_2);
+  const index3: Int = useServerState(PouchVarbits.SLOT_3);
+  const index4: Int = useServerState(PouchVarbits.SLOT_4);
+  const bolt1: Item = PouchTables.BOLT_OF.get(index1);
+  const bolt2: Item = PouchTables.BOLT_OF.get(index2);
+  const bolt3: Item = PouchTables.BOLT_OF.get(index3);
+  const bolt4: Item = PouchTables.BOLT_OF.get(index4);
+  const count1: Int = useServerState(PouchVarbits.NUM_1);
+  const count2: Int = useServerState(PouchVarbits.NUM_2);
+  const count3: Int = useServerState(PouchVarbits.NUM_3);
+  const count4: Int = useServerState(PouchVarbits.NUM_4);
+
+  let free: Int = 0;
+  let probe: Int = pack.size;
+  while (probe > 0) {
+    probe = probe - 1;
+    if (pack[probe] === -1) {
+      free = free + 1;
+    }
+  }
+
+  const held1: Int = pack.total(bolt1);
+  const held2: Int = pack.total(bolt2);
+  const held3: Int = pack.total(bolt3);
+  const held4: Int = pack.total(bolt4);
+  const heldEquipped: Int = pack.total(equipped);
+  const pouchesHeld: Int = pack.total(POUCH_ITEM);
+
+  onUpdated(() => {
+    if (pouchesHeld <= 0) {
+      closeInterface();
+    }
+  });
+
+  return (
+    <layer ref={body} x={Body.X} y={Body.Y} w={{ fill: Body.W_INSET }} h={Body.H}>
+      <text
+        x="center"
+        w="fill"
+        h={Heading.H}
+        font={PouchFonts.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+        color={PouchColor.HEADING}
+        text="<u=FF9933>Bolt Pouch"
+      />
+
+      <PouchRow
+        entry={1}
+        top={Row.BOLT_1_Y}
+        height={Row.H}
+        item={bolt1}
+        count={count1}
+        body={body}
+        heldInBackpack={held1}
+        backpackFree={free}
+      />
+      <PouchRow
+        entry={2}
+        top={Row.BOLT_2_Y}
+        height={Row.H}
+        item={bolt2}
+        count={count2}
+        body={body}
+        heldInBackpack={held2}
+        backpackFree={free}
+      />
+      <PouchRow
+        entry={3}
+        top={Row.BOLT_3_Y}
+        height={Row.H}
+        item={bolt3}
+        count={count3}
+        body={body}
+        heldInBackpack={held3}
+        backpackFree={free}
+      />
+
+      <text
+        x="center"
+        y={Heading.EXTRA_AMMO_Y}
+        w="fill"
+        h={Heading.H}
+        font={PouchFonts.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+        color={PouchColor.HEADING}
+        text="<u=FF9933>Extra Ammo"
+      />
+
+      <PouchRow
+        entry={4}
+        top={Row.BOLT_4_Y}
+        height={Row.H}
+        item={bolt4}
+        count={count4}
+        body={body}
+        heldInBackpack={held4}
+        backpackFree={free}
+      />
+
+      <text
+        x="center"
+        y={Heading.CURRENT_AMMO_Y}
+        w="fill"
+        h={Heading.H}
+        font={PouchFonts.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+        color={PouchColor.HEADING}
+        text="<u=FF9933>Current Ammo"
+      />
+
+      <PouchRow
+        entry={0}
+        top={Row.CURRENT_Y}
+        height={Row.CURRENT_H}
+        item={equipped}
+        count={equippedCount}
+        body={body}
+        heldInBackpack={heldEquipped}
+        backpackFree={free}
+      />
+    </layer>
+  );
+}

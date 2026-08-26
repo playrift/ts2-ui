@@ -1,0 +1,194 @@
+import { useRef, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { CurrentMode } from './current-mode.component';
+import { DowngradePane } from './downgrade-pane.component';
+import { ModeButton } from './mode-button.component';
+import { ModeCard } from './mode-card.component';
+import { cardHeight } from './ironman-setup.helpers';
+import {
+  ButtonBox,
+  CardBox,
+  IronmanBar,
+  IronmanColor,
+  IronmanFonts,
+  IronmanMode,
+  IronmanSprites,
+  Layout,
+} from './ironman-setup.constants';
+
+export function IronmanSetup(): Component {
+  const universe = useUniverse();
+  const measured: Int = universe.height;
+  const [seen, setSeen] = useState(0);
+  universe.onResize = () => {
+    setSeen(universe.height);
+  };
+  const outer: Int = seen === 0 ? measured : seen;
+
+  const none: Int = cardHeight(IronmanMode.NONE);
+  const ironman: Int = cardHeight(IronmanMode.IRONMAN);
+  const ultimate: Int = cardHeight(IronmanMode.ULTIMATE);
+  const hardcore: Int = cardHeight(IronmanMode.HARDCORE);
+  const group: Int = cardHeight(IronmanMode.GROUP);
+  const hardcoreGroup: Int = cardHeight(IronmanMode.HARDCORE_GROUP);
+  const unrankedGroup: Int = cardHeight(IronmanMode.UNRANKED_GROUP);
+
+  const yNone: Int = 0;
+  const yIronman: Int = none + CardBox.GAP_AFTER_NONE;
+  const yHardcore: Int = yIronman + ironman + CardBox.GAP;
+  const yUltimate: Int = yHardcore + hardcore + CardBox.GAP;
+  const leftTotal: Int = yUltimate + ultimate;
+
+  const yGroup: Int = 0;
+  const yHardcoreGroup: Int = group + CardBox.GAP;
+  const yUnrankedGroup: Int = yHardcoreGroup + hardcoreGroup + CardBox.GAP;
+  const rightTotal: Int = yUnrankedGroup + unrankedGroup;
+
+  const columns: Int = Math.max(leftTotal, rightTotal);
+  const content: Int = Layout.COLUMNS_Y + columns;
+  const panel: Int = Math.min(outer - Layout.PANEL_MARGIN, Layout.PANEL_CHROME + content);
+  const pane: Int = panel - Layout.PANEL_CHROME;
+
+  const scrolling = useRef();
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={panel}>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title="Ironman Setup" />
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer
+          ref={scrolling}
+          y="center"
+          w={{ fill: Layout.PANE_GUTTER }}
+          h="fill"
+          scrollHeight={content > pane ? content : 0}
+        >
+          <layer x="center" w="fill" h={Layout.HEADER_H}>
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: 2 }}
+              h={{ fill: 2 }}
+              sprite={IronmanSprites.BACKDROP_LIGHT}
+              tiling
+            />
+            <CurrentMode />
+          </layer>
+
+          <layer x="center" y={Layout.DOWNGRADE_Y} w="fill" h={Layout.DOWNGRADE_H}>
+            <DowngradePane />
+          </layer>
+
+          <text
+            x="center"
+            y={Layout.HEADING_Y}
+            w="fill"
+            h={Layout.HEADING_H}
+            text="Ironman Modes"
+            font={IronmanFonts.TITLE}
+            color={IronmanColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+          />
+
+          <layer y={Layout.COLUMNS_Y} w="fill" h={columns}>
+            <ModeCard mode={IronmanMode.NONE} x="left" y={yNone} w={Layout.COLUMN_W} h={none} />
+            <ModeCard mode={IronmanMode.IRONMAN} x="left" y={yIronman} w={Layout.COLUMN_W} h={ironman} />
+            <ModeCard mode={IronmanMode.ULTIMATE} x="left" y={yUltimate} w={Layout.COLUMN_W} h={ultimate} />
+            <ModeCard mode={IronmanMode.HARDCORE} x="left" y={yHardcore} w={Layout.COLUMN_W} h={hardcore} />
+            <ModeCard mode={IronmanMode.GROUP} x="right" y={yGroup} w={Layout.COLUMN_W} h={group} />
+            <ModeCard
+              mode={IronmanMode.HARDCORE_GROUP}
+              x="right"
+              y={yHardcoreGroup}
+              w={Layout.COLUMN_W}
+              h={hardcoreGroup}
+            />
+            <ModeCard
+              mode={IronmanMode.UNRANKED_GROUP}
+              x="right"
+              y={yUnrankedGroup}
+              w={Layout.COLUMN_W}
+              h={unrankedGroup}
+            />
+          </layer>
+
+          <layer y={Layout.COLUMNS_Y} w="fill" h={columns}>
+            <ModeButton
+              mode={IronmanMode.NONE}
+              x={ButtonBox.X}
+              y={yNone + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.IRONMAN}
+              x={ButtonBox.X}
+              y={yIronman + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.ULTIMATE}
+              x={ButtonBox.X}
+              y={yUltimate + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.HARDCORE}
+              x={ButtonBox.X}
+              y={yHardcore + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.GROUP}
+              x={{ right: ButtonBox.X }}
+              y={yGroup + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.HARDCORE_GROUP}
+              x={{ right: ButtonBox.X }}
+              y={yHardcoreGroup + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+            <ModeButton
+              mode={IronmanMode.UNRANKED_GROUP}
+              x={{ right: ButtonBox.X }}
+              y={yUnrankedGroup + ButtonBox.DY}
+              w={ButtonBox.W}
+              h={ButtonBox.H}
+            />
+          </layer>
+        </layer>
+
+        <layer x="right" y="center" w={Layout.BAR_W} h="fill">
+          <ScrollbarVertical
+            content={scrolling}
+            track={IronmanBar.TRACK}
+            capTopSprite={IronmanBar.CAP_TOP}
+            thumbSprite={IronmanBar.THUMB}
+            capBottomSprite={IronmanBar.CAP_BOTTOM}
+            arrowUp={IronmanBar.ARROW_UP}
+            arrowDown={IronmanBar.ARROW_DOWN}
+          />
+        </layer>
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}

@@ -1,0 +1,123 @@
+import { CS2, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  ExperienceColors,
+  ExperienceCopy,
+  ExperienceFonts,
+  ExperienceLayout,
+  ExperienceSprites,
+  ExperienceTiming,
+  OP_SUBJECT_PREFIX,
+  OP_SUBJECT_SUFFIX,
+} from './tutorial-player-experience.constants';
+
+export function ExperienceButton({
+  y,
+  width,
+  labelWidth,
+  label,
+  subject,
+}: {
+  y: Int;
+  width: Int;
+  labelWidth: Int;
+  label: String;
+  subject: String;
+}): Component {
+  const mobile: Boolean = onMobile();
+  const [hovered, setHovered] = useState(0);
+  const [releaseAt, setReleaseAt] = useState(0);
+
+  const opSubject: String = `${OP_SUBJECT_PREFIX}${subject}${OP_SUBJECT_SUFFIX}`;
+
+  if (releaseAt !== 0) {
+    return (
+      <layer
+        x="center"
+        y={y}
+        w={width}
+        h={ExperienceLayout.BUTTON_H}
+        onTimer={() => {
+          if (clientClock() >= releaseAt) {
+            setReleaseAt(0);
+          }
+        }}
+      >
+        <StoneButtonPressedFilled />
+        <sprite
+          x={ExperienceLayout.ARROW_X}
+          y="center"
+          w={ExperienceLayout.ARROW_W}
+          h={ExperienceLayout.ARROW_H}
+          sprite={ExperienceSprites.ARROW_ON}
+          tiling
+        />
+        <text
+          x={ExperienceLayout.LABEL_X}
+          y="center"
+          w={labelWidth}
+          h={{ fill: ExperienceLayout.LABEL_INSET_H }}
+          text={label}
+          font={ExperienceFonts.LABEL}
+          color={ExperienceColors.LABEL}
+          shadow
+          align="left"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x="center"
+      y={y}
+      w={width}
+      h={ExperienceLayout.BUTTON_H}
+      options={[ExperienceCopy.SELECT_OP]}
+      optionSubject={opSubject}
+      onOptionSelect={(event) => {
+        playSound(Sounds.CLICK);
+        CS2.if_resume_pausebutton(event.component);
+        setReleaseAt(clientClock() + ExperienceTiming.CHOSEN_CYCLES);
+      }}
+      onMouseRepeat={() => {
+        if (!mobile) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!mobile) {
+          setHovered(0);
+        }
+      }}
+    >
+      {hovered === 1 ? <StoneButtonOutFilled /> : <StoneButtonFilled />}
+      <sprite
+        x={ExperienceLayout.ARROW_X}
+        y="center"
+        w={ExperienceLayout.ARROW_W}
+        h={ExperienceLayout.ARROW_H}
+        sprite={hovered === 1 ? ExperienceSprites.ARROW_ON : ExperienceSprites.ARROW_OFF}
+        tiling
+      />
+      <text
+        x={ExperienceLayout.LABEL_X}
+        y="center"
+        w={labelWidth}
+        h={{ fill: ExperienceLayout.LABEL_INSET_H }}
+        text={label}
+        font={ExperienceFonts.LABEL}
+        color={ExperienceColors.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </layer>
+  );
+}

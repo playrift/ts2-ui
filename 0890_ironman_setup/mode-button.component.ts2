@@ -1,0 +1,50 @@
+import { useServerState, useState } from 'ts2';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { isModeSelectable, settingsOpSound } from './ironman-setup.helpers';
+import { IronmanFonts, IronmanVarbits, IronmanVarps, ModeNames } from './ironman-setup.constants';
+
+export function ModeButton({ mode }: { mode: Int }): Component {
+  const current: Int = useServerState(IronmanVarbits.IRONMAN);
+  const disabled: Int = useServerState(IronmanVarps.SETUP_DISABLED);
+  const open: Int = useServerState(IronmanVarps.SETUP_OPEN);
+  const [pressed, setPressed] = useState(0);
+  const held: Int = pressed;
+
+  const name: String = ModeNames.get(mode);
+
+  let skin: Int = 1;
+  let live: Int = 0;
+  let label: String = `<col=ff0000>${name}</col>`;
+
+  if (current === mode) {
+    label = `<col=ffffff>${name}</col>`;
+  } else if (isModeSelectable(current, disabled, open, mode) === 1) {
+    live = 1;
+    skin = held;
+    label = `<col=ffffff>${name}</col>`;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[name]}
+      onMouseRepeat={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => {
+        if (live === 1 || current === mode) {
+          opsound(event.option, 2);
+        } else {
+          settingsOpSound(0);
+        }
+      }}
+    >
+      <StoneButtonDraw label={label} font={IronmanFonts.BODY} pressed={skin} />
+    </layer>
+  );
+}

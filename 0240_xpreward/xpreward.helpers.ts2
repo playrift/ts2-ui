@@ -1,0 +1,142 @@
+import { useServerState } from 'ts2';
+
+import { chatMessage, hasBit, membersWorld } from '../lib/lib.engine';
+import { leaguesEnabled } from '../0735_league-3-fragments/league-3-fragments.helpers';
+import {
+  Fade,
+  LEAGUE_THREE,
+  LeagueSkillLocks,
+  QuestGate,
+  Refusal,
+  SkillId,
+  XpRewardVarbits,
+  XpRewardVarps,
+} from './xpreward.constants';
+import { MembersSkills, SkillNames, SkillOfferBits } from './xpreward.data';
+
+export function sailingRestricted(): Boolean {
+  if (useServerState(XpRewardVarbits.SAILING_RESTRICTED) >= 1) {
+    return true;
+  }
+  return false;
+}
+
+export function leagueSkillUnlocked(skill: Skill): Int {
+  if (useServerState(XpRewardVarbits.LEAGUE_TYPE) !== LEAGUE_THREE) {
+    return 1;
+  }
+  if (skill === SkillId.ATTACK) return useServerState(LeagueSkillLocks.ATTACK);
+  if (skill === SkillId.STRENGTH) return useServerState(LeagueSkillLocks.STRENGTH);
+  if (skill === SkillId.RANGED) return useServerState(LeagueSkillLocks.RANGED);
+  if (skill === SkillId.MAGIC) return useServerState(LeagueSkillLocks.MAGIC);
+  if (skill === SkillId.HITPOINTS) return useServerState(LeagueSkillLocks.HITPOINTS);
+  if (skill === SkillId.PRAYER) return useServerState(LeagueSkillLocks.PRAYER);
+  if (skill === SkillId.AGILITY) return useServerState(LeagueSkillLocks.AGILITY);
+  if (skill === SkillId.HERBLORE) return useServerState(LeagueSkillLocks.HERBLORE);
+  if (skill === SkillId.CRAFTING) return useServerState(LeagueSkillLocks.CRAFTING);
+  if (skill === SkillId.RUNECRAFT) return useServerState(LeagueSkillLocks.RUNECRAFT);
+  if (skill === SkillId.MINING) return useServerState(LeagueSkillLocks.MINING);
+  if (skill === SkillId.SMITHING) return useServerState(LeagueSkillLocks.SMITHING);
+  if (skill === SkillId.COOKING) return useServerState(LeagueSkillLocks.COOKING);
+  if (skill === SkillId.FIREMAKING) return useServerState(LeagueSkillLocks.FIREMAKING);
+  if (skill === SkillId.WOODCUTTING) return useServerState(LeagueSkillLocks.WOODCUTTING);
+  if (skill === SkillId.FLETCHING) return useServerState(LeagueSkillLocks.FLETCHING);
+  if (skill === SkillId.SLAYER) return useServerState(LeagueSkillLocks.SLAYER);
+  if (skill === SkillId.FARMING) return useServerState(LeagueSkillLocks.FARMING);
+  if (skill === SkillId.CONSTRUCTION) return useServerState(LeagueSkillLocks.CONSTRUCTION);
+  if (skill === SkillId.HUNTER) return useServerState(LeagueSkillLocks.HUNTER);
+  return 1;
+}
+
+export function skillOffered(mask: Int, skill: Skill): Boolean {
+  const bit: Int = SkillOfferBits.get(skill);
+  if (bit === -1) {
+    return false;
+  }
+  return hasBit(mask, bit);
+}
+
+export function xpRewardAllowed(minLevel: Int, mask: Int, skill: Skill, base: Int, complain: Int): Boolean {
+  if (skillOffered(mask, skill) === false) {
+    if (complain === 1) {
+      chatMessage(Refusal.NOT_AVAILABLE);
+    }
+    return false;
+  }
+
+  if (membersWorld() === false && MembersSkills.get(skill)) {
+    if (complain === 1) {
+      chatMessage(`You need to be on a members' world to gain experience in ${SkillNames.get(skill)}.`);
+    }
+    return false;
+  }
+
+  if (base < minLevel) {
+    if (complain === 1) {
+      chatMessage(`You need level ${stringOf(minLevel)} ${SkillNames.get(skill)} to choose that option.`);
+    }
+    return false;
+  }
+
+  if (skill === SkillId.SAILING && sailingRestricted()) {
+    if (complain === 1) {
+      chatMessage(Refusal.SAILING_OFF);
+    }
+    return false;
+  }
+
+  if (skill === SkillId.HERBLORE && useServerState(XpRewardVarps.DRUIDIC_RITUAL) < QuestGate.DRUIDIC_RITUAL_DONE) {
+    if (complain === 1) {
+      chatMessage(Refusal.DRUIDIC);
+    }
+    return false;
+  }
+  if (skill === SkillId.RUNECRAFT && useServerState(XpRewardVarps.RUNE_MYSTERIES) < QuestGate.RUNE_MYSTERIES_DONE) {
+    if (complain === 1) {
+      chatMessage(Refusal.RUNE_MYSTERIES);
+    }
+    return false;
+  }
+  if (skill === SkillId.CONSTRUCTION && useServerState(XpRewardVarbits.HOUSE_LOCATION) === 0) {
+    if (complain === 1) {
+      chatMessage(Refusal.NO_HOUSE);
+    }
+    return false;
+  }
+  if (skill === SkillId.SAILING && useServerState(XpRewardVarbits.SAILING_INTRO) < QuestGate.PANDEMONIUM_DONE) {
+    if (complain === 1) {
+      chatMessage(Refusal.PANDEMONIUM);
+    }
+    return false;
+  }
+
+  if (
+    useServerState(XpRewardVarbits.LEAGUE_TYPE) === LEAGUE_THREE &&
+    leaguesEnabled() &&
+    leagueSkillUnlocked(skill) === 0
+  ) {
+    if (complain === 1) {
+      chatMessage(Refusal.LOCKED);
+    }
+    return false;
+  }
+
+  return true;
+}
+
+export function iconFade(minLevel: Int, mask: Int, skill: Skill, base: Int): Int {
+  if (xpRewardAllowed(minLevel, mask, skill, base, 0)) {
+    return Fade.OPAQUE;
+  }
+  if (skillOffered(mask, skill)) {
+    return Fade.DIMMED;
+  }
+  return Fade.LOCKED;
+}
+
+export function tileFade(mask: Int, skill: Skill): Int {
+  if (skillOffered(mask, skill)) {
+    return Fade.OPAQUE;
+  }
+  return Fade.LOCKED;
+}

@@ -1,0 +1,74 @@
+import { onMounted, useInventory, useServerState, useState } from 'ts2';
+import { opsound } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  Layout,
+  OPSOUND_MASK,
+  Prices,
+  RewardColor,
+  RewardFonts,
+  RewardInventories,
+  RewardItems,
+  RewardVarbits,
+} from './agilityarena-rewards.constants';
+import { buyOp, gateSound, priceCaption } from './agilityarena-rewards.helpers';
+import { gracefulOpen } from './agilityarena-rewards.state';
+
+export function GracefulButton(): Component {
+  onMounted(() => {
+    setOpen(0);
+  });
+
+  const backpack = useInventory(RewardInventories.BACKPACK);
+  const tickets: Int = backpack.total(RewardItems.TICKET);
+  const recoloured: Int = useServerState(RewardVarbits.HAD_RECOLOURED);
+  const [hovered, setHovered] = useState(0);
+  const [, setOpen] = useState(gracefulOpen);
+
+  const price: Int = recoloured === 1 ? Prices.RECOLOUR_PIECE : Prices.RECOLOUR_SET;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[buyOp(price)]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={
+        tickets >= price
+          ? (event) => {
+              if (recoloured === 1) {
+                gateSound();
+                setOpen(1);
+              } else {
+                opsound(event.option, OPSOUND_MASK);
+              }
+            }
+          : undefined
+      }
+    >
+      {tickets < price ? (
+        <StoneButtonFilled />
+      ) : hovered === 1 ? (
+        <StoneButtonPressedFilled />
+      ) : (
+        <StoneButtonOutFilled />
+      )}
+
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={Layout.CAPTION_H}
+        text={priceCaption('Graceful recolour', price)}
+        font={RewardFonts.CAPTION}
+        align="center"
+        valign="bottom"
+        shadow
+        color={tickets < price ? RewardColor.BLOCKED : hovered === 1 ? RewardColor.HOVER : RewardColor.REST}
+      />
+    </layer>
+  );
+}

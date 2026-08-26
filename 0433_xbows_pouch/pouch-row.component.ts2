@@ -1,0 +1,146 @@
+import { useRef } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { boltPouchDragComplete, boltPouchReturnId } from './xbows-pouch.actions';
+import { Entry, PouchArt, PouchColor, PouchFonts, PouchSounds, Transparency } from './xbows-pouch.constants';
+
+export function PouchRow({
+  entry,
+  top,
+  height,
+  item,
+  count,
+  body,
+  heldInBackpack,
+  backpackFree,
+}: {
+  entry: Int;
+  top: Int;
+  height: Int;
+  item: Item;
+  count: Int;
+  body: Ref;
+  heldInBackpack: Int;
+  backpackFree: Int;
+}): Component {
+  const icon = useRef();
+
+  const verb: String = entry !== 0 ? 'Remove' : 'Unwield';
+
+  if (count <= 0) {
+    return (
+      <layer y={top} w="fill" h={height}>
+        <sprite y="center" w={Entry.MOUNT} h={Entry.MOUNT} sprite={PouchArt.SLOT} />
+        <layer y="center" w={Entry.MOUNT} h={Entry.MOUNT} dragTarget />
+        <text
+          x={Entry.LABEL_X}
+          y="center"
+          w={{ fill: Entry.LABEL_INSET }}
+          h="fill"
+          font={PouchFonts.LABEL}
+          align="left"
+          valign="middle"
+          shadow
+          color={PouchColor.EMPTY}
+          text="Empty"
+        />
+      </layer>
+    );
+  }
+
+  if (item === -1) {
+    return (
+      <layer y={top} w="fill" h={height}>
+        <sprite y="center" w={Entry.MOUNT} h={Entry.MOUNT} sprite={PouchArt.SLOT} />
+        <layer
+          y="center"
+          w={Entry.MOUNT}
+          h={Entry.MOUNT}
+          dragTarget
+          options={[`${verb} <col=ff981f>N/A`]}
+          onOptionSelect={() => playSound(PouchSounds.CLICK)}
+        />
+        <text
+          x={Entry.LABEL_X}
+          y="center"
+          w={{ fill: Entry.LABEL_INSET }}
+          h="fill"
+          font={PouchFonts.LABEL}
+          align="left"
+          valign="middle"
+          shadow
+          color={PouchColor.LABEL}
+          text="N/A"
+        />
+      </layer>
+    );
+  }
+
+  const name: String = itemName(item);
+
+  return (
+    <layer y={top} w="fill" h={height}>
+      <sprite y="center" w={Entry.MOUNT} h={Entry.MOUNT} sprite={PouchArt.SLOT} />
+      <layer
+        y="center"
+        w={Entry.MOUNT}
+        h={Entry.MOUNT}
+        dragTarget
+        options={[`${verb} <col=ff981f>${name}`]}
+        onOptionSelect={() => {
+          flashFor(icon, Transparency.FLASH, Transparency.REST);
+          playSound(PouchSounds.CLICK);
+        }}
+        onMouseRepeat={() => {
+          if (!onMobile()) {
+            icon.transparency = Transparency.HOVER;
+          }
+        }}
+        onMouseLeave={() => {
+          if (!onMobile()) {
+            icon.transparency = Transparency.REST;
+          }
+        }}
+      >
+        <sprite
+          ref={icon}
+          x={Entry.ICON_X}
+          y={Entry.ICON_Y}
+          w={Entry.ICON_W}
+          h={Entry.ICON_H}
+          outline={Entry.OUTLINE}
+          item={item}
+          itemCount={count}
+          draggable={body}
+          dragDeadZone={Entry.DRAG_DEAD}
+          dragDeadTime={Entry.DRAG_DEAD}
+          onDragComplete={(event) => {
+            boltPouchDragComplete(
+              entry,
+              item,
+              count,
+              boltPouchReturnId(event.dragTarget),
+              -1,
+              0,
+              heldInBackpack,
+              backpackFree,
+            );
+          }}
+        />
+      </layer>
+      <text
+        x={Entry.LABEL_X}
+        y="center"
+        w={{ fill: Entry.LABEL_INSET }}
+        h="fill"
+        font={PouchFonts.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+        color={PouchColor.LABEL}
+        text={name}
+      />
+    </layer>
+  );
+}

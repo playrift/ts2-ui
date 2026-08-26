@@ -1,0 +1,240 @@
+import { useState } from 'ts2';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Button, CofferColor, CofferFonts, CofferSounds, PRESS_CYCLES } from './death-coffer.constants';
+
+export enum ButtonState {
+  DEAD = 0,
+  LIVE = 1,
+  LATCHED = 2,
+}
+
+export function CofferButton({ label, state, dy }: { label: String; state: Int; dy: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  if (state === ButtonState.DEAD) {
+    return (
+      <layer x={{ right: Button.RIGHT }} y={{ center: dy }} w={Button.SIZE} h={Button.SIZE} options={[label]}>
+        <StoneButtonPressedFilled>
+          <CofferButtonLabel label={label} color={CofferColor.DEAD} />
+        </StoneButtonPressedFilled>
+      </layer>
+    );
+  }
+
+  if (state === ButtonState.LATCHED) {
+    return (
+      <layer x={{ right: Button.RIGHT }} y={{ center: dy }} w={Button.SIZE} h={Button.SIZE} options={[label]}>
+        <StoneButtonPressedFilled>
+          <CofferButtonLabel label={label} color={CofferColor.LIVE} />
+        </StoneButtonPressedFilled>
+      </layer>
+    );
+  }
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer
+        x={{ right: Button.RIGHT }}
+        y={{ center: dy }}
+        w={Button.SIZE}
+        h={Button.SIZE}
+        options={[label]}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <StoneButtonPressedFilled>
+          <CofferButtonLabel label={label} color={CofferColor.LIVE} />
+        </StoneButtonPressedFilled>
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={{ right: Button.RIGHT }}
+      y={{ center: dy }}
+      w={Button.SIZE}
+      h={Button.SIZE}
+      options={[label]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(CofferSounds.CLICK);
+        setHovered(0);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+    >
+      {hovered === 1 ? (
+        <StoneButtonPressedFilled>
+          <CofferButtonLabel label={label} color={CofferColor.LIVE} />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonOutFilled>
+          <CofferButtonLabel label={label} color={CofferColor.LIVE} />
+        </StoneButtonOutFilled>
+      )}
+    </layer>
+  );
+}
+
+function CofferButtonLabel({ label, color }: { label: String; color: Int }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={label}
+      font={CofferFonts.SMALL}
+      color={color}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+export function CofferConfirmButton({ label, state }: { label: String; state: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  if (state === ButtonState.DEAD) {
+    return (
+      <layer
+        x="center"
+        y={{ bottom: Button.CONFIRM_BOTTOM }}
+        w={Button.CONFIRM_W}
+        h={Button.CONFIRM_H}
+        options={['Confirm']}
+      >
+        <StoneButtonPressedFilled>
+          <CofferConfirmDead />
+        </StoneButtonPressedFilled>
+      </layer>
+    );
+  }
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer
+        x="center"
+        y={{ bottom: Button.CONFIRM_BOTTOM }}
+        w={Button.CONFIRM_W}
+        h={Button.CONFIRM_H}
+        options={['Confirm']}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <StoneButtonPressedFilled>
+          <CofferConfirmLive amount={label} />
+        </StoneButtonPressedFilled>
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Button.CONFIRM_BOTTOM }}
+      w={Button.CONFIRM_W}
+      h={Button.CONFIRM_H}
+      options={['Confirm']}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(CofferSounds.CLICK);
+        setHovered(0);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+    >
+      {hovered === 1 ? (
+        <StoneButtonPressedFilled>
+          <CofferConfirmLive amount={label} />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonOutFilled>
+          <CofferConfirmLive amount={label} />
+        </StoneButtonOutFilled>
+      )}
+    </layer>
+  );
+}
+
+function CofferConfirmLive({ amount }: { amount: String }): Component {
+  return (
+    <>
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h={{ fill: Button.CONFIRM_TEXT_INSET }}
+        text="Confirm:"
+        font={CofferFonts.BODY}
+        color={CofferColor.LIVE}
+        align="center"
+        valign="top"
+        shadow
+      />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h={{ fill: Button.CONFIRM_TEXT_INSET }}
+        text={amount}
+        font={CofferFonts.SMALL}
+        color={CofferColor.LIVE}
+        align="center"
+        valign="bottom"
+        shadow
+      />
+    </>
+  );
+}
+
+function CofferConfirmDead(): Component {
+  return (
+    <>
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h={{ fill: Button.CONFIRM_TEXT_INSET }}
+        text="---"
+        font={CofferFonts.BODY}
+        color={CofferColor.DEAD}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h={{ fill: Button.CONFIRM_TEXT_INSET }}
+        text=""
+        font={CofferFonts.SMALL}
+        color={CofferColor.DEAD}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}

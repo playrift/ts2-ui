@@ -1,4 +1,9 @@
+import { CS2, createRef, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
 import { Fonts } from '../lib/game/fonts';
+import { onMobile } from '../lib/lib.helpers';
 
 const LABEL = Fonts.Q8_FULL;
 
@@ -9,6 +14,28 @@ enum ChatColors {
   BODY = 0x000000,
 }
 
+enum AdvanceKey {
+  SPACE = 83,
+}
+
+const ADVANCE_DEBOUNCE = 20;
+
+enum DialogueGate {
+  NO_TOPLEVEL = -1,
+  CHATBOX = 162,
+}
+
+const continueLine = createRef('messagebox_titled_continue');
+
+function advanceFeedback(line: ComponentId): void {
+  if (CS2.if_text_get(line).length === 0) {
+    return;
+  }
+  CS2.if_resume_pausebutton(line);
+  line.text = 'Please wait...';
+  line.color = ChatColors.CONTINUE;
+}
+
 export function MessageBoxTitled(): Component {
   return (
     <layer x={{ center: 1 }} y="center" w={506} h={129}>
@@ -16,6 +43,7 @@ export function MessageBoxTitled(): Component {
         <layer x="center" y="center" w={479} h={96}>
           <text x="center" y={0} w="fill" h={17} font={LABEL} color={ChatColors.TITLE} align="center" />
           <text
+            ref={continueLine}
             x="center"
             y={80}
             w="fill"
@@ -29,6 +57,61 @@ export function MessageBoxTitled(): Component {
           <text x="center" y={16} w="fill" h={67} font={LABEL} color={ChatColors.BODY} align="center" lineHeight={16} />
         </layer>
       </layer>
+
+      <MessageBoxTitledAdvance />
     </layer>
+  );
+}
+
+export function MessageBoxTitledAdvance(): Component {
+  const [deadline, setDeadline] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        onKey={(event) => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyCode !== AdvanceKey.SPACE) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+        onClick={() => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (clientClock() < deadline) {
+          return;
+        }
+        if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+          return;
+        }
+        if (event.keyCode !== AdvanceKey.SPACE) {
+          return;
+        }
+        advanceFeedback(continueLine);
+        setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+      }}
+    />
   );
 }

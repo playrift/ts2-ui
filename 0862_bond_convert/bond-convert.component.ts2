@@ -1,0 +1,77 @@
+import { CS2, stopTimer } from 'ts2';
+import { SteelBorderNoClose } from '../0925_bingo_welcome/steel-border-noclose.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { clientClock } from '../lib/lib.engine';
+import { ConvertBlurb } from './convert-blurb.component';
+import { ConvertForm } from './convert-form.component';
+import { dismissDialog } from './bond-convert.helpers';
+import { ConvertColors, ConvertSprites, Copy, Fade, Layout } from './bond-convert.constants';
+
+export function BondConvert(): Component {
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Layout.CLAMP_BOTTOM }}
+      w={{ fill: Layout.CLAMP_INSET_X }}
+      h={{ fill: Layout.CLAMP_INSET_Y }}
+      noClickThrough
+      onClick={() => {
+        dismissDialog(0);
+      }}
+    >
+      <ModalFader />
+
+      <layer x="center" y="center" w={Layout.WINDOW_W} h={Layout.WINDOW_H} noClickThrough>
+        <SteelBorderNoClose title={Copy.TITLE} />
+
+        <layer
+          x="center"
+          y={{ bottom: Layout.CONTENTS_BOTTOM }}
+          w={{ fill: Layout.CONTENTS_INSET_X }}
+          h={{ fill: Layout.CONTENTS_INSET_Y }}
+        >
+          <ConvertBlurb />
+
+          <layer x="right" y="center" w={{ fill: Layout.PANE_INSET }} h="fill">
+            <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={ConvertSprites.BACKING} tiling />
+
+            <layer x="center" y="center" w={{ fill: Layout.FORM_INSET }} h={{ fill: Layout.FORM_INSET }}>
+              <ConvertForm />
+            </layer>
+
+            <ThinBoxEntrypoint />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function ModalFader(): Component {
+  const startedAt: Int = clientClock();
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      color={ConvertColors.FADER}
+      fill
+      transparency={Fade.CLEAR}
+      onTimer={(event) => {
+        fadeStep(event.self, startedAt);
+      }}
+    />
+  );
+}
+
+function fadeStep(target: ComponentId, startedAt: Int): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= Fade.CYCLES) {
+    target.transparency = Fade.DIM;
+    stopTimer(target);
+    return;
+  }
+  target.transparency = Fade.CLEAR + CS2.scale(elapsed, Fade.CYCLES, Fade.DIM - Fade.CLEAR);
+}

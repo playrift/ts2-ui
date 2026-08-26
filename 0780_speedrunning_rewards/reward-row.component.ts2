@@ -1,0 +1,120 @@
+import { refuseReward, selectReward } from './speedrunning-rewards.state';
+import { refusalMessage, rewardOwned, rewardPrice, rewardRefusal } from './reward-row.shared';
+import { RewardColor, RewardFonts, RewardLayout, RewardParams } from './speedrunning-rewards.constants';
+
+export function RewardHit({
+  row,
+  index,
+  rowX,
+  rowY,
+  cellW,
+  selected,
+  points,
+  purchasedBits,
+}: {
+  row: Row;
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+  selected: Int;
+  points: Int;
+  purchasedBits: Int;
+}): Component {
+  const purchased: Int = rewardOwned(row, purchasedBits);
+  const name: String = row.text(RewardParams.NAME);
+  const cost: Int = row.int(RewardParams.COST);
+  const item: ItemName = row.int(RewardParams.ITEM) as ItemName;
+
+  const refusal: Int = rewardRefusal(item, purchased, cost, points);
+  const message: String = refusalMessage(refusal, purchased, cost);
+
+  return (
+    <rect
+      x={rowX}
+      y={rowY}
+      w={cellW}
+      h={RewardLayout.ROW_H}
+      color={RewardColor.HIT}
+      fill
+      transparency={RewardLayout.HIT_TRANSPARENCY}
+      options={[`Select <col=ff891f>${name}`]}
+      onOptionSelect={() => {
+        if (refusal === 0) {
+          selectReward(index);
+        } else {
+          refuseReward(message);
+        }
+      }}
+    />
+  );
+}
+
+export function RewardCell({
+  row,
+  index,
+  rowX,
+  rowY,
+  cellW,
+  selected,
+  points,
+  purchasedBits,
+}: {
+  row: Row;
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+  selected: Int;
+  points: Int;
+  purchasedBits: Int;
+}): Component {
+  const item: ItemName = row.int(RewardParams.ITEM) as ItemName;
+
+  if (item === -1) {
+    return null;
+  }
+
+  const purchased: Int = rewardOwned(row, purchasedBits);
+  const name: String = row.text(RewardParams.NAME);
+  const cost: Int = row.int(RewardParams.COST);
+  const refusal: Int = rewardRefusal(item, purchased, cost, points);
+  const price: String = rewardPrice(purchased, cost);
+
+  const textW: Int = cellW - RewardLayout.TEXT_X;
+
+  return (
+    <>
+      <sprite
+        x={rowX + RewardLayout.ICON_X}
+        y={rowY}
+        w={RewardLayout.ICON_W}
+        h={RewardLayout.ICON_H}
+        item={item}
+        itemCount={-1}
+        outline={RewardLayout.ICON_OUTLINE}
+        shadowColor={RewardColor.ICON_SHADOW}
+      />
+
+      <text
+        x={rowX + RewardLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={RewardLayout.ROW_H}
+        text={
+          refusal !== 0
+            ? `${name}<br>  <col=9f9f9f>${price}</col>`
+            : selected === index
+              ? `${name}<br>  ${price}`
+              : `${name}<br>  <col=ff891f>${price}</col>`
+        }
+        font={RewardFonts.BODY}
+        color={refusal !== 0 ? RewardColor.BLOCKED : selected === index ? RewardColor.SELECTED : RewardColor.AVAILABLE}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={RewardLayout.LINE_HEIGHT}
+      />
+    </>
+  );
+}

@@ -1,0 +1,122 @@
+import { useServerState, useState } from 'ts2';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { DowngradeOption } from './downgrade-option.component';
+import { downgradeMessage, settingsOpSound } from './ironman-setup.helpers';
+import {
+  DowngradeBox,
+  IronmanButtonFlags,
+  IronmanColor,
+  IronmanFonts,
+  IronmanMode,
+  IronmanVarbits,
+  IronmanVarps,
+  Layout,
+} from './ironman-setup.constants';
+
+export function DowngradePane(): Component {
+  const disabled: Int = useServerState(IronmanVarps.SETUP_DISABLED);
+  const mode: Int = useServerState(IronmanVarbits.IRONMAN);
+  const downgradeType: Int = useServerState(IronmanVarbits.DOWNGRADE_TYPE);
+  const days: Int = useServerState(IronmanVarps.DOWNGRADE_DAYS);
+
+  let blocked: Int = 0;
+  if (disabled === 1 || mode === IronmanMode.NONE || isGroupIronman(mode)) {
+    blocked = 1;
+  }
+
+  if (blocked === 1 || downgradeType !== 0) {
+    let notice: String = 'Downgrade options are not available on this game world.';
+    let tint: Int = IronmanColor.MUTED;
+    let cancel: Int = 0;
+
+    if (mode === IronmanMode.NONE) {
+      notice = 'Downgrade options are not applicable.';
+    } else if (isGroupIronman(mode)) {
+      notice = 'Speak to the tutors on The Node for downgrade options.';
+    }
+
+    if (blocked === 0) {
+      notice = downgradeMessage(days, downgradeType, mode);
+      tint = IronmanColor.LABEL;
+      cancel = 1;
+    }
+
+    return (
+      <layer w="fill" h="fill">
+        <ThinStoneBox />
+
+        <text
+          x={DowngradeBox.CANCEL_RIGHT}
+          y="center"
+          w={{ fill: DowngradeBox.NOTICE_INSET_W }}
+          h="fill"
+          text={notice}
+          font={IronmanFonts.BODY}
+          color={tint}
+          align="center"
+          valign="middle"
+          lineHeight={DowngradeBox.LINE_HEIGHT}
+          shadow
+        />
+
+        <layer x={{ right: DowngradeBox.CANCEL_RIGHT }} y="center" w={DowngradeBox.CANCEL_W} h={DowngradeBox.CANCEL_H}>
+          <DowngradeButton cancel={cancel} />
+        </layer>
+      </layer>
+    );
+  }
+
+  return (
+    <>
+      <layer y="center" w={Layout.COLUMN_W} h="fill">
+        <DowngradeOption short={1} />
+      </layer>
+      <layer x="right" y="center" w={Layout.COLUMN_W} h="fill">
+        <DowngradeOption short={0} />
+      </layer>
+    </>
+  );
+}
+
+function DowngradeButton({ cancel }: { cancel: Int }): Component {
+  const [pressed, setPressed] = useState(0);
+  const held: Int = pressed;
+
+  let skin: Int = 1;
+  let label: String = 'Downgrade';
+  let op: String = 'Downgrade';
+  let filled: Int = IronmanButtonFlags.PLAIN;
+
+  if (cancel === 1) {
+    skin = held;
+    label = '<col=ffffff>Cancel downgrade</col>';
+    op = 'Cancel downgrade';
+    filled = IronmanButtonFlags.FILLED;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[op]}
+      onMouseRepeat={() => {
+        if (cancel === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => {
+        if (cancel === 1) {
+          opsound(event.option, 2);
+        } else {
+          settingsOpSound(0);
+        }
+      }}
+    >
+      <StoneButtonDraw label={label} font={IronmanFonts.TITLE} pressed={skin} flags={filled} />
+    </layer>
+  );
+}

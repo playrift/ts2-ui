@@ -1,0 +1,122 @@
+import { CS2 } from 'ts2';
+import { textLineCount } from '../lib/lib.engine';
+import {
+  CardBox,
+  IronmanFonts,
+  IronmanMode,
+  IronmanSounds,
+  ModeDescriptions,
+  ModeNames,
+} from './ironman-setup.constants';
+
+export function settingsOpSound(ok: Int): void {
+  if (ok === 1) {
+    CS2.sound_effect(IronmanSounds.OK, 1, 0);
+    return;
+  }
+  CS2.sound_effect(IronmanSounds.DENIED, 1, 0);
+}
+
+export function isModeSelectable(current: Int, disabled: Int, open: Int, target: Int): Int {
+  if (disabled === 1) {
+    return 0;
+  }
+  if (open === 1) {
+    if (target !== IronmanMode.UNRANKED_GROUP) {
+      return 1;
+    }
+    return 0;
+  }
+  switch (current) {
+    case IronmanMode.IRONMAN:
+      if (target === IronmanMode.UNRANKED_GROUP || target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+    case IronmanMode.ULTIMATE:
+      if (target === IronmanMode.IRONMAN || target === IronmanMode.UNRANKED_GROUP || target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+    case IronmanMode.HARDCORE:
+      if (target === IronmanMode.IRONMAN || target === IronmanMode.UNRANKED_GROUP || target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+    case IronmanMode.GROUP:
+      if (target === IronmanMode.UNRANKED_GROUP || target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+    case IronmanMode.HARDCORE_GROUP:
+      if (target === IronmanMode.GROUP || target === IronmanMode.UNRANKED_GROUP || target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+    case IronmanMode.UNRANKED_GROUP:
+      if (target === IronmanMode.NONE) {
+        return 1;
+      }
+      return 0;
+  }
+  return 0;
+}
+
+export function cardHeight(mode: Int): Int {
+  const body: String = ModeDescriptions.get(mode);
+  const lines: Int = textLineCount(body, CardBox.TEXT_WIDTH, IronmanFonts.BODY);
+  return CardBox.TEXT_TOP + lines * CardBox.LINE_HEIGHT + CardBox.TEXT_PAD + CardBox.BOTTOM_PAD;
+}
+
+export function downgradeMessage(days: Int, downgradeType: Int, mode: Int): String {
+  const unranked: String = ModeNames.get(IronmanMode.UNRANKED_GROUP);
+  const ironman: String = ModeNames.get(IronmanMode.IRONMAN);
+  const undone: String = '<br>Once this happens, it cannot be undone.';
+
+  if (days > 1) {
+    const span: String = `<col=ff0000>${stringOf(days)} days</col>`;
+    if (downgradeType === 3) {
+      return `In ${span}, you will downgrade to <col=ff0000>${unranked}</col>.${undone}`;
+    }
+    if (downgradeType === 2) {
+      return `You will downgrade in ${span}, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+    }
+    if (mode === IronmanMode.HARDCORE || mode === IronmanMode.ULTIMATE) {
+      return `You will downgrade in ${span}, after which you will be a <col=ff0000>standard ${ironman}</col>.${undone}`;
+    }
+    if (mode === IronmanMode.HARDCORE_GROUP) {
+      return `In ${span}, your <col=ff0000>${ModeNames.get(mode)} status</col> will downgrade.${undone}`;
+    }
+    return `You will downgrade in ${span}, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+  }
+
+  if (days === 1) {
+    if (downgradeType === 3) {
+      return `In <col=ff0000>one day</col>, you will downgrade to <col=ff0000>${unranked}</col>.${undone}`;
+    }
+    if (downgradeType === 2) {
+      return `You will downgrade in <col=ff0000>one day</col>, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+    }
+    if (mode === IronmanMode.HARDCORE || mode === IronmanMode.ULTIMATE) {
+      return `You will downgrade in <col=ff0000>one day</col>, after which you will be a <col=ff0000>standard ${ironman}</col>.${undone}`;
+    }
+    if (mode === IronmanMode.HARDCORE_GROUP) {
+      return `In <col=ff0000>one day</col>, your <col=ff0000>${ModeNames.get(mode)} status</col> will downgrade.${undone}`;
+    }
+    return `You will downgrade in <col=ff0000>one day</col>, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+  }
+
+  if (downgradeType === 3) {
+    return `<col=ff0000>Later today</col>, you will downgrade to <col=ff0000>${unranked}</col>.${undone}`;
+  }
+  if (downgradeType === 2) {
+    return `You will downgrade <col=ff0000>imminently</col>, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+  }
+  if (mode === IronmanMode.HARDCORE || mode === IronmanMode.ULTIMATE) {
+    return `You will downgrade <col=ff0000>imminently</col>, after which you will be a <col=ff0000>standard ${ironman}</col>.${undone}`;
+  }
+  if (mode === IronmanMode.HARDCORE_GROUP) {
+    return `<col=ff0000>Later today</col>, your <col=ff0000>${ModeNames.get(mode)} status</col> will downgrade.${undone}`;
+  }
+  return `You will downgrade <col=ff0000>imminently</col>, after which you will <col=ff0000>no longer be an Ironman</col>.${undone}`;
+}

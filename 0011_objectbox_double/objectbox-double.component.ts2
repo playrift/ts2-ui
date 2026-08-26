@@ -1,4 +1,4 @@
-import { CS2, useState } from 'ts2';
+import { CS2, createRef, useState } from 'ts2';
 
 import { clientClock } from '../lib/lib.engine';
 import { dialogueMayAdvance } from '../lib/lib.dialogue';
@@ -11,6 +11,17 @@ import {
   ObjectBoxFonts,
   ObjectSlot,
 } from './objectbox-double.constants';
+
+const continueLine = createRef('objectbox_continue');
+
+function advanceFeedback(line: ComponentId): void {
+  if (CS2.if_text_get(line).length === 0) {
+    return;
+  }
+  CS2.if_resume_pausebutton(line);
+  line.text = 'Please wait...';
+  line.color = ObjectBoxColor.CONTINUE;
+}
 
 export function ObjectBoxDouble(): Component {
   return (
@@ -47,6 +58,7 @@ export function ObjectBoxDouble(): Component {
       />
 
       <text
+        ref={continueLine}
         x={96}
         y={80}
         w={380}
@@ -81,14 +93,14 @@ export function ObjectBoxAdvance(): Component {
           if (event.keyCode !== AdvanceKey.SPACE) {
             return;
           }
-          CS2.if_resume_pausebutton(event.component);
+          advanceFeedback(continueLine);
           setDeadline(clientClock() + ADVANCE_DEBOUNCE);
         }}
-        onClick={(event) => {
+        onClick={() => {
           if (clientClock() < deadline) {
             return;
           }
-          CS2.if_resume_pausebutton(event.component);
+          advanceFeedback(continueLine);
           setDeadline(clientClock() + ADVANCE_DEBOUNCE);
         }}
       />
@@ -109,7 +121,7 @@ export function ObjectBoxAdvance(): Component {
         if (event.keyCode !== AdvanceKey.SPACE) {
           return;
         }
-        CS2.if_resume_pausebutton(event.component);
+        advanceFeedback(continueLine);
         setDeadline(clientClock() + ADVANCE_DEBOUNCE);
       }}
     />

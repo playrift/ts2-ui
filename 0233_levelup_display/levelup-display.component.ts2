@@ -1,4 +1,4 @@
-import { CS2, useState } from 'ts2';
+import { CS2, createRef, useState } from 'ts2';
 
 import { clientClock } from '../lib/lib.engine';
 import { dialogueMayAdvance } from '../lib/lib.dialogue';
@@ -14,6 +14,17 @@ import {
   SkillModels,
 } from './levelup-display.constants';
 
+const continueLine = createRef('levelup_continue');
+
+function advanceFeedback(line: ComponentId): void {
+  if (CS2.if_text_get(line).length === 0) {
+    return;
+  }
+  CS2.if_resume_pausebutton(line);
+  line.text = 'Please wait...';
+  line.color = LevelUpColor.CONTINUE;
+}
+
 export function LevelUpDisplay(): Component {
   return (
     <>
@@ -22,6 +33,7 @@ export function LevelUpDisplay(): Component {
       <text x={73} y={44} w={390} h={30} font={LevelUpFonts.BODY} color={LevelUpColor.MESSAGE} align="center" />
 
       <text
+        ref={continueLine}
         x={73}
         y={74}
         w={390}
@@ -167,14 +179,14 @@ export function LevelUpAdvance(): Component {
           if (event.keyCode !== AdvanceKey.SPACE) {
             return;
           }
-          CS2.if_resume_pausebutton(event.component);
+          advanceFeedback(continueLine);
           setDeadline(clientClock() + ADVANCE_DEBOUNCE);
         }}
-        onClick={(event) => {
+        onClick={() => {
           if (clientClock() < deadline) {
             return;
           }
-          CS2.if_resume_pausebutton(event.component);
+          advanceFeedback(continueLine);
           setDeadline(clientClock() + ADVANCE_DEBOUNCE);
         }}
       />
@@ -195,7 +207,7 @@ export function LevelUpAdvance(): Component {
         if (event.keyCode !== AdvanceKey.SPACE) {
           return;
         }
-        CS2.if_resume_pausebutton(event.component);
+        advanceFeedback(continueLine);
         setDeadline(clientClock() + ADVANCE_DEBOUNCE);
       }}
     />

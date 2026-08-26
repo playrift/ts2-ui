@@ -1,0 +1,96 @@
+import { CS2, useServerState } from 'ts2';
+import {
+  HonourScale,
+  HonourVarbits,
+  QueenScale,
+  QueenVarbits,
+  RewardThreshold,
+  RewardVarps,
+  RolePointsNeeded,
+  RoleLevels,
+} from './barbassault-reward-shop.constants';
+
+export function attackerPoints(): Int {
+  return useServerState(HonourVarbits.ATT_EXTRA) * HonourScale.EXTRA + useServerState(HonourVarbits.ATT_BASE);
+}
+
+export function defenderPoints(): Int {
+  return useServerState(HonourVarbits.DEF_EXTRA) * HonourScale.EXTRA + useServerState(HonourVarbits.DEF_BASE);
+}
+
+export function healerPoints(): Int {
+  return useServerState(HonourVarbits.HEAL_EXTRA) * HonourScale.EXTRA + useServerState(HonourVarbits.HEAL_BASE);
+}
+
+export function collectorPoints(): Int {
+  return useServerState(HonourVarbits.COL_EXTRA) * HonourScale.EXTRA + useServerState(HonourVarbits.COL_BASE);
+}
+
+export function queenKills(): Int {
+  return (
+    useServerState(QueenVarbits.KILLS_HI) * QueenScale.HI +
+    useServerState(QueenVarbits.KILLS_MID) * QueenScale.MID +
+    useServerState(RewardVarps.QUEEN_KILLS_LO)
+  );
+}
+
+export function rewardUnlocks(coins: Int): Int {
+  const attacker: Int = attackerPoints();
+  const collector: Int = collectorPoints();
+  const defender: Int = defenderPoints();
+  const healer: Int = healerPoints();
+
+  let flags: Int = 0;
+
+  let needed: Int = RolePointsNeeded.at(useServerState(RoleLevels.ATT));
+  if (attacker >= needed && needed > 0) {
+    flags = CS2.bit_set(flags, 0);
+  }
+  needed = RolePointsNeeded.at(useServerState(RoleLevels.COL));
+  if (collector >= needed && needed > 0) {
+    flags = CS2.bit_set(flags, 1);
+  }
+  needed = RolePointsNeeded.at(useServerState(RoleLevels.DEF));
+  if (defender >= needed && needed > 0) {
+    flags = CS2.bit_set(flags, 2);
+  }
+  needed = RolePointsNeeded.at(useServerState(RoleLevels.HEAL));
+  if (healer >= needed && needed > 0) {
+    flags = CS2.bit_set(flags, 3);
+  }
+
+  const worst: Int = Math.min(Math.min(attacker, collector), Math.min(defender, healer));
+  const best: Int = Math.max(Math.max(attacker, collector), Math.max(defender, healer));
+
+  if (worst >= RewardThreshold.MIN_375) {
+    flags = CS2.bit_set(flags, 8);
+    flags = CS2.bit_set(flags, 9);
+  }
+  if (worst >= RewardThreshold.MIN_275) {
+    flags = CS2.bit_set(flags, 4);
+    flags = CS2.bit_set(flags, 5);
+    flags = CS2.bit_set(flags, 6);
+    flags = CS2.bit_set(flags, 7);
+  }
+  if (worst >= RewardThreshold.MIN_150) {
+    flags = CS2.bit_set(flags, 11);
+  }
+  if (worst >= RewardThreshold.MIN_100) {
+    flags = CS2.bit_set(flags, 10);
+  }
+
+  if (best >= RewardThreshold.MAX_500) {
+    flags = CS2.bit_set(flags, 15);
+  }
+  if (best >= RewardThreshold.MAX_400 && useServerState(RewardVarps.GAMBLES) > RewardThreshold.GAMBLES_400) {
+    flags = CS2.bit_set(flags, 14);
+  }
+  if (best >= RewardThreshold.MAX_200 && useServerState(RewardVarps.GAMBLES) > RewardThreshold.GAMBLES_200) {
+    flags = CS2.bit_set(flags, 13);
+  }
+  if (coins >= RewardThreshold.COINS) {
+    flags = CS2.bit_set(flags, 12);
+  }
+
+  return flags;
+}

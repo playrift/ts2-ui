@@ -1,0 +1,124 @@
+import { useRef, useServerState, useSkill, useSkillBase, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { PestRewardsDivider } from '../0645_br_reward_shop/pest-rewards.shared';
+import { PestItemRow } from './pest-item-row.component';
+import { PestSkillRow } from './pest-skill-row.component';
+import {
+  PestBar,
+  PestItemRows,
+  PestLayout,
+  PestLevels,
+  PestSkillRows,
+  PestVarps,
+  Skills,
+  SelectedPestReward,
+} from './pest-rewardshop.constants';
+
+export function PestRewardPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedPestReward);
+
+  const points: Int = useServerState(PestVarps.POINTS);
+
+  const attack: Int = useSkillBase(Skills.ATTACK);
+  const defence: Int = useSkillBase(Skills.DEFENCE);
+  const strength: Int = useSkillBase(Skills.STRENGTH);
+  const hitpoints: Int = useSkillBase(Skills.HITPOINTS);
+  const ranged: Int = useSkillBase(Skills.RANGED);
+  const prayer: Int = useSkillBase(Skills.PRAYER);
+  const magic: Int = useSkillBase(Skills.MAGIC);
+
+  const herblore: Int = useSkill(Skills.HERBLORE);
+  const mining: Int = useSkill(Skills.MINING);
+  const farming: Int = useSkill(Skills.FARMING);
+
+  const paneWidth: Int = universe.width - PestLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - PestLayout.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+
+  const combatMet: Int =
+    hitpoints >= PestLevels.VOID_COMBAT &&
+    attack >= PestLevels.VOID_COMBAT &&
+    defence >= PestLevels.VOID_COMBAT &&
+    strength >= PestLevels.VOID_COMBAT &&
+    ranged >= PestLevels.VOID_COMBAT &&
+    magic >= PestLevels.VOID_COMBAT &&
+    prayer >= PestLevels.VOID_PRAYER
+      ? 1
+      : 0;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={PestLayout.PANE_X}
+        y="center"
+        w={{ fill: PestLayout.PANE_W_INSET }}
+        h={{ fill: PestLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={PestLayout.CONTENT_H >= paneHeight ? PestLayout.CONTENT_H : 0}
+      >
+        {PestSkillRows.map((row) => (
+          <>
+            <PestSkillRow
+              skill={row.skill as Skill}
+              base={row.base}
+              x={row.col === 0 ? 0 : half}
+              y={row.y}
+              cellW={half}
+              level={
+                row.skill === 0
+                  ? attack
+                  : row.skill === 1
+                    ? defence
+                    : row.skill === 2
+                      ? strength
+                      : row.skill === 3
+                        ? hitpoints
+                        : row.skill === 4
+                          ? ranged
+                          : row.skill === 5
+                            ? prayer
+                            : magic
+              }
+              points={points}
+              selected={selected}
+            />
+            {row.divider !== -1 ? <PestRewardsDivider y={row.divider} /> : null}
+          </>
+        ))}
+
+        {PestItemRows.map((row) => (
+          <>
+            <PestItemRow
+              item={row.item as ItemName}
+              index={row.index}
+              x={row.col === 0 ? 0 : half}
+              y={row.y}
+              cellW={half}
+              points={points}
+              selected={selected}
+              combatMet={combatMet}
+              packLevel={row.index === 21 ? herblore : row.index === 22 ? mining : row.index === 23 ? farming : 0}
+            />
+            {row.divider !== -1 ? <PestRewardsDivider y={row.divider} /> : null}
+          </>
+        ))}
+      </layer>
+
+      <layer x={{ right: PestLayout.BAR_X }} y="center" w={PestLayout.BAR_W} h={{ fill: PestLayout.PANE_H_INSET }}>
+        <ScrollbarVertical
+          content={list}
+          track={PestBar.TRACK}
+          capTopSprite={PestBar.CAP_TOP}
+          thumbSprite={PestBar.THUMB}
+          capBottomSprite={PestBar.CAP_BOTTOM}
+          arrowUp={PestBar.ARROW_UP}
+          arrowDown={PestBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,103 @@
+import { useInventory, useState } from 'ts2';
+import { opsound } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  Layout,
+  OPSOUND_MASK,
+  RewardAnims,
+  RewardColor,
+  RewardFonts,
+  RewardInventories,
+  RewardItems,
+  RewardModels,
+} from './agilityarena-rewards.constants';
+import { buyOp, priceCaption } from './agilityarena-rewards.helpers';
+
+export function GracefulPieceButton({
+  label,
+  price,
+  icon = -1,
+  owned = -1,
+}: {
+  label: String;
+  price: Int;
+  icon?: ItemName;
+  owned?: Item;
+}): Component {
+  const backpack = useInventory(RewardInventories.BACKPACK);
+  const tickets: Int = backpack.total(RewardItems.TICKET);
+  const [hovered, setHovered] = useState(0);
+
+  const held: Int =
+    owned !== -1
+      ? backpack.total(owned) > 0
+        ? 1
+        : 0
+      : backpack.total(RewardItems.GRACEFUL_HOOD) > 0 &&
+          backpack.total(RewardItems.GRACEFUL_TOP) > 0 &&
+          backpack.total(RewardItems.GRACEFUL_LEGS) > 0 &&
+          backpack.total(RewardItems.GRACEFUL_CAPE) > 0 &&
+          backpack.total(RewardItems.GRACEFUL_GLOVES) > 0 &&
+          backpack.total(RewardItems.GRACEFUL_BOOTS) > 0
+        ? 1
+        : 0;
+
+  const blocked: Int = tickets < price || held === 0 ? 1 : 0;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[buyOp(price)]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={
+        blocked === 0
+          ? (event) => {
+              opsound(event.option, OPSOUND_MASK);
+            }
+          : undefined
+      }
+    >
+      {blocked === 1 ? <StoneButtonFilled /> : hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      {icon === -1 ? (
+        <model
+          x="center"
+          y={{ bottom: Layout.ICON_BOTTOM }}
+          w={{ fill: Layout.SET_MODEL_INSET_X }}
+          h={{ fill: Layout.SET_MODEL_INSET_Y }}
+          model={RewardModels.MANNEQUIN}
+          offsetY={Layout.SET_MODEL_OFFSET_Y}
+          yaw={Layout.SET_MODEL_YAW}
+          zoom={Layout.SET_MODEL_ZOOM}
+          anim={RewardAnims.READY}
+        />
+      ) : (
+        <model
+          x="center"
+          y={{ bottom: Layout.ICON_BOTTOM }}
+          w={Layout.ICON}
+          h={Layout.ICON}
+          item={icon}
+          itemCount={-1}
+        />
+      )}
+
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={Layout.CAPTION_H}
+        text={priceCaption(label, price)}
+        font={RewardFonts.CAPTION}
+        align="center"
+        valign="bottom"
+        shadow
+        color={blocked === 1 ? RewardColor.BLOCKED : hovered === 1 ? RewardColor.HOVER : RewardColor.REST}
+      />
+    </layer>
+  );
+}

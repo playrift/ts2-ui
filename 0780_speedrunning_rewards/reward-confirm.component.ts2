@@ -1,0 +1,133 @@
+import { useServerState, useState } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { rewardOwned } from './reward-row.shared';
+import { buyReward, cancelConfirm } from './speedrunning-rewards.state';
+import {
+  ConfirmSheetOpen,
+  RewardColor,
+  RewardFonts,
+  RewardFrame,
+  RewardParams,
+  Rewards,
+  SelectedReward,
+  SpeedrunVarps,
+  THOUSANDS,
+} from './speedrunning-rewards.constants';
+
+export function ConfirmSheet(): Component {
+  const [open] = useState(ConfirmSheetOpen);
+  const [selected] = useState(SelectedReward);
+
+  if (open === 0 || selected === -1) {
+    return null;
+  }
+
+  const row: Row = Rewards.at(selected);
+  const name: String = row.text(RewardParams.NAME);
+  const description: String = row.text(RewardParams.DESCRIPTION);
+  const cost: Int = row.int(RewardParams.COST);
+
+  const purchasedBits: Int = useServerState(SpeedrunVarps.PURCHASED);
+  const purchased: Int = rewardOwned(row, purchasedBits);
+
+  return (
+    <layer w="fill" h="fill" noClickThrough>
+      <rect w="fill" h="fill" color={RewardColor.DIM} fill transparency={RewardFrame.DIM_TRANSPARENCY} />
+
+      <layer x="center" y="center" w={RewardFrame.SHEET_W} h={RewardFrame.SHEET_H}>
+        <SteelBorder x="center" y="center" title={name} titleColor={SteelborderColor.TITLE} flags={1} />
+
+        <text
+          x={{ center: RewardFrame.SHEET_TEXT_X }}
+          y={RewardFrame.SHEET_TEXT_Y}
+          w={{ fill: RewardFrame.SHEET_TEXT_W_INSET }}
+          h={RewardFrame.SHEET_TEXT_H}
+          text={
+            purchased === 1
+              ? `<col=ffffff>${name}</col><br>${description}<br><br>You've previously purchased this reward.<br>Do you wish to reclaim it for free?`
+              : `<col=ffffff>${name}</col><br>${description}<br><br>Do you wish to buy this reward for <col=ffffff>${groupDigits(cost, THOUSANDS)}</col> Speedrun Points?<br>You cannot sell it back if you change your mind.`
+          }
+          font={RewardFonts.BODY}
+          color={RewardColor.SHEET_TEXT}
+          shadow
+          align="left"
+          valign="top"
+          lineHeight={RewardFrame.SHEET_LINE_HEIGHT}
+        />
+
+        <SheetConfirmButton />
+
+        <SheetCancelButton />
+      </layer>
+    </layer>
+  );
+}
+
+export function SheetConfirmButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x={{ right: RewardFrame.SHEET_BUTTON_X }}
+      y={{ bottom: RewardFrame.SHEET_BUTTON_BOTTOM }}
+      w={RewardFrame.SHEET_BUTTON_W}
+      h={RewardFrame.SHEET_BUTTON_H}
+      options={['Confirm']}
+      onMouseEnter={() => setHovered(mobile ? 0 : 1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => buyReward()}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Confirm"
+        font={RewardFonts.BODY}
+        color={RewardColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function SheetCancelButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x={RewardFrame.SHEET_BUTTON_X}
+      y={{ bottom: RewardFrame.SHEET_BUTTON_BOTTOM }}
+      w={RewardFrame.SHEET_BUTTON_W}
+      h={RewardFrame.SHEET_BUTTON_H}
+      options={['Cancel']}
+      onMouseEnter={() => setHovered(mobile ? 0 : 1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => cancelConfirm()}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Cancel"
+        font={RewardFonts.BODY}
+        color={RewardColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

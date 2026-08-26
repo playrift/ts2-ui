@@ -1,0 +1,77 @@
+import { CS2, useRef, useState } from 'ts2';
+
+import { chatMessage, itemName, playSound } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { groupDigits } from '../lib/lib.format';
+import {
+  ClanCofferColor,
+  ClanCofferFonts,
+  ClanCofferItems,
+  ClanCofferSounds,
+  ClanCofferText,
+  CofferFade,
+  Layout,
+} from './clans-storage-main.constants';
+
+export function CofferSlot(): Component {
+  const slot = useRef();
+
+  const [coffer] = useState(0);
+  const held: Int = coffer;
+
+  const hasProfile: Boolean = CS2.clanprofile_find();
+  let noProfile: Boolean = true;
+  if (hasProfile) {
+    noProfile = false;
+  }
+
+  const inspect: String = held > 0 ? ClanCofferText.INSPECT_FUNDED : ClanCofferText.INSPECT_EMPTY;
+
+  const examine: String =
+    held > 0 ? `${groupDigits(held, ',')} x ${itemName(ClanCofferItems.COINS)}.` : ClanCofferText.EXAMINE_EMPTY;
+
+  const resting: Int = held > 0 ? CofferFade.FUNDED_REST : CofferFade.EMPTY_REST;
+  const flash: Int = held > 0 ? CofferFade.FUNDED_FLASH : CofferFade.EMPTY_FLASH;
+
+  return (
+    <>
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Layout.NO_DATA_INSET_W }}
+        h="fill"
+        hide={hasProfile}
+        text={ClanCofferText.NO_DATA}
+        font={ClanCofferFonts.LABEL}
+        color={ClanCofferColor.NO_DATA}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        ref={slot}
+        x="center"
+        y="center"
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        hide={noProfile}
+        item={held > 0 ? ClanCofferItems.COINS : ClanCofferItems.COINS_1000}
+        itemCount={held > 0 ? held : -1}
+        outline={1}
+        shadowColor={ClanCofferColor.SLOT_SHADOW}
+        transparency={resting}
+        options={['Inspect', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(ClanCofferItems.COINS)}</col>`}
+        onOptionSelect={(event) => {
+          if (!hasProfile) {
+            return;
+          }
+          playSound(ClanCofferSounds.CLICK);
+          chatMessage(event.option === 1 ? inspect : examine);
+          flashFor(slot, flash, resting);
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,82 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import {
+  cameraZoomBig,
+  cameraZoomBigMax,
+  cameraZoomBigMin,
+  cameraZoomSmall,
+  cameraZoomSmallMax,
+  cameraZoomSmallMin,
+} from '../lib/game/varcs';
+import { FovClamped, MouseZoomDisabled, VIEWPORT_REFERENCE, ZoomSlider } from './oculus.constants';
+
+export function cameraZoom(wheel: Int): void {
+  const mouseDisabled: Int = useServerState(MouseZoomDisabled);
+  const clamped: Int = useServerState(FovClamped);
+  if (mouseDisabled !== 0) {
+    return;
+  }
+  if (clamped !== 0) {
+    return;
+  }
+
+  const step: Int = 0 - wheel * 25;
+  const [small, big] = CS2.viewport_fov_get();
+  cameraDoZoom(small + step, big + step);
+}
+
+export function cameraDoZoom(smallFov: Int, bigFov: Int): void {
+  if (useServerState(FovClamped) !== 0) {
+    return;
+  }
+
+  const [smallMin] = useState(cameraZoomSmallMin);
+  const [smallMax] = useState(cameraZoomSmallMax);
+  const [bigMin] = useState(cameraZoomBigMin);
+  const [bigMax] = useState(cameraZoomBigMax);
+
+  const small: Int = Math.max(smallMin, Math.min(smallFov, smallMax));
+  const big: Int = Math.max(bigMin, Math.min(bigFov, bigMax));
+  CS2.viewport_fov_set(small, big);
+
+  const [viewportWidth, viewportHeight] = CS2.viewport_effective_size_get();
+  let tallness: Int = viewportHeight - VIEWPORT_REFERENCE;
+  if (tallness < 0) {
+    tallness = 0;
+  } else if (tallness > 100) {
+    tallness = 100;
+  }
+  const blended: Int = small + ((big - small) * tallness) / 100;
+  CS2.cam_follow_height_set(25 + (25 * blended) / 256);
+
+  const [, setSmall] = useState(cameraZoomSmall);
+  const [, setBig] = useState(cameraZoomBig);
+  setSmall(small);
+  setBig(big);
+
+  zoomPositionSlider();
+}
+
+export function zoomPositionSlider(): void {
+  const [smallMin] = useState(cameraZoomSmallMin);
+  const [smallMax] = useState(cameraZoomSmallMax);
+  const [bigMin] = useState(cameraZoomBigMin);
+  const [bigMax] = useState(cameraZoomBigMax);
+  const [small] = useState(cameraZoomSmall);
+  const [big] = useState(cameraZoomBig);
+
+  const bigRange: Int = bigMax - bigMin;
+  const smallRange: Int = smallMax - smallMin;
+  if (bigRange === 0 || smallRange === 0) {
+    CS2.if_position_set(0, 0, 0, 0, ZoomSlider.KNOB);
+    return;
+  }
+
+  const travel: Int = CS2.if_width_get(ZoomSlider.TRACK) - CS2.if_width_get(ZoomSlider.KNOB);
+  const [viewportWidth, viewportHeight] = CS2.viewport_effective_size_get();
+  const at: Int =
+    viewportWidth > VIEWPORT_REFERENCE
+      ? ((big - bigMin) * travel) / bigRange
+      : ((small - smallMin) * travel) / smallRange;
+  CS2.if_position_set(at, 0, 0, 0, ZoomSlider.KNOB);
+}

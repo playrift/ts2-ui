@@ -1,0 +1,76 @@
+import { useServerState, useState } from 'ts2';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import {
+  DowngradeBox,
+  IronmanColor,
+  IronmanFonts,
+  IronmanSprites,
+  IronmanVarbits,
+  IronmanVarps,
+} from './ironman-setup.constants';
+
+export function DowngradeOption({ short }: { short: Int }): Component {
+  const permitted: Int = useServerState(IronmanVarbits.DOWNGRADE_PERMITTED);
+  const longWarning: Int = useServerState(IronmanVarps.LONG_WARNING);
+  const [hovered, setHovered] = useState(0);
+  const lit: Int = hovered;
+
+  let radio: Sprite = permitted !== 1 ? IronmanSprites.RADIO_ON : IronmanSprites.RADIO_OFF;
+  let body: String = 'Mode cannot be downgraded unless the character is imported to a Jagex Account, for protection.';
+  let op: String = 'Permanent';
+
+  if (short === 1) {
+    radio = permitted === 1 ? IronmanSprites.RADIO_ON : IronmanSprites.RADIO_OFF;
+    body = 'Mode can be downgraded after a warning period of 7 days.';
+    op = '7 days';
+  } else if (longWarning === 1) {
+    body = 'Mode can be downgraded after a warning period of 90 days.';
+    op = '90 days';
+  } else if (permitted === 2) {
+    body = 'Limited to Unranked GIM, unless the character is imported to a Jagex Account for protection.';
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[op]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+    >
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: 2 }}
+        h={{ fill: 2 }}
+        fill
+        color={IronmanColor.WASH}
+        transparency={lit === 1 ? DowngradeBox.WASH_HOVER : DowngradeBox.WASH_REST}
+      />
+
+      <ThinStoneBox />
+
+      <sprite x={DowngradeBox.RADIO_X} y="center" w={DowngradeBox.RADIO} h={DowngradeBox.RADIO} sprite={radio} />
+
+      <text
+        x={{ right: DowngradeBox.LABEL_RIGHT }}
+        y="center"
+        w={{ fill: DowngradeBox.LABEL_INSET_W }}
+        h="fill"
+        text={body}
+        font={IronmanFonts.BODY}
+        color={IronmanColor.LABEL}
+        align="center"
+        valign="middle"
+        lineHeight={DowngradeBox.LINE_HEIGHT}
+        shadow
+      />
+    </layer>
+  );
+}

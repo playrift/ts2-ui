@@ -1,0 +1,115 @@
+import { useInventory, useRef, useServerState, useUniverse } from 'ts2';
+import { itemName, textLineCount } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { DEFAULT_BLURB, DEFAULT_HEADING, ForestryItems, KIT_ITEM, KIT_ROWS } from './forestry-kit.data';
+import { Bar, ForestryVarbits, Info, KitColor, KitFonts, KitInv, Layout } from './forestry-kit-main.constants';
+
+export function InfoPane(): Component {
+  const universe = useUniverse();
+  const info = useRef();
+  const kit = useInventory(KitInv.KIT);
+  const selectedKey: Int = useServerState(ForestryVarbits.SELECTED_ITEM);
+  const chosen: Int = selectedKey >= 1 && selectedKey <= KIT_ROWS ? 1 : 0;
+  const row = ForestryItems.get(selectedKey);
+
+  const width: Int = universe.width - Layout.pane.contentInsetW;
+  const column: Int = width - Info.PAD * 2;
+
+  let heading: String = DEFAULT_HEADING;
+  let blurb: String = DEFAULT_BLURB;
+  let icon: Item = KIT_ITEM;
+  let owned: Int = 0;
+  if (chosen === 1) {
+    heading = itemName(row.item);
+    blurb = row.blurb;
+    icon = row.item;
+    owned = kit.total(row.item);
+  }
+
+  const headingHeight: Int = textLineCount(heading, column, KitFonts.HEADING) * Info.LINE;
+  const blurbHeight: Int = textLineCount(blurb, column, KitFonts.BODY) * Info.LINE;
+
+  const iconY: Int = Info.PAD + headingHeight + Info.GAP;
+  const countY: Int = iconY + Info.ITEM_H + Info.GAP;
+  const blurbY: Int = countY + (chosen === 1 ? Info.COUNT_ADVANCE : 0);
+  const content: Int = blurbY + blurbHeight + Info.GAP;
+
+  return (
+    <>
+      <layer
+        ref={info}
+        x={Layout.pane.inset}
+        y={Layout.pane.inset}
+        w={{ fill: Layout.pane.contentInsetW }}
+        h={{ fill: Layout.pane.contentInsetH }}
+        scrollHeight={content}
+      >
+        <text
+          x={Info.PAD}
+          y={Info.PAD}
+          w={column}
+          h={headingHeight}
+          text={heading}
+          font={KitFonts.HEADING}
+          color={KitColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={Info.LINE}
+        />
+
+        <sprite
+          x={width / 2 - Info.ITEM_W / 2}
+          y={iconY}
+          w={Info.ITEM_W}
+          h={Info.ITEM_H}
+          item={icon}
+          itemCount={-1}
+          outline={Info.OUTLINE}
+          shadowColor={KitColor.SLOT_SHADOW}
+        />
+
+        {chosen === 1 && (
+          <text
+            x="center"
+            y={countY}
+            w={Info.COUNT_W}
+            h={Info.COUNT_H}
+            text={`${owned}`}
+            font={KitFonts.HEADING}
+            color={KitColor.TEXT}
+            shadow
+            align="center"
+            valign="middle"
+          />
+        )}
+
+        <text
+          x={Info.PAD}
+          y={blurbY}
+          w={column}
+          h={blurbHeight}
+          text={blurb}
+          font={KitFonts.BODY}
+          color={KitColor.TEXT}
+          shadow
+          align="left"
+          valign="top"
+          lineHeight={Info.LINE}
+        />
+      </layer>
+
+      <layer x="right" w={Layout.pane.scrollerW} h="fill">
+        <ScrollbarVertical
+          content={info}
+          track={Bar.TRACK}
+          capTopSprite={Bar.CAP_TOP}
+          thumbSprite={Bar.THUMB}
+          capBottomSprite={Bar.CAP_BOTTOM}
+          arrowUp={Bar.ARROW_UP}
+          arrowDown={Bar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

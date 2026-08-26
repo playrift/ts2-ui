@@ -1,0 +1,135 @@
+import { useRef } from 'ts2';
+import { costPoints } from '../0645_br_reward_shop/pest-rewards.shared';
+import { costPts, refusePestReward, selectPestReward } from './pest-rewardshop.state';
+import {
+  PestColor,
+  PestCombatGated,
+  PestCosts,
+  PestFonts,
+  PestLabels,
+  PestLayout,
+  PestLevels,
+  PestPackSkills,
+  SkillNames,
+} from './pest-rewardshop.constants';
+
+export function PestItemRow({
+  item,
+  index,
+  x,
+  y,
+  cellW,
+  points,
+  selected,
+  combatMet,
+  packLevel,
+}: {
+  item: ItemName;
+  index: Int;
+  x: Int;
+  y: Int;
+  cellW: Int;
+  points: Int;
+  selected: Int;
+  combatMet: Int;
+  packLevel: Int;
+}): Component {
+  const priceLine = useRef();
+
+  const label: String = PestLabels.at(index);
+  const cost: Int = PestCosts.at(index);
+  const packSkill: Skill = PestPackSkills.get(index);
+  const textX: Int = x + PestLayout.TEXT_X;
+  const textW: Int = cellW - PestLayout.TEXT_X;
+
+  const refusal: Int =
+    PestCombatGated.get(index) && combatMet === 0
+      ? 1
+      : packSkill !== -1 && packLevel < PestLevels.TRAINING
+        ? 2
+        : points < cost
+          ? 3
+          : 0;
+
+  const refusalText: String =
+    refusal === 1
+      ? `You need level ${stringOf(PestLevels.VOID_COMBAT)} in Attack, Strength, Defence, Ranged, Magic and Hitpoints, and level ${stringOf(PestLevels.VOID_PRAYER)} Prayer, to purchase that item.`
+      : refusal === 2
+        ? `You need level ${stringOf(PestLevels.TRAINING)} ${SkillNames.get(packSkill)} to purchase that item.`
+        : `You need ${costPoints(cost)} to claim that reward.`;
+
+  const priceRest: Int = selected === index ? PestColor.SELECTED : refusal !== 0 ? PestColor.BLOCKED : PestColor.REST;
+  const priceHover: Int = selected === index ? PestColor.SELECTED : refusal !== 0 ? PestColor.BLOCKED : PestColor.HOVER;
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        w={cellW}
+        h={PestLayout.ROW_H}
+        color={PestColor.HIT}
+        fill
+        transparency={PestLayout.HIT_TRANSPARENCY}
+        options={[label]}
+        onMouseRepeat={() => {
+          priceLine.color = priceHover;
+        }}
+        onMouseLeave={() => {
+          priceLine.color = priceRest;
+        }}
+        onOptionSelect={() => {
+          if (refusal === 0) {
+            selectPestReward(index);
+          } else {
+            refusePestReward(refusalText);
+          }
+        }}
+      />
+
+      <sprite
+        x={x + PestLayout.ICON_X}
+        y={y}
+        w={PestLayout.ICON_W}
+        h={PestLayout.ICON_H}
+        item={item}
+        itemCount={-1}
+        outline={1}
+        shadowColor={PestColor.ICON_SHADOW}
+      />
+
+      <text
+        x={textX}
+        y={y}
+        w={textW}
+        h={PestLayout.ROW_H}
+        text={
+          refusal === 2
+            ? `${label} - requires level ${stringOf(PestLevels.TRAINING)}`
+            : refusal === 3
+              ? `${label} - ${costPoints(cost)}`
+              : label
+        }
+        font={PestFonts.NAME}
+        color={refusal !== 0 ? PestColor.REFUSED : selected === index ? PestColor.SELECTED : PestColor.AVAILABLE}
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      <text
+        ref={priceLine}
+        x={textX}
+        y={y}
+        w={textW}
+        h={PestLayout.ROW_H}
+        text={costPts(cost)}
+        font={PestFonts.PRICE}
+        color={priceRest}
+        shadow
+        align="left"
+        valign="bottom"
+      />
+    </>
+  );
+}

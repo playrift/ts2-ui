@@ -1,0 +1,206 @@
+import { CS2, intArray, useInventory, useServerState, useState } from 'ts2';
+import { itemName, textLineCount } from '../lib/lib.engine';
+import { ccSetTransparency } from '../0612_fossil_volcanic_shop/cc-settrans';
+import { NzoneShopCell } from './nzone-shop-cell.component';
+import { nzoneRewardPrice } from './nzone-rewards.price';
+import { potionDoses } from './nzone-rewards.state';
+import {
+  BENEFITS_BLURB,
+  NzoneActiveTab,
+  NzoneBenefits,
+  NzoneColor,
+  NzoneFonts,
+  NzoneImbueable,
+  NzoneInventories,
+  NzoneLayout,
+  NzoneResources,
+  NzoneTab,
+  NzoneVarbits,
+  UPGRADES_BLURB,
+  UPGRADES_EMPTY,
+} from './nzone-rewards.constants';
+
+export function NzoneRewardsPanes(): Component {
+  const [tab] = useState(NzoneActiveTab);
+
+  return (
+    <>
+      <layer w="fill" h="fill" hide={tab === NzoneTab.RESOURCES ? false : true}>
+        <NzoneResourcesPane />
+      </layer>
+
+      <layer w="fill" h="fill" hide={tab === NzoneTab.UPGRADES ? false : true}>
+        <NzoneUpgradesPane />
+      </layer>
+
+      <layer w="fill" h="fill" hide={tab === NzoneTab.BENEFITS ? false : true}>
+        <NzoneBenefitsPane />
+      </layer>
+    </>
+  );
+}
+
+export function NzoneResourcesPane(): Component {
+  return (
+    <layer w="fill" h="fill">
+      {NzoneResources.map((item, index) => (
+        <NzoneShopCell
+          item={item}
+          x={NzoneLayout.ICON_INSET + (index % NzoneLayout.COLUMNS) * NzoneLayout.COLUMN}
+          y={(index / NzoneLayout.COLUMNS) * NzoneLayout.ROW_PITCH}
+        />
+      ))}
+    </layer>
+  );
+}
+
+export function NzoneBenefitsPane(): Component {
+  const blurbHeight: Int =
+    textLineCount(BENEFITS_BLURB, NzoneLayout.PANE_W, NzoneFonts.BODY) * NzoneLayout.BLURB_LINE + NzoneLayout.BLURB_PAD;
+
+  return (
+    <layer w="fill" h="fill">
+      {NzoneBenefits.map((item, index) => (
+        <>
+          <NzoneShopCell
+            item={item}
+            x={NzoneLayout.ICON_INSET + (index % NzoneLayout.COLUMNS) * NzoneLayout.COLUMN}
+            y={blurbHeight + (index / NzoneLayout.COLUMNS) * NzoneLayout.BENEFIT_PITCH}
+          />
+          <NzonePotionDoses
+            potion={item}
+            x={NzoneLayout.ICON_INSET + (index % NzoneLayout.COLUMNS) * NzoneLayout.COLUMN}
+            y={
+              blurbHeight +
+              (index / NzoneLayout.COLUMNS) * NzoneLayout.BENEFIT_PITCH +
+              NzoneLayout.ICON_H +
+              NzoneLayout.PRICE_H
+            }
+          />
+        </>
+      ))}
+
+      <text
+        x={0}
+        y={0}
+        w={NzoneLayout.PANE_W}
+        h={blurbHeight}
+        text={BENEFITS_BLURB}
+        font={NzoneFonts.BODY}
+        color={NzoneColor.LABEL}
+        shadow
+        align="left"
+        valign="top"
+      />
+    </layer>
+  );
+}
+
+export function NzoneUpgradesPane(): Component {
+  const backpack = useInventory(NzoneInventories.BACKPACK);
+  const slots: Int = backpack.size;
+
+  const blurbHeight: Int =
+    textLineCount(UPGRADES_BLURB, NzoneLayout.PANE_W, NzoneFonts.BODY) * NzoneLayout.BLURB_LINE + NzoneLayout.BLURB_PAD;
+
+  const rank = intArray(28);
+  let shown: Int = 0;
+  let slot: Int = 0;
+  while (slot < slots) {
+    rank[slot] = shown;
+    const held: Item = backpack[slot];
+    if (held !== -1 && NzoneImbueable.get(held) !== -1) {
+      shown = shown + 1;
+    }
+    slot = slot + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {backpack.map(
+        (item, index) =>
+          item !== -1 &&
+          NzoneImbueable.get(item) !== -1 && (
+            <>
+              <sprite
+                x={NzoneLayout.ICON_INSET + (rank[index] % NzoneLayout.COLUMNS) * NzoneLayout.COLUMN}
+                y={blurbHeight + (rank[index] / NzoneLayout.COLUMNS) * NzoneLayout.ROW_PITCH}
+                w={NzoneLayout.ICON_W}
+                h={NzoneLayout.ICON_H}
+                item={item}
+                itemCount={backpack.count(index)}
+                outline={1}
+                shadowColor={NzoneColor.ICON_SHADOW}
+                options={['Imbue', '', '', '', '', '', '', '', '', 'Examine']}
+                optionSubject={`<col=ff9040>${itemName(item)}`}
+                onMouseEnter={(event) => ccSetTransparency(event.component, event.subId, 50)}
+                onMouseLeave={(event) => ccSetTransparency(event.component, event.subId, 0)}
+              />
+              <text
+                x={NzoneLayout.ICON_INSET + (rank[index] % NzoneLayout.COLUMNS) * NzoneLayout.COLUMN}
+                y={blurbHeight + (rank[index] / NzoneLayout.COLUMNS) * NzoneLayout.ROW_PITCH + NzoneLayout.ICON_H}
+                w={NzoneLayout.PRICE_W}
+                h={NzoneLayout.PRICE_H}
+                text={nzoneRewardPrice(item as ItemName)}
+                font={NzoneFonts.SMALL}
+                color={NzoneColor.LABEL}
+                shadow
+                align="center"
+                valign="top"
+              />
+            </>
+          ),
+      )}
+
+      <text
+        x={0}
+        y={0}
+        w={NzoneLayout.PANE_W}
+        h={blurbHeight}
+        text={UPGRADES_BLURB}
+        font={NzoneFonts.BODY}
+        color={NzoneColor.LABEL}
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      {shown <= 0 ? (
+        <text
+          x={0}
+          y={blurbHeight}
+          w={NzoneLayout.PANE_W}
+          h={NzoneLayout.PANE_H - blurbHeight}
+          text={UPGRADES_EMPTY}
+          font={NzoneFonts.BOLD}
+          color={NzoneColor.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+export function NzonePotionDoses({ potion, x, y }: { potion: ItemName; x: Int; y: Int }): Component {
+  const dose1: Int = useServerState(NzoneVarbits.POTION_1);
+  const dose2: Int = useServerState(NzoneVarbits.POTION_2);
+  const dose3: Int = useServerState(NzoneVarbits.POTION_3);
+  const dose4: Int = useServerState(NzoneVarbits.POTION_4);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      w={NzoneLayout.PRICE_W}
+      h={NzoneLayout.DOSE_H}
+      text={potionDoses(potion, dose1, dose2, dose3, dose4)}
+      font={NzoneFonts.BODY}
+      color={NzoneColor.DOSES}
+      shadow
+      align="center"
+      valign="top"
+    />
+  );
+}

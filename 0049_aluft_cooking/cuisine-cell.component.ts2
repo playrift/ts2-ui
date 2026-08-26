@@ -1,0 +1,82 @@
+import { CS2, predictServerState, useRef } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { GnomeColors, GnomeFonts, GnomeVarbits, Grid, LINE_HEIGHT } from './aluft-cooking.constants';
+
+export function CuisineCell({
+  index,
+  name,
+  product,
+  locked,
+  canMake,
+  cuisineId,
+}: {
+  index: Int;
+  name: String;
+  product: Item;
+  locked: Item;
+  canMake: Boolean;
+  cuisineId: Int;
+}): Component {
+  const label = useRef();
+
+  const dx: Int = (index % Grid.COLUMNS) * Grid.CELL_W;
+  const dy: Int = (index / Grid.COLUMNS) * Grid.CELL_H;
+
+  const restColor: Int = canMake ? GnomeColors.GREEN : GnomeColors.GREY;
+
+  return (
+    <>
+      <model
+        x={dx + Grid.ICON_X}
+        y={dy + Grid.ICON_Y}
+        w={Grid.ICON}
+        h={Grid.ICON}
+        item={canMake ? product : locked}
+        itemCount={1}
+        pitch={CS2.cc_model_angle_x_get()}
+        yaw={CS2.cc_model_angle_y_get()}
+        roll={CS2.cc_model_angle_z_get()}
+        zoom={Grid.ICON_ZOOM}
+      />
+
+      <text
+        ref={label}
+        x={dx}
+        y={dy + Grid.LABEL_Y}
+        w={Grid.CELL_W}
+        h={Grid.LABEL_H}
+        text={name}
+        font={GnomeFonts.LABEL}
+        color={restColor}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={LINE_HEIGHT}
+      />
+
+      <rect
+        x={dx + Grid.HIT_INSET}
+        y={dy + Grid.HIT_INSET}
+        w={Grid.HIT_W}
+        h={Grid.HIT_H}
+        fill
+        color={GnomeColors.WHITE}
+        transparency={255}
+        options={[`Select <col=ff9040>${name}`]}
+        onOptionSelect={() => {
+          predictServerState(GnomeVarbits.CHOSEN_CUISINE, cuisineId);
+        }}
+        onMouseRepeat={() => {
+          if (!onMobile()) {
+            label.color = GnomeColors.WHITE;
+          }
+        }}
+        onMouseLeave={() => {
+          if (!onMobile()) {
+            label.color = restColor;
+          }
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,54 @@
+import { CS2, onMounted, useState } from 'ts2';
+
+import { freecamSpeed } from '../lib/game/varcs';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { FreeCam, OculusGate, OculusKey } from './oculus.constants';
+
+export function OculusSpeedKeys(): Component {
+  const [speed, setSpeed] = useState(freecamSpeed);
+
+  onMounted(() => {
+    let normalised: Int = speed;
+    if (normalised > FreeCam.MAX || normalised < FreeCam.MIN) {
+      normalised = FreeCam.DEFAULT;
+      setSpeed(normalised);
+    }
+    CS2.free_cam_speed_set(normalised, FreeCam.SLOWED);
+    CS2.self_render(false);
+  });
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (dialogueMayAdvance(OculusGate.SELF, OculusGate.NO_SUB) === false) {
+          return;
+        }
+        if (event.keyCode === OculusKey.EXIT) {
+          CS2.countdialog_resume('0');
+          return;
+        }
+        if (event.keyCode === OculusKey.RESET) {
+          CS2.countdialog_resume('1');
+          return;
+        }
+        if (event.keyCode === OculusKey.SPEED_UP) {
+          if (speed < FreeCam.MAX) {
+            const faster: Int = Math.min(speed + 1, FreeCam.MAX);
+            setSpeed(faster);
+            CS2.free_cam_speed_set(faster, FreeCam.SLOWED);
+          }
+          return;
+        }
+        if (event.keyCode === OculusKey.SPEED_DOWN) {
+          if (speed > FreeCam.MIN) {
+            const slower: Int = Math.max(speed - 1, FreeCam.MIN);
+            setSpeed(slower);
+            CS2.free_cam_speed_set(slower, FreeCam.SLOWED);
+          }
+        }
+      }}
+    />
+  );
+}

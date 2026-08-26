@@ -1,0 +1,96 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { CombatAchievementTiers, NzoneInventories, NzoneItems, NzoneParams } from './nzone-rewards.constants';
+
+export function caTiersBelowUnlocked(tier: Int): Int {
+  const easy: Int = useServerState(CombatAchievementTiers.EASY);
+  const medium: Int = useServerState(CombatAchievementTiers.MEDIUM);
+  const hard: Int = useServerState(CombatAchievementTiers.HARD);
+  const elite: Int = useServerState(CombatAchievementTiers.ELITE);
+  const master: Int = useServerState(CombatAchievementTiers.MASTER);
+
+  if (tier === 1) {
+    return 1;
+  }
+  if (easy === 0) {
+    return 0;
+  }
+  if (tier === 2) {
+    return 1;
+  }
+  if (medium === 0) {
+    return 0;
+  }
+  if (tier === 3) {
+    return 1;
+  }
+  if (hard === 0) {
+    return 0;
+  }
+  if (tier === 4) {
+    return 1;
+  }
+  if (elite === 0) {
+    return 0;
+  }
+  if (tier === 5) {
+    return 1;
+  }
+  if (master === 0) {
+    return 0;
+  }
+  return 1;
+}
+
+export function caTierComplete(tier: Int): Int {
+  const easy: Int = useServerState(CombatAchievementTiers.EASY);
+  const medium: Int = useServerState(CombatAchievementTiers.MEDIUM);
+  const hard: Int = useServerState(CombatAchievementTiers.HARD);
+  const elite: Int = useServerState(CombatAchievementTiers.ELITE);
+  const master: Int = useServerState(CombatAchievementTiers.MASTER);
+  const grandmaster: Int = useServerState(CombatAchievementTiers.GRANDMASTER);
+
+  if (tier === 1 && easy === 2) {
+    return 1;
+  }
+  if (tier === 2 && medium === 2 && caTiersBelowUnlocked(2) === 1) {
+    return 1;
+  }
+  if (tier === 3 && hard === 2 && caTiersBelowUnlocked(3) === 1) {
+    return 1;
+  }
+  if (tier === 4 && elite === 2 && caTiersBelowUnlocked(4) === 1) {
+    return 1;
+  }
+  if (tier === 5 && master === 2 && caTiersBelowUnlocked(5) === 1) {
+    return 1;
+  }
+  if (tier === 6 && grandmaster === 2 && caTiersBelowUnlocked(6) === 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function nzoneRewardPrice(name: ItemName): String {
+  const stock = useInventory(NzoneInventories.STOCK);
+  const table = useInventory(NzoneInventories.PRICES);
+
+  const uncerted: Item = CS2.item_uncert(name as Item);
+  const listed: Int = stock.total(uncerted);
+  if (listed > 0) {
+    return groupDigits(listed, ',');
+  }
+
+  const base: Int =
+    uncerted === NzoneItems.RING_OF_SUFFERING_R
+      ? 725
+      : slayerHelmVariant(uncerted) === 1
+        ? table.total(NzoneItems.SLAYER_HELMET as Item)
+        : table.total(uncerted);
+  const priced: Int = base * 1000;
+  return groupDigits(caTierComplete(3) === 1 ? priced / 2 : priced, ',');
+}
+
+function slayerHelmVariant(item: Item): Int {
+  return (CS2.item_param(item, NzoneParams.SLAYER_HELM_VARIANT) as unknown as Int) === 1 ? 1 : 0;
+}

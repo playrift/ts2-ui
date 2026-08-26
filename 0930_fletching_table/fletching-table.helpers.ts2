@@ -1,0 +1,175 @@
+import { CS2, useServerState } from 'ts2';
+import {
+  CategoryOrder,
+  CategoryProducts,
+  FavouriteVarps,
+  Layout,
+  Quantity,
+  RecipeGrid,
+  Recipes,
+} from './fletching-table.constants';
+
+export function favouriteAt(index: Int): ItemName {
+  switch (index) {
+    case 0:
+      return useServerState(FavouriteVarps.SLOT_0) as unknown as ItemName;
+    case 1:
+      return useServerState(FavouriteVarps.SLOT_1) as unknown as ItemName;
+    case 2:
+      return useServerState(FavouriteVarps.SLOT_2) as unknown as ItemName;
+    case 3:
+      return useServerState(FavouriteVarps.SLOT_3) as unknown as ItemName;
+    case 4:
+      return useServerState(FavouriteVarps.SLOT_4) as unknown as ItemName;
+    case 5:
+      return useServerState(FavouriteVarps.SLOT_5) as unknown as ItemName;
+    case 6:
+      return useServerState(FavouriteVarps.SLOT_6) as unknown as ItemName;
+    case 7:
+      return useServerState(FavouriteVarps.SLOT_7) as unknown as ItemName;
+  }
+  return -1;
+}
+
+export function favouriteSlotOf(item: ItemName): Int {
+  if (useServerState(FavouriteVarps.SLOT_0) === (item as unknown as Int)) {
+    return 0;
+  }
+  if (useServerState(FavouriteVarps.SLOT_1) === (item as unknown as Int)) {
+    return 1;
+  }
+  if (useServerState(FavouriteVarps.SLOT_2) === (item as unknown as Int)) {
+    return 2;
+  }
+  if (useServerState(FavouriteVarps.SLOT_3) === (item as unknown as Int)) {
+    return 3;
+  }
+  if (useServerState(FavouriteVarps.SLOT_4) === (item as unknown as Int)) {
+    return 4;
+  }
+  if (useServerState(FavouriteVarps.SLOT_5) === (item as unknown as Int)) {
+    return 5;
+  }
+  if (useServerState(FavouriteVarps.SLOT_6) === (item as unknown as Int)) {
+    return 6;
+  }
+  if (useServerState(FavouriteVarps.SLOT_7) === (item as unknown as Int)) {
+    return 7;
+  }
+  return -1;
+}
+
+export function levelDiscount(source: Int): Int {
+  if (source === 1) {
+    return 3;
+  }
+  return 0;
+}
+
+export function recipeLevel(row: DbRow): Int {
+  switch (CS2.db_row_table_get(row)) {
+    case 130:
+      return CS2.db_field_get(row, 532480, 0) as unknown as Int;
+    case 131:
+      return CS2.db_field_get(row, 536576, 0) as unknown as Int;
+    case 132:
+      return CS2.db_field_get(row, 540672, 0) as unknown as Int;
+    case 133:
+      return CS2.db_field_get(row, 544768, 0) as unknown as Int;
+    case 134:
+      return CS2.db_field_get(row, 548864, 0) as unknown as Int;
+    case 135:
+      return CS2.db_field_get(row, 552960, 0) as unknown as Int;
+    case 136:
+      return CS2.db_field_get(row, 557056, 0) as unknown as Int;
+    case 137:
+      return CS2.db_field_get(row, 561152, 0) as unknown as Int;
+    case 138:
+      return CS2.db_field_get(row, 565248, 0) as unknown as Int;
+    case 139:
+      return CS2.db_field_get(row, 569344, 0) as unknown as Int;
+    case 140:
+      return CS2.db_field_get(row, 573440, 0) as unknown as Int;
+    case 141:
+      return CS2.db_field_get(row, 573440, 0) as unknown as Int;
+    case 142:
+      return CS2.db_field_get(row, 581632, 0) as unknown as Int;
+  }
+  return 1;
+}
+
+export function recipeRowOf(item: ItemName): DbRow {
+  return CS2.item_param(item as unknown as Item, 2431) as unknown as DbRow;
+}
+
+export function gridColumns(mobile: Boolean): Int {
+  return Layout.RECIPE_W / (RecipeGrid.LABEL_W + (mobile ? RecipeGrid.PAD_X_MOBILE : RecipeGrid.PAD_X));
+}
+
+export function gridColumnWidth(columns: Int): Int {
+  return Layout.RECIPE_W / columns;
+}
+
+export function productRows(category: Int, columns: Int): Int {
+  if (category === Recipes.FAVOURITES) {
+    let held: Int = 0;
+    let slot: Int = 0;
+    while (slot < Recipes.FAVOURITE_SLOTS) {
+      if (favouriteAt(slot) !== -1) {
+        held = held + 1;
+      }
+      slot = slot + 1;
+    }
+    if (held === 0) {
+      return 1;
+    }
+    return (held + columns - 1) / columns;
+  }
+  const products: List<ItemName> = CategoryProducts.get(category);
+  if ((products as unknown as Int) === -1) {
+    return 0;
+  }
+  if (products.length === 0) {
+    return 1;
+  }
+  return (products.length + columns - 1) / columns;
+}
+
+export function categoryHeadingY(index: Int, columns: Int): Int {
+  let y: Int = RecipeGrid.TOP_PAD;
+  let at: Int = 0;
+  while (at < index) {
+    y =
+      y +
+      RecipeGrid.HEADING_ADVANCE +
+      RecipeGrid.RULE_ADVANCE +
+      productRows(CategoryOrder.at(at), columns) * RecipeGrid.ROW_ADVANCE;
+    at = at + 1;
+  }
+  return y;
+}
+
+export function defaultQuantityOp(quantity: Int): String {
+  if (quantity === Quantity.ALL) {
+    return 'Fletch-All';
+  }
+  if (quantity > 1) {
+    return `Fletch-${stringOf(quantity)}`;
+  }
+  return '';
+}
+
+export function customQuantitySelected(quantity: Int, pending: Int): Boolean {
+  if (pending === 1) {
+    return true;
+  }
+  if (
+    quantity === Quantity.ONE ||
+    quantity === Quantity.FIVE ||
+    quantity === Quantity.TEN ||
+    quantity === Quantity.ALL
+  ) {
+    return false;
+  }
+  return true;
+}

@@ -1,0 +1,376 @@
+import { predictServerState, useRef, useServerState } from 'ts2';
+
+import { chatMessage, playSound, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  ClanHallArt,
+  ClanHallColor,
+  ClanHallFade,
+  ClanHallFonts,
+  ClanHallScrollbar,
+  ClanHallSettings,
+  ClanHallSounds,
+  ClanHallText,
+  ClanHallVarbits,
+  Layout,
+  SettingKind,
+  SettingParams,
+  SettingSlot,
+} from './clans-hall.constants';
+
+export function SettingsList(): Component {
+  const pane = useRef();
+
+  const permitted: Int = useServerState(ClanHallVarbits.EDITING_PERMITTED);
+
+  const homeWorld: Int = useServerState(ClanHallVarbits.HALL_HOMEWORLD);
+  const hallLocked: Int = useServerState(ClanHallVarbits.HALL_LOCKED);
+  const playerCount: Int = useServerState(ClanHallVarbits.HALL_PLAYERCOUNT);
+
+  const first = ClanHallSettings.at(0);
+  const second = ClanHallSettings.at(1);
+  const third = ClanHallSettings.at(2);
+
+  const firstKind: Int = first.int(SettingParams.KIND);
+  const secondKind: Int = second.int(SettingParams.KIND);
+  const thirdKind: Int = third.int(SettingParams.KIND);
+
+  const firstBody: String = first.text(SettingParams.DESCRIPTION);
+  const secondBody: String = second.text(SettingParams.DESCRIPTION);
+  const thirdBody: String = third.text(SettingParams.DESCRIPTION);
+
+  const firstTextW: Int = firstKind !== SettingKind.TOGGLE ? Layout.TEXT_W_FIELD : Layout.TEXT_W_TOGGLE;
+  const secondTextW: Int = secondKind !== SettingKind.TOGGLE ? Layout.TEXT_W_FIELD : Layout.TEXT_W_TOGGLE;
+  const thirdTextW: Int = thirdKind !== SettingKind.TOGGLE ? Layout.TEXT_W_FIELD : Layout.TEXT_W_TOGGLE;
+
+  const firstBodyH: Int = textLineCount(firstBody, firstTextW, ClanHallFonts.BODY) * Layout.LINE_H;
+  const secondBodyH: Int = textLineCount(secondBody, secondTextW, ClanHallFonts.BODY) * Layout.LINE_H;
+  const thirdBodyH: Int = textLineCount(thirdBody, thirdTextW, ClanHallFonts.BODY) * Layout.LINE_H;
+
+  const firstH: Int = firstBodyH + Layout.ROW_PADDING;
+  const secondH: Int = secondBodyH + Layout.ROW_PADDING;
+  const thirdH: Int = thirdBodyH + Layout.ROW_PADDING;
+
+  const firstY: Int = 0;
+  const secondY: Int = firstH;
+  const thirdY: Int = firstH + secondH;
+  const content: Int = firstH + secondH + thirdH;
+
+  const homeWorldRefused: Int = firstKind !== SettingKind.TOGGLE ? 1 : 0;
+  const hallLockedRefused: Int = secondKind !== SettingKind.TOGGLE ? 1 : 0;
+
+  let firstHover: Int = 0;
+  if (firstKind === SettingKind.TOGGLE && permitted === 1) {
+    firstHover = 1;
+  }
+  let secondHover: Int = 0;
+  if (secondKind === SettingKind.TOGGLE && permitted === 1) {
+    secondHover = 1;
+  }
+  let thirdHover: Int = 0;
+  if (thirdKind === SettingKind.TOGGLE && permitted === 1) {
+    thirdHover = 1;
+  }
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={{ right: Layout.LIST_RIGHT }}
+        y="center"
+        w={Layout.LIST_W}
+        h="fill"
+        scrollHeight={content > Layout.LIST_H ? content : 0}
+      >
+        <layer x={{ right: Layout.PANE_RIGHT }} y={0} w={Layout.FIELD_PANE_W} h="fill" />
+
+        <layer x={{ right: Layout.PANE_RIGHT }} y={0} w={{ fill: Layout.TOGGLE_PANE_INSET_W }} h="fill">
+          <SettingToggle
+            setting={SettingSlot.HOME_WORLD}
+            rowTop={firstY}
+            rowHeight={firstH}
+            value={homeWorld}
+            refused={homeWorldRefused}
+            permitted={permitted}
+          />
+          <SettingToggle
+            setting={SettingSlot.LOCK_HALL}
+            rowTop={secondY}
+            rowHeight={secondH}
+            value={hallLocked}
+            refused={hallLockedRefused}
+            permitted={permitted}
+          />
+        </layer>
+
+        <layer x={{ right: Layout.PANE_RIGHT }} y={0} w={Layout.FIELD_PANE_W} h="fill">
+          <SettingNumberField
+            rowTop={thirdY}
+            rowHeight={thirdH}
+            value={playerCount}
+            permitted={permitted}
+            kind={thirdKind}
+          />
+        </layer>
+
+        <SettingRow
+          index={0}
+          rowTop={firstY}
+          rowHeight={firstH}
+          heading={first.text(SettingParams.LABEL)}
+          body={firstBody}
+          bodyHeight={firstBodyH}
+          textWidth={firstTextW}
+          interactive={firstHover}
+        />
+        <SettingRow
+          index={1}
+          rowTop={secondY}
+          rowHeight={secondH}
+          heading={second.text(SettingParams.LABEL)}
+          body={secondBody}
+          bodyHeight={secondBodyH}
+          textWidth={secondTextW}
+          interactive={secondHover}
+        />
+        <SettingRow
+          index={2}
+          rowTop={thirdY}
+          rowHeight={thirdH}
+          heading={third.text(SettingParams.LABEL)}
+          body={thirdBody}
+          bodyHeight={thirdBodyH}
+          textWidth={thirdTextW}
+          interactive={thirdHover}
+        />
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.BAR_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ClanHallScrollbar.TRACK}
+          capTopSprite={ClanHallScrollbar.CAP_TOP}
+          thumbSprite={ClanHallScrollbar.THUMB}
+          capBottomSprite={ClanHallScrollbar.CAP_BOTTOM}
+          arrowUp={ClanHallScrollbar.ARROW_UP}
+          arrowDown={ClanHallScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SettingRow({
+  index,
+  rowTop,
+  rowHeight,
+  heading,
+  body,
+  bodyHeight,
+  textWidth,
+  interactive,
+}: {
+  index: Int;
+  rowTop: Int;
+  rowHeight: Int;
+  heading: String;
+  body: String;
+  bodyHeight: Int;
+  textWidth: Int;
+  interactive: Int;
+}): Component {
+  const strip = useRef();
+
+  const resting: Int = index % 2 === 0 ? ClanHallFade.ROW_EVEN : ClanHallFade.ROW_ODD;
+
+  return (
+    <>
+      <rect
+        ref={strip}
+        x={0}
+        y={rowTop}
+        w="fill"
+        h={rowHeight}
+        fill
+        color={ClanHallColor.ROW}
+        transparency={resting}
+        onMouseRepeat={() => {
+          if (interactive === 1 && !onMobile()) {
+            strip.transparency = ClanHallFade.ROW_HOVER;
+          }
+        }}
+        onMouseLeave={() => {
+          if (interactive === 1 && !onMobile()) {
+            strip.transparency = resting;
+          }
+        }}
+      />
+
+      <text
+        x={Layout.TEXT_X}
+        y={rowTop + Layout.HEADING_DY}
+        w={textWidth}
+        h={Layout.HEADING_H}
+        text={heading}
+        font={ClanHallFonts.HEADING}
+        color={ClanHallColor.HEADING}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={Layout.TEXT_X}
+        y={rowTop + Layout.DESCRIPTION_DY}
+        w={textWidth}
+        h={bodyHeight}
+        text={body}
+        font={ClanHallFonts.BODY}
+        color={ClanHallColor.DESCRIPTION}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function SettingToggle({
+  setting,
+  rowTop,
+  rowHeight,
+  value,
+  refused,
+  permitted,
+}: {
+  setting: Int;
+  rowTop: Int;
+  rowHeight: Int;
+  value: Int;
+  refused: Int;
+  permitted: Int;
+}): Component {
+  const top: Int = rowTop > 0 ? rowTop : 0;
+
+  return (
+    <>
+      <rect
+        x={0}
+        y={top}
+        w="fill"
+        h={rowHeight}
+        fill
+        transparency={ClanHallFade.CLEAR}
+        options={['Toggle']}
+        onOptionSelect={() => {
+          if (refused === 1) {
+            return;
+          }
+          if (permitted === 0) {
+            chatMessage(ClanHallText.REFUSED);
+            return;
+          }
+          playSound(ClanHallSounds.CLICK);
+          if (setting === SettingSlot.HOME_WORLD) {
+            predictServerState(ClanHallVarbits.HALL_HOMEWORLD, value === 0 ? 1 : 0);
+          } else {
+            predictServerState(ClanHallVarbits.HALL_LOCKED, value === 0 ? 1 : 0);
+          }
+        }}
+      />
+
+      <sprite
+        x="right"
+        y={rowTop + rowHeight - (rowHeight / 2 + Layout.TOGGLE_HALF)}
+        w={Layout.TOGGLE}
+        h={Layout.TOGGLE}
+        sprite={value === 1 ? ClanHallArt.TOGGLE_ON : ClanHallArt.TOGGLE_OFF}
+      />
+    </>
+  );
+}
+
+function SettingNumberField({
+  rowTop,
+  rowHeight,
+  value,
+  permitted,
+  kind,
+}: {
+  rowTop: Int;
+  rowHeight: Int;
+  value: Int;
+  permitted: Int;
+  kind: Int;
+}): Component {
+  const plate = useRef();
+
+  const rowBottom: Int = rowTop + rowHeight;
+  const plateY: Int = rowBottom - (rowHeight / 2 + Layout.FIELD_HALF);
+  const innerY: Int = rowBottom - (rowHeight / 2 + Layout.FIELD_INNER_HALF);
+  const textY: Int = rowBottom - (rowHeight / 2 + Layout.FIELD_TEXT_HALF);
+
+  const resting: Int = value !== 0 ? ClanHallFade.FIELD_SET : ClanHallFade.CLEAR;
+
+  return (
+    <>
+      <sprite x="right" y={plateY} w="fill" h={Layout.FIELD_H} sprite={ClanHallArt.FIELD_BACKING} tiling />
+
+      <rect
+        ref={plate}
+        x="right"
+        y={plateY}
+        w="fill"
+        h={Layout.FIELD_H}
+        fill
+        color={ClanHallColor.WHITE}
+        transparency={resting}
+        options={['Select']}
+        onOptionSelect={() => {
+          if (kind !== SettingKind.NUMBER) {
+            return;
+          }
+          if (permitted === 0) {
+            chatMessage(ClanHallText.REFUSED);
+            return;
+          }
+          playSound(ClanHallSounds.CLICK);
+        }}
+        onMouseRepeat={() => {
+          if (permitted === 1 && !onMobile()) {
+            plate.transparency = ClanHallFade.FIELD_HOVER;
+          }
+        }}
+        onMouseLeave={() => {
+          if (permitted === 1 && !onMobile()) {
+            plate.transparency = resting;
+          }
+        }}
+      />
+
+      <rect x="right" y={plateY} w="fill" h={Layout.FIELD_H} color={ClanHallColor.FIELD_EDGE} />
+
+      <rect
+        x={{ right: Layout.FIELD_INNER_RIGHT }}
+        y={innerY}
+        w={{ fill: Layout.FIELD_INNER_INSET_W }}
+        h={Layout.FIELD_INNER_H}
+        color={ClanHallColor.FIELD_INNER}
+      />
+
+      <text
+        x="center"
+        y={textY}
+        w={{ fill: Layout.FIELD_TEXT_INSET_W }}
+        h={Layout.FIELD_TEXT_H}
+        text={stringOf(value)}
+        font={ClanHallFonts.BODY}
+        color={value !== 0 ? ClanHallColor.WHITE : ClanHallColor.GREY}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}

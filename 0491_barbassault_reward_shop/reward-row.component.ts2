@@ -1,0 +1,178 @@
+import { hasBit } from '../lib/lib.engine';
+import { rewardDescription, roleLevelOf, roleWordOf } from './reward-strings';
+import {
+  RewardBonuses,
+  RewardColor,
+  RewardCosts,
+  RewardFonts,
+  RewardLayout,
+  RewardQueenGate,
+  RewardRows,
+  RolePointsNeeded,
+  RoleLevel,
+  RoleModelsAtt,
+  RoleModelsCol,
+  RoleModelsDef,
+  RoleModelsHeal,
+  RoleTitlesAtt,
+  RoleTitlesCol,
+  RoleTitlesDef,
+  RoleTitlesHeal,
+} from './barbassault-reward-shop.constants';
+
+export function RewardRow({
+  row,
+  baseModel,
+  att,
+  col,
+  def,
+  heal,
+  unlocks,
+  queenLine,
+  gambleWord,
+}: {
+  row: Int;
+  baseModel: Model;
+  att: Int;
+  col: Int;
+  def: Int;
+  heal: Int;
+  unlocks: Int;
+  queenLine: String;
+  gambleWord: String;
+}): Component {
+  const step: Int = RewardLayout.ROW_STEP * (row - 1);
+
+  const queen: Boolean = RewardQueenGate.get(row);
+  const level: Int = roleLevelOf(row, att, col, def, heal);
+
+  const title: String =
+    row > RewardRows.LAST_ROLE
+      ? RewardBonuses.get(row)
+      : row === RewardRows.ATTACKER
+        ? RoleTitlesAtt.at(level)
+        : row === RewardRows.COLLECTOR
+          ? RoleTitlesCol.at(level)
+          : row === RewardRows.DEFENDER
+            ? RoleTitlesDef.at(level)
+            : RoleTitlesHeal.at(level);
+
+  const model: Model =
+    row > RewardRows.LAST_ROLE
+      ? baseModel
+      : row === RewardRows.ATTACKER
+        ? RoleModelsAtt.at(level)
+        : row === RewardRows.COLLECTOR
+          ? RoleModelsCol.at(level)
+          : row === RewardRows.DEFENDER
+            ? RoleModelsDef.at(level)
+            : RoleModelsHeal.at(level);
+
+  const plainCost: String =
+    row > RewardRows.LAST_ROLE
+      ? RewardCosts.get(row)
+      : level < RoleLevel.MASTERED
+        ? `${stringOf(RolePointsNeeded.at(level))} ${roleWordOf(row)} points`
+        : ' - Mastered - ';
+
+  const cost: String = hasBit(unlocks, row - 1) ? `<col=00ff00>${plainCost}</col>` : plainCost;
+
+  const description: String = rewardDescription(row, att, col, def, heal, gambleWord);
+
+  return (
+    <>
+      <text
+        x={RewardLayout.TITLE_X}
+        y={RewardLayout.TITLE_Y + step}
+        w={RewardLayout.TITLE_W}
+        h={RewardLayout.TITLE_H}
+        color={RewardColor.LINE}
+        font={RewardFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        text={title}
+      />
+
+      <rect
+        x={RewardLayout.BOX_MID_X}
+        y={RewardLayout.BOX_Y + step}
+        w={RewardLayout.BOX_W}
+        h={RewardLayout.BOX_H}
+        color={RewardColor.OLIVE}
+      />
+
+      {queen ? (
+        <text
+          x={RewardLayout.COST_X}
+          y={RewardLayout.COST_QUEEN_Y + step}
+          w={RewardLayout.COST_W}
+          h={RewardLayout.COST_QUEEN_H}
+          color={RewardColor.COST}
+          font={RewardFonts.BODY}
+          align="center"
+          valign="top"
+          shadow
+          text={cost}
+        />
+      ) : (
+        <text
+          x={RewardLayout.COST_X}
+          y={RewardLayout.COST_Y + step}
+          w={RewardLayout.COST_W}
+          h={RewardLayout.COST_H}
+          color={RewardColor.COST}
+          font={RewardFonts.BODY}
+          align="center"
+          valign="middle"
+          shadow
+          text={cost}
+        />
+      )}
+
+      {queen ? (
+        <text
+          x={RewardLayout.COST_X}
+          y={RewardLayout.COST_QUEEN_Y + RewardLayout.QUEEN_LINE_DY + step}
+          w={RewardLayout.COST_W}
+          h={RewardLayout.QUEEN_LINE_H}
+          font={RewardFonts.BODY}
+          align="center"
+          valign="top"
+          shadow
+          text={queenLine}
+        />
+      ) : null}
+
+      <rect
+        x={RewardLayout.BOX_COST_X}
+        y={RewardLayout.BOX_Y + step}
+        w={RewardLayout.BOX_W}
+        h={RewardLayout.BOX_H}
+        color={RewardColor.OLIVE}
+      />
+
+      <model
+        x={RewardLayout.MODEL_X}
+        y={RewardLayout.MODEL_Y + step}
+        w={RewardLayout.MODEL_W}
+        h={RewardLayout.MODEL_H}
+        model={model}
+        zoom={RewardLayout.MODEL_ZOOM}
+      />
+
+      <text
+        x={RewardLayout.DESC_X}
+        y={RewardLayout.DESC_Y + step}
+        w={RewardLayout.DESC_W}
+        h={RewardLayout.DESC_H}
+        color={RewardColor.LINE}
+        font={RewardFonts.BODY}
+        align="left"
+        valign="top"
+        shadow
+        text={description}
+      />
+    </>
+  );
+}

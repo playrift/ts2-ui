@@ -1,0 +1,133 @@
+import { CS2, predictServerState } from 'ts2';
+import { playSound } from '../lib/lib.engine';
+import { Drag, PouchSounds, PouchTables, PouchVarbits } from './xbows-pouch.constants';
+
+export function boltPouchReturnId(target: ComponentId): Int {
+  if (target === -1) {
+    return -1;
+  }
+  return -1;
+}
+
+export function setPouchEntry(entry: Int, item: Item, count: Int): void {
+  const index: Int = PouchTables.INDEX_OF.get(item);
+  if (entry === 1) {
+    predictServerState(PouchVarbits.SLOT_1, index);
+    predictServerState(PouchVarbits.NUM_1, count);
+  } else if (entry === 2) {
+    predictServerState(PouchVarbits.SLOT_2, index);
+    predictServerState(PouchVarbits.NUM_2, count);
+  } else if (entry === 3) {
+    predictServerState(PouchVarbits.SLOT_3, index);
+    predictServerState(PouchVarbits.NUM_3, count);
+  } else if (entry === 4) {
+    predictServerState(PouchVarbits.SLOT_4, index);
+    predictServerState(PouchVarbits.NUM_4, count);
+  }
+}
+
+export function boltPouchDragComplete(
+  source: Int,
+  sourceItem: Item,
+  sourceCount: Int,
+  target: Int,
+  targetItem: Item,
+  targetCount: Int,
+  heldInBackpack: Int,
+  backpackFree: Int,
+): void {
+  playSound(PouchSounds.CLICK);
+
+  if (target === source) {
+    return;
+  }
+  if (target === -1 || source === -1) {
+    return;
+  }
+
+  const targetIndex: Int = PouchTables.INDEX_OF.get(targetItem);
+  const sourceIndex: Int = PouchTables.INDEX_OF.get(sourceItem);
+
+  let ceiling: Int = Drag.BULK;
+  let moved: Int = 0;
+
+  if (target === 0) {
+    if (targetIndex === 0) {
+      setPouchEntry(target, sourceItem, sourceCount);
+      setPouchEntry(source, -1, 0);
+      return;
+    }
+    if (targetIndex === sourceIndex) {
+      ceiling = Drag.MAX_STACK;
+      if (!CS2.item_stackable(targetItem)) {
+        ceiling = 1;
+      }
+      moved = Math.min(ceiling - targetCount, sourceCount);
+      if (moved <= 0) {
+        return;
+      }
+      setPouchEntry(target, targetItem, targetCount + moved);
+      if (sourceCount - moved <= 0) {
+        setPouchEntry(source, -1, 0);
+      } else {
+        setPouchEntry(source, sourceItem, sourceCount - moved);
+      }
+      return;
+    }
+    if (targetCount > Drag.BULK) {
+      if (heldInBackpack <= 0 && backpackFree > 0) {
+        setPouchEntry(source, -1, 0);
+        setPouchEntry(target, sourceItem, sourceCount);
+        return;
+      }
+      if (CS2.item_stackable(sourceItem) && heldInBackpack > 0 && Drag.MAX_STACK - heldInBackpack >= sourceCount) {
+        setPouchEntry(source, -1, 0);
+        setPouchEntry(target, sourceItem, sourceCount);
+        return;
+      }
+      return;
+    }
+    setPouchEntry(target, sourceItem, sourceCount);
+    setPouchEntry(source, targetItem, targetCount);
+    return;
+  }
+
+  if (source === 0) {
+    if (sourceIndex === 0) {
+      return;
+    }
+    if (targetIndex === 0) {
+      if (sourceCount > Drag.BULK) {
+        return;
+      }
+      setPouchEntry(source, -1, 0);
+      setPouchEntry(target, sourceItem, sourceCount);
+      return;
+    }
+    if (targetIndex === sourceIndex) {
+      if (!CS2.item_stackable(targetItem)) {
+        ceiling = 1;
+      }
+      moved = Math.min(ceiling - targetCount, sourceCount);
+      if (moved <= 0) {
+        return;
+      }
+      setPouchEntry(target, targetItem, targetCount + moved);
+      if (sourceCount - moved <= 0) {
+        setPouchEntry(source, -1, 0);
+      } else {
+        setPouchEntry(source, sourceItem, sourceCount - moved);
+      }
+      return;
+    }
+    if (sourceCount > Drag.BULK) {
+      return;
+    }
+    setPouchEntry(source, targetItem, targetCount);
+    setPouchEntry(target, sourceItem, sourceCount);
+    return;
+  }
+
+  setPouchEntry(source, targetItem, targetCount);
+  setPouchEntry(target, sourceItem, sourceCount);
+}

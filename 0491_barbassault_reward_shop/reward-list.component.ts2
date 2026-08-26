@@ -1,0 +1,95 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+import { textDevice } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { queenKills, rewardUnlocks } from './barbassault-reward-shop.points';
+import { RewardButton } from './reward-button.component';
+import { RewardRow } from './reward-row.component';
+import {
+  Backpack,
+  RewardBar,
+  RewardFrame,
+  RewardItems,
+  RewardLayout,
+  RewardModels,
+  RewardVarps,
+  RoleLevels,
+} from './barbassault-reward-shop.constants';
+
+export function RewardList(): Component {
+  const pane = useRef();
+
+  const att: Int = useServerState(RoleLevels.ATT);
+  const col: Int = useServerState(RoleLevels.COL);
+  const def: Int = useServerState(RoleLevels.DEF);
+  const heal: Int = useServerState(RoleLevels.HEAL);
+
+  const selected: Int = useServerState(RewardVarps.SELECTED);
+
+  const backpack = useInventory(Backpack);
+  const coins: Int = backpack.total(RewardItems.COINS);
+
+  const unlocks: Int = rewardUnlocks(coins);
+  const kills: Int = queenKills();
+
+  const gambleWord: String = textDevice('Gamble points', 'Lucky Dip');
+
+  const queenLine: String =
+    kills > 0
+      ? `<col=00ff00>Kill Queen (${stringOf(kills)})</col>`
+      : `<col=cc0000>Kill Queen (${stringOf(kills)})</col>`;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={RewardFrame.PANE_X}
+        y={RewardFrame.PANE_Y}
+        w={RewardFrame.PANE_W}
+        h={RewardFrame.PANE_H}
+        scrollHeight={RewardLayout.CONTENT_H}
+      >
+        <layer w={RewardFrame.BUTTONS_W} h="fill">
+          {RewardModels.map((model, row) => (
+            <RewardButton
+              row={row}
+              att={att}
+              col={col}
+              def={def}
+              heal={heal}
+              selected={selected}
+              unlocks={unlocks}
+              kills={kills}
+              gambleWord={gambleWord}
+            />
+          ))}
+        </layer>
+
+        {RewardModels.map((model, row) => (
+          <RewardRow
+            row={row}
+            baseModel={model}
+            att={att}
+            col={col}
+            def={def}
+            heal={heal}
+            unlocks={unlocks}
+            queenLine={queenLine}
+            gambleWord={gambleWord}
+          />
+        ))}
+      </layer>
+
+      <layer x={RewardFrame.BAR_X} y={RewardFrame.BAR_Y} w={RewardFrame.BAR_W} h={RewardFrame.BAR_H}>
+        <ScrollbarVertical
+          content={pane}
+          track={RewardBar.TRACK}
+          capTopSprite={RewardBar.CAP_TOP}
+          thumbSprite={RewardBar.THUMB}
+          capBottomSprite={RewardBar.CAP_BOTTOM}
+          arrowUp={RewardBar.ARROW_UP}
+          arrowDown={RewardBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
