@@ -27,6 +27,13 @@ Every preview comes in a pair — `_preview.png` and `_preview.mobile.png` — b
 ### `<id>_<name>/` — one folder per user interface
 
 Every folder is named for the user interface id it recreates, then that UI's name.
+
+One folder carries a revision as well — `0647-235_canoe_map`. The game moved from
+revision 235 to 237 and interface 647 changed identity: it was the canoe
+destination chooser and is now a talent tree, while the canoe map moved to 952
+and 953 and split by location. The port is kept as a worked example and its id is
+marked with the revision it was true for, so that plain `0647` is free for
+whatever 647 is now.
 Each picture below is that folder's `_preview.png`, rendered from the ts2 source
 next to it; the picture and the name both link into the folder. Two to a row,
 because the folder name under each picture is what sets the column width — the
@@ -116,7 +123,7 @@ images do.
 | <a href="0625_message-scroll/"><img src="0625_message-scroll/_preview.png" width="380" alt="0625_message-scroll"></a><br><a href="0625_message-scroll/"><code>0625_message-scroll</code></a> | <a href="0628_pest_scores/"><img src="0628_pest_scores/_preview.png" width="380" alt="0628_pest_scores"></a><br><a href="0628_pest_scores/"><code>0628_pest_scores</code></a> |
 | <a href="0631_seed-vault/"><img src="0631_seed-vault/_preview.png" width="380" alt="0631_seed-vault"></a><br><a href="0631_seed-vault/"><code>0631_seed-vault</code></a> | <a href="0632_hallowed_tool_side/"><img src="0632_hallowed_tool_side/_preview.png" width="380" alt="0632_hallowed_tool_side"></a><br><a href="0632_hallowed_tool_side/"><code>0632_hallowed_tool_side</code></a> |
 | <a href="0635_lighttemple_pillar/"><img src="0635_lighttemple_pillar/_preview.png" width="380" alt="0635_lighttemple_pillar"></a><br><a href="0635_lighttemple_pillar/"><code>0635_lighttemple_pillar</code></a> | <a href="0640_gauntlet_recipes/"><img src="0640_gauntlet_recipes/_preview.png" width="380" alt="0640_gauntlet_recipes"></a><br><a href="0640_gauntlet_recipes/"><code>0640_gauntlet_recipes</code></a> |
-| <a href="0645_br_reward_shop/"><img src="0645_br_reward_shop/_preview.png" width="380" alt="0645_br_reward_shop"></a><br><a href="0645_br_reward_shop/"><code>0645_br_reward_shop</code></a> | <a href="0647_canoe_map/"><img src="0647_canoe_map/_preview.png" width="380" alt="0647_canoe_map"></a><br><a href="0647_canoe_map/"><code>0647_canoe_map</code></a> |
+| <a href="0645_br_reward_shop/"><img src="0645_br_reward_shop/_preview.png" width="380" alt="0645_br_reward_shop"></a><br><a href="0645_br_reward_shop/"><code>0645_br_reward_shop</code></a> | <a href="0647-235_canoe_map/"><img src="0647-235_canoe_map/_preview.png" width="380" alt="0647-235_canoe_map"></a><br><a href="0647-235_canoe_map/"><code>0647-235_canoe_map</code></a> |
 | <a href="0648_target_streaks/"><img src="0648_target_streaks/_preview.png" width="380" alt="0648_target_streaks"></a><br><a href="0648_target_streaks/"><code>0648_target_streaks</code></a> | <a href="0652_league_skillcapes_shop/"><img src="0652_league_skillcapes_shop/_preview.png" width="380" alt="0652_league_skillcapes_shop"></a><br><a href="0652_league_skillcapes_shop/"><code>0652_league_skillcapes_shop</code></a> |
 | <a href="0661_ii_elnock_storage/"><img src="0661_ii_elnock_storage/_preview.png" width="380" alt="0661_ii_elnock_storage"></a><br><a href="0661_ii_elnock_storage/"><code>0661_ii_elnock_storage</code></a> | <a href="0665_myq5_tomb_puzzle/"><img src="0665_myq5_tomb_puzzle/_preview.png" width="380" alt="0665_myq5_tomb_puzzle"></a><br><a href="0665_myq5_tomb_puzzle/"><code>0665_myq5_tomb_puzzle</code></a> |
 | <a href="0666_hallowed_tools/"><img src="0666_hallowed_tools/_preview.png" width="380" alt="0666_hallowed_tools"></a><br><a href="0666_hallowed_tools/"><code>0666_hallowed_tools</code></a> | <a href="0670_death_coffer/"><img src="0670_death_coffer/_preview.png" width="380" alt="0670_death_coffer"></a><br><a href="0670_death_coffer/"><code>0670_death_coffer</code></a> |
