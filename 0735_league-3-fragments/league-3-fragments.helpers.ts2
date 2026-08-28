@@ -2,12 +2,10 @@ import type { FragmentSetsRow } from './fragment-sets.data';
 import { useServerState } from 'ts2';
 import {
   FragmentLoadoutVarbits,
-  FragmentParams,
   Fragments,
-  FragmentSetParams,
   FragmentSets,
   FragmentXpVarbits,
-  LeagueThemeParams,
+  LeagueColour,
   LeagueThemes,
   LoadoutVarbits,
   LoadoutVarps,
@@ -138,7 +136,11 @@ export function equippedInLoadout(fragmentId: Int): Boolean {
 }
 
 export function leagueColour(league: Int): Int {
-  return LeagueThemes.get(league).colour;
+  const theme = LeagueThemes.get(league);
+  if (theme === null) {
+    return LeagueColour.DEFAULT;
+  }
+  return theme.colour;
 }
 
 export function leaguesEnabled(): Boolean {
@@ -178,6 +180,9 @@ function slotInSet(slot: Int, set: Int): Int {
     return 0;
   }
   const row = Fragments.get(fragment);
+  if (row === null) {
+    return 0;
+  }
   let members: Int = 0;
   if (row.setA === set) {
     members = members + 1;
@@ -208,13 +213,22 @@ export function setMembers(set: Int): Int {
 
 export function setActive(fragmentId: Int): Boolean {
   const row = Fragments.get(fragmentId);
+  if (row === null) {
+    return false;
+  }
   const first: Int = row.setA;
-  if (setMembers(first) >= FragmentSets.get(first).threshold) {
-    return true;
+  const firstSet = FragmentSets.get(first);
+  if (firstSet !== null) {
+    if (setMembers(first) >= firstSet.threshold) {
+      return true;
+    }
   }
   const second: Int = row.setB;
-  if (setMembers(second) >= FragmentSets.get(second).threshold) {
-    return true;
+  const secondSet = FragmentSets.get(second);
+  if (secondSet !== null) {
+    if (setMembers(second) >= secondSet.threshold) {
+      return true;
+    }
   }
   return false;
 }
@@ -242,10 +256,23 @@ export function fragmentTier(fragmentId: Int): Int {
 
 export function fragmentEffect(fragmentId: Int): String {
   const row = Fragments.get(fragmentId);
+  if (row === null) return '';
   const tier: Int = fragmentTier(fragmentId);
   if (tier === 3) return row.effect3;
   if (tier === 2) return row.effect2;
   return row.effect1;
+}
+
+export function fragmentName(fragmentId: Int): String {
+  const row = Fragments.get(fragmentId);
+  if (row === null) return '';
+  return row.name;
+}
+
+export function fragmentIcon(fragmentId: Int): Int {
+  const row = Fragments.get(fragmentId);
+  if (row === null) return -1;
+  return row.icon;
 }
 
 export function setLineHeight(text: String, font: Font, width: Int): Int {

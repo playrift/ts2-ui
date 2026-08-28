@@ -1,8 +1,9 @@
+import type { ActionsRow } from './actions.data';
 import { predictServerState, useServerState, useState } from 'ts2';
 import { chatMessage } from '../lib/lib.engine';
 import { osmHotkeySettingsInfoExpandIndex } from '../lib/game/varcs';
 import { draggingAction, draggingMouseX, draggingMouseY } from './hotkey-settings-new.state';
-import { ActionParams, HotkeyVarbits, LogoutAction, TUTORIAL_DONE } from './hotkey-settings-new.constants';
+import { Actions, HotkeyVarbits, LOGOUT_ACTION, TUTORIAL_DONE } from './hotkey-settings-new.constants';
 
 export function hotkeyAt(loadout: Int, slot: Int): Int {
   switch (loadout) {
@@ -147,31 +148,45 @@ export function setHotkeyAt(loadout: Int, slot: Int, action: Int): void {
   }
 }
 
-export function hotkeyLocked(action: Row, direction: Int, tutorial: Int, tutorial2: Int): Boolean {
-  if (action === -1) {
+export function hotkeyLocked(actionId: Int, direction: Int, tutorial: Int, tutorial2: Int): Boolean {
+  const action: ActionsRow | null = Actions.at(actionId - 1);
+  if (action === null) {
     return false;
   }
   if (tutorial < TUTORIAL_DONE && tutorial2 < TUTORIAL_DONE) {
-    if (action === LogoutAction.STRUCT && direction === 0) {
+    if (action === Actions.at(LOGOUT_ACTION) && direction === 0) {
       return true;
     }
-    if (action.int(ActionParams.TUTORIAL_LOCKED) === 1) {
+    if (action.tutorialLocked === 1) {
       return true;
     }
   }
   return false;
 }
 
-export function assignHotkey(action: Row, loadout: Int, slot: Int, current: Row, tutorial: Int, tutorial2: Int): void {
-  if (hotkeyLocked(current, 0, tutorial, tutorial2)) {
-    chatMessage(`You cannot remove the ${current.text(ActionParams.NAME)} hotkey right now`);
+export function assignHotkey(
+  actionId: Int,
+  loadout: Int,
+  slot: Int,
+  currentId: Int,
+  tutorial: Int,
+  tutorial2: Int,
+): void {
+  if (hotkeyLocked(currentId, 0, tutorial, tutorial2)) {
+    const current: ActionsRow | null = Actions.at(currentId - 1);
+    if (current !== null) {
+      chatMessage(`You cannot remove the ${current.name} hotkey right now`);
+    }
     return;
   }
-  if (hotkeyLocked(action, 1, tutorial, tutorial2)) {
-    chatMessage(`You cannot assign the ${action.text(ActionParams.NAME)} hotkey right now`);
+  if (hotkeyLocked(actionId, 1, tutorial, tutorial2)) {
+    const dragged: ActionsRow | null = Actions.at(actionId - 1);
+    if (dragged !== null) {
+      chatMessage(`You cannot assign the ${dragged.name} hotkey right now`);
+    }
     return;
   }
-  setHotkeyAt(loadout, slot, action.int(ActionParams.ACTION_ID));
+  setHotkeyAt(loadout, slot, actionId);
 }
 
 export function toggleInfoExpand(rawIndex: Int, expanded: Int): void {
@@ -204,8 +219,8 @@ export function slotClearHidden(filled: Int, missing: Int): Boolean {
   return false;
 }
 
-export function dragIdle(action: Row): Boolean {
-  if (action === -1) {
+export function dragIdle(row: ActionsRow | null): Boolean {
+  if (row === null) {
     return true;
   }
   return false;

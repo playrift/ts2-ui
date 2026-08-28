@@ -1,21 +1,24 @@
 import { useServerState } from 'ts2';
 
 import { scaled } from '../lib/lib.engine';
-import { Leagues, RankColors, RankLayout, RankParams, RankRows, RankVarbits, RankVarps } from './league-rank.constants';
-import { markerAt, nextRankThreshold } from './league-rank.helpers';
+import { League, RankColors, RankLayout, RankRows, RankVarbits, RankVarps } from './league-rank.constants';
+import { Leagues, type LeagueStyle } from './leagues.data';
+import { leagueLadder, markerAt, nextRankThreshold } from './league-rank.helpers';
 
 export function RankProgressBar(): Component {
   const league: Int = useServerState(RankVarbits.LEAGUE);
   const points: Int = useServerState(RankVarps.POINTS);
 
-  const style: Row = Leagues.get(league);
-  const ladder: Int = style.int(RankParams.THRESHOLDS);
-
-  if (ladder === -1) {
+  const style: LeagueStyle | null = Leagues.get(league as League);
+  if (style === null) {
     return null;
   }
 
-  const thresholds: List<Int> = ladder as unknown as List<Int>;
+  if (style.thresholds === -1) {
+    return null;
+  }
+
+  const thresholds: List<Int> = leagueLadder(league) as unknown as List<Int>;
 
   const top: Int = thresholds.at(6);
   const span: Int = RankLayout.BAR_SPAN;
@@ -34,23 +37,16 @@ export function RankProgressBar(): Component {
     <>
       <rect x={2} y={2} w={{ fill: 4 }} h={RankLayout.BAR_OUTLINE_H} color={RankColors.BAR_OUTLINE} />
 
-      <sprite
-        x={3}
-        y={3}
-        w={{ fill: 6 }}
-        h={RankLayout.BAR_TRACK_H}
-        sprite={style.sprite(RankParams.BAR_TRACK)}
-        tiling
-      />
-      <sprite x={3} y={3} w={barWidth} h={RankLayout.BAR_TRACK_H} sprite={style.sprite(RankParams.BAR_FILL)} tiling />
+      <sprite x={3} y={3} w={{ fill: 6 }} h={RankLayout.BAR_TRACK_H} sprite={style.barTrack} tiling />
+      <sprite x={3} y={3} w={barWidth} h={RankLayout.BAR_TRACK_H} sprite={style.barFill} tiling />
 
       {RankRows.map((row) => (
         <sprite
-          x={markerAt(thresholds.at(row), top, span) - 4}
+          x={markerAt(thresholds.at(row) ?? 0, top, span) - 4}
           y={1}
           w={RankLayout.MARKER_W}
           h={RankLayout.MARKER_H}
-          sprite={style.sprite(RankParams.MARKER)}
+          sprite={style.marker}
         />
       ))}
 
@@ -61,9 +57,9 @@ export function RankProgressBar(): Component {
         h={{ fill: 2 }}
         align="center"
         valign="middle"
-        font={style.int(RankParams.FONT) as Font}
-        shadow={style.int(RankParams.SHADOW) === 1 ? true : false}
-        color={style.int(RankParams.TEXT_COLOUR)}
+        font={style.font as Font}
+        shadow={style.shadow}
+        color={style.textColour}
         text={caption}
       />
 

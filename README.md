@@ -1,6 +1,6 @@
 # ts2 examples
 
-**ts2** is a small, statically typed, declarative language with inline templating, flavoured like React and TypeScript. You describe what a user interface looks like, what happens when state changes and events are fired, and the rest happens automatically.
+**ts2** is a small, statically typed, declarative language with inline templating, flavoured like React and TypeScript. You describe what a user interface looks like, what happens when state changes and events are fired, and the rest is taken care of by the compiler. 
 
 📖 **Documentation: <https://playrift.co/docs/ts2/>**
 
@@ -19,26 +19,16 @@ export function ThinBox({ children }: { children?: Children }): Component {
 ```
 
 ts2 grew out of [Rift](https://playrift.co), and this repository is a set of worked
-examples demonstrating the language and providing references for what idiomatic ts2 looks like. Every UI is a **recreation of a user interface from 235 era osrs**, rebuilt in ts2. Where a folder has a `_preview.png`, that picture is a render of the compiled ts2 source at runtime.
+examples demonstrating the language and providing references for what idiomatic ts2 looks like. Every UI is a **recreation of a user interface from 237 era osrs**, rebuilt in ts2. Where a folder has a `_preview.png`, that picture is a render of the compiled ts2 source at runtime.
 Every preview comes in a pair — `_preview.png` and `_preview.mobile.png` — because each UI is built once and rendered on both the desktop and the mobile client.
 
-## Folders
+## Examples
 
 ### `<id>_<name>/` — one folder per user interface
 
 Every folder is named for the user interface id it recreates, then that UI's name.
 
-One folder carries a revision as well — `0647-235_canoe_map`. The game moved from
-revision 235 to 237 and interface 647 changed identity: it was the canoe
-destination chooser and is now a talent tree, while the canoe map moved to 952
-and 953 and split by location. The port is kept as a worked example and its id is
-marked with the revision it was true for, so that plain `0647` is free for
-whatever 647 is now.
-Each picture below is that folder's `_preview.png`, rendered from the ts2 source
-next to it; the picture and the name both link into the folder. Two to a row,
-because the folder name under each picture is what sets the column width — the
-longest is 35 characters — and three of those overflow the page before the
-images do.
+If the UI belongs to a non-237 era revision the id is prefixed with the revision i.e. `0001-220_name` where `220` is the revision.
 
 | | |
 |:-:|:-:|
@@ -90,7 +80,7 @@ images do.
 | <a href="0321_swamp_boatjourney/"><img src="0321_swamp_boatjourney/_preview.png" width="380" alt="0321_swamp_boatjourney"></a><br><a href="0321_swamp_boatjourney/"><code>0321_swamp_boatjourney</code></a> | <a href="0322_light_puzzle/"><img src="0322_light_puzzle/_preview.png" width="380" alt="0322_light_puzzle"></a><br><a href="0322_light_puzzle/"><code>0322_light_puzzle</code></a> |
 | <a href="0323_tai_bwo_wannai_post/"><img src="0323_tai_bwo_wannai_post/_preview.png" width="380" alt="0323_tai_bwo_wannai_post"></a><br><a href="0323_tai_bwo_wannai_post/"><code>0323_tai_bwo_wannai_post</code></a> | <a href="0332_thormac/"><img src="0332_thormac/_preview.png" width="380" alt="0332_thormac"></a><br><a href="0332_thormac/"><code>0332_thormac</code></a> |
 | <a href="0334_tradeconfirm/"><img src="0334_tradeconfirm/_preview.png" width="380" alt="0334_tradeconfirm"></a><br><a href="0334_tradeconfirm/"><code>0334_tradeconfirm</code></a> | <a href="0367_trawler_reward/"><img src="0367_trawler_reward/_preview.png" width="380" alt="0367_trawler_reward"></a><br><a href="0367_trawler_reward/"><code>0367_trawler_reward</code></a> |
-| <a href="0370_house-options/"><img src="0370_house-options/_preview.png" width="380" alt="0370_house-options"></a><br><a href="0370_house-options/"><code>0370_house-options</code></a> | <a href="0371_wom-recycling/"><img src="0371_wom-recycling/_preview.png" width="380" alt="0371_wom-recycling"></a><br><a href="0371_wom-recycling/"><code>0371_wom-recycling</code></a> |
+| <a href="0370_house-options/"><img src="0370_house-options/_preview.png" width="380" alt="0370_house-options"></a><br><a href="0370_house-options/"><code>0370_house-options</code></a> | <a href="0371_wom-recycling/"><img src="0371_wom-recycling/_preview.members-tab0.png" width="380" alt="0371_wom-recycling"></a><br><a href="0371_wom-recycling/"><code>0371_wom-recycling</code></a> |
 | <a href="0386_wom_telescope/"><img src="0386_wom_telescope/_preview.png" width="380" alt="0386_wom_telescope"></a><br><a href="0386_wom_telescope/"><code>0386_wom_telescope</code></a> | <a href="0387_equipment/"><img src="0387_equipment/_preview.png" width="380" alt="0387_equipment"></a><br><a href="0387_equipment/"><code>0387_equipment</code></a> |
 | <a href="0388_br_reward/"><img src="0388_br_reward/_preview.png" width="380" alt="0388_br_reward"></a><br><a href="0388_br_reward/"><code>0388_br_reward</code></a> | <a href="0397_poh_furniture_creation_menu/"><img src="0397_poh_furniture_creation_menu/_preview.png" width="380" alt="0397_poh_furniture_creation_menu"></a><br><a href="0397_poh_furniture_creation_menu/"><code>0397_poh_furniture_creation_menu</code></a> |
 | <a href="0405_tob_midway_stores/"><img src="0405_tob_midway_stores/_preview.png" width="380" alt="0405_tob_midway_stores"></a><br><a href="0405_tob_midway_stores/"><code>0405_tob_midway_stores</code></a> | <a href="0411_warguild_defence_mini/"><img src="0411_warguild_defence_mini/_preview.png" width="380" alt="0411_warguild_defence_mini"></a><br><a href="0411_warguild_defence_mini/"><code>0411_warguild_defence_mini</code></a> |
@@ -151,7 +141,7 @@ images do.
 | <a href="0798_tgod_garden_4_recycling_diagram/"><img src="0798_tgod_garden_4_recycling_diagram/_preview.png" width="380" alt="0798_tgod_garden_4_recycling_diagram"></a><br><a href="0798_tgod_garden_4_recycling_diagram/"><code>0798_tgod_garden_4_recycling_diagram</code></a> | <a href="0799_tgod_garden_4_creature_diagram/"><img src="0799_tgod_garden_4_creature_diagram/_preview.png" width="380" alt="0799_tgod_garden_4_creature_diagram"></a><br><a href="0799_tgod_garden_4_creature_diagram/"><code>0799_tgod_garden_4_creature_diagram</code></a> |
 | <a href="0800_tgod_garden_2_forest_map/"><img src="0800_tgod_garden_2_forest_map/_preview.png" width="380" alt="0800_tgod_garden_2_forest_map"></a><br><a href="0800_tgod_garden_2_forest_map/"><code>0800_tgod_garden_2_forest_map</code></a> | <a href="0802_tgod_garden_3_package_diagram/"><img src="0802_tgod_garden_3_package_diagram/_preview.png" width="380" alt="0802_tgod_garden_3_package_diagram"></a><br><a href="0802_tgod_garden_3_package_diagram/"><code>0802_tgod_garden_3_package_diagram</code></a> |
 | <a href="0803_tgod_garden_1_plant_diagram/"><img src="0803_tgod_garden_1_plant_diagram/_preview.png" width="380" alt="0803_tgod_garden_1_plant_diagram"></a><br><a href="0803_tgod_garden_1_plant_diagram/"><code>0803_tgod_garden_1_plant_diagram</code></a> | <a href="0805_membership_benefits_prompt_hop/"><img src="0805_membership_benefits_prompt_hop/_preview.png" width="380" alt="0805_membership_benefits_prompt_hop"></a><br><a href="0805_membership_benefits_prompt_hop/"><code>0805_membership_benefits_prompt_hop</code></a> |
-| <a href="0809_combination_lock/"><img src="0809_combination_lock/_preview.png" width="380" alt="0809_combination_lock"></a><br><a href="0809_combination_lock/"><code>0809_combination_lock</code></a> | <a href="0811_lockpicking/"><img src="0811_lockpicking/_preview.png" width="380" alt="0811_lockpicking"></a><br><a href="0811_lockpicking/"><code>0811_lockpicking</code></a> |
+| <a href="0809_combination_lock/"><img src="0809_combination_lock/_preview.set.png" width="380" alt="0809_combination_lock"></a><br><a href="0809_combination_lock/"><code>0809_combination_lock</code></a> | <a href="0811_lockpicking/"><img src="0811_lockpicking/_preview.picked.png" width="380" alt="0811_lockpicking"></a><br><a href="0811_lockpicking/"><code>0811_lockpicking</code></a> |
 | <a href="0815_sotn_crest/"><img src="0815_sotn_crest/_preview.png" width="380" alt="0815_sotn_crest"></a><br><a href="0815_sotn_crest/"><code>0815_sotn_crest</code></a> | <a href="0823_forestry_kit_main/"><img src="0823_forestry_kit_main/_preview.png" width="380" alt="0823_forestry_kit_main"></a><br><a href="0823_forestry_kit_main/"><code>0823_forestry_kit_main</code></a> |
 | <a href="0838_dt2_warmind_puzzle/"><img src="0838_dt2_warmind_puzzle/_preview.png" width="380" alt="0838_dt2_warmind_puzzle"></a><br><a href="0838_dt2_warmind_puzzle/"><code>0838_dt2_warmind_puzzle</code></a> | <a href="0839_dt2_smokeoverlay/"><img src="0839_dt2_smokeoverlay/_preview.png" width="380" alt="0839_dt2_smokeoverlay"></a><br><a href="0839_dt2_smokeoverlay/"><code>0839_dt2_smokeoverlay</code></a> |
 | <a href="0842_dt2_scar_underwater/"><img src="0842_dt2_scar_underwater/_preview.png" width="380" alt="0842_dt2_scar_underwater"></a><br><a href="0842_dt2_scar_underwater/"><code>0842_dt2_scar_underwater</code></a> | <a href="0843_dt2_scar_darkness_medium/"><img src="0843_dt2_scar_darkness_medium/_preview.png" width="380" alt="0843_dt2_scar_darkness_medium"></a><br><a href="0843_dt2_scar_darkness_medium/"><code>0843_dt2_scar_darkness_medium</code></a> |
@@ -170,37 +160,6 @@ images do.
 | <a href="0929_tutorial_player_experience/"><img src="0929_tutorial_player_experience/_preview.png" width="380" alt="0929_tutorial_player_experience"></a><br><a href="0929_tutorial_player_experience/"><code>0929_tutorial_player_experience</code></a> | <a href="0930_fletching_table/"><img src="0930_fletching_table/_preview.png" width="380" alt="0930_fletching_table"></a><br><a href="0930_fletching_table/"><code>0930_fletching_table</code></a> |
 | <a href="0936_sailing_spyglass/"><img src="0936_sailing_spyglass/_preview.png" width="380" alt="0936_sailing_spyglass"></a><br><a href="0936_sailing_spyglass/"><code>0936_sailing_spyglass</code></a> | <a href="0940_underwater/"><img src="0940_underwater/_preview.png" width="380" alt="0940_underwater"></a><br><a href="0940_underwater/"><code>0940_underwater</code></a> |
 | <a href="0944_sailing_boat_cargohold_side/"><img src="0944_sailing_boat_cargohold_side/_preview.png" width="380" alt="0944_sailing_boat_cargohold_side"></a><br><a href="0944_sailing_boat_cargohold_side/"><code>0944_sailing_boat_cargohold_side</code></a> |  |
-
-### `lib/` — shared code
-
-**Eighteen shared components**, mostly the nine-slice frames the whole game is
-built out of: the `StoneButton` family (plain, filled, pressed, and the
-`Entrypoint` variants a shipped script calls), `SteelBorder`, `StoneBorder`,
-`ThinBox`, `ThinStoneBox`, `ParchmentPanel`, `ScrollbarVertical` and `Frame`.
-
-An `<X>Entrypoint` is the form a component takes when the original is invoked as
-an interface's `onLoad` rather than composed into a tree — same pixels, a
-different seam.
-
-Beside them, the shared **modules**:
-
-| | |
-|---|---|
-| `lib.helpers.ts2` | the small procs a dozen UIs each reach for — sprite swaps, transparency, closing an interface |
-| `lib.constants.ts2` | colours, fonts and sizes that are not any one panel's |
-| `lib.components.ts2` | component-level shared pieces |
-| `lib.engine.ts2` | the client itself — the clock, sounds, the mobile test |
-| `lib.format.ts2` | number and string formatting, including the corpus's universal thousands separator |
-| `lib.labels.ts2` | shared label shapes |
-| `lib.dialogue.ts2` | the chatbox continue chain, shared by six dialogue panels |
-| `lib.gameframe.ts2` | the gameframe slot lookups |
-| `lib.quests.ts2`, `lib.quests.data.ts2` | the quest list and its data |
-
-The `game/` subfolder holds eleven **generated dictionaries** (`varbits.ts2`, `enums.ts2`,
-`sprites.ts2`, `sounds.ts2`, `animations.ts2`, `params.ts2`, `varps.ts2`, `varcs.ts2`,
-`inventories.ts2`, `models.ts2`, `fonts.ts2`). These are references to the game asset bundle, and exist as a layer of abstraction so that UI refers to `Varbits.OSM_SIMULATE` instead of `6352`, eliminating magic numbers from the language.
-It also holds six `gameframe-<id>.data.ts2` tables, which are extracted layout
-data rather than dictionaries.
 
 ## File naming
 

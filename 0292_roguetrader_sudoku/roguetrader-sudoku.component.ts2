@@ -99,7 +99,7 @@ function RunePalette(): Component {
 }
 
 function RuneSlot({ slot, selected }: { slot: Int; selected: Int }): Component {
-  const rune: Item = Runes.at(slot);
+  const rune: Item = Runes.at(slot) ?? -1;
   const x: Int = slot % 2 === 0 ? Palette.leftX : Palette.rightX;
   const y: Int = Palette.firstY + (slot / 2) * Palette.rowH;
   const outline: Int = slot === selected ? Outline.MARKED : Outline.NORMAL;
@@ -233,7 +233,7 @@ function BoardItems(): Component {
   const transpose: Int = useServerState(SudokuVarbits.TRANSPOSE);
   const size: Int = difficulty === Difficulty.LARGE ? Board.largeSize : Board.smallSize;
   const cells: Int = size * size;
-  const solution: Map<Int, Int> =
+  const solution: Map<Int, Int> | null =
     difficulty === Difficulty.LARGE ? LargePuzzles.get(puzzleId) : SmallPuzzles.get(puzzleId);
 
   return (
@@ -242,8 +242,14 @@ function BoardItems(): Component {
         <BoardTileIcon
           slot={slot}
           size={size}
-          given={transpose !== 0 ? transposedDigit(solution.get(slot)) : solution.get(slot)}
-          placed={Runes.at(tileRune(slot))}
+          given={
+            solution === null
+              ? -1
+              : transpose !== 0
+                ? transposedDigit(solution.get(slot) ?? -1)
+                : (solution.get(slot) ?? -1)
+          }
+          placed={Runes.at(tileRune(slot)) ?? -1}
         />
       ))}
     </layer>
@@ -261,7 +267,7 @@ function BoardTileIcon({ slot, size, given, placed }: { slot: Int; size: Int; gi
         y={y}
         w={Board.iconW}
         h={Board.iconH}
-        item={Runes.at(given)}
+        item={Runes.at(given) ?? -1}
         itemCount={-1}
         shadowColor={SudokuColor.ICON_SHADOW}
         outline={Outline.MARKED}
@@ -301,7 +307,7 @@ function BoardCells(): Component {
   const selected: Int = useServerState(SudokuVarbits.SELECTED_RUNE);
   const size: Int = difficulty === Difficulty.LARGE ? Board.largeSize : Board.smallSize;
   const cells: Int = size * size;
-  const solution: Map<Int, Int> =
+  const solution: Map<Int, Int> | null =
     difficulty === Difficulty.LARGE ? LargePuzzles.get(puzzleId) : SmallPuzzles.get(puzzleId);
 
   return (
@@ -313,7 +319,13 @@ function BoardCells(): Component {
           difficulty={difficulty}
           puzzleId={puzzleId}
           selected={selected}
-          given={transpose !== 0 ? transposedDigit(solution.get(slot)) : solution.get(slot)}
+          given={
+            solution === null
+              ? -1
+              : transpose !== 0
+                ? transposedDigit(solution.get(slot) ?? -1)
+                : (solution.get(slot) ?? -1)
+          }
         />
       ))}
     </layer>
@@ -347,7 +359,7 @@ function BoardCell({
         h={Board.cellH}
         fill
         transparency={255}
-        optionSubject={`<col=ff9040>${itemName(Runes.at(given))}</col>`}
+        optionSubject={`<col=ff9040>${itemName(Runes.at(given) ?? -1)}</col>`}
         options={['Examine']}
         onOptionSelect={() => {
           cannotRemoveRune();
@@ -364,7 +376,7 @@ function BoardCell({
       h={Board.cellH}
       fill
       transparency={255}
-      options={[selected !== 0 ? `Place <col=ff9040>${itemName(Runes.at(selected))}</col>` : 'Remove Rune']}
+      options={[selected !== 0 ? `Place <col=ff9040>${itemName(Runes.at(selected) ?? -1)}</col>` : 'Remove Rune']}
       onOptionSelect={() => {
         placeRune(difficulty, puzzleId, slot);
       }}

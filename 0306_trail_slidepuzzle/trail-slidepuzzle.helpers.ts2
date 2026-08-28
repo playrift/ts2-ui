@@ -1,8 +1,8 @@
 import { CS2, useInventory, useState } from 'ts2';
 import { clientClock } from '../lib/lib.engine';
 import { Inventories } from '../lib/game/inventories';
-import { Params } from '../lib/game/params';
-import { BasPuzzle, PuzzleLayout, PuzzleSounds, PuzzleVariant } from './trail-slidepuzzle.constants';
+import { BasPuzzle, PuzzleLayout, PuzzleSounds, PuzzleVariant, TileModel } from './trail-slidepuzzle.constants';
+import { PieceModels } from './piece-models.data';
 import {
   slotinfo00,
   slotinfo01,
@@ -285,38 +285,26 @@ export function puzzleItem(variant: Int, slot: Int): Item {
   return trail[slot];
 }
 
-export function pieceModel(variant: Int, slot: Int, basProgress: Int): number {
-  if (puzzleItem(variant, slot) === BasPuzzle.HIDDEN_PIECE) {
+export function pieceModel(variant: Int, slot: Int, basProgress: Int): Model {
+  const piece: Item = puzzleItem(variant, slot);
+  if (piece === BasPuzzle.HIDDEN_PIECE) {
     if (basProgress < BasPuzzle.SOLVED) {
-      return -1;
+      return TileModel.NONE;
     }
   }
-  if (variant === PuzzleVariant.REINITIALISATION_DONE) {
-    const done = useInventory(Inventories.REINITIALISATION_INV_INACTIVE);
-    return done.param(slot, Params.PARAM_186);
-  }
-  if (variant === PuzzleVariant.REINITIALISATION) {
-    const live = useInventory(Inventories.REINITIALISATION_INV);
-    return live.param(slot, Params.PARAM_186);
-  }
-  if (variant === PuzzleVariant.BAS) {
-    const bas = useInventory(Inventories.BAS_PUZZLE_INV);
-    return bas.param(slot, Params.PARAM_186);
-  }
-  const trail = useInventory(Inventories.TRAIL_PUZZLEINV);
-  return trail.param(slot, Params.PARAM_186);
+  return PieceModels.get(piece) ?? TileModel.NONE;
 }
 
 export function tilesMovable(
-  indexes: Map<Item, Int>,
-  items: Map<Int, ItemName>,
+  indexes: Map<Item, Int> | null,
+  items: Map<Int, ItemName> | null,
   variant: Int,
   basProgress: Int,
 ): Boolean {
-  if (items === -1) {
+  if (items === null) {
     return false;
   }
-  if (indexes === -1) {
+  if (indexes === null) {
     return false;
   }
   if (variant === PuzzleVariant.REINITIALISATION_DONE) {

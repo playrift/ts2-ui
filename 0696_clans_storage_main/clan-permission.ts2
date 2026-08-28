@@ -1,44 +1,50 @@
 import { CS2 } from 'ts2';
 
+import type { ClanPermissionRow } from './clan-permissions.data';
 import {
   CLAN_RANK_COUNT,
   CLAN_SETTING_UNAVAILABLE,
   ClanCofferText,
-  ClanPermissionParams,
-  ClanPermissionStructs,
+  ClanPermission,
+  ClanPermissions,
   ClanRank,
   ClanRankTitles,
   ClanRankValues,
 } from './clans-storage-main.constants';
 
-export function clanPermissionGet(setting: Row): Int {
+export function clanPermissionGet(setting: ClanPermissionRow): Int {
   let stored: Int = ClanRank.OWNER + ClanRank.SETTING_OFFSET;
 
-  if (setting === ClanPermissionStructs.RANK_TALK) {
+  const rankTalk: ClanPermissionRow = ClanPermissions.at(ClanPermission.RANK_TALK);
+  const rankKick: ClanPermissionRow = ClanPermissions.at(ClanPermission.RANK_KICK);
+  const withdraw: ClanPermissionRow = ClanPermissions.at(ClanPermission.WITHDRAW_FROM_COFFER);
+  const deposit: ClanPermissionRow = ClanPermissions.at(ClanPermission.DEPOSIT_INTO_COFFER);
+
+  if (setting === rankTalk) {
     stored = CS2.activeclansettings_rank_talk_get() + ClanRank.SETTING_OFFSET;
-  } else if (setting === ClanPermissionStructs.RANK_KICK) {
+  } else if (setting === rankKick) {
     stored = CS2.activeclansettings_rank_kick_get() + ClanRank.SETTING_OFFSET;
-  } else if (setting === ClanPermissionStructs.WITHDRAW_FROM_COFFER) {
+  } else if (setting === withdraw) {
     stored = CLAN_SETTING_UNAVAILABLE;
-  } else if (setting === ClanPermissionStructs.DEPOSIT_INTO_COFFER) {
+  } else if (setting === deposit) {
     stored = CLAN_SETTING_UNAVAILABLE;
   }
 
   const rank: Int = stored - ClanRank.SETTING_OFFSET;
 
-  const floor: Int = setting.int(ClanPermissionParams.MIN_RANK);
-  const allowsNobody: Int = setting.int(ClanPermissionParams.ALLOWS_NOBODY);
+  const floor: Int = setting.minRank;
+  const allowsNobody: Boolean = setting.allowsNobody;
 
   let found: Int = 0;
   let index: Int = CLAN_RANK_COUNT;
   while (index > 0) {
     index = index - 1;
-    const candidate: Int = ClanRankValues.at(index);
+    const candidate: Int = ClanRankValues.at(index) ?? -1;
     if (rank === candidate) {
       if (candidate >= Math.min(0, floor)) {
         if (candidate <= ClanRank.OWNER) {
           found = 1;
-        } else if (candidate === ClanRank.NOBODY && allowsNobody === 1) {
+        } else if (candidate === ClanRank.NOBODY && allowsNobody) {
           found = 1;
         }
       }
@@ -47,7 +53,7 @@ export function clanPermissionGet(setting: Row): Int {
   }
 
   if (found === 0) {
-    if (setting !== -1 && allowsNobody === 1) {
+    if (allowsNobody) {
       return ClanRank.NOBODY;
     }
     return ClanRank.OWNER;
@@ -72,7 +78,7 @@ export function clanRankTitle(rank: Int): String {
     key = -1;
   }
 
-  const title: String = ClanRankTitles.get(key);
+  const title: String = ClanRankTitles.get(key) ?? '';
   if (CS2.string_length(title) > 0) {
     return title;
   }

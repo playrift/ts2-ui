@@ -1,3 +1,4 @@
+import type { ActionsRow } from './actions.data';
 import { useRef, useServerState, useState, useUniverse } from 'ts2';
 import { actionsFilterType, osmHotkeySettingsInfoExpandIndex } from '../lib/game/varcs';
 import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
@@ -5,12 +6,9 @@ import { ThinBox } from '../lib/thin-box.component';
 import { textLineCount } from '../lib/lib.engine';
 import { ActionRow } from './action-row.component';
 import {
-  ACTION_COUNT,
-  ActionParams,
   Actions,
   HotkeyFonts,
   HotkeyVarbits,
-  Hotkeys,
   Layout,
   Row as RowLayout,
   ScrollbarSprites as Bar,
@@ -29,27 +27,28 @@ export function ActionPane({ frame }: { frame: Ref }): Component {
   const loadout: Int = useServerState(HotkeyVarbits.LOADOUT_VIEWED);
   const tutorial: Int = useServerState(TutorialVarps.TUTORIAL);
   const tutorial2: Int = useServerState(TutorialVarps.TUTORIAL_2);
-  const current: Row = Hotkeys.get(hotkeyAt(loadout, -1));
+  const currentId: Int = hotkeyAt(loadout, -1);
 
   const listWidth: Int = universe.width - Layout.actionListInset;
 
-  const expandedRow: Row = Actions.at(expandIndex);
   let expandExtra: Int = 0;
-  if (expandedRow !== -1) {
-    if (filter === 0 || expandedRow.int(ActionParams.CATEGORY) === filter) {
+  const expandedRow: ActionsRow | null = Actions.at(expandIndex);
+  if (expandedRow !== null) {
+    if (filter === 0 || expandedRow.category === filter) {
       expandExtra =
         RowLayout.INFO_PAD +
-        RowLayout.INFO_LINE *
-          textLineCount(expandedRow.text(ActionParams.DESCRIPTION), listWidth - RowLayout.INFO_PAD, HotkeyFonts.BODY);
+        RowLayout.INFO_LINE * textLineCount(expandedRow.description, listWidth - RowLayout.INFO_PAD, HotkeyFonts.BODY);
     }
   }
 
   let visibleRows: Int = 0;
   let key: Int = 0;
-  while (key < ACTION_COUNT) {
-    const candidate: Row = Actions.at(key);
-    if (filter === 0 || candidate.int(ActionParams.CATEGORY) === filter) {
-      visibleRows = visibleRows + 1;
+  while (key < Actions.length) {
+    const candidate: ActionsRow | null = Actions.at(key);
+    if (candidate !== null) {
+      if (filter === 0 || candidate.category === filter) {
+        visibleRows = visibleRows + 1;
+      }
     }
     key = key + 1;
   }
@@ -71,28 +70,22 @@ export function ActionPane({ frame }: { frame: Ref }): Component {
           h={{ fill: Layout.actionList.insetWH }}
           scrollHeight={contentHeight}
         >
-          {Actions.filter((action) => filter === 0 || action.int(ActionParams.CATEGORY) === filter).map(
-            (action, visible) => (
-              <ActionRow
-                action={action}
-                rawIndex={action.int(ActionParams.ACTION_ID) - 1}
-                top={
-                  visible * RowLayout.HEIGHT + (expandIndex < action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0)
-                }
-                boxHeight={
-                  RowLayout.HEIGHT + (expandIndex === action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0)
-                }
-                infoHeight={expandIndex === action.int(ActionParams.ACTION_ID) - 1 ? expandExtra : 0}
-                listWidth={listWidth}
-                expandIndex={expandIndex}
-                loadout={loadout}
-                current={current}
-                tutorial={tutorial}
-                tutorial2={tutorial2}
-                frame={frame}
-              />
-            ),
-          )}
+          {Actions.filter((action) => filter === 0 || action.category === filter).map((action, visible) => (
+            <ActionRow
+              action={action}
+              rawIndex={action.actionId - 1}
+              top={visible * RowLayout.HEIGHT + (expandIndex < action.actionId - 1 ? expandExtra : 0)}
+              boxHeight={RowLayout.HEIGHT + (expandIndex === action.actionId - 1 ? expandExtra : 0)}
+              infoHeight={expandIndex === action.actionId - 1 ? expandExtra : 0}
+              listWidth={listWidth}
+              expandIndex={expandIndex}
+              loadout={loadout}
+              current={currentId}
+              tutorial={tutorial}
+              tutorial2={tutorial2}
+              frame={frame}
+            />
+          ))}
         </layer>
 
         <layer x="center" y="center" w={{ fill: Layout.actionList.insetWH }} h={{ fill: Layout.actionList.insetWH }} />
