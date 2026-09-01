@@ -1,6 +1,7 @@
 import { predictServerState, useDerived, useServerState, useState } from 'ts2';
 import { playSound, textWidth } from '../lib/lib.engine';
 import { Sprites } from '../lib/game/sprites';
+import { NoOptions } from './settings-options.data';
 import { Varbits } from '../lib/game/varbits';
 import { Art, Colour, SettingsFonts, SettingsVarbits, Sounds } from './settings.constants';
 import type { SettingsRow } from './settings-rows.data';
@@ -34,7 +35,14 @@ export function SettingsKeybind({
   width: Int;
   enabled: Boolean;
 }): Component {
-  const options: Enum = mobile && (row.optionsMobile ?? -1) !== -1 ? (row.optionsMobile ?? -1) : (row.options ?? -1);
+  const options: List<String> =
+    mobile && (row.optionsMobile ?? NoOptions).length !== 0
+      ? (row.optionsMobile ?? NoOptions)
+      : (row.options ?? NoOptions);
+  const fallback: String =
+    mobile && (row.optionsMobile ?? NoOptions).length !== 0
+      ? (row.optionsMobileFallback ?? '')
+      : (row.optionsFallback ?? '');
   const icon: Sprite = row.icon ?? -1;
   const size: Coord = row.iconSize ?? tileOf(0, 0, 0);
   const iconW: Int = size.x % Keybind.axisMask;
@@ -43,14 +51,14 @@ export function SettingsKeybind({
   const cellX: Int = column === Grid.lastColumn ? (width / Grid.columns) * 2 : column === 1 ? width / Grid.columns : 0;
   const cellW: Int = width / Grid.columns - Keybind.cellInsetW;
 
-  const table: Map<Int, String> = options as unknown as Map<Int, String>;
-  const labelW: Int = textWidth(table.get(Keybind.defaultKey), Keybind.measureWidth, SettingsFonts.BODY);
+  const table: List<String> = options;
+  const labelW: Int = textWidth(fallback, Keybind.measureWidth, SettingsFonts.BODY);
   const boxW: Int = labelW + Keybind.labelPad;
   const boxX: Int = cellX + Keybind.labelDx;
 
   const settingId: Int = row.settingId ?? 0;
   const code: Int = useDerived(() => keybindCode(settingId));
-  const label: String = table.get(code) ?? '';
+  const label: String = table.at(code) ?? fallback;
   const enabledFlag: Int = useDerived(() => settingEnabled(row));
   const [open, setOpen] = useState(openDropdownSetting);
   const [, setOpenRow] = useState(openDropdownRow);
@@ -193,14 +201,15 @@ export function KeybindEntry({
   mobile,
 }: {
   row: SettingsRow;
-  optionsId: Enum;
+  optionsId: List<String>;
   index: Int;
   count: Int;
   entryH: Int;
   mobile: Boolean;
 }): Component {
   const [, setOpen] = useState(openDropdownSetting);
-  const table: Map<Int, String> = optionsId as unknown as Map<Int, String>;
+  const table: List<String> = optionsId;
+  const fallback: String = row.optionsFallback ?? '';
   const y: Int = index * entryH;
 
   return (
@@ -232,7 +241,7 @@ export function KeybindEntry({
             y={y}
             w="fill"
             h={entryH}
-            text={table.get(index) ?? ''}
+            text={table.at(index) ?? fallback}
             font={SettingsFonts.BODY}
             shadow
             color={Colour.AMBER}
