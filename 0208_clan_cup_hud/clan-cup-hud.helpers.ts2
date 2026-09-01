@@ -1,0 +1,39 @@
+import { useServerState } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { Varbits } from '../lib/game/varbits';
+import { NOT_STARTED, THOUSANDS } from './clan-cup-hud.constants';
+
+export function clancupHudUpdate(header: ComponentId, results: ComponentId): void {
+  const me: Int = useServerState(Varbits.CLANCUP_SCORE_ME);
+  const them: Int = useServerState(Varbits.CLANCUP_SCORE_THEM);
+  const mine: String = groupDigits(me, THOUSANDS);
+  const theirs: String = groupDigits(them, THOUSANDS);
+
+  let scores: String = `${mine}<br>${theirs}`;
+  if (me > them) {
+    scores = `<col=ffffff>${mine}</col><br>${theirs}`;
+  } else if (me < them) {
+    scores = `${mine}<br><col=ffffff>${theirs}</col>`;
+  }
+
+  const remaining: Int = useServerState(Varbits.CLANCUP_TIME_REMAINING);
+  if (remaining >= NOT_STARTED) {
+    header.text = 'Your team:<br>Opponents:<br>Starting soon...';
+    scores = `${scores}<br>`;
+  } else if (remaining > 1) {
+    header.text = 'Your team:<br>Opponents:<br>Time:';
+    scores = `${scores}<br>${stringOf(remaining)} mins`;
+  } else if (remaining === 1) {
+    header.text = 'Your team:<br>Opponents:<br>Time:';
+    scores = `${scores}<br>1 min`;
+  } else if (me === them) {
+    header.text = 'Your team:<br>Opponents:<br>';
+    scores = `${scores}<br>Next kill wins!`;
+  } else {
+    header.text = 'Your team:<br>Opponents:<br>Ending...';
+    scores = `${scores}<br>`;
+  }
+
+  results.text = scores;
+}

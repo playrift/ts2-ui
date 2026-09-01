@@ -1,0 +1,53 @@
+import { useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Fade, OfficeArt, OfficeSounds, PRESS_CYCLES } from './death-office.constants';
+
+export function TakeAllButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  const pressed: Int = pressedUntil > clientClock() ? 1 : 0;
+  const lit: Int = pressed === 1 || hovered === 1 ? 1 : 0;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Take-All']}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        playSound(OfficeSounds.PRESS);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+      onTimer={
+        pressed === 1
+          ? () => {
+              if (clientClock() >= pressedUntil) {
+                setPressedUntil(0);
+              }
+            }
+          : undefined
+      }
+    >
+      {lit === 1 ? (
+        <StoneButtonPressedFilled>
+          <sprite
+            x="center"
+            y="center"
+            w={29}
+            h={22}
+            sprite={OfficeArt.TAKE_ALL}
+            transparency={pressed === 1 ? Fade.ICON_PRESSED : Fade.ICON_REST}
+          />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <sprite x="center" y="center" w={29} h={22} sprite={OfficeArt.TAKE_ALL} transparency={Fade.ICON_REST} />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}

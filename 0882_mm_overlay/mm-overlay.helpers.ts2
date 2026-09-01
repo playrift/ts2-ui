@@ -1,0 +1,94 @@
+import { useServerState, useSkillBase } from 'ts2';
+
+import { chatMessage } from '../lib/lib.engine';
+import { AGA_NAME, LYE_NAME, MmEnums, MmSkills, MmVarbits, MOX_NAME, Order } from './mm-overlay.constants';
+
+function orderType(index: Int): Int {
+  if (index === 0) {
+    return useServerState(MmVarbits.ORDER_1_TYPE);
+  }
+  if (index === 1) {
+    return useServerState(MmVarbits.ORDER_2_TYPE);
+  }
+  return useServerState(MmVarbits.ORDER_3_TYPE);
+}
+
+function orderModifier(index: Int): Int {
+  if (index === 0) {
+    return useServerState(MmVarbits.ORDER_1_MODIFIER);
+  }
+  if (index === 1) {
+    return useServerState(MmVarbits.ORDER_2_MODIFIER);
+  }
+  return useServerState(MmVarbits.ORDER_3_MODIFIER);
+}
+
+export function mmOrderItem(index: Int): ItemName {
+  return MmEnums.ORDER_ITEMS.get(orderType(index)) ?? -1;
+}
+
+export function mmOrderLevel(index: Int): Int {
+  return MmEnums.ORDER_LEVELS.get(mmOrderItem(index) as Item) ?? 0;
+}
+
+export function mmOrderLocked(index: Int): Boolean {
+  if (useSkillBase(MmSkills.HERBLORE) < mmOrderLevel(index)) {
+    return true;
+  }
+  return false;
+}
+
+export function mmModifierIcon(index: Int): Sprite {
+  return MmEnums.MODIFIER_ICONS.get(orderModifier(index)) ?? -1;
+}
+
+export function mmModifierText(index: Int): String {
+  return MmEnums.MODIFIER_TEXT.get(orderModifier(index)) ?? '';
+}
+
+export function mmOrderTop(index: Int): Int {
+  let top: Int = Order.TOP;
+  if (index > 0) {
+    if (mmOrderItem(0) !== -1) {
+      top = top + Order.ROW_H;
+    }
+  }
+  if (index > 1) {
+    if (mmOrderItem(1) !== -1) {
+      top = top + Order.ROW_H;
+    }
+  }
+  return top;
+}
+
+export function mmReagentCount(index: Int): Int {
+  if (index === 0) {
+    return useServerState(MmVarbits.MOX);
+  }
+  if (index === 1) {
+    return useServerState(MmVarbits.AGA);
+  }
+  return useServerState(MmVarbits.LYE);
+}
+
+export function mmOrderMessage(index: Int): void {
+  chatMessage(`You need level ${stringOf(mmOrderLevel(index))} Herblore for this order.`);
+}
+
+export function mmModifierMessage(index: Int): void {
+  chatMessage(`${mmModifierText(index)}.`);
+}
+
+export function mmReagentName(index: Int): String {
+  if (index === 0) {
+    return MOX_NAME;
+  }
+  if (index === 1) {
+    return AGA_NAME;
+  }
+  return LYE_NAME;
+}
+
+export function mmReagentMessage(index: Int): void {
+  chatMessage(`${mmReagentName(index)}.`);
+}

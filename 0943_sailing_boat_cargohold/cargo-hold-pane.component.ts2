@@ -1,0 +1,123 @@
+import { CS2, intArray, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { isCargo } from './cargo-objs.data';
+import { CargoSlot } from './cargo-slot.component';
+import {
+  CargoColors,
+  CargoFonts,
+  CargoVarbits,
+  CargoVarps,
+  Grid,
+  Layout,
+  ScrollbarSprites,
+} from './sailing-boat-cargohold.constants';
+import { heldTotal } from './sailing-boat-cargohold.helpers';
+
+export function CargoHoldPane(): Component {
+  const universe = useUniverse();
+  const pane = useRef();
+
+  const holdId: Int = useServerState(CargoVarps.HOLD_INV);
+  const stacked: Int = useServerState(CargoVarbits.DRAW_STACKED);
+  const mode: Int = useServerState(CargoVarbits.DEPOSIT_MODE);
+  const hold: Inventory = holdId as Inventory;
+
+  const paneW: Int = universe.width - Layout.hold.paneInsetW;
+  const paneH: Int = universe.height - Layout.hold.paneInsetH;
+
+  const slack: Int = paneW - Grid.COLUMNS * Grid.W;
+  const gap: Int = slack / (Grid.COLUMNS + 1);
+  const margin: Int = (slack - gap * (Grid.COLUMNS - 1) + 1) / 2;
+
+  const items = intArray<Item>(Grid.SLOTS);
+  const counts = intArray(Grid.SLOTS);
+  let drawn: Int = 0;
+  const held: Int = heldTotal(hold, stacked);
+
+  let pass: Int = 0;
+  while (pass < 2) {
+    let slot: Int = 0;
+    while (slot < Grid.SLOTS) {
+      const item: Item = CS2.invother_item_get(hold, slot);
+      if (item !== -1) {
+        let duplicate: Int = 0;
+        if (stacked === 1) {
+          let seen: Int = 0;
+          while (seen < drawn) {
+            if (items[seen] === item) {
+              duplicate = 1;
+            }
+            seen = seen + 1;
+          }
+        }
+        let bucket: Int = 1;
+        if (isCargo(item)) {
+          bucket = 0;
+        }
+        if (duplicate === 0 && bucket === pass) {
+          let count: Int = CS2.invother_total(hold, item);
+          if (!CS2.item_stackable(item) && stacked === 0) {
+            count = 1;
+          }
+          items[drawn] = item;
+          counts[drawn] = count;
+          drawn = drawn + 1;
+        }
+      }
+      slot = slot + 1;
+    }
+    pass = pass + 1;
+  }
+
+  let lastRowY: Int = 0;
+  if (drawn > 0) {
+    lastRowY = Grid.TOP + ((drawn - 1) / Grid.COLUMNS) * Grid.STRIDE_Y;
+  }
+  const extent: Int = lastRowY + Grid.H;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={{ right: Layout.hold.paneX }}
+        y="center"
+        w={{ fill: Layout.hold.paneInsetW }}
+        h={{ fill: Layout.hold.paneInsetH }}
+        scrollHeight={extent > paneH ? extent : 0}
+      >
+        {held < 1 && (
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text="This cargo hold has no items to show here."
+            font={CargoFonts.BODY}
+            color={CargoColors.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+          />
+        )}
+        {items.map(
+          (item, rank) =>
+            rank < drawn && (
+              <CargoSlot item={item} count={counts[rank]} rank={rank} margin={margin} gap={gap} mode={mode} />
+            ),
+        )}
+      </layer>
+
+      <layer x={Layout.hold.barX} y="center" w={Layout.hold.barW} h={{ fill: Layout.hold.paneInsetH }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

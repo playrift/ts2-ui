@@ -1,0 +1,282 @@
+import { stopTimer, useServerState, useState } from 'ts2';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { coordInBox } from '../lib/lib.helpers';
+import { gravestoneHeight, gravestoneWidth, gravestoneX, gravestoneY } from '../lib/game/varcs';
+import { GraveFee, GraveVarbits, GraveVarps, Handle, MAX_INT, Window } from './gravestone-generic.constants';
+
+export function feeText(fee: Int): String {
+  if (fee < 0) {
+    return 'Loading...';
+  }
+  if (fee === 0) {
+    return 'Fee: <col=ffffff>Paid</col>';
+  }
+  if (fee === 1) {
+    return 'Fee: <col=ffffff>1 coin</col>';
+  }
+  return `Fee: <col=ffffff>${groupDigits(fee, ',')} coins</col>`;
+}
+
+export function cofferText(coffer: Int): String {
+  if (coffer < 0) {
+    return 'Loading...';
+  }
+  if (coffer === 0) {
+    return "Death's Coffer: <col=ffffff>Empty</col><br>Discard items to reduce a fee.";
+  }
+  if (coffer === 1) {
+    return "Death's Coffer: <col=ffffff>1 coin</col><br>Discard items to reduce a fee.";
+  }
+  return `Death's Coffer: <col=ffffff>${groupDigits(coffer, ',')} coins</col><br>Discard items to reduce a fee.`;
+}
+
+export function priceLabel(price: Int): String {
+  if (price >= GraveFee.THOUSAND) {
+    return `${price / GraveFee.THOUSAND}k`;
+  }
+  return `${price}`;
+}
+
+export function inDoomOfMokhaiotl(at: Coord): Boolean {
+  if (coordInBox(tileOf(1280, 9536, 0), tileOf(1343, 9599, 0), at)) {
+    return true;
+  }
+  if (coordInBox(tileOf(3392, 6400, 0), tileOf(3455, 6463, 0), at)) {
+    return true;
+  }
+  if (coordInBox(tileOf(3520, 6400, 0), tileOf(3583, 6463, 0), at)) {
+    return true;
+  }
+  return false;
+}
+
+export function scaleGravestoneFee(amount: Int): Int {
+  let value: Int = amount;
+
+  if (useServerState(GraveVarbits.IRONMAN) !== 0) {
+    value = scaled(1, 2, value);
+  }
+
+  if (useServerState(GraveVarbits.HAS_MERGED) === 0) {
+    const at: Coord = useServerState(GraveVarps.DEATH_COORD) as Coord;
+
+    if (
+      coordInBox(tileOf(1119, 3407, 0), tileOf(1139, 3428, 0), at) &&
+      useServerState(GraveVarps.VARDORVIS_KILLS) < 5
+    ) {
+      value = scaled(1, 4, value);
+    } else if (
+      (coordInBox(tileOf(2640, 6353, 0), tileOf(2671, 6384, 0), at) ||
+        coordInBox(tileOf(2384, 6353, 0), tileOf(2415, 6384, 0), at)) &&
+      useServerState(GraveVarps.WHISPERER_KILLS) < 5
+    ) {
+      value = scaled(1, 4, value);
+    } else if (
+      coordInBox(tileOf(3029, 6433, 0), tileOf(3049, 6457, 0), at) &&
+      useServerState(GraveVarps.DUKE_KILLS) < 5
+    ) {
+      value = scaled(1, 4, value);
+    } else if (
+      coordInBox(tileOf(2066, 6358, 0), tileOf(2096, 6388, 0), at) &&
+      useServerState(GraveVarps.LEVIATHAN_KILLS) < 5
+    ) {
+      value = scaled(1, 4, value);
+    } else if (
+      coordInBox(tileOf(1809, 3089, 0), tileOf(1842, 3124, 1), at) &&
+      useServerState(GraveVarps.COLOSSEUM_WAVES) < 100
+    ) {
+      value = scaled(1, 4, value);
+    } else if (
+      coordInBox(tileOf(1408, 10048, 0), tileOf(1535, 10111, 0), at) &&
+      useServerState(GraveVarps.YAMA_KILLS) < 10
+    ) {
+      value = scaled(1, 4, value);
+    } else if (inDoomOfMokhaiotl(at) && useServerState(GraveVarps.DOM_LEVELS) < 20) {
+      value = scaled(1, 4, value);
+    }
+  }
+
+  return value;
+}
+
+export function commitGravestoneWindow(w: Int, h: Int, x: Int, y: Int): void {
+  const [, setW] = useState(gravestoneWidth);
+  const [, setH] = useState(gravestoneHeight);
+  const [, setX] = useState(gravestoneX);
+  const [, setY] = useState(gravestoneY);
+  setW(w);
+  setH(h);
+  setX(x);
+  setY(y);
+}
+
+function clampW(w: Int, minW: Int, stageW: Int): Int {
+  return Math.max(minW, Math.min(w, stageW));
+}
+
+function clampH(h: Int, minH: Int, stageH: Int): Int {
+  return Math.max(minH, Math.min(h, stageH));
+}
+
+function clampX(x: Int, w: Int, stageW: Int): Int {
+  return Math.max(0, Math.min(x, stageW - w));
+}
+
+function clampY(y: Int, h: Int, stageH: Int, topInset: Int): Int {
+  return Math.max(topInset, Math.min(y, topInset + stageH - h));
+}
+
+export function dragGravestoneWindow(
+  handle: ComponentId,
+  edge: Int,
+  mouseX: Int,
+  mouseY: Int,
+  originX: Int,
+  originY: Int,
+  startW: Int,
+  startH: Int,
+  startX: Int,
+  startY: Int,
+  stageW: Int,
+  stageH: Int,
+  topInset: Int,
+  minW: Int,
+  minH: Int,
+  content: Ref,
+  preview: Ref,
+): void {
+  handle.sprite = -1;
+
+  let w: Int = startW;
+  let h: Int = startH;
+  let x: Int = startX;
+  let y: Int = startY;
+  const dx: Int = mouseX - originX;
+  const dy: Int = mouseY - originY;
+
+  switch (edge) {
+    case Handle.TITLE: {
+      x = x + dx;
+      y = y + dy;
+    }
+    case Handle.BOTTOM: {
+      h = h + dy;
+    }
+    case Handle.LEFT: {
+      w = w - dx;
+      x = x + dx;
+    }
+    case Handle.RIGHT: {
+      w = w + dx;
+    }
+    case Handle.TOP_LEFT: {
+      w = w - dx;
+      x = x + dx;
+      h = h - dy;
+      y = y + dy;
+    }
+    case Handle.TOP_RIGHT: {
+      w = w + dx;
+      h = h - dy;
+      y = y + dy;
+    }
+    case Handle.BOTTOM_LEFT: {
+      w = w - dx;
+      x = x + dx;
+      h = h + dy;
+    }
+    case Handle.BOTTOM_RIGHT: {
+      w = w + dx;
+      h = h + dy;
+    }
+  }
+
+  if (x < Window.EDGE_MARGIN) {
+    w = w + x;
+    x = 0;
+  }
+  const rightGap: Int = stageW - (x + w);
+  if (rightGap < Window.EDGE_MARGIN) {
+    w = w + rightGap;
+  }
+  if (y < topInset + Window.EDGE_MARGIN) {
+    h = h + Math.max(0, y - topInset);
+    y = topInset;
+  }
+  const bottomGap: Int = stageH + topInset - (y + h);
+  if (bottomGap < Window.EDGE_MARGIN) {
+    h = h + bottomGap;
+  }
+
+  const finalW: Int = clampW(w, minW, stageW);
+  const finalH: Int = clampH(h, minH, stageH);
+  const finalX: Int = clampX(x, finalW, stageW);
+  const finalY: Int = clampY(y, finalH, stageH, topInset);
+
+  preview.x = finalX;
+  preview.y = finalY;
+  preview.width = finalW;
+  preview.height = finalH;
+  preview.hide = false;
+  content.hide = true;
+
+  const settleAt: Int = clientClock() + Window.SETTLE_CYCLES;
+  handle.onTimer = () => {
+    if (clientClock() < settleAt) {
+      return;
+    }
+    commitGravestoneWindow(finalW, finalH, finalX, finalY);
+    stopTimer(handle);
+  };
+}
+
+export function stretchGravestoneWindow(
+  seenW: Int,
+  seenH: Int,
+  stageW: Int,
+  stageH: Int,
+  topInset: Int,
+  winW: Int,
+  winH: Int,
+  winX: Int,
+  winY: Int,
+): void {
+  if (seenW === stageW && seenH === stageH) {
+    return;
+  }
+
+  let w: Int = winW;
+  let h: Int = winH;
+  let x: Int = winX;
+  let y: Int = winY;
+
+  if (x + w >= seenW - Window.EDGE_MARGIN) {
+    if (x <= Window.EDGE_MARGIN) {
+      w = w + (stageW - seenW);
+    } else {
+      x = x + (stageW - seenW);
+    }
+  }
+  if (y + h >= seenH - Window.EDGE_MARGIN) {
+    if (y <= topInset + Window.EDGE_MARGIN) {
+      h = h + (stageH - seenH);
+    } else {
+      y = y + (stageH - seenH);
+    }
+  }
+
+  commitGravestoneWindow(w, h, x, y);
+}
+
+export function payRowPrice(count: Int, slot: Int, rate1kFrom: Int, rate10kFrom: Int, cap: Int): Int {
+  let rate: Int = GraveFee.RATE_100K;
+  if (slot >= rate1kFrom) {
+    rate = GraveFee.RATE_1K;
+  } else if (slot >= rate10kFrom) {
+    rate = GraveFee.RATE_10K;
+  }
+
+  const raw: Int = MAX_INT / rate < count ? MAX_INT : rate * count;
+  return Math.min(cap, scaleGravestoneFee(raw));
+}

@@ -1,0 +1,65 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { PatternCards, PatternFonts, PatternSounds, PatternTiming, PatternVarbits } from './pattern-cards.constants';
+import { confirmPrompt, selectedCardCount } from './pattern-cards.helpers';
+
+export function PatternConfirmButton(): Component {
+  const selected: Int = useServerState(PatternVarbits.CARD_OVERVIEW);
+  const chosen: Int = selectedCardCount(selected);
+  const [pressed, setPressed] = useState(0);
+  const [flashUntil, setFlashUntil] = useState(0);
+
+  let flashing: Int = 0;
+  if (flashUntil > clientClock()) {
+    flashing = 1;
+  }
+
+  let skin: Int = pressed;
+  let label: String = 'Confirm';
+  if (flashing === 1) {
+    skin = 1;
+    label = '<col=ffffff>Confirm</col>';
+  }
+
+  if (chosen !== PatternCards.NEEDED) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonDraw label={confirmPrompt(chosen)} font={PatternFonts.PROMPT} pressed={1} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove('Confirm')]}
+      onMouseRepeat={() => {
+        if (flashing === 0 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (flashing === 0) {
+          setPressed(0);
+        }
+      }}
+      onOptionSelect={(event) => {
+        if (event.option === 1 && flashing === 0) {
+          playSound(PatternSounds.CONFIRM);
+          setFlashUntil(clientClock() + PatternTiming.FLASH_CYCLES);
+        }
+      }}
+      onTimer={() => {
+        if (clientClock() >= flashUntil) {
+          setFlashUntil(0);
+        }
+      }}
+    >
+      <StoneButtonDraw label={label} font={PatternFonts.LIVE} pressed={skin} />
+    </layer>
+  );
+}

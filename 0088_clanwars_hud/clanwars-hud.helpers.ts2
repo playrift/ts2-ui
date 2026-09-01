@@ -1,0 +1,56 @@
+import { useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Clock } from './clanwars-hud.constants';
+
+export function rgbToHex(red: Int, green: Int, blue: Int): Int {
+  let r: Int = red;
+  let g: Int = green;
+  let b: Int = blue;
+  if (r > 255) {
+    r = 255;
+  } else if (r < 0) {
+    r = 0;
+  }
+  if (g > 255) {
+    g = 255;
+  } else if (g < 0) {
+    g = 0;
+  }
+  if (b > 255) {
+    b = 255;
+  } else if (b < 0) {
+    b = 0;
+  }
+  return (r * 65536) | (g * 256) | b;
+}
+
+export function timeRemainingText(cycles: Int): String {
+  const hours: Int = cycles / Clock.PER_HOUR;
+  const minutes: Int = (cycles % Clock.PER_HOUR) / Clock.PER_MINUTE;
+  const seconds: Int = (cycles % Clock.PER_MINUTE) / Clock.PER_SECOND;
+
+  let out: String = stringOf(hours);
+  if (minutes >= 10) {
+    out = `${out}:${stringOf(minutes)}`;
+  } else {
+    out = `${out}:0${stringOf(minutes)}`;
+  }
+  if (seconds >= 10) {
+    out = `${out}:${stringOf(seconds)}`;
+  } else {
+    out = `${out}:0${stringOf(seconds)}`;
+  }
+  if (cycles <= Clock.RED_BELOW) {
+    out = `<col=ff0000>${out}</col>`;
+  }
+  return out;
+}
+
+export function timeRemainingLine(): String {
+  const remaining: Int = useServerState(Varbits.CLANWARS_TIMEREMAINING) * Clock.PER_GAME_TICK;
+  if (useServerState(Varbits.CLANWARS_COUNTDOWN) > 0) {
+    return timeRemainingText(remaining);
+  }
+  return timeRemainingText(remaining - Clock.REMAINING_LEAD);
+}

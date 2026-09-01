@@ -1,0 +1,68 @@
+import { useRef } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { MinigameCard } from './minigame-card.component';
+import { Layout, ScrollbarSprites } from './minigames.constants';
+import { Minigames } from './minigames.data';
+
+export function MinigamesScrollbar({ content }: { content: Ref }): Component {
+  const rows: Int = Minigames.length;
+  let extent: Int = Layout.CARD_Y0 + (rows / 2) * Layout.ROW_PITCH;
+  if (rows % 2 !== 0) {
+    extent = extent + Layout.ROW_PITCH;
+  }
+
+  content.scrollY = 0;
+  if (extent >= content.height) {
+    content.scrollHeight = extent;
+  } else {
+    content.scrollHeight = 0;
+  }
+
+  return (
+    <ScrollbarVertical
+      content={content}
+      track={ScrollbarSprites.TRACK}
+      capTopSprite={ScrollbarSprites.CAP_TOP}
+      thumbSprite={ScrollbarSprites.THUMB}
+      capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+      arrowUp={ScrollbarSprites.ARROW_UP}
+      arrowDown={ScrollbarSprites.ARROW_DOWN}
+    />
+  );
+}
+
+export function MinigamesPanel(): Component {
+  const list = useRef();
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={Layout.PANEL_H} noClickThrough>
+      <SteelBorderEntrypoint title="Minigames" />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+      >
+        <layer ref={list} w={Layout.CONTENT_W} h="fill">
+          {Minigames.map((row, index) => (
+            <layer
+              x={index % 2 === 0 ? Layout.CARD_X : { right: Layout.CARD_X }}
+              y={Layout.CARD_Y0 + (index / 2) * Layout.ROW_PITCH}
+              w={Layout.CARD_W}
+              h={Layout.CARD_H}
+            >
+              <MinigameCard id={row.id} name={row.name} icon={row.icon} />
+            </layer>
+          ))}
+        </layer>
+
+        <layer x="right" y="bottom" w={Layout.BAR_W} h="fill">
+          <MinigamesScrollbar content={list} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}

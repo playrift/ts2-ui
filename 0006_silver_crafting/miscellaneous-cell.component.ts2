@@ -1,0 +1,88 @@
+import { useInventory, useServerState, useSkill, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { CellLayout, SilverColors, SilverFonts, SilverSkills, SilverVarbits } from './silver-crafting.constants';
+import { captionFont, miscellaneousHint, silverAvailable } from './silver-crafting.helpers';
+
+export function MiscellaneousCell({
+  index,
+  product,
+  level,
+  mould,
+  label,
+  width,
+}: {
+  index: Int;
+  product: ItemName;
+  level: Int;
+  mould: ItemName;
+  label: String;
+  width: Int;
+}): Component {
+  const inv = useInventory(Inventories.INV);
+  const crafting: Int = useSkill(SilverSkills.CRAFTING);
+  const last: Int = useServerState(SilverVarbits.LAST_ITEM);
+  const [hovered, setHovered] = useState(0);
+
+  const hasMould: Boolean = inv.total(mould as Item) > 0 ? true : false;
+  const available: Boolean = silverAvailable(hasMould ? 1 : 0, crafting, level, product);
+  const highlighted: Boolean = last === index && last !== 0 && hasMould ? true : false;
+  const lit: Boolean = hovered === 1 ? true : false;
+  const nameColor: Int = available ? (lit ? SilverColors.HOVER : SilverColors.LABEL) : SilverColors.LOCKED;
+  const hintColor: Int = available ? (lit ? SilverColors.HOVER : SilverColors.LABEL) : SilverColors.HINT;
+  const hint: String = available ? '' : miscellaneousHint(product, mould, level, hasMould);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Craft']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onMouseEnter={available ? () => setHovered(1) : undefined}
+      onMouseLeave={available ? () => setHovered(0) : undefined}
+    >
+      {highlighted ? (
+        <rect w="fill" h="fill" fill color={SilverColors.HIGHLIGHT} transparency={SilverColors.FADE} />
+      ) : null}
+
+      <sprite
+        x={{ center: CellLayout.ICON_DX }}
+        y={{ center: CellLayout.ICON_DY }}
+        w={CellLayout.ICON_W}
+        h={CellLayout.ICON_H}
+        outline={CellLayout.ICON_OUTLINE}
+        shadowColor={SilverColors.ICON_SHADOW}
+        item={hasMould ? product : mould}
+        itemCount={1}
+        itemCountMode="never"
+        transparency={hasMould ? 0 : SilverColors.FADE}
+      />
+
+      <text
+        x="center"
+        y={CellLayout.NAME_Y}
+        w={{ fill: CellLayout.NAME_INSET }}
+        h={CellLayout.NAME_H}
+        font={captionFont(label, width)}
+        shadow
+        align="center"
+        valign="middle"
+        color={nameColor}
+        text={label}
+      />
+
+      <text
+        x="center"
+        y="center"
+        w={{ fill: CellLayout.HINT_INSET }}
+        h={{ fill: CellLayout.HINT_INSET }}
+        font={SilverFonts.CAPTION_SMALL}
+        shadow
+        align="center"
+        valign="bottom"
+        color={hintColor}
+        text={hint}
+      />
+    </layer>
+  );
+}

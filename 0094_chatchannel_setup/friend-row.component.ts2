@@ -1,0 +1,171 @@
+import { CS2, stopTimer, useRef } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { hideTooltip } from '../0128_hosidius_seedbox/hosidius-seedbox.state';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import {
+  ChatChannelColor,
+  ChatChannelFonts,
+  ChatChannelSprites,
+  FriendRowLayout,
+  RankBySlot,
+  RankTitles,
+} from './chatchannel-setup.constants';
+import { setFriendRank } from './chatchannel-setup.state';
+
+function rankOptionLabel(slot: Int): String {
+  return RankTitles.get(RankBySlot.get(slot) ?? -1) ?? '';
+}
+
+function revealPreviousName(label: ComponentId, badge: ComponentId, previous: String, name: String): void {
+  const restoreAt: Int = clientClock() + FriendRowLayout.REVEAL_CYCLES;
+  playSound(Sounds.CLICK);
+  label.text = `<col=ff2020>${previous}</col>`;
+  badge.transparency = FriendRowLayout.BADGE_HIDDEN;
+  badge.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    label.text = name;
+    badge.transparency = FriendRowLayout.BADGE_SHOWN;
+    stopTimer(badge);
+  };
+}
+
+export function FriendRow({
+  index,
+  top,
+  rowHeight,
+  nameWidth,
+  rankWidth,
+  listWidth,
+  mobile,
+}: {
+  index: Int;
+  top: Int;
+  rowHeight: Int;
+  nameWidth: Int;
+  rankWidth: Int;
+  listWidth: Int;
+  mobile: Int;
+}): Component {
+  const [name, previousName] = CS2.friend_name_get(index);
+  const rank: Int = CS2.friend_rank_get(index);
+
+  const label = useRef();
+  const badge = useRef();
+
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  const stripe: Int = index % 2 === 0 ? FriendRowLayout.STRIPE_EVEN : FriendRowLayout.STRIPE_ODD;
+
+  let renamed: Int = 0;
+  let badgeHidden: Boolean = true;
+  if (previousName.length > 0) {
+    renamed = 1;
+    badgeHidden = false;
+  }
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={rowHeight}
+        fill
+        color={ChatChannelColor.VALUE}
+        transparency={stripe}
+        optionSubject={subject}
+        options={[
+          rankOptionLabel(1),
+          rankOptionLabel(2),
+          rankOptionLabel(3),
+          rankOptionLabel(4),
+          rankOptionLabel(5),
+          rankOptionLabel(6),
+          rankOptionLabel(7),
+        ]}
+        onOptionSelect={(event) => setFriendRank(label, event.optionSubject, event.option)}
+        onMouseRepeat={(event) => ccSetTrans(event.self, FriendRowLayout.STRIPE_HOVER)}
+        onMouseLeave={(event) => ccSetTrans(event.self, stripe)}
+      />
+
+      <text
+        ref={label}
+        x={{ right: 0 }}
+        y={top}
+        w={rankWidth}
+        h={rowHeight}
+        text={RankTitles.get(rank) ?? ''}
+        font={ChatChannelFonts.BODY}
+        color={ChatChannelColor.VALUE}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      {renamed === 1 && mobile === 1 && (
+        <text
+          x={FriendRowLayout.NAME_X}
+          y={top}
+          w={nameWidth}
+          h={rowHeight}
+          text={name}
+          font={ChatChannelFonts.BODY}
+          color={ChatChannelColor.NAME}
+          align="left"
+          valign="middle"
+          shadow
+          optionSubject={subject}
+          options={['Reveal previous name']}
+          onOptionSelect={() => revealPreviousName(label, badge, previousName, name)}
+        />
+      )}
+
+      {renamed === 1 && mobile === 0 && (
+        <text
+          x={FriendRowLayout.NAME_X}
+          y={top}
+          w={nameWidth}
+          h={rowHeight}
+          text={name}
+          font={ChatChannelFonts.BODY}
+          color={ChatChannelColor.NAME}
+          align="left"
+          valign="middle"
+          shadow
+          onMouseLeave={() => hideTooltip()}
+        />
+      )}
+
+      {renamed === 0 && (
+        <text
+          x={FriendRowLayout.NAME_X}
+          y={top}
+          w={nameWidth}
+          h={rowHeight}
+          text={name}
+          font={ChatChannelFonts.BODY}
+          color={ChatChannelColor.NAME}
+          align="left"
+          valign="middle"
+          shadow
+          onMouseEnter={() => hideTooltip()}
+        />
+      )}
+
+      <sprite
+        ref={badge}
+        x={textWidth(name, listWidth, ChatChannelFonts.BODY) + FriendRowLayout.BADGE_GAP}
+        y={top + (rowHeight - FriendRowLayout.BADGE) / 2}
+        w={FriendRowLayout.BADGE}
+        h={FriendRowLayout.BADGE}
+        sprite={ChatChannelSprites.CHANGED_NAME}
+        shadowColor={ChatChannelColor.BADGE_SHADOW}
+        hide={badgeHidden}
+      />
+    </>
+  );
+}

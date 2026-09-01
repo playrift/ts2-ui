@@ -1,0 +1,125 @@
+import { useServerState } from 'ts2';
+
+import { graphicSwapper } from '../lib/lib.helpers';
+import {
+  Fade,
+  Layout,
+  Rules,
+  Teams,
+  WildwarsArt,
+  WildwarsColors,
+  WildwarsFonts,
+  WildwarsVarps,
+} from './wildwars-hud.constants';
+import { hitpointBarWidth } from './wildwars-hud.helpers';
+
+export function WildwarsHud(): Component {
+  return (
+    <layer x={Layout.PANEL_X} y={Layout.PANEL_Y} w={Layout.PANEL_W} h={Layout.PANEL_H}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={WildwarsColors.BACKDROP} transparency={Fade.BACKDROP} />
+
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.PLATE_INSET }}
+        h={{ fill: Layout.PLATE_INSET }}
+        fill
+        color={WildwarsColors.PLATE}
+        transparency={Fade.PLATE}
+      />
+
+      {Rules.map((rule) => (
+        <line x="center" y={rule.y} w={Layout.RULE_W} color={WildwarsColors.RULE} lineWidth={Layout.RULE_H} />
+      ))}
+
+      {Teams.map((team) => (
+        <text
+          x={{ center: Layout.NAME_X }}
+          y={team.nameY}
+          w={Layout.NAME_W}
+          h={Layout.NAME_H}
+          font={WildwarsFonts.LABEL}
+          color={team.nameColor}
+          align="center"
+          valign="middle"
+          shadow
+          text={team.name}
+        />
+      ))}
+
+      {Teams.map((team) => (
+        <layer x={Layout.COUNT_X} y={team.rowY} w={Layout.COUNT_W} h={Layout.COUNT_H}>
+          <sprite x={0} y={0} w={Layout.ICON} h={Layout.ICON} sprite={WildwarsArt.MEMBERS} />
+          <text
+            x={Layout.COUNT_TEXT_X}
+            y="center"
+            w={Layout.COUNT_TEXT_W}
+            h={Layout.COUNT_TEXT_H}
+            font={WildwarsFonts.LABEL}
+            color={team.countColor}
+            align="center"
+            valign="middle"
+            shadow
+            text={`${stringOf(useServerState(team.members))}/50`}
+          />
+        </layer>
+      ))}
+
+      {Teams.map((team) => (
+        <rect
+          x={{ right: Layout.TELEPORT_X }}
+          y={team.rowY}
+          w={Layout.TELEPORT}
+          h={Layout.TELEPORT}
+          fill
+          color={WildwarsColors.RULE}
+          transparency={Fade.TELEPORT_BACKING}
+          noClickThrough
+        />
+      ))}
+
+      {Teams.map((team) => (
+        <sprite
+          x={{ right: Layout.TELEPORT_X }}
+          y={team.rowY}
+          w={Layout.TELEPORT}
+          h={Layout.TELEPORT}
+          sprite={WildwarsArt.TELEPORT}
+          options={['Teleport-to']}
+          onMouseEnter={(event) => {
+            graphicSwapper(event.component, WildwarsArt.TELEPORT_HOVER);
+          }}
+          onMouseLeave={(event) => {
+            graphicSwapper(event.component, WildwarsArt.TELEPORT);
+          }}
+        />
+      ))}
+
+      {Teams.map((team) => (
+        <layer x={{ center: Layout.BAR_X }} y={team.barY} w={Layout.BAR_W} h={Layout.BAR_H}>
+          <rect x="center" y="center" w="fill" h="fill" fill color={WildwarsColors.BAR_EMPTY} />
+          <rect
+            x={0}
+            y="center"
+            w={hitpointBarWidth(useServerState(team.hp))}
+            h="fill"
+            fill
+            color={WildwarsColors.BAR_FILL}
+          />
+          <text
+            x="center"
+            y="center"
+            w={Layout.BAR_TEXT_W}
+            h={Layout.BAR_TEXT_H}
+            font={WildwarsFonts.LABEL}
+            color={WildwarsColors.BAR_TEXT}
+            align="center"
+            valign="middle"
+            shadow
+            text={`${stringOf(useServerState(team.hp))}/99`}
+          />
+        </layer>
+      ))}
+    </layer>
+  );
+}

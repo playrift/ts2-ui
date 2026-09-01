@@ -1,0 +1,178 @@
+import { onMounted, sessionState, useState } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { playSound } from '../lib/lib.engine';
+import { graphicSwapper, onMobile } from '../lib/lib.helpers';
+
+export const makeoverMenuOpen = sessionState(0);
+
+const MENU_PAGES = [
+  { label: 'Hair', op: 'View Hair', target: 0, dimAt: 0, backingAt: 0 },
+  { label: 'Facial hair', op: 'View Facial hair', target: 1, dimAt: 1, backingAt: 1 },
+  { label: 'Body types', op: 'View Body types', target: 2, dimAt: 2, backingAt: 2 },
+  { label: 'Torsos', op: 'View Torsos', target: 3, dimAt: 3, backingAt: 3 },
+  { label: 'Sleeves', op: 'View Sleeves', target: 3, dimAt: 4, backingAt: 4 },
+  { label: 'Bottoms', op: 'View Bottoms', target: 3, dimAt: 5, backingAt: 5 },
+  { label: 'Shoes', op: 'View Shoes', target: 6, dimAt: 6, backingAt: 6 },
+  { label: 'Wristwear', op: 'View Wristwear', target: 7, dimAt: 7, backingAt: 6 },
+] as const;
+
+const ROW_COLOR = 0xff981f;
+const ROW_LIT_COLOR = 0xffffff;
+const ROW_DIM_COLOR = 0xc8c8c8;
+const ROW_DIM_TRANSPARENCY = 200;
+const BACKING_LIT = 235;
+const BACKING_REST = 255;
+
+const MenuBox = {
+  DESKTOP_W: 81,
+  DESKTOP_H: 188,
+  DESKTOP_ROW: 22,
+  MOBILE_W: 115,
+  MOBILE_H: 302,
+  MOBILE_ROW: 36,
+  ROW_X: 6,
+  ROW_Y: 6,
+  TOP: 29,
+};
+
+const BurgerBox = {
+  DESKTOP_X: 7,
+  DESKTOP_SIZE: 21,
+  MOBILE_X: 1,
+  MOBILE_SIZE: 33,
+  ICON: 21,
+};
+
+export function MakeoverMenuButton(): Component {
+  const [open, setOpen] = useState(makeoverMenuOpen);
+  const mobile: Boolean = onMobile();
+  const size: Int = mobile ? BurgerBox.MOBILE_SIZE : BurgerBox.DESKTOP_SIZE;
+  const at: Int = mobile ? BurgerBox.MOBILE_X : BurgerBox.DESKTOP_X;
+  const icon: Sprite = open === 1 ? Sprites.MENU_BUTTONS_1 : Sprites.MENU_BUTTONS_0;
+
+  return (
+    <layer x={at} y={at} w={size} h={size} options={['Show Menu']} onOptionSelect={() => setOpen(1 - open)}>
+      {mobile ? (
+        <sprite x="center" y="center" w={BurgerBox.ICON} h={BurgerBox.ICON} sprite={icon} />
+      ) : (
+        <sprite
+          x="center"
+          y="center"
+          w={BurgerBox.ICON}
+          h={BurgerBox.ICON}
+          sprite={icon}
+          onMouseRepeat={(event) => graphicSwapper(event.component, Sprites.MENU_BUTTONS_1)}
+          onMouseLeave={(event) => graphicSwapper(event.component, Sprites.MENU_BUTTONS_0)}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function MakeoverMenuCatcher(): Component {
+  const [open, setOpen] = useState(makeoverMenuOpen);
+
+  onMounted(() => {
+    setOpen(0);
+  });
+
+  return (
+    <layer w="fill" h="fill" hide={open === 1 ? false : true} noClickThrough onClick={() => dismissMakeoverMenu()} />
+  );
+}
+
+function setRowColour(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}
+
+export function dismissMakeoverMenu(): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  const [, setOpen] = useState(makeoverMenuOpen);
+  setOpen(0);
+}
+
+export function MakeoverMenuPanel({ page }: { page: Int }): Component {
+  const [open, setOpen] = useState(makeoverMenuOpen);
+  const mobile: Boolean = onMobile();
+  const width: Int = mobile ? MenuBox.MOBILE_W : MenuBox.DESKTOP_W;
+  const height: Int = mobile ? MenuBox.MOBILE_H : MenuBox.DESKTOP_H;
+  const rowHeight: Int = mobile ? MenuBox.MOBILE_ROW : MenuBox.DESKTOP_ROW;
+  const rowWidth: Int = width - MenuBox.ROW_X * 2;
+
+  return (
+    <layer
+      y={MenuBox.TOP}
+      w={width}
+      h={height}
+      hide={open === 1 ? false : true}
+      noClickThrough={open === 1 ? true : false}
+    >
+      <sprite w="fill" h="fill" sprite={Sprites.TRADEBACKING_LIGHT} tiling />
+      <SteelFrame backdrop={false} />
+      {MENU_PAGES.map((row, index) => (
+        <>
+          <rect
+            x={MenuBox.ROW_X}
+            y={MenuBox.ROW_Y + index * rowHeight}
+            w={rowWidth}
+            h={rowHeight}
+            color={0xffffff}
+            fill
+            transparency={page === row.backingAt ? BACKING_LIT : BACKING_REST}
+          />
+          {page === row.dimAt ? (
+            <text
+              x={MenuBox.ROW_X}
+              y={MenuBox.ROW_Y + index * rowHeight}
+              w={rowWidth}
+              h={rowHeight}
+              text={row.label}
+              font={Fonts.P12_FULL}
+              shadow
+              align="center"
+              valign="middle"
+              color={ROW_DIM_COLOR}
+              transparency={ROW_DIM_TRANSPARENCY}
+            />
+          ) : mobile ? (
+            <text
+              x={MenuBox.ROW_X}
+              y={MenuBox.ROW_Y + index * rowHeight}
+              w={rowWidth}
+              h={rowHeight}
+              text={row.label}
+              font={Fonts.P12_FULL}
+              shadow
+              align="center"
+              valign="middle"
+              color={ROW_COLOR}
+              options={[row.op]}
+              onOptionSelect={() => dismissMakeoverMenu()}
+            />
+          ) : (
+            <text
+              x={MenuBox.ROW_X}
+              y={MenuBox.ROW_Y + index * rowHeight}
+              w={rowWidth}
+              h={rowHeight}
+              text={row.label}
+              font={Fonts.P12_FULL}
+              shadow
+              align="center"
+              valign="middle"
+              color={ROW_COLOR}
+              options={[row.op]}
+              onOptionSelect={() => dismissMakeoverMenu()}
+              onMouseEnter={(event) => setRowColour(event.component, ROW_LIT_COLOR)}
+              onMouseLeave={(event) => setRowColour(event.component, ROW_COLOR)}
+            />
+          )}
+        </>
+      ))}
+    </layer>
+  );
+}

@@ -1,0 +1,291 @@
+import { predictServerState, useDerived, useServerState } from 'ts2';
+import { chatMessage, playSound, textLineCount, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { Colour, Row, SettingsFonts, SettingsVarbits, Sounds } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { rowDescription, rowTitle } from './settings-layout';
+import { rowLockedMessage, settingEnabled } from './settings.helpers';
+import { hideRowTooltip, showRowTooltip } from './settings-tooltip.component';
+
+const Plate = {
+  sampleWidth: 1000,
+  padW: 10,
+  textInset: 25,
+  boxPad: 12,
+  minTitleHeightMobile: 20,
+  right: 10,
+  height: 20,
+  halfHeight: 10,
+  innerRight: 11,
+  innerW: 2,
+  innerH: 18,
+  innerDy: 9,
+  outerColour: 0x0e0e0c,
+  innerColour: 0x474745,
+  captionRight: 12,
+  captionPadW: 6,
+  captionH: 16,
+  captionDy: 8,
+  clickHeight: 25,
+  restTransparency: 255,
+  hoverTransparency: 220,
+  captionLineHeight: 0,
+} as const;
+
+export function settingAmount(settingId: Int): Int {
+  if (settingId === 236) {
+    return useServerState(Varbits.ANTIDRAG_DELAY) * 20;
+  }
+  switch (settingId) {
+    case 39:
+      return useServerState(Varbits.OPTION_LOOTNOTIFICATION_VALUE);
+    case 43:
+      return useServerState(Varbits.OPTION_DROPWARNING_VALUE);
+    case 66:
+      return useServerState(Varbits.ALCHEMY_WARNING_VALUETHRESHOLD);
+    case 200:
+      return useServerState(Varbits.OPTION_GIM_LOOT_BROADCAST_THRESHOLD);
+    case 233:
+      return useServerState(Varbits.OPTION_MINIMENU_LONG_PRESS_TIME);
+    case 249:
+      return useServerState(Varbits.CANNON_LOW_AMOUNT);
+    case 280:
+      return useServerState(Varbits.SETTINGS_HITSPLAT_THRESHOLD);
+    case 328:
+      return useServerState(Varps.GROUND_ITEMS_T5_THRESHOLD);
+    case 329:
+      return useServerState(Varps.GROUND_ITEMS_T4_THRESHOLD);
+    case 330:
+      return useServerState(Varps.GROUND_ITEMS_T3_THRESHOLD);
+    case 331:
+      return useServerState(Varps.GROUND_ITEMS_T2_THRESHOLD);
+    case 332:
+      return useServerState(Varps.GROUND_ITEMS_T1_THRESHOLD);
+    case 350:
+      return useServerState(Varbits.GROUND_ITEMS_MAX_LINES);
+    case 389:
+      return useServerState(Varbits.RUNENERGY_AUTOENABLE);
+    case 394:
+      return useServerState(Varbits.SETTINGS_MINIMENU_SPACING);
+    case 449:
+      return useServerState(Varps.SETTINGS_BIRDHOUSE_SEED_WARNING_VALUE);
+    case 450:
+      return useServerState(Varbits.OPTION_CANNONBALLS_LOAD_X);
+  }
+  return 0;
+}
+
+function plateWidth(row: SettingsRow): Int {
+  return textWidth(row.amountWidthSample ?? '2,147,483,647 coins', Plate.sampleWidth, SettingsFonts.BODY) + Plate.padW;
+}
+
+function amountDescriptionHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  if ((row.hideDescription ?? false) || compact) {
+    return 0;
+  }
+  const text: String = rowDescription(row, mobile);
+  if (text.length <= 0) {
+    return 0;
+  }
+  return textLineCount(text, width - (plateWidth(row) + Plate.textInset), SettingsFonts.BODY) * Row.lineHeight;
+}
+
+function amountTitleHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  let height: Int =
+    textLineCount(rowTitle(row, mobile), width - (plateWidth(row) + Plate.textInset), SettingsFonts.TITLE) *
+    Row.lineHeight;
+  if (mobile && height < Plate.minTitleHeightMobile) {
+    height = Plate.minTitleHeightMobile;
+  }
+  return height;
+}
+
+export function selectAmountRowHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  return amountTitleHeight(row, mobile, width) + amountDescriptionHeight(row, mobile, compact, width) + Plate.boxPad;
+}
+
+function amountCaption(row: SettingsRow, amount: Int): String {
+  if (amount > 1) {
+    const plural: String = row.unitPlural ?? 'coins';
+    let gap: String = '';
+    if (plural.length > 0) {
+      gap = ' ';
+    }
+    return `${groupDigits(amount, ',')}${gap}${plural}`;
+  }
+  if (amount === 0) {
+    return row.amountZeroLabel ?? 'Input value';
+  }
+  const singular: String = row.unitSingular ?? 'coin';
+  let gap: String = '';
+  if (singular.length > 0) {
+    gap = ' ';
+  }
+  return `1${gap}${singular}`;
+}
+
+function settingsOpGate(row: SettingsRow, enabled: Boolean, flag: Int): Boolean {
+  if (enabled && flag === 1) {
+    playSound(Sounds.TAB_SELECT);
+    return true;
+  }
+  playSound(Sounds.DISMISS);
+  chatMessage(rowLockedMessage(row));
+  return false;
+}
+
+function settingsInputOp(row: SettingsRow, enabled: Boolean, flag: Int): void {
+  if (!settingsOpGate(row, enabled, flag)) {
+    return;
+  }
+  predictServerState(SettingsVarbits.SEARCH_KEYBOARD, 0);
+}
+
+export function SettingsSelectAmount({
+  row,
+  top,
+  stripe,
+  mobile,
+  compact,
+  width,
+  enabled,
+  pane,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+  pane: Ref;
+}): Component {
+  const sample: Int = textWidth(row.amountWidthSample ?? '2,147,483,647 coins', Plate.sampleWidth, SettingsFonts.BODY);
+  const plate: Int = sample + Plate.padW;
+  const inset: Int = plate + Plate.textInset;
+  const title: Int = amountTitleHeight(row, mobile, width);
+  const description: Int = amountDescriptionHeight(row, mobile, compact, width);
+  const box: Int = title + description + Plate.boxPad;
+  const plateY: Int = top + (box / 2 - Plate.halfHeight);
+  const settingId: Int = row.settingId ?? 0;
+  const amount: Int = useDerived(() => settingAmount(settingId));
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+
+  return (
+    <>
+      <rect x="center" y={top} w={{ fill: Row.blockInsetW }} h={box} fill color={Colour.BLACK} transparency={stripe} />
+
+      {!mobile && compact && rowDescription(row, mobile).length > 0 ? (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: inset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+          onMouseRepeat={() => showRowTooltip(row, Row.titleX, top + Row.titleDy, title, pane)}
+          onMouseLeave={() => hideRowTooltip()}
+        />
+      ) : (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: inset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <sprite x={{ right: Plate.right }} y={plateY} w={plate} h={Plate.height} sprite={297} tiling />
+
+      <rect x={{ right: Plate.right }} y={plateY} w={plate} h={Plate.height} color={Plate.outerColour} />
+      <rect
+        x={{ right: Plate.innerRight }}
+        y={top + (box / 2 - Plate.innerDy)}
+        w={plate - Plate.innerW}
+        h={Plate.innerH}
+        color={Plate.innerColour}
+      />
+
+      <text
+        x={{ right: Plate.captionRight }}
+        y={top + (box / 2 - Plate.captionDy)}
+        w={sample + Plate.captionPadW}
+        h={Plate.captionH}
+        text={amountCaption(row, amount)}
+        font={SettingsFonts.BODY}
+        shadow
+        color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+        align="center"
+        valign="middle"
+        lineHeight={Plate.captionLineHeight}
+      />
+
+      {!mobile && enabled && enabledFlag === 1 ? (
+        <rect
+          x={{ right: Plate.right }}
+          y={plateY}
+          w={plate}
+          h={Plate.height}
+          fill
+          color={Colour.BLACK}
+          transparency={Plate.restTransparency}
+          hover={{ transparency: Plate.hoverTransparency }}
+        />
+      ) : (
+        <rect
+          x={{ right: Plate.right }}
+          y={plateY}
+          w={plate}
+          h={Plate.height}
+          fill
+          color={Colour.BLACK}
+          transparency={Plate.restTransparency}
+        />
+      )}
+
+      {description > 0 && (
+        <text
+          x={Row.titleX}
+          y={top + title + Row.titleDy}
+          w={{ fill: inset }}
+          h={description}
+          text={rowDescription(row, mobile)}
+          font={SettingsFonts.BODY}
+          shadow
+          color={Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <rect
+        x={{ right: Plate.right }}
+        y={plateY}
+        w={plate}
+        h={Plate.clickHeight}
+        fill
+        color={Colour.BLACK}
+        transparency={255}
+        options={['Select']}
+        onOptionSelect={() => {
+          settingsInputOp(row, enabled, enabledFlag);
+        }}
+      />
+    </>
+  );
+}

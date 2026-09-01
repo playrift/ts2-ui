@@ -1,0 +1,180 @@
+import { clanSidepanelOpEntrypoint } from './clan-sidepanel-op';
+import {
+  Channel,
+  ClanSidepanelColor,
+  ClanSidepanelFonts,
+  FriendState,
+  ROW_HIT_TRANSPARENCY,
+} from './clans-sidepanel.constants';
+
+export function ClanChannelRow({
+  top,
+  rowHeight,
+  name,
+  slot,
+  world,
+  here,
+  icon,
+  rank,
+  arena,
+  hit,
+  friend,
+  asGuest,
+  channel,
+  enhanced,
+  ownerPath,
+  myRank,
+  kickRank,
+  banRank,
+  isMe,
+}: {
+  top: Int;
+  rowHeight: Int;
+  name: String;
+  slot: Int;
+  world: Int;
+  here: Int;
+  icon: Sprite;
+  rank: Int;
+  arena: Int;
+  hit: Int;
+  friend: Int;
+  asGuest: Int;
+  channel: Int;
+  enhanced: Int;
+  ownerPath: Int;
+  myRank: Int;
+  kickRank: Int;
+  banRank: Int;
+  isMe: Int;
+}): Component {
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  const nameColor: Int = arena === 1 && rank <= -1 ? ClanSidepanelColor.GUEST_ROW : ClanSidepanelColor.ROW;
+
+  const worldColor: Int = world === here ? ClanSidepanelColor.WORLD_HERE : ClanSidepanelColor.WORLD_AWAY;
+
+  let worldOp: String = '';
+  if (enhanced === 1 && here !== world) {
+    worldOp = 'Switch world';
+  }
+  let ownerOp: String = '';
+  let kickOp: String = '';
+  let banOp: String = '';
+  if (ownerPath === 1) {
+    ownerOp = 'Make owner';
+    kickOp = 'Kick';
+  } else if (rank <= -1) {
+    if (myRank >= kickRank) {
+      kickOp = 'Kick guest';
+    }
+    if (myRank >= banRank) {
+      banOp = 'Ban guest';
+    }
+  }
+  let friendOp: String = 'Add friend';
+  let ignoreOp: String = 'Add ignore';
+  if (friend === FriendState.FRIEND) {
+    friendOp = 'Remove friend';
+    ignoreOp = '';
+  } else if (friend === FriendState.IGNORED) {
+    friendOp = '';
+    ignoreOp = 'Remove ignore';
+  }
+
+  if (isMe === 1) {
+    worldOp = '';
+    ownerOp = '';
+    kickOp = '';
+    banOp = '';
+    friendOp = '';
+    ignoreOp = '';
+  }
+
+  return (
+    <>
+      {hit === 1 && (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowHeight}
+          fill
+          color={ClanSidepanelColor.ROW}
+          transparency={ROW_HIT_TRANSPARENCY}
+          optionSubject={subject}
+          options={['', '', '', '', worldOp, ownerOp, kickOp, banOp, friendOp, ignoreOp]}
+          onOptionSelect={(event) =>
+            clanSidepanelOpEntrypoint(event.optionSubject, event.option, friend, asGuest, slot, channel, world)
+          }
+        />
+      )}
+
+      {hit === 1 ? (
+        <text
+          x={{ right: 0 }}
+          y={top}
+          w={{ fill: Channel.NAME_INSET }}
+          h={rowHeight}
+          text={name}
+          font={ClanSidepanelFonts.BODY}
+          color={nameColor}
+          align="left"
+          valign="middle"
+        />
+      ) : (
+        <text
+          x={{ right: 0 }}
+          y={top}
+          w={{ fill: Channel.NAME_INSET }}
+          h={rowHeight}
+          text={name}
+          font={ClanSidepanelFonts.BODY}
+          color={nameColor}
+          align="left"
+          valign="middle"
+          optionSubject={subject}
+          options={['', '', '', '', worldOp, ownerOp, kickOp, banOp, friendOp, ignoreOp]}
+          onOptionSelect={(event) =>
+            clanSidepanelOpEntrypoint(event.optionSubject, event.option, friend, asGuest, slot, channel, world)
+          }
+        />
+      )}
+
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: Channel.NAME_INSET }}
+        h={rowHeight}
+        text={`W${stringOf(world)}`}
+        font={ClanSidepanelFonts.BODY}
+        color={worldColor}
+        align="right"
+        valign="middle"
+      />
+
+      {hit === 1 ? (
+        <sprite
+          x={Channel.ICON_X}
+          y={top + (rowHeight - Channel.ICON) / 2}
+          w={Channel.ICON}
+          h={Channel.ICON}
+          sprite={icon}
+        />
+      ) : (
+        <sprite
+          x={Channel.ICON_X}
+          y={top + (rowHeight - Channel.ICON) / 2}
+          w={Channel.ICON}
+          h={Channel.ICON}
+          sprite={icon}
+          optionSubject={subject}
+          options={['', '', '', '', worldOp, ownerOp, kickOp, banOp, friendOp, ignoreOp]}
+          onOptionSelect={(event) =>
+            clanSidepanelOpEntrypoint(event.optionSubject, event.option, friend, asGuest, slot, channel, world)
+          }
+        />
+      )}
+    </>
+  );
+}

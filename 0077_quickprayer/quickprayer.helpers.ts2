@@ -1,0 +1,265 @@
+import { CS2, predictServerState, useServerState, useSkillBase } from 'ts2';
+import { hasBit, membersWorld, playerCoord } from '../lib/lib.engine';
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import {
+  HIGH_RISK_BIT,
+  INSTANCE_X,
+  KNIGHT_WAVES_DONE,
+  Prayer,
+  PrayerVarbits,
+  PrayerVarps,
+  Skills,
+} from './quickprayer.constants';
+
+export function inInstance(): Boolean {
+  if (playerCoord().x >= INSTANCE_X) {
+    return true;
+  }
+  return false;
+}
+
+export function highRiskWorld(): Boolean {
+  return hasBit(useServerState(PrayerVarps.MAP_FLAGS_CACHED), HIGH_RISK_BIT);
+}
+
+export function inBattleRoyale(): Boolean {
+  if (useServerState(PrayerVarbits.BR_INGAME) === 1 && inInstance()) {
+    return true;
+  }
+  return false;
+}
+
+export function prayerLevel(): Int {
+  if (inBattleRoyale()) {
+    return 99;
+  }
+  return useSkillBase(Skills.PRAYER);
+}
+
+export function defenceLevel(): Int {
+  if (inBattleRoyale()) {
+    switch (useServerState(PrayerVarbits.BR_BUILD)) {
+      case 1:
+        return 50;
+      case 2:
+        return 1;
+    }
+    return 85;
+  }
+  return useSkillBase(Skills.DEFENCE);
+}
+
+export function rigourUnlocked(): Int {
+  if (inBattleRoyale()) {
+    return 1;
+  }
+  return useServerState(PrayerVarbits.RIGOUR);
+}
+
+export function auguryUnlocked(): Int {
+  if (inBattleRoyale()) {
+    return 1;
+  }
+  return useServerState(PrayerVarbits.AUGURY);
+}
+
+export function knightWavesDone(): Boolean {
+  if (inBattleRoyale()) {
+    return true;
+  }
+  if (useServerState(PrayerVarbits.KNIGHT_WAVES) - KNIGHT_WAVES_DONE >= 1) {
+    return true;
+  }
+  return false;
+}
+
+export function prayerMembers(): Boolean {
+  if (inBattleRoyale()) {
+    return true;
+  }
+  return membersWorld();
+}
+
+export function battleRoyaleFlag(): Int {
+  if (inBattleRoyale()) {
+    return 1;
+  }
+  return 0;
+}
+
+export function deadeyeUnlocked(): Int {
+  return useServerState(PrayerVarbits.DEADEYE);
+}
+
+export function mysticVigourUnlocked(): Int {
+  return useServerState(PrayerVarbits.MYSTIC_VIGOUR);
+}
+
+export function prayerRequirementsMet(
+  item: Item,
+  members: Boolean,
+  defence: Int,
+  knightWaves: Boolean,
+  rigour: Int,
+  augury: Int,
+  battleRoyale: Int,
+  deadeye: Int,
+  mysticVigour: Int,
+): Boolean {
+  switch (item) {
+    case Prayer.CHIVALRY:
+      if (useServerState(PrayerVarbits.DEADMAN_NO_DEF_REQ) === 1 && useServerState(PrayerVarps.GRAIL) === 10) {
+        return true;
+      } else if (!members || defence < 65 || !knightWaves) {
+        return false;
+      }
+      break;
+    case Prayer.PIETY:
+      if (!members || defence < 70 || !knightWaves) {
+        return false;
+      }
+      break;
+    case Prayer.RETRIBUTION:
+    case Prayer.REDEMPTION:
+    case Prayer.SMITE:
+      if (!members) {
+        return false;
+      }
+      break;
+    case Prayer.RIGOUR:
+      if (useServerState(PrayerVarbits.DEADMAN_NO_DEF_REQ) === 1 && rigour === 1) {
+        return true;
+      } else if (!members || defence < 70 || rigour === 0) {
+        return false;
+      }
+      break;
+    case Prayer.AUGURY:
+      if (useServerState(PrayerVarbits.DEADMAN_NO_DEF_REQ) === 1 && augury === 1) {
+        return true;
+      } else if (!members || defence < 70 || augury === 0) {
+        return false;
+      }
+      break;
+    case Prayer.PRESERVE:
+      if (!members || useServerState(PrayerVarbits.PRESERVE) === 0 || battleRoyale === 1) {
+        return false;
+      }
+      break;
+    case Prayer.DECIMATE:
+      if (!members || useServerState(PrayerVarbits.DECIMATE) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.ANNIHILATE:
+      if (!members || useServerState(PrayerVarbits.ANNIHILATE) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.VAPORISE:
+      if (!members || useServerState(PrayerVarbits.VAPORISE) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.FUMUS_VOW:
+      if (!members || useServerState(PrayerVarbits.FUMUS_VOW) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.CRUORS_VOW:
+      if (!members || useServerState(PrayerVarbits.CRUORS_VOW) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.UMBRAS_VOW:
+      if (!members || useServerState(PrayerVarbits.UMBRAS_VOW) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.GLACIES_VOW:
+      if (!members || useServerState(PrayerVarbits.GLACIES_VOW) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.INTENSIFY:
+      if (!members || useServerState(PrayerVarbits.INTENSIFY) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.REBUKE:
+      if (!members || useServerState(PrayerVarbits.REBUKE) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.VINDICATION:
+      if (!members || useServerState(PrayerVarbits.VINDICATION) === 0) {
+        return false;
+      }
+      break;
+    case Prayer.RAPID_HEAL:
+    case Prayer.RAPID_RESTORE:
+      if (battleRoyale === 1) {
+        return false;
+      }
+      break;
+    case Prayer.PROTECT_ITEM:
+      if (highRiskWorld() || deadmanWorld() !== 0 || battleRoyale === 1) {
+        return false;
+      }
+      break;
+    case Prayer.DEADEYE:
+      if (!members || deadeye === 0) {
+        return false;
+      }
+      break;
+    case Prayer.MYSTIC_VIGOUR:
+      if (!members || mysticVigour === 0) {
+        return false;
+      }
+      break;
+  }
+  return true;
+}
+
+export function prayerAvailable(item: Item, level: Int): Boolean {
+  if (prayerLevel() < level) {
+    return false;
+  }
+  return prayerRequirementsMet(
+    item,
+    prayerMembers(),
+    defenceLevel(),
+    knightWavesDone(),
+    rigourUnlocked(),
+    auguryUnlocked(),
+    battleRoyaleFlag(),
+    deadeyeUnlocked(),
+    mysticVigourUnlocked(),
+  );
+}
+
+export function quickPrayerSelected(): Int {
+  if (useServerState(PrayerVarbits.PRAYERBOOK) === 1) {
+    return useServerState(PrayerVarbits.SELECTED_RUINOUS);
+  }
+  return useServerState(PrayerVarbits.SELECTED);
+}
+
+export function toggleQuickPrayer(item: Item, level: Int, mask: Int, bit: Int): Boolean {
+  if (CS2.testbit(mask, bit)) {
+    writeQuickPrayer(CS2.bit_clear(mask, bit));
+    return true;
+  }
+  if (!prayerAvailable(item, level)) {
+    return false;
+  }
+  writeQuickPrayer(CS2.bit_set(mask, bit));
+  return true;
+}
+
+function writeQuickPrayer(value: Int): void {
+  if (useServerState(PrayerVarbits.PRAYERBOOK) === 1) {
+    predictServerState(PrayerVarbits.SELECTED_RUINOUS, value);
+    return;
+  }
+  predictServerState(PrayerVarbits.SELECTED, value);
+}

@@ -1,0 +1,114 @@
+import { predictServerState, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { setTransparency } from '../lib/lib.components';
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { crewRowRest, crewRowShade, crewSlotColor, crewSlotHead, crewSlotLabel } from './sailing-crew.helpers';
+import {
+  CrewColors,
+  CrewFonts,
+  CrewRow,
+  CrewSounds,
+  CrewVarbits,
+  Layout,
+  RowShade,
+  ScrollbarSprites,
+  Text,
+} from './sailing-crew.constants';
+
+const CrewSlotLevels = [40, 55, 70, 85, 95];
+
+export function CrewList(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const selected: Int = useServerState(CrewVarbits.SELECTED_SLOT);
+
+  const listHeight: Int = universe.height - Layout.list.insetH;
+  const extent: Int = CrewRow.SLOTS * CrewRow.H;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={{ right: Layout.list.inset }}
+        y="center"
+        w={{ fill: Layout.list.insetW }}
+        h={{ fill: Layout.list.insetH }}
+        scrollHeight={extent > listHeight ? extent : 0}
+      >
+        {CrewSlotLevels.map((level, slot) => (
+          <>
+            <rect
+              y={slot * CrewRow.H}
+              x="center"
+              w="fill"
+              h={CrewRow.H}
+              fill
+              color={CrewColors.ROW}
+              transparency={crewRowShade(slot, selected)}
+              options={['Select']}
+              optionSubject={`<col=ff9040>Crew slot ${slot + 1}</col>`}
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(CrewSounds.SELECT);
+                predictServerState(CrewVarbits.SELECTED_SLOT, slot);
+              }}
+              onMouseRepeat={
+                selected === slot
+                  ? undefined
+                  : (event) => {
+                      if (!onMobile()) {
+                        setTransparency(event.self, RowShade.HOVER);
+                      }
+                    }
+              }
+              onMouseLeave={
+                selected === slot
+                  ? undefined
+                  : (event) => {
+                      setTransparency(event.self, crewRowRest(slot));
+                    }
+              }
+            />
+            <model
+              x={0}
+              y={slot * CrewRow.H}
+              w={CrewRow.HEAD_W}
+              h={CrewRow.H}
+              npcHead={crewSlotHead(slot, level)}
+              offsetY={CrewRow.HEAD_OFFSET_Y}
+              zoom={CrewRow.HEAD_ZOOM}
+            />
+            <text
+              x={{ right: 0 }}
+              y={slot * CrewRow.H}
+              w={{ fill: CrewRow.HEAD_W }}
+              h={CrewRow.H}
+              text={crewSlotLabel(slot, level)}
+              font={CrewFonts.BODY}
+              color={crewSlotColor(level)}
+              shadow
+              align="center"
+              valign="middle"
+              lineHeight={Text.LINE_HEIGHT}
+            />
+          </>
+        ))}
+      </layer>
+
+      <layer x={Layout.list.inset} y="center" w={Layout.list.barW} h={{ fill: Layout.list.insetH }}>
+        <ScrollbarVertical
+          content={list}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

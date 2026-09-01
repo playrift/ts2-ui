@@ -1,0 +1,61 @@
+import { useDerived, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_house-options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { anyCartMoving } from './hauntedmine-controls.helpers';
+import { Layout, MineColors, MineFonts, MineSounds } from './hauntedmine-controls.constants';
+
+export function MineStartButton(): Component {
+  const moving: Int = useDerived(() => anyCartMoving());
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hovered, setHovered] = useState(0);
+
+  let lit: Int = 0;
+  if (moving === 1) {
+    lit = 1;
+  }
+  if (pressedUntil !== 0) {
+    lit = 1;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Start']}
+      onOptionSelect={(event) => {
+        if (event.option !== Layout.START_OP) {
+          return;
+        }
+        if (lit === 1) {
+          return;
+        }
+        playSound(MineSounds.CLICK);
+        setPressedUntil(clientClock() + Layout.PRESS_CYCLES);
+      }}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onTimer={() => {
+        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+          setPressedUntil(0);
+        }
+      }}
+    >
+      {lit === 1 ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={MineFonts.BUTTON}
+        shadow
+        align="center"
+        valign="middle"
+        color={lit === 1 || hovered === 1 ? MineColors.BUTTON_LIT : MineColors.BUTTON_REST}
+        text={lit === 1 ? '---' : 'Start'}
+      />
+    </layer>
+  );
+}

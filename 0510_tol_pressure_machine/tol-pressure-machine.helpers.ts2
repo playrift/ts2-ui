@@ -1,0 +1,46 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { Varbits } from '../lib/game/varbits';
+import { MachineSounds } from './tol-pressure-machine.constants';
+
+export enum Lever {
+  ONE = 1,
+  TWO = 2,
+}
+
+function leverValue(lever: Lever): Int {
+  if (lever === Lever.ONE) {
+    return useServerState(Varbits.TOL_LEVER1);
+  }
+  return useServerState(Varbits.TOL_LEVER2);
+}
+
+function leverResynch(lever: Lever, up: ComponentId, down: ComponentId): void {
+  if (leverValue(lever) >= 1) {
+    up.hide = true;
+    down.hide = false;
+  } else {
+    up.hide = false;
+    down.hide = true;
+  }
+}
+
+export function leverOp(option: Int, lever: Lever, up: ComponentId, down: ComponentId): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(MachineSounds.LEVER);
+  if (lever === Lever.ONE) {
+    predictServerState(Varbits.TOL_LEVER1, 1 - useServerState(Varbits.TOL_LEVER1));
+  } else {
+    predictServerState(Varbits.TOL_LEVER2, 1 - useServerState(Varbits.TOL_LEVER2));
+  }
+  leverResynch(lever, up, down);
+}
+
+export function valveOp(option: Int, lever: Lever, bank: Int): void {
+  if (option === 1) {
+    playSound(leverValue(lever) === bank ? MachineSounds.VALVE : MachineSounds.LOCKED);
+  }
+}

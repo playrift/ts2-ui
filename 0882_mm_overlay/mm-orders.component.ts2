@@ -1,0 +1,209 @@
+import { useUniverse } from 'ts2';
+
+import { itemName, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  HEADING_H,
+  HEADING_TEXT,
+  ICON_DIMMED,
+  ICON_LIT,
+  INFO_OP,
+  INVISIBLE,
+  MmColor,
+  MmFonts,
+  MmSprites,
+  MODIFIER_SUBJECT,
+  Order,
+  ORDER_SUBJECT,
+  Reagent,
+  REAGENT_SUBJECT,
+} from './mm-overlay.constants';
+import {
+  mmModifierIcon,
+  mmModifierMessage,
+  mmOrderItem,
+  mmOrderLocked,
+  mmOrderMessage,
+  mmOrderTop,
+  mmReagentCount,
+  mmReagentMessage,
+} from './mm-overlay.helpers';
+import { hideMmTooltip, showMmModifierTooltip, showMmOrderTooltip, showMmReagentTooltip } from './mm-overlay.state';
+
+const Rows = [0, 1, 2];
+
+function reagentIcon(column: Int): Sprite {
+  if (column === 0) {
+    return MmSprites.MOX;
+  }
+  if (column === 1) {
+    return MmSprites.AGA;
+  }
+  return MmSprites.LYE;
+}
+
+export function MmOrders(): Component {
+  const plate = useUniverse();
+  const width: Int = plate.width;
+  const textW: Int = scaled(Order.TEXT_PERCENT, 100, width);
+  const iconColumn: Int = scaled(Order.ICON_PERCENT, 100, width);
+  const column: Int = width / Reagent.COUNT;
+
+  return (
+    <>
+      <text
+        w="fill"
+        h={HEADING_H}
+        text={HEADING_TEXT}
+        font={MmFonts.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+        color={MmColor.HEADING}
+      />
+
+      {Rows.map((row) => (
+        <>
+          {mmOrderItem(row) !== -1 && mmOrderLocked(row) && onMobile() && (
+            <rect
+              x={Order.LEFT}
+              y={mmOrderTop(row)}
+              w={width}
+              h={Order.ROW_H}
+              color={MmColor.HOVER_PLATE}
+              transparency={INVISIBLE}
+              options={[INFO_OP]}
+              optionSubject={ORDER_SUBJECT}
+              onOptionSelect={() => mmOrderMessage(row)}
+            />
+          )}
+          {mmOrderItem(row) !== -1 && mmOrderLocked(row) && !onMobile() && (
+            <rect
+              x={Order.LEFT}
+              y={mmOrderTop(row)}
+              w={width}
+              h={Order.ROW_H}
+              color={MmColor.HOVER_PLATE}
+              transparency={INVISIBLE}
+              onMouseRepeat={() => showMmOrderTooltip(row)}
+              onMouseLeave={() => hideMmTooltip()}
+            />
+          )}
+
+          {mmOrderItem(row) !== -1 && mmModifierIcon(row) !== -1 && mmOrderLocked(row) && (
+            <sprite
+              x={Order.LEFT + Order.ICON_INSET}
+              y={mmOrderTop(row) + Order.ICON_INSET}
+              w={Order.ICON}
+              h={Order.ICON}
+              sprite={mmModifierIcon(row)}
+              transparency={ICON_DIMMED}
+            />
+          )}
+          {mmOrderItem(row) !== -1 && mmModifierIcon(row) !== -1 && !mmOrderLocked(row) && onMobile() && (
+            <sprite
+              x={Order.LEFT + Order.ICON_INSET}
+              y={mmOrderTop(row) + Order.ICON_INSET}
+              w={Order.ICON}
+              h={Order.ICON}
+              sprite={mmModifierIcon(row)}
+              transparency={ICON_LIT}
+              options={[INFO_OP]}
+              optionSubject={MODIFIER_SUBJECT}
+              onOptionSelect={() => mmModifierMessage(row)}
+            />
+          )}
+          {mmOrderItem(row) !== -1 && mmModifierIcon(row) !== -1 && !mmOrderLocked(row) && !onMobile() && (
+            <sprite
+              x={Order.LEFT + Order.ICON_INSET}
+              y={mmOrderTop(row) + Order.ICON_INSET}
+              w={Order.ICON}
+              h={Order.ICON}
+              sprite={mmModifierIcon(row)}
+              transparency={ICON_LIT}
+              onMouseRepeat={() => showMmModifierTooltip(row)}
+              onMouseLeave={() => hideMmTooltip()}
+            />
+          )}
+
+          {mmOrderItem(row) !== -1 && mmOrderLocked(row) && (
+            <text
+              x={Order.LEFT + iconColumn + Order.ICON_INSET}
+              y={mmOrderTop(row)}
+              w={textW}
+              h={Order.ROW_H}
+              text={`<str>${itemName(mmOrderItem(row) as Item)}</str>`}
+              font={MmFonts.ORDER}
+              align="left"
+              valign="middle"
+              shadow
+              color={MmColor.LOCKED}
+            />
+          )}
+          {mmOrderItem(row) !== -1 && !mmOrderLocked(row) && (
+            <text
+              x={Order.LEFT + iconColumn + Order.ICON_INSET}
+              y={mmOrderTop(row)}
+              w={textW}
+              h={Order.ROW_H}
+              text={itemName(mmOrderItem(row) as Item)}
+              font={MmFonts.ORDER}
+              align="left"
+              valign="middle"
+              shadow
+              color={MmColor.READY}
+            />
+          )}
+        </>
+      ))}
+
+      {Rows.map((col) => (
+        <>
+          <sprite
+            x={col * column + column / 2 + Reagent.DX}
+            y={{ bottom: Reagent.BOTTOM + Reagent.ICON_RISE }}
+            w={Reagent.ICON}
+            h={Reagent.ICON}
+            sprite={reagentIcon(col)}
+          />
+          <text
+            x={col * column + column / 2 + Reagent.TEXT_DX}
+            y={{ bottom: Reagent.BOTTOM - Reagent.TEXT_RISE }}
+            w={Reagent.ICON}
+            h={Reagent.PLATE_H}
+            text={stringOf(mmReagentCount(col))}
+            font={MmFonts.HEADING}
+            align="center"
+            valign="middle"
+            shadow
+            color={MmColor.READY}
+          />
+          {onMobile() ? (
+            <rect
+              x={col * column + column / 2 + Reagent.DX}
+              y={{ bottom: Reagent.BOTTOM }}
+              w={Reagent.ICON * 2}
+              h={Reagent.PLATE_H}
+              color={MmColor.HOVER_PLATE}
+              transparency={INVISIBLE}
+              options={[INFO_OP]}
+              optionSubject={REAGENT_SUBJECT}
+              onOptionSelect={() => mmReagentMessage(col)}
+            />
+          ) : (
+            <rect
+              x={col * column + column / 2 + Reagent.DX}
+              y={{ bottom: Reagent.BOTTOM }}
+              w={Reagent.ICON * 2}
+              h={Reagent.PLATE_H}
+              color={MmColor.HOVER_PLATE}
+              transparency={INVISIBLE}
+              onMouseRepeat={() => showMmReagentTooltip(col)}
+              onMouseLeave={() => hideMmTooltip()}
+            />
+          )}
+        </>
+      ))}
+    </>
+  );
+}

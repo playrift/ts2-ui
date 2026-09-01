@@ -1,0 +1,249 @@
+import { CS2, predictServerState, useRef, useServerState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { SliderTrough } from './slider-trough.component';
+import { clickSound, neq } from './settings-side.helpers';
+import { AudioArt, Layout, SideArt, SideTab, SideVars, VolumeSetting } from './settings-side.constants';
+
+export function AudioPanel(): Component {
+  const tab: Int = useServerState(SideVars.TAB);
+  const master: Int = useServerState(SideVars.MASTER_VOLUME);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w={{ fill: Layout.panel.inset }}
+      h={{ fill: Layout.panel.inset }}
+      hide={neq(tab, SideTab.AUDIO)}
+    >
+      <VolumeRow
+        setting={VolumeSetting.MASTER}
+        volume={master}
+        saved={useServerState(SideVars.MASTER_VOLUME_SAVED)}
+        icon={AudioArt.ICON_MASTER}
+        thumb={SideArt.SLIDER_THUMB}
+        mobile={mobile}
+        y={0}
+      />
+      <VolumeRow
+        setting={VolumeSetting.MUSIC}
+        volume={useServerState(SideVars.MUSIC_VOLUME)}
+        saved={useServerState(SideVars.MUSIC_VOLUME_SAVED)}
+        icon={AudioArt.ICON_MUSIC}
+        thumb={master <= 0 ? SideArt.SLIDER_THUMB_MUTED : SideArt.SLIDER_THUMB}
+        mobile={mobile}
+        y={Layout.audioRow.pitch}
+      />
+      <VolumeRow
+        setting={VolumeSetting.EFFECTS}
+        volume={useServerState(SideVars.EFFECTS_VOLUME)}
+        saved={useServerState(SideVars.EFFECTS_VOLUME_SAVED)}
+        icon={AudioArt.ICON_EFFECTS}
+        thumb={master <= 0 ? SideArt.SLIDER_THUMB_MUTED : SideArt.SLIDER_THUMB}
+        mobile={mobile}
+        y={Layout.audioRow.pitch * 2}
+      />
+      <VolumeRow
+        setting={VolumeSetting.AREA}
+        volume={useServerState(SideVars.AREA_VOLUME)}
+        saved={useServerState(SideVars.AREA_VOLUME_SAVED)}
+        icon={AudioArt.ICON_AREA}
+        thumb={master <= 0 ? SideArt.SLIDER_THUMB_MUTED : SideArt.SLIDER_THUMB}
+        mobile={mobile}
+        y={Layout.audioRow.pitch * 3}
+      />
+    </layer>
+  );
+}
+
+function VolumeRow({
+  setting,
+  volume,
+  saved,
+  icon,
+  thumb,
+  mobile,
+  y,
+}: {
+  setting: Int;
+  volume: Int;
+  saved: Int;
+  icon: Sprite;
+  thumb: Sprite;
+  mobile: Boolean;
+  y: Int;
+}): Component {
+  const zone = useRef();
+
+  return (
+    <layer x="center" y={y} w="fill" h={Layout.audioRow.h}>
+      <layer x="right" y="center" w={Layout.slider.troughW} h={Layout.slider.h} noClickThrough>
+        <SliderTrough />
+      </layer>
+
+      <layer
+        ref={zone}
+        x={{ right: Layout.slider.zoneInset }}
+        y="center"
+        w={Layout.slider.zoneW}
+        h={Layout.slider.h}
+        onClick={(event) => setVolume(setting, event.mouseX)}
+      >
+        <sprite
+          x={Math.clamp(0, Layout.slider.travel, CS2.scale(volume, 100, Layout.slider.travel))}
+          w={Layout.slider.thumb}
+          h={Layout.slider.thumb}
+          sprite={thumb}
+          noClickThrough
+          draggable={zone}
+          dragDeadZone={0}
+          dragDeadTime={0}
+          onDrag={(event) => setVolume(setting, event.mouseX)}
+          onDragComplete={(event) => setVolume(setting, event.mouseX)}
+        />
+      </layer>
+
+      <layer
+        y="center"
+        w={Layout.audioRow.iconW}
+        h="fill"
+        noClickThrough
+        options={[volume > 0 ? 'Mute' : 'Unmute']}
+        onOptionSelect={() => toggleMute(setting, volume, saved)}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w={Layout.audioRow.icon}
+          h={Layout.audioRow.icon}
+          sprite={icon}
+          onMouseEnter={
+            mobile
+              ? undefined
+              : (event) => {
+                  event.self.transparency = 100;
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : (event) => {
+                  event.self.transparency = 0;
+                }
+          }
+        />
+        {volume <= 0 && (
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.audioRow.muted}
+            h={Layout.audioRow.muted}
+            sprite={AudioArt.MUTED}
+            onMouseEnter={
+              mobile
+                ? undefined
+                : (event) => {
+                    event.self.transparency = 100;
+                  }
+            }
+            onMouseLeave={
+              mobile
+                ? undefined
+                : (event) => {
+                    event.self.transparency = 0;
+                  }
+            }
+          />
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+function setVolume(setting: Int, mouseX: Int): void {
+  const value: Int = Math.clamp(0, 100, CS2.scale(mouseX, Layout.slider.travel, 100));
+  if (setting === VolumeSetting.MASTER) {
+    predictServerState(SideVars.MASTER_VOLUME, value);
+    CS2.device_option_set(AudioOption.MASTER, value);
+    return;
+  }
+  if (setting === VolumeSetting.MUSIC) {
+    predictServerState(SideVars.MUSIC_VOLUME, value);
+    CS2.game_option_set(AudioOption.MUSIC, value);
+    return;
+  }
+  if (setting === VolumeSetting.EFFECTS) {
+    predictServerState(SideVars.EFFECTS_VOLUME, value);
+    CS2.game_option_set(AudioOption.EFFECTS, value);
+    return;
+  }
+  predictServerState(SideVars.AREA_VOLUME, value);
+  CS2.game_option_set(AudioOption.AREA, value);
+}
+
+function toggleMute(setting: Int, volume: Int, saved: Int): void {
+  clickSound();
+  if (setting === VolumeSetting.MASTER) {
+    if (volume > 0) {
+      predictServerState(SideVars.MASTER_VOLUME_SAVED, volume);
+      predictServerState(SideVars.MASTER_VOLUME, 0);
+      CS2.device_option_set(AudioOption.MASTER, 0);
+      return;
+    }
+    predictServerState(SideVars.MASTER_VOLUME, unmuted(saved, VolumeDefault.MASTER));
+    CS2.device_option_set(AudioOption.MASTER, unmuted(saved, VolumeDefault.MASTER));
+    return;
+  }
+  if (setting === VolumeSetting.MUSIC) {
+    if (volume > 0) {
+      predictServerState(SideVars.MUSIC_VOLUME_SAVED, volume);
+      predictServerState(SideVars.MUSIC_VOLUME, 0);
+      CS2.game_option_set(AudioOption.MUSIC, 0);
+      return;
+    }
+    predictServerState(SideVars.MUSIC_VOLUME, unmuted(saved, VolumeDefault.MUSIC));
+    CS2.game_option_set(AudioOption.MUSIC, unmuted(saved, VolumeDefault.MUSIC));
+    return;
+  }
+  if (setting === VolumeSetting.EFFECTS) {
+    if (volume > 0) {
+      predictServerState(SideVars.EFFECTS_VOLUME_SAVED, volume);
+      predictServerState(SideVars.EFFECTS_VOLUME, 0);
+      CS2.game_option_set(AudioOption.EFFECTS, 0);
+      return;
+    }
+    predictServerState(SideVars.EFFECTS_VOLUME, unmuted(saved, VolumeDefault.EFFECTS));
+    CS2.game_option_set(AudioOption.EFFECTS, unmuted(saved, VolumeDefault.EFFECTS));
+    return;
+  }
+  if (volume > 0) {
+    predictServerState(SideVars.AREA_VOLUME_SAVED, volume);
+    predictServerState(SideVars.AREA_VOLUME, 0);
+    CS2.game_option_set(AudioOption.AREA, 0);
+    return;
+  }
+  predictServerState(SideVars.AREA_VOLUME, unmuted(saved, VolumeDefault.AREA));
+  CS2.game_option_set(AudioOption.AREA, unmuted(saved, VolumeDefault.AREA));
+}
+
+function unmuted(saved: Int, fallback: Int): Int {
+  if (saved <= 0) {
+    return fallback;
+  }
+  return saved;
+}
+
+enum AudioOption {
+  MASTER = 19,
+  MUSIC = 7,
+  EFFECTS = 8,
+  AREA = 9,
+}
+
+enum VolumeDefault {
+  MASTER = 100,
+  MUSIC = 20,
+  EFFECTS = 45,
+  AREA = 30,
+}

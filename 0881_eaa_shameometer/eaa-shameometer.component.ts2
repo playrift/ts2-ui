@@ -1,0 +1,113 @@
+import { stopTimer, useRef, useServerState, useState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import {
+  Layout,
+  ShameColors,
+  ShameFade,
+  ShameFonts,
+  ShameSprites,
+  ShameVarbits,
+  TITLE_TEXT,
+} from './eaa-shameometer.constants';
+
+export function fillWidth(shame: Int): Int {
+  let filled: Int = scaled(shame, Layout.FULL, Layout.TRACK_W);
+  if (filled === 0 && shame > 0) {
+    filled = 1;
+  }
+  if (filled === Layout.TRACK_W && shame < Layout.FULL) {
+    filled = filled - 1;
+  }
+  return filled;
+}
+
+export function ShameOMeter(): Component {
+  const shame: Int = useServerState(ShameVarbits.SHAME);
+  const filled: Int = fillWidth(shame);
+
+  const [fade, setFade] = useState(ShameFade.START);
+  const outerBorder = useRef();
+
+  return (
+    <layer x="center" y="bottom" w="fill" h={{ fill: Layout.BAND_INSET }}>
+      <layer x="center" y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
+        <rect
+          ref={outerBorder}
+          x="center"
+          y={Layout.BORDER_Y}
+          w={{ fill: Layout.BORDER_INSET }}
+          h={{ fill: Layout.BORDER_INSET }}
+          color={ShameColors.BORDER}
+          transparency={fade}
+          onTimer={() => {
+            if (fade > 0) {
+              setFade(fade > ShameFade.STEP ? fade - ShameFade.STEP : 0);
+            } else {
+              stopTimer(outerBorder);
+            }
+          }}
+        />
+
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: Layout.BACKING_INSET }}
+          h={{ fill: Layout.BACKING_INSET }}
+          sprite={ShameSprites.BACKING}
+          tiling
+          transparency={fade}
+        />
+
+        <layer x="center" y={0} w="fill" h={Layout.TITLE_STRIP_H}>
+          <text
+            x="center"
+            y={{ center: Layout.TITLE_DY }}
+            w={{ fill: Layout.TITLE_INSET }}
+            h="fill"
+            text={TITLE_TEXT}
+            font={ShameFonts.TITLE}
+            color={ShameColors.TITLE}
+            align="center"
+            valign="middle"
+            shadow
+            transparency={fade}
+          />
+        </layer>
+
+        <layer x="center" y={{ bottom: Layout.BAR_ROW_BOTTOM }} w={{ fill: Layout.BAR_ROW_INSET }} h={Layout.BAR_ROW_H}>
+          <rect
+            x="center"
+            y="center"
+            w={{ fill: Layout.BAR_BORDER_INSET }}
+            h={{ fill: Layout.BAR_BORDER_INSET }}
+            color={ShameColors.BORDER}
+            transparency={fade}
+          />
+
+          <layer x="center" y="center" w={{ fill: Layout.TRACK_INSET }} h={{ fill: Layout.TRACK_INSET }}>
+            <rect x="center" y="center" w="fill" h="fill" fill color={ShameColors.TRACK} transparency={fade} />
+
+            <rect x={0} y="center" w={filled} h="fill" fill color={ShameColors.SLIDING} transparency={fade} />
+
+            <rect x={0} y="center" w={filled} h="fill" fill color={ShameColors.PROGRESS} transparency={fade} />
+          </layer>
+
+          <text
+            x="center"
+            y={{ center: Layout.PERCENT_DY }}
+            w="fill"
+            h="fill"
+            text={`${stringOf(shame)}%`}
+            font={ShameFonts.PERCENT}
+            color={ShameColors.PERCENT}
+            align="center"
+            valign="middle"
+            shadow
+            transparency={fade}
+          />
+        </layer>
+      </layer>
+    </layer>
+  );
+}

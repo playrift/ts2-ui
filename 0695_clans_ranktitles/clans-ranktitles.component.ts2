@@ -1,0 +1,446 @@
+import { useRef, useServerState, useUniverse } from 'ts2';
+
+import { clanInterfaceTitle } from '../0696_clans_storage_main/clan-interface-title';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { ClanOpStoneButton } from '../0706_clans_permissions/clan-op-stone-button.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { setTransparency } from '../lib/lib.components';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ClanCofferVarbits } from '../0696_clans_storage_main/clans-storage-main.constants';
+
+import { ClanRankTiers } from './clan-rank-tiers.data';
+import { ClanRankTitles } from './clan-rank-titles.data';
+import {
+  Layout,
+  RankTitleVarbits,
+  RankTitlesArt,
+  RankTitlesColor,
+  RankTitlesFade,
+  RankTitlesFonts,
+  RankTitlesText,
+  RankTitlesVarbits,
+  TierThreshold,
+} from './clans-ranktitles.constants';
+import { rankTitleAssigned, rankTitleIcon, rankTitleText, wipeRankTitle } from './clan-rank-title';
+
+export function ClansRanktitles(): Component {
+  const universe = useUniverse();
+  const tiersList = useRef();
+  const titlesList = useRef();
+
+  const mobile: Boolean = onMobile();
+  const permitted: Int = useServerState(RankTitlesVarbits.EDITING_PERMITTED);
+
+  const asGuest: Int = useServerState(ClanCofferVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanCofferVarbits.GUEST_AFFINITY_STATUS);
+  const status: Int = useServerState(ClanCofferVarbits.AFFINITY_STATUS);
+
+  const rowHeight: Int = mobile ? Layout.LIST_ROW_H_MOBILE : Layout.LIST_ROW_H;
+
+  const blurbLines: Int = Math.max(
+    textLineCount(RankTitlesText.BLURB_EDITABLE, Layout.BLURB_W, RankTitlesFonts.BODY),
+    textLineCount(RankTitlesText.BLURB_READONLY, Layout.BLURB_W, RankTitlesFonts.BODY),
+  );
+  const blurbHeight: Int = blurbLines * Layout.BLURB_LINE_H + 1;
+
+  const blurb: String = permitted === 1 ? RankTitlesText.BLURB_EDITABLE : RankTitlesText.BLURB_READONLY;
+
+  const tiersContent: Int = ClanRankTiers.length * Layout.TIER_H;
+  const titlesContent: Int = Layout.TITLE_COUNT * rowHeight;
+
+  const titlesPaneInset: Int = blurbHeight + Layout.BUTTON_STRIP_H;
+  const titlesChrome: Int = titlesPaneInset + Layout.BLURB_PAD + Layout.RIGHT_CHROME;
+
+  const wanted: Int = Math.min(Layout.TIERS_CHROME + tiersContent, titlesChrome + titlesContent);
+  const panelHeight: Int = Math.min(universe.height - Layout.SCREEN_MARGIN, wanted);
+
+  const tiersView: Int = panelHeight - Layout.TIERS_CHROME;
+  const titlesView: Int = panelHeight - titlesChrome;
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={panelHeight}>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title={clanInterfaceTitle(RankTitlesText.TITLE_SUFFIX, asGuest, guestStatus, status)} />
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.SCREEN_MARGIN }} w={{ fill: 20 }} h={{ fill: 50 }}>
+        <layer x={0} y="center" w={{ fill: Layout.LEFT_INSET_W }} h="fill">
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={RankTitlesArt.PANE_BACKING} tiling />
+          <ThinBoxEntrypoint />
+
+          <layer
+            ref={tiersList}
+            x={{ right: 2 }}
+            y="center"
+            w={{ fill: 20 }}
+            h={{ fill: 4 }}
+            scrollHeight={tiersContent > tiersView ? tiersContent : 0}
+          >
+            {ClanRankTiers.map((tier, index) => (
+              <TierRow
+                index={index}
+                rank={tier.rank}
+                hidden={tier.hidden}
+                title={rankTitleText(tier.rank)}
+                icon={rankTitleIcon(tier.rank)}
+                assigned={rankTitleAssigned(tier.rank)}
+                permitted={permitted}
+                mobile={mobile}
+              />
+            ))}
+          </layer>
+
+          <layer x={2} y="center" w={16} h={{ fill: 4 }}>
+            <ScrollbarVertical
+              content={tiersList}
+              track={RankTitlesArt.BAR_TRACK}
+              capTopSprite={RankTitlesArt.BAR_CAP_TOP}
+              thumbSprite={RankTitlesArt.BAR_THUMB}
+              capBottomSprite={RankTitlesArt.BAR_CAP_BOTTOM}
+              arrowUp={RankTitlesArt.BAR_ARROW_UP}
+              arrowDown={RankTitlesArt.BAR_ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+
+        <layer x="right" y="center" w={Layout.RIGHT_W} h="fill">
+          <text
+            x="right"
+            y={0}
+            w={{ fill: Layout.BLURB_PAD }}
+            h={blurbHeight}
+            text={blurb}
+            font={RankTitlesFonts.BODY}
+            color={RankTitlesColor.HEADING}
+            align="left"
+            valign="middle"
+            lineHeight={Layout.BLURB_LINE_H}
+            shadow
+          />
+
+          <layer x="right" y={{ bottom: Layout.BUTTON_STRIP_H }} w="fill" h={{ fill: titlesPaneInset }}>
+            <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={RankTitlesArt.PANE_BACKING} tiling />
+            <ThinBoxEntrypoint />
+
+            <layer
+              ref={titlesList}
+              x={2}
+              y="center"
+              w={{ fill: 20 }}
+              h={{ fill: 4 }}
+              scrollHeight={titlesContent > titlesView ? titlesContent : 0}
+            >
+              {ClanRankTitles.filter((title) => title.rank > 0).map((title, key, index) => (
+                <TitleRow
+                  index={index}
+                  title={title.title}
+                  icon={title.icon}
+                  rowHeight={rowHeight}
+                  used={titleIsAssigned(key)}
+                  permitted={permitted}
+                  mobile={mobile}
+                />
+              ))}
+            </layer>
+
+            <layer x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+              <ScrollbarVertical
+                content={titlesList}
+                track={RankTitlesArt.BAR_TRACK}
+                capTopSprite={RankTitlesArt.BAR_CAP_TOP}
+                thumbSprite={RankTitlesArt.BAR_THUMB}
+                capBottomSprite={RankTitlesArt.BAR_CAP_BOTTOM}
+                arrowUp={RankTitlesArt.BAR_ARROW_UP}
+                arrowDown={RankTitlesArt.BAR_ARROW_DOWN}
+              />
+            </layer>
+          </layer>
+
+          <layer x={Layout.BUTTON_INSET_X} y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+            <ClanOpStoneButton label={RankTitlesText.BACK} font={RankTitlesFonts.BODY} />
+          </layer>
+
+          <layer x={{ right: Layout.BUTTON_INSET_X }} y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+            {permitted === 1 ? (
+              <ClanOpStoneButton label={RankTitlesText.SAVE} font={RankTitlesFonts.BODY} />
+            ) : (
+              <StoneButtonDraw label={RankTitlesText.SAVE_LOCKED} font={RankTitlesFonts.BODY} pressed={1} />
+            )}
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+export function titleIsAssigned(title: Int): Boolean {
+  if (useServerState(RankTitleVarbits.RANK_000) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_010) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_020) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_030) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_040) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_050) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_060) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_070) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_080) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_090) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_095) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_096) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_097) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_098) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_099) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_101) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_102) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_103) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_104) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_105) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_110) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_115) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_120) === title) {
+    return true;
+  }
+  if (useServerState(RankTitleVarbits.RANK_124) === title) {
+    return true;
+  }
+  return false;
+}
+
+function TierRow({
+  index,
+  rank,
+  hidden,
+  title,
+  icon,
+  assigned,
+  permitted,
+  mobile,
+}: {
+  index: Int;
+  rank: Int;
+  hidden: Boolean;
+  title: String;
+  icon: Sprite;
+  assigned: Int;
+  permitted: Int;
+  mobile: Boolean;
+}): Component {
+  const top: Int = index * Layout.TIER_H;
+  let live: Boolean = false;
+  if (!hidden && assigned !== 0 && permitted === 1) {
+    live = true;
+  }
+  const tile: Sprite = !hidden && assigned !== 0 ? RankTitlesArt.ROW_TILE : -1;
+
+  let note: String = RankTitlesText.NOTE_NO_ADVANCED;
+  if (rank >= TierThreshold.ADVANCED) {
+    note = RankTitlesText.NOTE_ADVANCED;
+  } else if (rank < 0) {
+    note = RankTitlesText.NOTE_NOT_IN_CLAN;
+  }
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y={{ bottom: top }}
+        w="fill"
+        h={Layout.TIER_H}
+        sprite={tile}
+        tiling
+        transparency={255}
+        hide={hidden}
+      />
+
+      {live ? (
+        <rect
+          x="center"
+          y={{ bottom: top }}
+          w="fill"
+          h={Layout.TIER_H}
+          color={index % 2 === 0 ? RankTitlesColor.STRIPE_EVEN : RankTitlesColor.STRIPE_ODD}
+          fill
+          transparency={RankTitlesFade.REST}
+          options={['', '', '', '', '', '', '', '', '', RankTitlesText.OP_WIPE]}
+          onOptionSelect={() => wipeRankTitle(rank)}
+          onMouseRepeat={mobile ? undefined : (event) => setTransparency(event.component, RankTitlesFade.HOVER)}
+          onMouseLeave={(event) => setTransparency(event.component, RankTitlesFade.REST)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={{ bottom: top }}
+          w="fill"
+          h={Layout.TIER_H}
+          color={index % 2 === 0 ? RankTitlesColor.STRIPE_EVEN : RankTitlesColor.STRIPE_ODD}
+          fill
+          transparency={hidden ? RankTitlesFade.SPENT : RankTitlesFade.REST}
+        />
+      )}
+
+      <text
+        x={icon === -1 ? 'center' : { center: Layout.TIER_TITLE_DX }}
+        y={{ bottom: top }}
+        w="fill"
+        h={Layout.TIER_TITLE_H}
+        text={title}
+        font={RankTitlesFonts.BODY}
+        color={RankTitlesColor.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={{ center: 0 - (textWidth(title, 512, RankTitlesFonts.BODY) + 4) / 2 }}
+        y={{ bottom: top + Layout.TIER_ICON_DY }}
+        w={Layout.ICON}
+        h={Layout.ICON}
+        sprite={icon}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: top + Layout.TIER_H - Layout.TIER_NOTE_H }}
+        w={{ fill: 2 }}
+        h={Layout.TIER_NOTE_H}
+        text={note}
+        font={RankTitlesFonts.NOTE}
+        color={RankTitlesColor.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function TitleRow({
+  index,
+  title,
+  icon,
+  rowHeight,
+  used,
+  permitted,
+  mobile,
+}: {
+  index: Int;
+  title: String;
+  icon: Sprite;
+  rowHeight: Int;
+  used: Boolean;
+  permitted: Int;
+  mobile: Boolean;
+}): Component {
+  const top: Int = index * rowHeight;
+  let live: Boolean = false;
+  if (!used && permitted === 1) {
+    live = true;
+  }
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y={top}
+        w="fill"
+        h={rowHeight}
+        sprite={used ? -1 : RankTitlesArt.ROW_TILE}
+        tiling
+        transparency={255}
+        hide={used}
+      />
+
+      {live ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowHeight}
+          color={index % 2 === 0 ? RankTitlesColor.STRIPE_EVEN : RankTitlesColor.STRIPE_ODD}
+          fill
+          transparency={RankTitlesFade.REST}
+          onMouseRepeat={mobile ? undefined : (event) => setTransparency(event.component, RankTitlesFade.HOVER)}
+          onMouseLeave={(event) => setTransparency(event.component, RankTitlesFade.REST)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowHeight}
+          color={index % 2 === 0 ? RankTitlesColor.STRIPE_EVEN : RankTitlesColor.STRIPE_ODD}
+          fill
+          transparency={used ? RankTitlesFade.SPENT : RankTitlesFade.REST}
+        />
+      )}
+
+      <text
+        x="right"
+        y={top}
+        w={{ fill: Layout.LIST_TEXT_INSET }}
+        h={rowHeight}
+        text={title}
+        font={RankTitlesFonts.BODY}
+        color={used ? RankTitlesColor.SPENT : RankTitlesColor.HEADING}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={Layout.LIST_ICON_X}
+        y={top + (rowHeight - Layout.ICON) / 2}
+        w={Layout.ICON}
+        h={Layout.ICON}
+        sprite={icon}
+      />
+    </>
+  );
+}

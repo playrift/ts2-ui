@@ -1,0 +1,624 @@
+import { onMounted, onUpdated, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import {
+  MakeoverMenuButton,
+  MakeoverMenuCatcher,
+  MakeoverMenuPanel,
+} from '../0205_makeover_mage/makeover-menu.component';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  makeoverCurrentColour,
+  makeoverCurrentSelection,
+  makeoverModelSpinDirection,
+  makeoverModelSpinPause,
+  makeoverModelSpinPosition,
+  makeoverScrollPos,
+  makeoverZoom,
+} from '../lib/game/varcs';
+import { flashFor } from '../lib/lib.components';
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { colourSetSize, MakeoverColours } from './makeover-colours.data';
+import { MakeoverStyles, styleSetSize } from './makeover-styles.data';
+import {
+  colourSetFor,
+  Labels,
+  Layout,
+  MakeoverAnims,
+  MakeoverColors,
+  MakeoverFonts,
+  MakeoverSounds,
+  MakeoverSprites,
+  styleSetFor,
+  styleSubject,
+  wideGrid,
+} from './makeover.constants';
+
+function cellOffsetX(category: Int): Int {
+  return category === 6 ? 4 : 0;
+}
+
+function cellOffsetY(category: Int, alt: Int): Int {
+  if (category === 3) {
+    return alt === 1 ? 180 : 160;
+  }
+  if (category === 4) {
+    return 160;
+  }
+  if (category === 5) {
+    return 35;
+  }
+  if (category === 6) {
+    return -5;
+  }
+  if (category === 7) {
+    return alt === 1 ? 110 : 120;
+  }
+  return 0;
+}
+
+function cellPitch(category: Int): Int {
+  return category <= 2 ? 0 : 100;
+}
+
+function cellYaw(category: Int): Int {
+  return category === 2 ? 0 : 200;
+}
+
+function cellZoom(category: Int, alt: Int): Int {
+  if (category <= 1) {
+    return 400;
+  }
+  if (category === 2) {
+    return 0;
+  }
+  if (category === 3) {
+    return alt === 1 ? 300 : 500;
+  }
+  if (category === 4) {
+    return alt === 1 ? 400 : 500;
+  }
+  if (category === 5) {
+    return alt === 1 ? 1050 : 1000;
+  }
+  if (category === 6) {
+    return 250;
+  }
+  return 150;
+}
+
+function itemOffsetX(category: Int, zoomed: Int): Int {
+  if (zoomed === 0) {
+    return 0;
+  }
+  if (category === 6 || category === 7) {
+    return 4;
+  }
+  return 0;
+}
+
+function itemOffsetY(category: Int, zoomed: Int): Int {
+  if (zoomed === 0) {
+    return 180;
+  }
+  if (category === 3 || category === 4) {
+    return 250;
+  }
+  if (category === 5) {
+    return 120;
+  }
+  if (category === 6) {
+    return 0;
+  }
+  if (category === 7) {
+    return 200;
+  }
+  return 0;
+}
+
+function itemPitch(category: Int, zoomed: Int): Int {
+  if (zoomed === 0) {
+    return 100;
+  }
+  if (category >= 3 && category <= 7) {
+    return 100;
+  }
+  return 0;
+}
+
+function itemYaw(category: Int, zoomed: Int): Int {
+  if (zoomed === 0) {
+    return 200;
+  }
+  if (category >= 3 && category <= 7) {
+    return 200;
+  }
+  return 0;
+}
+
+function itemZoom(category: Int, zoomed: Int): Int {
+  if (zoomed === 0) {
+    return 850;
+  }
+  if (category === 3 || category === 4) {
+    return 300;
+  }
+  if (category === 5) {
+    return 500;
+  }
+  if (category === 6) {
+    return 300;
+  }
+  if (category === 7) {
+    return 100;
+  }
+  return Layout.ITEM_MODEL_ZOOM;
+}
+
+function spinNext(yaw: Int, direction: Int): Int {
+  if (direction === 0) {
+    const back: Int = (yaw - 5 + 2047) % 2047;
+    if (back <= 1535 && back > 1023) {
+      return 1535;
+    }
+    return back;
+  }
+  const forward: Int = (yaw + 5) % 2047;
+  if (forward >= 511 && forward < 1023) {
+    return 511;
+  }
+  return forward;
+}
+
+function spinTurn(yaw: Int, direction: Int): Int {
+  if (direction === 0) {
+    const back: Int = (yaw - 5 + 2047) % 2047;
+    if (back <= 1535 && back > 1023) {
+      return 1;
+    }
+    return 0;
+  }
+  const forward: Int = (yaw + 5) % 2047;
+  if (forward >= 511 && forward < 1023) {
+    return 0;
+  }
+  return 1;
+}
+
+function setOutline(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}
+
+function MakeoverButton({ label }: { label: String }): Component {
+  const [over, setOver] = useState(0);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      optionSubject={Labels.BUTTON_SUBJECT}
+      onOptionSelect={() => playSound(MakeoverSounds.CLICK)}
+      onMouseRepeat={() => setOver(1)}
+      onMouseLeave={() => setOver(0)}
+    >
+      {over === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <text
+        w="fill"
+        h="fill"
+        text={label}
+        font={MakeoverFonts.BUTTON}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.CAPTION_LINE_HEIGHT}
+        color={MakeoverColors.ON}
+      />
+    </layer>
+  );
+}
+
+export function MakeoverStage(): Component {
+  const universe = useUniverse();
+  const [, setSeen] = useState(0);
+  const category: Int = useServerState(Varbits.MAKEOVER_INTERFACE_TYPE);
+
+  universe.onResize = () => {
+    setSeen(universe.height);
+  };
+
+  const height: Int = Math.min(Layout.STAGE_MAX_H, universe.height - Layout.STAGE_SLACK);
+
+  return (
+    <layer x="center" y={{ bottom: (universe.height - height) / 2 }} w={Layout.STAGE_W} h={height}>
+      <SteelBorderEntrypoint title={Labels.TITLE} />
+
+      <MakeoverContent category={category} stageHeight={height} x={0} y={0} w={Layout.CONTENT_W} h="fill" />
+
+      <MakeoverMenuButton />
+      <MakeoverMenuCatcher />
+      <MakeoverMenuPanel page={category} />
+    </layer>
+  );
+}
+
+function MakeoverContent({ category, stageHeight }: { category: Int; stageHeight: Int }): Component {
+  const list = useRef();
+  const alt: Int = useServerState(Varbits.MAKEOVER_BODYTYPE);
+  const chosenColour: Int = useServerState(Varps.MAKEOVER_COLOUR);
+  const storedStyle: Int = useServerState(Varps.MAKEOVER_HAIR);
+  const [selected, setSelected] = useState(makeoverCurrentSelection);
+  const [litColour, setLitColour] = useState(makeoverCurrentColour);
+  const [scroll, setScroll] = useState(makeoverScrollPos);
+  const [spin, setSpin] = useState(makeoverModelSpinPosition);
+  const [paused, setPaused] = useState(makeoverModelSpinPause);
+  const [direction, setDirection] = useState(makeoverModelSpinDirection);
+  const [zoomed, setZoomed] = useState(makeoverZoom);
+
+  onMounted(() => {
+    setSelected(storedStyle);
+    setSpin(0);
+    setPaused(0);
+    setScroll(0);
+    if (zoomed === -1) {
+      setZoomed(0);
+    }
+  });
+
+  onUpdated(() => {
+    list.scrollY = list.scrollY;
+  });
+
+  const set: Int = styleSetFor(category);
+  const wide: Boolean = wideGrid(category);
+  const columns: Int = wide ? Layout.WIDE_COLUMNS : Layout.COLUMNS;
+  const stepX: Int = wide ? Layout.WIDE_STEP_X : Layout.CELL_STEP_X;
+  const stepY: Int = wide ? Layout.WIDE_STEP_Y : Layout.CELL_STEP_Y;
+  const left: Int = wide ? Layout.WIDE_LEFT : Layout.CELL_LEFT;
+  const cellW: Int = wide ? Layout.WIDE_CELL_W : Layout.CELL_W;
+  const cellH: Int = wide ? Layout.WIDE_CELL_H : Layout.CELL_H;
+  const modelW: Int = wide ? Layout.WIDE_MODEL_W : Layout.MODEL_W;
+  const modelH: Int = wide ? Layout.WIDE_MODEL_H : Layout.MODEL_H;
+  const subject: String = styleSubject(category);
+
+  const rows: Int = (styleSetSize(set) + columns - 1) / columns;
+  const rowPitch: Int = wide ? Layout.WIDE_SCROLL_ROW : Layout.SCROLL_ROW;
+  const content: Int = Layout.SCROLL_PAD + rows * rowPitch;
+  const paneHeight: Int = stageHeight - Layout.GRID_INSET_H;
+  const extent: Int = content > paneHeight ? content : 0;
+
+  const palette: Int = colourSetFor(category);
+  const swatchRows: Int = (colourSetSize(palette) + Layout.SWATCH_COLUMNS - 1) / Layout.SWATCH_COLUMNS;
+  const buttonsY: Int = Layout.SWATCH_ORIGIN + swatchRows * Layout.SWATCH_STEP - Layout.BUTTONS_LIFT;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer x={Layout.GRID_X} y={Layout.GRID_Y} w={Layout.GRID_W} h={{ fill: Layout.GRID_INSET_H }}>
+        <ScrollbarVertical
+          x={Layout.BAR_X}
+          y={Layout.BAR_Y}
+          w={{ fill: Layout.BAR_INSET_W }}
+          h={{ fill: Layout.BAR_INSET_H }}
+          content={list}
+          track={MakeoverSprites.BAR_TRACK}
+          capTopSprite={MakeoverSprites.BAR_CAP_TOP}
+          thumbSprite={MakeoverSprites.BAR_THUMB}
+          capBottomSprite={MakeoverSprites.BAR_CAP_BOTTOM}
+          arrowUp={MakeoverSprites.BAR_ARROW_UP}
+          arrowDown={MakeoverSprites.BAR_ARROW_DOWN}
+        />
+
+        <ThinBox />
+
+        <layer
+          ref={list}
+          y={Layout.LIST_Y}
+          w="fill"
+          h={{ fill: Layout.LIST_INSET_H }}
+          scrollHeight={extent}
+          scrollY={scroll}
+        >
+          <TemplateChildren />
+
+          {MakeoverStyles.filter((row) => row.set === set).map((row, index) => (
+            <>
+              <sprite
+                x={{ center: left + (index % columns) * stepX }}
+                y={Layout.CELL_TOP + (index / columns) * stepY}
+                w={cellW}
+                h={cellH}
+                sprite={selected === index ? MakeoverSprites.CELL_ON : MakeoverSprites.CELL_OFF}
+                tiling
+                options={[Labels.PREVIEW]}
+                optionSubject={subject}
+                onOptionSelect={(event) => {
+                  flashFor(event.self, 125, 0);
+                  playSound(MakeoverSounds.CLICK);
+                  setSelected(index);
+                }}
+              />
+              <rect
+                x={{ center: left + (index % columns) * stepX }}
+                y={Layout.CELL_TOP + (index / columns) * stepY}
+                w={cellW}
+                h={cellH}
+                color={selected === index ? MakeoverColors.ON : MakeoverColors.OFF}
+                onMouseRepeat={(event) => setOutline(event.component, MakeoverColors.LIT)}
+                onMouseLeave={(event) =>
+                  setOutline(event.component, selected === index ? MakeoverColors.ON : MakeoverColors.OFF)
+                }
+              />
+              <model
+                x={{ center: left + (index % columns) * stepX + Layout.MODEL_DX }}
+                y={Layout.CELL_TOP + (index / columns) * stepY + Layout.MODEL_DY}
+                w={modelW}
+                h={modelH}
+                model={alt === 1 ? row.altModel : row.model}
+                offsetX={cellOffsetX(category)}
+                offsetY={cellOffsetY(category, alt)}
+                pitch={cellPitch(category)}
+                yaw={cellYaw(category)}
+                zoom={cellZoom(category, alt)}
+              />
+              <model
+                x={{ center: left + (index % columns) * stepX + Layout.MODEL_DX }}
+                y={Layout.CELL_TOP + (index / columns) * stepY + Layout.MODEL_DY}
+                w={modelW}
+                h={modelH}
+                model={alt === 1 ? row.altModel2 : row.model2}
+                offsetX={cellOffsetX(category)}
+                offsetY={cellOffsetY(category, alt)}
+                pitch={cellPitch(category)}
+                yaw={cellYaw(category)}
+                zoom={cellZoom(category, alt)}
+              />
+              <text
+                x={{ center: left + (index % columns) * stepX }}
+                y={Layout.CELL_TOP + (index / columns) * stepY + Layout.CAPTION_DY}
+                w={cellW - Layout.CAPTION_INSET}
+                h={Layout.CAPTION_H}
+                text={row.name}
+                font={MakeoverFonts.CAPTION}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={Layout.CAPTION_LINE_HEIGHT}
+                color={MakeoverColors.ON}
+              />
+            </>
+          ))}
+        </layer>
+      </layer>
+
+      <layer x={Layout.PREVIEW_X} y={{ center: Layout.PREVIEW_Y }} w={Layout.PREVIEW_W} h={Layout.PREVIEW_H}>
+        {category <= 1 ? (
+          <>
+            <sprite w="fill" h="fill" sprite={MakeoverSprites.CELL_OFF} tiling />
+            <ThinBox />
+            <model
+              x="center"
+              y={Layout.HEAD_Y}
+              w={{ fill: Layout.HEAD_INSET }}
+              h={{ fill: Layout.HEAD_INSET }}
+              anim={MakeoverAnims.IDLE}
+              yaw={spin}
+              zoom={Layout.HEAD_ZOOM}
+              options={[Labels.TOGGLE]}
+              optionSubject={Labels.SPIN}
+              onOptionSelect={() => setPaused(1 - paused)}
+              onTimer={() => {
+                if (paused === 0) {
+                  setSpin(spinNext(spin, direction));
+                  setDirection(spinTurn(spin, direction));
+                }
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <sprite
+              w="fill"
+              h="fill"
+              sprite={MakeoverSprites.CELL_OFF}
+              tiling
+              options={[Labels.TOGGLE]}
+              optionSubject={Labels.ZOOM}
+              onOptionSelect={() => setZoomed((zoomed + 1) % 2)}
+            />
+            <ThinBox />
+          </>
+        )}
+      </layer>
+
+      <layer
+        x={Layout.ITEM_X}
+        y={{ center: Layout.ITEM_Y }}
+        w={Layout.ITEM_W}
+        h={Layout.ITEM_H}
+        hide={category <= 1 ? true : false}
+      >
+        <sprite
+          y={Layout.ITEM_ICON_Y}
+          w={Layout.ITEM_ICON_W}
+          h={Layout.ITEM_ICON_H}
+          sprite={MakeoverSprites.PREVIEW_ICON}
+        />
+        <model
+          x="center"
+          y="bottom"
+          w={Layout.ITEM_MODEL_W}
+          h={Layout.ITEM_MODEL_H}
+          contentType={Layout.ITEM_CONTENT_TYPE}
+          offsetX={itemOffsetX(category, zoomed)}
+          offsetY={itemOffsetY(category, zoomed)}
+          pitch={itemPitch(category, zoomed)}
+          yaw={itemYaw(category, zoomed)}
+          zoom={itemZoom(category, zoomed)}
+        />
+      </layer>
+
+      <layer
+        x={Layout.PAUSE_X}
+        y={{ center: Layout.PAUSE_Y }}
+        w={Layout.PAUSE_W}
+        h={Layout.PAUSE_H}
+        hide={paused === 1 ? false : true}
+      >
+        <rect
+          x={{ right: Layout.PAUSE_BAR_A }}
+          y={Layout.PAUSE_BAR_Y}
+          w={Layout.PAUSE_BAR_W}
+          h={Layout.PAUSE_BAR_H}
+          color={MakeoverColors.PAUSE_BAR}
+          fill
+        />
+        <rect
+          x={{ right: Layout.PAUSE_BAR_A }}
+          y={Layout.PAUSE_BAR_Y}
+          w={Layout.PAUSE_BAR_W}
+          h={Layout.PAUSE_BAR_H}
+          color={0x000000}
+        />
+        <rect
+          x={{ right: Layout.PAUSE_BAR_B }}
+          y={Layout.PAUSE_BAR_Y}
+          w={Layout.PAUSE_BAR_W}
+          h={Layout.PAUSE_BAR_H}
+          color={MakeoverColors.PAUSE_BAR}
+          fill
+        />
+        <rect
+          x={{ right: Layout.PAUSE_BAR_B }}
+          y={Layout.PAUSE_BAR_Y}
+          w={Layout.PAUSE_BAR_W}
+          h={Layout.PAUSE_BAR_H}
+          color={0x000000}
+        />
+      </layer>
+
+      <layer x={Layout.COLOURS_X} y={{ center: Layout.COLOURS_Y }} w={Layout.COLOURS_W} h={Layout.COLOURS_H}>
+        <rect
+          x={Layout.SPARE_X}
+          y={Layout.SPARE_Y}
+          w={Layout.SPARE_W}
+          h={Layout.SPARE_H}
+          hide
+          color={MakeoverColors.SPARE}
+          fill
+        />
+        {MakeoverColours.filter((row) => row.set === palette).map((row, index) => (
+          <>
+            <rect
+              x={Layout.SWATCH_ORIGIN + (index % Layout.SWATCH_COLUMNS) * Layout.SWATCH_STEP}
+              y={Layout.SWATCH_ORIGIN + (index / Layout.SWATCH_COLUMNS) * Layout.SWATCH_STEP}
+              w={Layout.SWATCH}
+              h={Layout.SWATCH}
+              color={row.colour}
+              fill
+              options={[Labels.COLOUR]}
+              optionSubject={`<col=ff9040>${row.name}`}
+              onOptionSelect={(event) => {
+                flashFor(event.self, 125, 0);
+                playSound(MakeoverSounds.CLICK);
+                setLitColour(index);
+              }}
+            />
+            <rect
+              x={Layout.SWATCH_ORIGIN + (index % Layout.SWATCH_COLUMNS) * Layout.SWATCH_STEP}
+              y={Layout.SWATCH_ORIGIN + (index / Layout.SWATCH_COLUMNS) * Layout.SWATCH_STEP}
+              w={Layout.SWATCH_RING}
+              h={Layout.SWATCH_RING}
+              color={chosenColour === index ? MakeoverColors.ON : MakeoverColors.OFF}
+              onMouseRepeat={(event) => setOutline(event.component, MakeoverColors.LIT)}
+              onMouseLeave={(event) =>
+                setOutline(event.component, litColour === index ? MakeoverColors.ON : MakeoverColors.OFF)
+              }
+            />
+          </>
+        ))}
+      </layer>
+
+      <layer x={Layout.BUTTONS_X} y={{ center: buttonsY }} w={Layout.BUTTONS_W} h={Layout.BUTTONS_H}>
+        <MakeoverButton label={Labels.APPLY} x={0} y="center" w={Layout.APPLY_W} h={Layout.BUTTONS_H} />
+        <MakeoverButton label={Labels.CONFIRM} x="right" y="center" w={Layout.CONFIRM_W} h={Layout.BUTTONS_H} />
+      </layer>
+    </layer>
+  );
+}
+
+function TemplateChildren(): Component {
+  return (
+    <>
+      <rect
+        x={{ center: Layout.TEMPLATE_X }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_W}
+        h={Layout.TEMPLATE_H}
+        hide
+        color={0xffffff}
+      />
+      <rect
+        x={{ center: -40 }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_W}
+        h={Layout.TEMPLATE_H}
+        hide
+        color={0xffffff}
+      />
+      <rect
+        x={{ center: Layout.TEMPLATE_X }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_W}
+        h={Layout.TEMPLATE_H}
+        hide
+        color={0xffffff}
+      />
+      <rect
+        x={{ center: Layout.TEMPLATE_X }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_W}
+        h={Layout.TEMPLATE_H}
+        hide
+        color={0xffffff}
+      />
+      <rect
+        x={{ center: Layout.TEMPLATE_BIG_X }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_BIG_W}
+        h={Layout.TEMPLATE_BIG_H}
+        hide
+        color={0xffffff}
+      />
+      <model
+        x={{ center: Layout.TEMPLATE_BIG_X }}
+        y={Layout.TEMPLATE_MODEL_Y}
+        w={Layout.TEMPLATE_MODEL}
+        h={Layout.TEMPLATE_MODEL}
+        hide
+        model={Layout.TEMPLATE_MODEL_ID}
+        yaw={Layout.TEMPLATE_MODEL_YAW}
+        zoom={Layout.TEMPLATE_MODEL_ZOOM}
+      />
+      <text
+        x={{ center: Layout.TEMPLATE_X }}
+        y={Layout.TEMPLATE_Y}
+        w={Layout.TEMPLATE_TEXT_W}
+        h={Layout.TEMPLATE_TEXT_H}
+        hide
+        text={Labels.TEMPLATE_TEXT}
+        font={MakeoverFonts.CAPTION}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.TEMPLATE_TEXT_LINE}
+        color={0xffffff}
+      />
+    </>
+  );
+}

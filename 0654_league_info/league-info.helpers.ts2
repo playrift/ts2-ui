@@ -1,0 +1,272 @@
+import { CS2, useServerState } from 'ts2';
+import { hasBit, textLineCount } from '../lib/lib.engine';
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import {
+  BreakpointGates,
+  Breakpoints,
+  Dropdown,
+  Layout,
+  League,
+  LeagueInfoFonts,
+  LeagueInfoVarbits,
+  LeagueInfoVarps,
+} from './league-info.constants';
+import { Leagues } from './leagues.data';
+
+export function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > BreakpointGates.W1 && height > BreakpointGates.H1) {
+    level = 1;
+  }
+  if (width > BreakpointGates.W2 && height > BreakpointGates.H2) {
+    level = 2;
+  }
+  if (width > BreakpointGates.W3 && height > BreakpointGates.H3) {
+    level = 3;
+  }
+  return level;
+}
+
+export function universeWidth(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.w;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.w;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.w;
+  }
+  return Breakpoints.BASE.w;
+}
+
+export function universeHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.h;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.h;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.h;
+  }
+  return Breakpoints.BASE.h;
+}
+
+export function contentTop(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.outerTop;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.outerTop;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.outerTop;
+  }
+  return Breakpoints.BASE.outerTop;
+}
+
+export function dividerTop(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.dividerTop;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.dividerTop;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.dividerTop;
+  }
+  return Breakpoints.BASE.dividerTop;
+}
+
+export function paneInset(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.paneInset;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.paneInset;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.paneInset;
+  }
+  return Breakpoints.BASE.paneInset;
+}
+
+export function outerWidth(breakpoint: Int): Int {
+  return universeWidth(breakpoint) - Layout.OUTER_INSET_W;
+}
+
+export function columnInset(breakpoint: Int): Int {
+  return outerWidth(breakpoint) / 2 + Layout.HEADER_SPLIT;
+}
+
+export function columnWidth(breakpoint: Int): Int {
+  return outerWidth(breakpoint) - columnInset(breakpoint) - Layout.SCROLLBAR_W;
+}
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(LeagueInfoVarps.MAP_FLAGS);
+  if (hasBit(flags, 29)) {
+    return false;
+  }
+  return hasBit(flags, 30);
+}
+
+export function leagueEventUnlocked(): Boolean {
+  return hasBit(useServerState(LeagueInfoVarps.MAP_FLAGS), 11);
+}
+
+export function featureFlag(bit: Int): Boolean {
+  return hasBit(useServerState(LeagueInfoVarps.FEATURE_FLAGS), bit);
+}
+
+export const TUTORIAL_STEPS = 14;
+
+export function inLeagueTutorial(): Boolean {
+  if (leagueWorld() === false) {
+    return false;
+  }
+  if (useServerState(LeagueInfoVarbits.TUTORIAL_PROGRESS) < TUTORIAL_STEPS) {
+    return true;
+  }
+  return false;
+}
+
+export function combatMasteriesEntry(league: Int): Boolean {
+  if (leagueEventUnlocked() && featureFlag(1)) {
+    return true;
+  }
+  if (leagueWorld() === false) {
+    return false;
+  }
+  const row = Leagues.get(league as League);
+  if (row === null) {
+    return false;
+  }
+  return row.combatMasteries;
+}
+
+export function leagueName(league: Int): String {
+  const key: Int = league < League.ONE || league > League.SIX ? League.SIX : league;
+  const row = Leagues.get(key as League);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+export function barsToBreaks(text: String): String {
+  if (CS2.compare('|', '<br><br>') === 0) {
+    return text;
+  }
+  let out: String = text;
+  let at: Int = out.indexOf('|', 0);
+  while (at !== -1) {
+    const total: Int = out.length;
+    out = `${out.substring(0, at)}<br><br>${out.substring(at + 1, total)}`;
+    at = out.indexOf('|', 0);
+  }
+  return out;
+}
+
+export function blogLine(league: Int): String {
+  return `<img=13> ${textDevice('Click', 'Tap')} to open the ${leagueName(league)} blog!<br>`;
+}
+
+export function blogHeight(text: String, generalWidth: Int, specificWidth: Int): Int {
+  const general: Int =
+    Layout.BLOG_LINE_H * textLineCount(text, generalWidth - Layout.BODY_INSET, LeagueInfoFonts.BODY) + Layout.BLOG_PAD;
+  const specific: Int =
+    Layout.BLOG_LINE_H * textLineCount(text, specificWidth - Layout.BODY_INSET, LeagueInfoFonts.BODY) + Layout.BLOG_PAD;
+  const taller: Int = general > specific ? general : specific;
+  return taller + Layout.BLOG_EXTRA;
+}
+
+export function bodyHeight(body: String, width: Int): Int {
+  return Layout.LINE_H * textLineCount(body, width - Layout.BODY_INSET, LeagueInfoFonts.BODY) + Layout.LINE_H;
+}
+
+export function daysLeft(endRuneday: Int): Int {
+  const left: Int = 1 + (endRuneday - useServerState(LeagueInfoVarbits.RUNEDAY));
+  return left < 1 ? 1 : left;
+}
+
+export function daysLeftSuffix(league: Int, days: Int): String {
+  if (days === 1) {
+    return `|There is ${stringOf(days)} day left in<br>${leagueName(league)}!`;
+  }
+  return `|There are ${stringOf(days)} days left in<br>${leagueName(league)}!`;
+}
+
+export function onIos(): Boolean {
+  const client: Int = CS2.clienttype();
+  if (client === 3 || client === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function dropdownRows(): Int {
+  return onMobile() ? 140 : 115;
+}
+
+export function dropdownWidth(): Int {
+  return onMobile() ? 154 : 120;
+}
+
+export function closeRefused(league: Int): Boolean {
+  if (inLeagueTutorial() === false) {
+    return false;
+  }
+  const row = Leagues.get(league as League);
+  if (row === null) {
+    return false;
+  }
+  return row.tutorialLocked;
+}
+
+export function menuButtonVisible(): Boolean {
+  if (inLeagueTutorial()) {
+    return false;
+  }
+  return true;
+}
+
+export function blogVisible(): Boolean {
+  if (onIos()) {
+    return false;
+  }
+  return true;
+}
+
+export function isLeagueThree(league: Int): Boolean {
+  if (league === League.THREE) {
+    return true;
+  }
+  return false;
+}
+
+export function isSelectedEntry(entry: Int): Boolean {
+  if (entry === Dropdown.SELECTED) {
+    return true;
+  }
+  return false;
+}
+
+export function desktop(): Boolean {
+  if (onMobile()) {
+    return false;
+  }
+  return true;
+}
+
+export function rowHoverable(active: Boolean): Boolean {
+  if (active) {
+    return false;
+  }
+  return desktop();
+}
+
+export function colourSwapper(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}

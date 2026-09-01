@@ -1,0 +1,81 @@
+import { CS2, useDerived, useRef } from 'ts2';
+import {
+  Layout,
+  SideColors,
+  SideFonts,
+  SideOps,
+  SideSounds,
+  SideSprites,
+  Toggle,
+} from './adventurepath-side.constants';
+import { desktop, settingValue, toggleOn, togglePressedColour, toggleSetting } from './adventurepath-side.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+
+export function SettingsToggle({ label, index, width }: { label: String; index: Int; width: Int }): Component {
+  const up = useRef();
+  const down = useRef();
+  const text = useRef();
+  const setting: Int = useDerived(() => settingValue(index));
+  const on: Boolean = toggleOn(setting);
+  const swap: Boolean = desktop();
+  const pressedColour: Int = togglePressedColour();
+  const top: Int = index * Toggle.STEP;
+
+  return (
+    <layer x={0} y={top} w={width} h={Toggle.HEIGHT}>
+      <layer ref={up} w="fill" h="fill">
+        <StoneButtonFilled />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide>
+        <StoneButtonPressedFilled />
+      </layer>
+
+      <text
+        ref={text}
+        x={Toggle.LABEL_X}
+        y={0}
+        w={width - Toggle.RADIO_X}
+        h={Toggle.HEIGHT}
+        text={label}
+        font={SideFonts.BODY}
+        shadow
+        color={SideColors.GOLD}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.BODY_LINE_H}
+      />
+
+      <sprite
+        x={width - Toggle.RADIO_X}
+        y={Toggle.RADIO_Y}
+        w={Toggle.RADIO}
+        h={Toggle.RADIO}
+        sprite={on ? SideSprites.RADIO_ON : SideSprites.RADIO_OFF}
+      />
+
+      <rect
+        x={0}
+        y={0}
+        w={width + Toggle.CLICK_EXTRA}
+        h={Toggle.HEIGHT}
+        transparency={Toggle.CLICK_FADE}
+        options={[SideOps.TOGGLE]}
+        onOptionSelect={() => {
+          CS2.sound_effect(SideSounds.CLICK, 1, 0);
+          toggleSetting(index, on);
+        }}
+        onMouseEnter={() => {
+          text.color = pressedColour;
+          up.hide = true;
+          down.hide = false;
+        }}
+        onMouseLeave={() => {
+          text.color = SideColors.GOLD;
+          up.hide = false;
+          down.hide = true;
+        }}
+      />
+    </layer>
+  );
+}

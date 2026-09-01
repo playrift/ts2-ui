@@ -1,0 +1,278 @@
+import { useServerState } from 'ts2';
+import { textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Row, SettingsFonts, SettingsVarbits } from './settings.constants';
+import { SettingsCategories } from './settings-categories.data';
+import type { SettingsCategory } from './settings-categories.data';
+import { SettingsRows } from './settings-rows.data';
+import type { SettingsRow } from './settings-rows.data';
+import { rowHidden, showMoreOpen } from './settings.helpers';
+import { colourHeight } from './settings-colour.component';
+import { dropdownHeight } from './settings-dropdown.component';
+import { selectAmountRowHeight } from './settings-selectamount.component';
+import { selectTextRowHeight } from './settings-selecttext.component';
+import { sliderBoxHeight } from './settings-slider.component';
+
+export function categoryBase(categoryId: Int): Int {
+  const category: SettingsCategory | null = SettingsCategories.at(categoryId);
+  return category === null ? 0 : category.rowBase;
+}
+
+export function categoryRowCount(categoryId: Int): Int {
+  const category: SettingsCategory | null = SettingsCategories.at(categoryId);
+  return category === null ? 0 : category.rowCount;
+}
+
+export enum WidgetKind {
+  TOGGLE = 0,
+  SLIDER = 1,
+  DROPDOWN = 2,
+  KEYBIND = 3,
+  SELECT_PLATE = 4,
+  HEADER = 5,
+  ACTION_BUTTON = 6,
+  SHOW_MORE = 7,
+  TEXT_BLOCK = 8,
+  COLOUR_SWATCH = 9,
+  SELECT_THIN = 10,
+}
+
+export function rowTitle(row: SettingsRow, mobile: Boolean): String {
+  const override: String = row.titleMobile ?? '';
+  if (mobile && override.length > 0) {
+    return override;
+  }
+  return row.title ?? '';
+}
+
+export function rowDescription(row: SettingsRow, mobile: Boolean): String {
+  const override: String = row.descriptionMobile ?? '';
+  if (mobile && override.length > 0) {
+    return override;
+  }
+  return row.description ?? '';
+}
+
+export function descriptionHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  if ((row.hideDescription ?? false) || compact) {
+    return 0;
+  }
+  const text: String = rowDescription(row, mobile);
+  if (text.length <= 0) {
+    return 0;
+  }
+  return textLineCount(text, width - Row.toggleMeasureInset, SettingsFonts.BODY) * Row.lineHeight;
+}
+
+export function titleHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  let height: Int =
+    textLineCount(rowTitle(row, mobile), width - Row.toggleMeasureInset, SettingsFonts.TITLE) * Row.lineHeight;
+  if (mobile && height < Row.minTitleHeightMobile) {
+    height = Row.minTitleHeightMobile;
+  }
+  return height;
+}
+
+export function rowHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  const kind: Int = row.kind ?? 0;
+  if (kind === WidgetKind.TOGGLE) {
+    return titleHeight(row, mobile, width) + Row.togglePad + descriptionHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.SLIDER) {
+    return sliderBoxHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.KEYBIND) {
+    return 0;
+  }
+  if (kind === WidgetKind.COLOUR_SWATCH) {
+    return colourHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.DROPDOWN) {
+    return dropdownHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.SELECT_THIN) {
+    return selectTextRowHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.SELECT_PLATE) {
+    return selectAmountRowHeight(row, mobile, compact, width);
+  }
+  if (kind === WidgetKind.ACTION_BUTTON) {
+    return 0;
+  }
+  if (kind === WidgetKind.HEADER) {
+    const text: String = rowTitle(row, mobile);
+    if (text.length <= 0) {
+      return 0;
+    }
+    return textLineCount(text, width - Row.blockMeasureInset, SettingsFonts.TITLE) * Row.lineHeight + Row.blockPad;
+  }
+  if (kind === WidgetKind.TEXT_BLOCK) {
+    if ((row.hideWhenCompact ?? false) && compact) {
+      return 0;
+    }
+    const text: String = rowTitle(row, mobile);
+    if (text.length <= 0) {
+      return 0;
+    }
+    return textLineCount(text, width - Row.blockMeasureInset, SettingsFonts.BODY) * Row.lineHeight + Row.blockPad;
+  }
+  if (kind === WidgetKind.SHOW_MORE) {
+    return mobile ? Row.seeMoreHeightMobile : Row.seeMoreHeight;
+  }
+  return Row.stubHeight;
+}
+
+export function rowLead(row: SettingsRow, first: Boolean): Int {
+  if ((row.kind ?? 0) === WidgetKind.HEADER && !first) {
+    return Row.headerGap;
+  }
+  return 0;
+}
+
+export function rowInvisible(row: SettingsRow, searching: Boolean): Boolean {
+  if (rowHidden(row)) {
+    return true;
+  }
+
+  if ((row.kind ?? 0) === WidgetKind.HEADER && headerIsEmpty(row)) {
+    return true;
+  }
+
+  const group: Int = row.showMoreGroup ?? 0;
+  if (!searching && group > 0 && !showMoreOpen(group)) {
+    return true;
+  }
+
+  if ((row.kind ?? 0) === WidgetKind.SHOW_MORE && searching) {
+    return true;
+  }
+
+  return false;
+}
+
+function headerIsEmpty(header: SettingsRow): Boolean {
+  const base: Int = categoryBase(header.category);
+  const start: Int = base + header.ordinal + 1;
+  const end: Int = base + categoryRowCount(header.category);
+  let key: Int = start;
+  while (key < end) {
+    const row: SettingsRow | null = SettingsRows.at(key);
+    if (row !== null) {
+      if ((row.kind ?? 0) === WidgetKind.HEADER) {
+        return true;
+      }
+      if (!rowHidden(row)) {
+        return false;
+      }
+    }
+    key = key + 1;
+  }
+  return true;
+}
+
+export function rowAdvance(row: SettingsRow, body: Int, first: Boolean): Int {
+  if (body > 0) {
+    return rowLead(row, first) + body + (row.extraHeight ?? 0);
+  }
+  return rowLead(row, first);
+}
+
+export function rowStripe(advanced: Int): Int {
+  return advanced % 2 === 0 ? Row.stripeA : Row.stripeB;
+}
+
+export function rowStripeStep(row: SettingsRow, body: Int): Int {
+  const kind: Int = row.kind ?? 0;
+  if (
+    kind === WidgetKind.KEYBIND ||
+    kind === WidgetKind.ACTION_BUTTON ||
+    kind === WidgetKind.HEADER ||
+    kind === WidgetKind.TEXT_BLOCK ||
+    kind === WidgetKind.SELECT_PLATE ||
+    kind === WidgetKind.SELECT_THIN
+  ) {
+    return body > 0 ? 1 : 0;
+  }
+  return 1;
+}
+
+export function compactMode(): Boolean {
+  if (useServerState(SettingsVarbits.COMPACT) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function searchMode(): Boolean {
+  if (useServerState(SettingsVarbits.SEARCHING) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function mobileLayout(): Boolean {
+  return onMobile();
+}
+
+export const Grid = {
+  fresh: 2147483647,
+  lastColumn: 2,
+  columns: 3,
+  keybindCell: 44,
+} as const;
+
+export function isGridCell(row: SettingsRow): Boolean {
+  const kind: Int = row.kind ?? 0;
+  if (kind === WidgetKind.KEYBIND) {
+    return true;
+  }
+  if (kind === WidgetKind.ACTION_BUTTON) {
+    return true;
+  }
+  return false;
+}
+
+export function gridStep(state: Int, row: SettingsRow): Int {
+  const stepped: Int = state === Grid.fresh ? 0 : state === 0 ? 1 : Grid.lastColumn;
+  const forced: Int = row.column ?? 0;
+  return forced !== -1 && forced > stepped ? forced : stepped;
+}
+
+export enum SearchMatch {
+  NONE = 0,
+  PLAIN = 1,
+  SEEDS_SECTION = 2,
+}
+
+export function rowSearchMatch(row: SettingsRow, needle: String, mobile: Boolean, category: String): Int {
+  if ((row.keywords ?? '').toLowerCase().includes(needle)) {
+    return SearchMatch.SEEDS_SECTION;
+  }
+  if (category.includes(needle)) {
+    return SearchMatch.PLAIN;
+  }
+  if (!mobile) {
+    if ((row.title ?? 'Missing name').toLowerCase().includes(needle)) {
+      return SearchMatch.SEEDS_SECTION;
+    }
+    if ((row.description ?? '').toLowerCase().includes(needle)) {
+      return SearchMatch.PLAIN;
+    }
+    return SearchMatch.NONE;
+  }
+  const titleOverride: String = row.titleMobile ?? '';
+  if (titleOverride.length <= 0 && (row.title ?? 'Missing name').toLowerCase().includes(needle)) {
+    return SearchMatch.SEEDS_SECTION;
+  }
+  if (titleOverride.toLowerCase().includes(needle)) {
+    return SearchMatch.SEEDS_SECTION;
+  }
+  const descriptionOverride: String = row.descriptionMobile ?? '';
+  if (descriptionOverride.length <= 0 && (row.description ?? '').toLowerCase().includes(needle)) {
+    return SearchMatch.PLAIN;
+  }
+  if (descriptionOverride.toLowerCase().includes(needle)) {
+    return SearchMatch.PLAIN;
+  }
+  return SearchMatch.NONE;
+}

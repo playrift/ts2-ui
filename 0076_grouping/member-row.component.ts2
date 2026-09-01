@@ -1,0 +1,100 @@
+import { CS2 } from 'ts2';
+
+import { FriendsChatRankIcons, GroupingColor, GroupingFonts, Rows, Transparency } from './grouping.constants';
+import { friendschatOp } from './grouping.state';
+
+export function MemberRow({
+  slot,
+  top,
+  rowHeight,
+  listWidth,
+  here,
+  minKickRank,
+  myRank,
+}: {
+  slot: Int;
+  top: Int;
+  rowHeight: Int;
+  listWidth: Int;
+  here: Int;
+  minKickRank: Int;
+  myRank: Int;
+}): Component {
+  const name: String = CS2.friendschat_chat_username_get(slot);
+  const world: Int = CS2.friendschat_chat_user_world_get(slot);
+  const rank: Int = CS2.friendschat_chat_user_rank_get(slot);
+
+  let worldColor: Int = GroupingColor.WORLD_AWAY;
+  if (world === here) {
+    worldColor = GroupingColor.WORLD_HERE;
+  }
+
+  let addFriend: String = '';
+  let addIgnore: String = '';
+  let removeFriend: String = '';
+  let removeIgnore: String = '';
+  if (!CS2.friendschat_self_is(slot)) {
+    if (CS2.friendschat_friend_is(slot)) {
+      removeFriend = `Remove friend ${name}`;
+    } else if (CS2.friendschat_ignore_is(slot)) {
+      removeIgnore = `Remove ignore ${name}`;
+    } else {
+      addFriend = `Add friend ${name}`;
+      addIgnore = `Add ignore ${name}`;
+    }
+  }
+  let kick: String = '';
+  if (myRank >= minKickRank && myRank > rank) {
+    kick = `Kick user ${name}`;
+  }
+
+  return (
+    <>
+      <text
+        x={Rows.MEMBER_NAME_X}
+        y={top}
+        w={listWidth - Rows.MEMBER_NAME_INSET}
+        h={rowHeight}
+        text={name}
+        font={GroupingFonts.BUTTON}
+        color={GroupingColor.MEMBER}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={0}
+        y={top}
+        w={listWidth}
+        h={rowHeight}
+        text={`W${stringOf(world)}`}
+        font={GroupingFonts.BUTTON}
+        color={worldColor}
+        align="right"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={0}
+        y={top + Rows.RANK_ICON_DY}
+        w={Rows.RANK_ICON}
+        h={Rows.RANK_ICON}
+        sprite={FriendsChatRankIcons.get(rank) ?? -1}
+      />
+
+      <rect
+        x={0}
+        y={top}
+        w={listWidth}
+        h={rowHeight}
+        fill
+        color={GroupingColor.MEMBER}
+        transparency={Transparency.INVISIBLE}
+        options={['', '', '', '', '', kick, addFriend, addIgnore, removeFriend, removeIgnore]}
+        onOptionSelect={(event) => friendschatOp(name, event.option, -1)}
+      />
+    </>
+  );
+}

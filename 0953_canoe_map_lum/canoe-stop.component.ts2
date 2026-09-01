@@ -1,0 +1,149 @@
+import { useRef, useServerState } from 'ts2';
+
+import { CanoeKeyGate, CanoeVarbits } from '../0952_canoe_map_dougne/canoe-map-dougne.constants';
+import { canoeStopHoverOff, canoeStopHoverOn, canoeStopKey } from '../0952_canoe_map_dougne/canoe-stop.component';
+import { canoeFlagAt, canoeStopOffered } from '../0952_canoe_map_dougne/canoe-map-dougne.paddles';
+import { CanoeLumCameras, CanoeLumColors, CanoeLumFonts, CanoeLumModels, Layout } from './canoe-map-lum.constants';
+
+export function CanoeStop({
+  stop,
+  icon,
+  iconLit,
+  number,
+  kandarinName,
+  misthalinName,
+  opFlagKandarin,
+  opFlagMisthalin,
+  kandarinLabelled = true,
+  plateDx = 0,
+  plateDy,
+  numberDx = 0,
+  numberDy,
+  plateFromTop = false,
+}: {
+  stop: Int;
+  icon: Model;
+  iconLit: Model;
+  number: String;
+  kandarinName: String;
+  misthalinName: String;
+  opFlagKandarin: Int;
+  opFlagMisthalin: Int;
+  kandarinLabelled?: Boolean;
+  plateDx?: Int;
+  plateDy: Int;
+  numberDx?: Int;
+  numberDy: Int;
+  plateFromTop?: Boolean;
+}): Component {
+  const kandarin: Int = useServerState(CanoeVarbits.KANDARIN_NAMES);
+  const from: Int = useServerState(CanoeVarbits.START_FROM);
+
+  let offered: Boolean = false;
+  if (canoeStopOffered(stop) === 1) {
+    offered = true;
+  }
+  let here: Boolean = false;
+  if (stop > 0 && stop === from) {
+    here = true;
+  }
+  let plateHidden: Boolean = true;
+  if (offered || here) {
+    plateHidden = false;
+  }
+  let plateHere: Boolean = false;
+  if (!offered && here) {
+    plateHere = true;
+  }
+  let numberHidden: Boolean = true;
+  if (offered) {
+    numberHidden = false;
+  }
+
+  let labelled: Boolean = true;
+  if (kandarin !== 0) {
+    labelled = kandarinLabelled;
+  }
+
+  const opPosition: Int = kandarin === 0 ? opFlagMisthalin : opFlagKandarin;
+  let travellable: Boolean = false;
+  if (canoeFlagAt(opPosition) === 0) {
+    travellable = true;
+  }
+  let keyable: Boolean = false;
+  if (labelled) {
+    if (travellable) {
+      keyable = true;
+    }
+  }
+
+  const name: String = kandarin === 0 ? misthalinName : kandarinName;
+  const exempt: Interface = kandarin === 0 ? CanoeKeyGate.NONE : CanoeKeyGate.THIS_PANEL;
+
+  let op: String = '*';
+  if (labelled) {
+    op = '';
+    if (travellable) {
+      op = `Travel to<col=ff9040> ${name}`;
+    }
+  }
+
+  const rest = useRef();
+  const lit = useRef();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[op]}
+      onKey={keyable ? (event) => canoeStopKey(event.keyChar, event.component, number, exempt) : undefined}
+      onMouseEnter={offered ? () => canoeStopHoverOn(rest, lit) : undefined}
+      onMouseLeave={offered ? () => canoeStopHoverOff(rest, lit) : undefined}
+    >
+      <model
+        ref={rest}
+        x="center"
+        y={{ bottom: 0 }}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        model={icon}
+        zoom={CanoeLumCameras.ICON_ZOOM}
+        pitch={CanoeLumCameras.PITCH}
+      />
+      <model
+        ref={lit}
+        x="center"
+        y={{ bottom: 0 }}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        model={iconLit}
+        zoom={CanoeLumCameras.ICON_ZOOM}
+        pitch={CanoeLumCameras.PITCH}
+        hide
+      />
+      <model
+        x={{ center: plateDx }}
+        y={plateFromTop ? plateDy : { bottom: plateDy }}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        model={plateHere ? CanoeLumModels.PLATE_HERE : CanoeLumModels.PLATE}
+        zoom={CanoeLumCameras.PLATE_ZOOM}
+        pitch={CanoeLumCameras.PITCH}
+        hide={plateHidden}
+      />
+      <text
+        x={{ center: numberDx }}
+        y={plateFromTop ? numberDy : { bottom: numberDy }}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        text={number}
+        font={CanoeLumFonts.PLATE}
+        color={CanoeLumColors.PLATE}
+        shadow
+        align="center"
+        valign="middle"
+        hide={numberHidden}
+      />
+    </layer>
+  );
+}

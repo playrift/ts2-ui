@@ -1,0 +1,78 @@
+import { CS2, useState } from 'ts2';
+
+import { chatSend } from '../0701_clans_sidepanel/chat-send';
+import { switchToWorld } from '../0701_clans_sidepanel/clan-sidepanel-op';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { groupingGameid } from '../lib/game/varcs';
+import { ActivityChannels, FriendsChatOp } from './grouping.constants';
+import { dropdownOpen } from './grouping.refs';
+
+export function toggleDropdown(open: Int): void {
+  playSound(Sounds.CLICK);
+  const [, setOpen] = useState(dropdownOpen);
+  setOpen(open);
+}
+
+export function selectActivity(activity: Int): void {
+  playSound(Sounds.CLICK);
+  const [, setOpen] = useState(dropdownOpen);
+  const [, setActivity] = useState(groupingGameid);
+  setOpen(0);
+  setActivity(activity);
+}
+
+export function joinChannel(activity: Int): void {
+  if (CS2.friendschat_chat_owner_name_get().length > 0) {
+    CS2.friendschat_leavechat();
+  }
+  const channel: String = ActivityChannels.get(activity) ?? '';
+  if (channel.length > 0) {
+    CS2.friendschat_joinchat(channel);
+  }
+}
+
+export function wildwarsWorld(): Boolean {
+  return false;
+}
+
+export function friendschatSendKick(player: String): void {
+  if (wildwarsWorld()) {
+    chatMessage("You can't kick players from your team during Wilderness Wars.");
+    return;
+  }
+  chatSend('-Attempting to kick player from chat-channel...', 2, -1, 0, -1);
+  CS2.friendschat_kickuser(player);
+}
+
+export function friendschatOp(player: String, option: Int, world: Int): void {
+  const name: String = CS2.tags_remove(player);
+  if (option === FriendsChatOp.KICK && !wildwarsWorld()) {
+    friendschatSendKick(name);
+  } else if (option === FriendsChatOp.ADD_FRIEND) {
+    CS2.friend_add(name);
+  } else if (option === FriendsChatOp.ADD_IGNORE) {
+    CS2.ignore_add(name);
+  } else if (option === FriendsChatOp.REMOVE_FRIEND) {
+    CS2.friend_del(name);
+  } else if (option === FriendsChatOp.REMOVE_IGNORE) {
+    CS2.ignore_del(name);
+  } else if (option === FriendsChatOp.SWITCH_WORLD) {
+    switchToWorld(world);
+  }
+}
+
+export function currentChannelActivity(): Int {
+  const owner: String = CS2.friendschat_chat_owner_name_get().toLowerCase();
+  let found: Int = 0;
+  let at: Int = 1;
+  let channel: String = ActivityChannels.get(at) ?? '';
+  while (channel.length > 0) {
+    if (CS2.compare(owner, channel) === 0) {
+      found = at;
+    }
+    at = at + 1;
+    channel = ActivityChannels.get(at) ?? '';
+  }
+  return found;
+}

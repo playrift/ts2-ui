@@ -1,0 +1,152 @@
+import { CS2, useServerState, predictServerState } from 'ts2';
+import { textWidth } from '../lib/lib.engine';
+import { clanRankTitle } from '../0696_clans_storage_main/clan-permission';
+import { EventField, EventFonts, EventVarbits, Layout } from './clans-events-create.constants';
+import { EventOptionRow, EventOptions, OptionSet, optionSetBase } from './event-options.data';
+
+export function truncateToWidth(text: String, width: Int, font: Font): String {
+  let len: Int = text.length;
+  if (len <= 0 || textWidth(text, 765, font) <= width) {
+    return text;
+  }
+
+  let short: String = '';
+  while (len > 1) {
+    len = len - 1;
+    short = `${text.substring(0, len)}...`;
+    if (textWidth(short, 765, font) <= width) {
+      return short;
+    }
+  }
+  return `${text.substring(0, 1)}...`;
+}
+
+export function currentDateTime(runeday: Int, minuteOfDay: Int): String {
+  const dayText: String = CS2.fromdate(runeday);
+  const inDay: Int = minuteOfDay % 1440;
+
+  const hour: Int = inDay / 60;
+  let hourText: String = stringOf(hour);
+  if (hour < 10) {
+    hourText = `0${stringOf(hour)}`;
+  }
+
+  const minute: Int = inDay % 60;
+  let minuteText: String = stringOf(minute);
+  if (minute === 0) {
+    minuteText = '00';
+  } else if (minute < 10) {
+    minuteText = `0${stringOf(minute)}`;
+  }
+
+  if (runeday === 0) {
+    return `${hourText}:${minuteText}`;
+  }
+  return `${dayText} - ${hourText}:${minuteText}`;
+}
+
+export function eventValue(field: EventField): Int {
+  switch (field) {
+    case EventField.WORLD:
+      return useServerState(EventVarbits.WORLD);
+    case EventField.TYPE:
+      return useServerState(EventVarbits.TYPE);
+    case EventField.SUBTYPE:
+      return useServerState(EventVarbits.SUBTYPE);
+    case EventField.ACTIVITY:
+      return useServerState(EventVarbits.ACTIVITY);
+    case EventField.DURATION:
+      return useServerState(EventVarbits.DURATION);
+    case EventField.DATE:
+      return useServerState(EventVarbits.DATE);
+    case EventField.TIME:
+      return useServerState(EventVarbits.TIME);
+  }
+  return 0;
+}
+
+export function setEventValue(field: EventField, value: Int): void {
+  switch (field) {
+    case EventField.WORLD:
+      predictServerState(EventVarbits.WORLD, value);
+      break;
+    case EventField.TYPE:
+      predictServerState(EventVarbits.TYPE, value);
+      break;
+    case EventField.SUBTYPE:
+      predictServerState(EventVarbits.SUBTYPE, value);
+      break;
+    case EventField.ACTIVITY:
+      predictServerState(EventVarbits.ACTIVITY, value);
+      break;
+    case EventField.DURATION:
+      predictServerState(EventVarbits.DURATION, value);
+      break;
+    case EventField.DATE:
+      predictServerState(EventVarbits.DATE, value);
+      break;
+    case EventField.TIME:
+      predictServerState(EventVarbits.TIME, value);
+      break;
+  }
+}
+
+export function activitySet(type: Int): OptionSet {
+  switch (type) {
+    case 0:
+      return OptionSet.ACT_BOSSING;
+    case 1:
+      return OptionSet.ACT_SKILLING;
+    case 2:
+      return OptionSet.ACT_PVP;
+    case 3:
+      return OptionSet.ACT_SOCIAL;
+  }
+  return OptionSet.ACT_BOSSING;
+}
+
+export function fieldOptionSet(field: EventField, type: Int): OptionSet {
+  switch (field) {
+    case EventField.TYPE:
+      return OptionSet.TYPE;
+    case EventField.SUBTYPE:
+      return OptionSet.SUBTYPE;
+    case EventField.ACTIVITY:
+      return activitySet(type);
+  }
+  return OptionSet.TYPE;
+}
+
+export function selectedOptionLabel(set: OptionSet, value: Int): String {
+  const row: EventOptionRow | null = EventOptions.at(optionSetBase(set) + value);
+  return row === null ? '' : row.label;
+}
+
+export function joinRankTitle(): String {
+  const guest: Int = useServerState(EventVarbits.LOAD_AS_GUEST);
+  const guestAffinity: Int = useServerState(EventVarbits.GUEST_AFFINITY);
+  const affinity: Int = useServerState(EventVarbits.AFFINITY);
+  const rank: Int = useServerState(EventVarbits.RANK_PLUS_1);
+
+  if (guest === 1 && guestAffinity === 3 && CS2.activeclansettings_listened_find()) {
+    return clanRankTitle(rank - 1);
+  }
+  if (guest === 0 && affinity === 3 && CS2.activeclansettings_affined_find(0)) {
+    return clanRankTitle(rank - 1);
+  }
+  return '<col=ff0000>Error</col>';
+}
+
+export function intCellText(field: EventField, value: Int): String {
+  if (field === EventField.DATE) {
+    return CS2.fromdate(value);
+  }
+  if (field === EventField.TIME) {
+    return currentDateTime(0, value);
+  }
+  return stringOf(value);
+}
+
+export function valueTextWidth(cellWidth: Int): Int {
+  return cellWidth - Layout.VALUE_INSET - Layout.TRUNCATE_INSET;
+}

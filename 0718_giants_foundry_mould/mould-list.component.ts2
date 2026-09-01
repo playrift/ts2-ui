@@ -1,0 +1,87 @@
+import { onMounted, onUpdated, useDerived, useServerState } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Layout, MouldColor, MouldVarbits, RowShade } from './giants-foundry-mould.constants';
+import { rowHeight } from './giants-foundry-mould.metrics';
+import { MouldCategory, Moulds, mouldIndex } from './moulds.data';
+import { mouldUnlocked, selectedRowIndex, selectedSlot, unlockedInCategory } from './giants-foundry-mould.helpers';
+import { MouldListRow } from './mould-row.component';
+
+export function MouldList({
+  pane,
+  paneHeight,
+  breakpoint,
+}: {
+  pane: Ref;
+  paneHeight: Int;
+  breakpoint: Int;
+}): Component {
+  const tab: MouldCategory = useServerState(MouldVarbits.CURRENT_TAB) as MouldCategory;
+  const chosen: Int = useDerived(() => selectedSlot(tab));
+  const height: Int = rowHeight(breakpoint);
+  const rows: Int = useDerived(() => unlockedInCategory(tab));
+  const contentHeight: Int = rows * height;
+
+  const extent: Int = Math.max(paneHeight, contentHeight);
+
+  const selectedRow: Int = useDerived(() => selectedRowIndex(tab));
+  onMounted(() => {
+    scrollSelectionIntoView(pane, selectedRow * height, height, paneHeight, extent);
+  });
+  onUpdated(() => {
+    scrollSelectionIntoView(pane, selectedRow * height, height, paneHeight, extent);
+  });
+
+  return (
+    <layer w="fill" h="fill">
+      {Moulds.filter((row) => row.category === tab && mouldUnlocked(mouldIndex(row.category, row.slot)) === 1).scan(
+        (row, index, top) => (
+          <MouldListRow
+            row={row}
+            top={top}
+            index={index}
+            selected={row.slot === chosen ? 1 : 0}
+            breakpoint={breakpoint}
+          />
+        ),
+        () => height,
+      )}
+
+      <rect
+        x={0}
+        y={contentHeight}
+        w="fill"
+        h="fill"
+        fill
+        color={MouldColor.ROW}
+        transparency={(contentHeight / height) % 2 === 0 ? RowShade.EVEN : RowShade.ODD}
+      />
+    </layer>
+  );
+}
+
+function scrollSelectionIntoView(pane: Ref, selectionTop: Int, height: Int, visible: Int, extent: Int): void {
+  const offset: Int = pane.scrollY;
+  const target: Int = Math.min(selectionTop, extent - visible);
+  const top: Int = Math.max(selectionTop, 0);
+
+  if (offset > top || offset + visible < top + height) {
+    pane.scrollY = target;
+  }
+  if (offset + visible > extent) {
+    pane.scrollY = target;
+  }
+}
+
+export function MouldScrollbar({ content }: { content: Ref }): Component {
+  return (
+    <ScrollbarVertical
+      content={content}
+      track={792}
+      capTopSprite={789}
+      thumbSprite={790}
+      capBottomSprite={791}
+      arrowUp={773}
+      arrowDown={788}
+    />
+  );
+}

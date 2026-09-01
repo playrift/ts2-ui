@@ -1,0 +1,74 @@
+import { CS2, predictServerState } from 'ts2';
+
+import { opsound } from './lib.helpers';
+
+import { Sounds } from './game/sounds';
+import { Varps } from './game/varps';
+
+export const Skillmain = {
+  MAX: 28,
+  PEACH_SPELL: 6926,
+  PEACH_MAX: 25,
+  LABEL_COLOR: 0xff981f,
+  BUTTON: 37,
+  HAMMER: 2347,
+};
+
+export const SkillmainBars = mapOf<Int, Item>([
+  [1, 2349],
+  [2, 2351],
+  [3, 2353],
+  [4, 2359],
+  [5, 2361],
+  [6, 2363],
+  [7, 13354],
+]);
+
+export const SKILLMAIN_BAR_DEFAULT = 526;
+
+export function skillmainMaterial(declared: Item, barType: Int): Item {
+  if (declared !== Skillmain.HAMMER) {
+    return declared;
+  }
+  const bar: Item | null = SkillmainBars.get(barType);
+  return bar === null ? SKILLMAIN_BAR_DEFAULT : bar;
+}
+
+export function skillmainMax(material: Item, held: Int): Int {
+  if (material === Skillmain.PEACH_SPELL) {
+    return Skillmain.PEACH_MAX;
+  }
+  if (material !== -1) {
+    return Math.min(Skillmain.MAX, held);
+  }
+  return Skillmain.MAX;
+}
+
+export function skillmainButtonLabel(quantity: Int, selected: Boolean, material: Item, isAll: Boolean): String {
+  if (quantity === 0) {
+    return selected ? '?' : 'X';
+  }
+  if (material === Skillmain.PEACH_SPELL && isAll) {
+    return '25';
+  }
+  if (quantity === Skillmain.MAX) {
+    return 'All';
+  }
+  return stringOf(quantity);
+}
+
+export function skillmainSetQuantity(option: Int, quantity: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  CS2.sound_effect(Sounds.INTERFACE_SELECT1, 1, 0);
+  predictServerState(Varps.MAKEXCRAFTING, Math.min(Skillmain.MAX, quantity));
+}
+
+export function skillmainButtonOp(option: Int, quantity: Int, selected: Boolean): void {
+  if (selected) {
+    opsound(option, 2);
+    return;
+  }
+  skillmainSetQuantity(option, quantity);
+}

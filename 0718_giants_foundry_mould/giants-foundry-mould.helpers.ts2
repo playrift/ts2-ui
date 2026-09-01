@@ -1,0 +1,199 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+import { MouldSkills, MouldVarbits } from './giants-foundry-mould.constants';
+import { MOULDS_PER_CATEGORY, MouldCategory, MouldKeyword, MouldRow, Moulds, mouldIndex } from './moulds.data';
+
+export function mouldUnlocked(index: Int): Int {
+  switch (index) {
+    case 0:
+      return useServerState(MouldVarbits.RICASSO_11);
+    case 1:
+      return useServerState(MouldVarbits.RICASSO_10);
+    case 2:
+      return useServerState(MouldVarbits.RICASSO_9);
+    case 3:
+      return useServerState(MouldVarbits.RICASSO_8);
+    case 4:
+      return useServerState(MouldVarbits.RICASSO_7);
+    case 11:
+      return useServerState(MouldVarbits.BLADE_11);
+    case 12:
+      return useServerState(MouldVarbits.BLADE_10);
+    case 13:
+      return useServerState(MouldVarbits.BLADE_9);
+    case 14:
+      return useServerState(MouldVarbits.BLADE_8);
+    case 15:
+      return useServerState(MouldVarbits.BLADE_7);
+    case 22:
+      return useServerState(MouldVarbits.TIP_11);
+    case 23:
+      return useServerState(MouldVarbits.TIP_10);
+    case 24:
+      return useServerState(MouldVarbits.TIP_9);
+    case 25:
+      return useServerState(MouldVarbits.TIP_8);
+    case 26:
+      return useServerState(MouldVarbits.TIP_7);
+  }
+  return 1;
+}
+
+export function mouldUsable(index: Int, level: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  if (mouldUnlocked(index) === 0) {
+    return 0;
+  }
+  if (level > CS2.stat(MouldSkills.SMITHING)) {
+    return 0;
+  }
+  return 1;
+}
+
+export function selectedSlot(category: MouldCategory): Int {
+  switch (category) {
+    case MouldCategory.RICASSO:
+      return useServerState(MouldVarbits.SELECTED_RICASSO);
+    case MouldCategory.BLADE:
+      return useServerState(MouldVarbits.SELECTED_BLADE);
+    case MouldCategory.TIP:
+      return useServerState(MouldVarbits.SELECTED_TIP);
+  }
+  return 0;
+}
+
+export function setSelectedSlot(category: MouldCategory, slot: Int): void {
+  switch (category) {
+    case MouldCategory.RICASSO:
+      predictServerState(MouldVarbits.SELECTED_RICASSO, slot);
+      break;
+    case MouldCategory.BLADE:
+      predictServerState(MouldVarbits.SELECTED_BLADE, slot);
+      break;
+    case MouldCategory.TIP:
+      predictServerState(MouldVarbits.SELECTED_TIP, slot);
+      break;
+  }
+}
+
+export function mouldWordValue(word: MouldKeyword, index: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  if (row === null) {
+    return 0;
+  }
+
+  switch (word) {
+    case MouldKeyword.NARROW: {
+      const value: Int = row.narrowBroad;
+      return value < 0 ? 0 - value : 0;
+    }
+    case MouldKeyword.LIGHT: {
+      const value: Int = row.lightHeavy;
+      return value < 0 ? 0 - value : 0;
+    }
+    case MouldKeyword.FLAT: {
+      const value: Int = row.flatSpiked;
+      return value < 0 ? 0 - value : 0;
+    }
+    case MouldKeyword.BROAD: {
+      const value: Int = row.narrowBroad;
+      return value > 0 ? value : 0;
+    }
+    case MouldKeyword.HEAVY: {
+      const value: Int = row.lightHeavy;
+      return value > 0 ? value : 0;
+    }
+    case MouldKeyword.SPIKED: {
+      const value: Int = row.flatSpiked;
+      return value > 0 ? value : 0;
+    }
+  }
+  return 0;
+}
+
+export function commissionTotal(word: MouldKeyword): Int {
+  const ricasso: Int = mouldWordValue(word, mouldIndex(MouldCategory.RICASSO, selectedSlot(MouldCategory.RICASSO)));
+  const blade: Int = mouldWordValue(word, mouldIndex(MouldCategory.BLADE, selectedSlot(MouldCategory.BLADE)));
+  const tip: Int = mouldWordValue(word, mouldIndex(MouldCategory.TIP, selectedSlot(MouldCategory.TIP)));
+  return ricasso + blade + tip;
+}
+
+export function commissionText(word: MouldKeyword, tab: MouldCategory): String {
+  const mine: Int = mouldWordValue(word, mouldIndex(tab, selectedSlot(tab)));
+  const total: String = stringOf(commissionTotal(word));
+  if (mine !== 0) {
+    return `<col=eeeeee>(+${stringOf(mine)})</col> ${total}`;
+  }
+  return total;
+}
+
+export function axisKeyword(axis: Int, value: Int): MouldKeyword {
+  if (value < 0) {
+    return (axis + 1) as MouldKeyword;
+  }
+  return (axis + 4) as MouldKeyword;
+}
+
+export function anythingChosen(): Int {
+  if (selectedSlot(MouldCategory.RICASSO) !== 0) {
+    return 1;
+  }
+  if (selectedSlot(MouldCategory.BLADE) !== 0) {
+    return 1;
+  }
+  if (selectedSlot(MouldCategory.TIP) !== 0) {
+    return 1;
+  }
+  return 0;
+}
+
+export function allChosen(): Int {
+  if (selectedSlot(MouldCategory.RICASSO) === 0) {
+    return 0;
+  }
+  if (selectedSlot(MouldCategory.BLADE) === 0) {
+    return 0;
+  }
+  if (selectedSlot(MouldCategory.TIP) === 0) {
+    return 0;
+  }
+  return 1;
+}
+
+export function resetMoulds(): void {
+  if (anythingChosen() === 1) {
+    predictServerState(MouldVarbits.SELECTED_RICASSO, 0);
+    predictServerState(MouldVarbits.SELECTED_BLADE, 0);
+    predictServerState(MouldVarbits.SELECTED_TIP, 0);
+    CS2.sound_effect(2266, 1, 0);
+  }
+}
+
+export function unlockedInCategory(category: MouldCategory): Int {
+  let count: Int = 0;
+  let slot: Int = 1;
+  while (slot <= MOULDS_PER_CATEGORY) {
+    count = count + mouldUnlocked(mouldIndex(category, slot));
+    slot = slot + 1;
+  }
+  return count;
+}
+
+export function selectedRowIndex(category: MouldCategory): Int {
+  const chosen: Int = selectedSlot(category);
+  if (chosen === 0) {
+    return -1;
+  }
+
+  let visible: Int = 0;
+  let slot: Int = 1;
+  while (slot < chosen) {
+    visible = visible + mouldUnlocked(mouldIndex(category, slot));
+    slot = slot + 1;
+  }
+  return visible;
+}

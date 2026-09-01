@@ -1,0 +1,191 @@
+import { createRef } from 'ts2';
+
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import {
+  Activity,
+  Layout,
+  PestColor,
+  PestFont,
+  PestModel,
+  PestPortals,
+  PestStatusDodge,
+} from './pest-status-overlay.constants';
+import { pestActivityUpdate } from './pest-status-overlay.helpers';
+
+const contentLeft = createRef('pest_status_overlay_content_left2');
+
+const contentRight = createRef('pest_status_overlay_content_right3');
+
+const activityOutline = createRef('pest_status_overlay_activity_outline');
+
+const activityBar = createRef('pest_status_overlay_activity_fill');
+
+export function PestStatusOverlay(): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        w="fill"
+        h="fill"
+        onTimer={(event) =>
+          overlayRelayout(event.component, contentLeft, PestStatusDodge.LEFT, Anchor.LEFT, Anchor.TOP, 1)
+        }
+      >
+        <layer ref={contentLeft} x={Layout.LEFT_X} y={0} w={Layout.LEFT_W} h={Layout.LEFT_H}>
+          <model
+            x={0}
+            y={Layout.KNIGHT_Y}
+            w={Layout.ICON_SIZE}
+            h={Layout.ICON_SIZE}
+            model={PestModel.KNIGHT}
+            zoom={Layout.KNIGHT_ZOOM}
+            pitch={Layout.KNIGHT_PITCH}
+          />
+          <model
+            x={0}
+            y={Layout.SHIELD_Y}
+            w={Layout.ICON_SIZE}
+            h={Layout.ICON_SIZE}
+            model={PestModel.SHIELD}
+            zoom={Layout.SHIELD_ZOOM}
+            pitch={Layout.SHIELD_PITCH}
+          />
+          <text
+            x={Layout.CAPTION_X}
+            y={Layout.CAPTION_Y}
+            w={Layout.CAPTION_W}
+            h={Layout.CAPTION_H}
+            font={PestFont.P11}
+            shadow
+            color={PestColor.NEUTRAL}
+          />
+          <text
+            x={Layout.VALUE_X}
+            y={Layout.HEALTH_Y}
+            w={Layout.VALUE_W}
+            h={Layout.VALUE_H}
+            font={PestFont.P11}
+            shadow
+            color={PestColor.HEALTH}
+          />
+          <text
+            x={Layout.VALUE_X}
+            y={Layout.SHIELDS_Y}
+            w={Layout.VALUE_W}
+            h={Layout.VALUE_H}
+            font={PestFont.P11}
+            shadow
+            color={PestColor.NEUTRAL}
+          />
+        </layer>
+      </layer>
+
+      <layer
+        w="fill"
+        h="fill"
+        onTimer={(event) =>
+          overlayRelayout(event.component, contentRight, PestStatusDodge.RIGHT, Anchor.RIGHT, Anchor.TOP, 0)
+        }
+      >
+        <layer
+          ref={contentRight}
+          x={{ right: Layout.RIGHT_X }}
+          y={Layout.RIGHT_Y}
+          w={Layout.RIGHT_W}
+          h={Layout.RIGHT_H}
+        >
+          <layer
+            x={{ right: Layout.BAR_RIGHT }}
+            y="bottom"
+            w={Layout.BAR_W}
+            h={Layout.BAR_H}
+            onTimer={() => pestActivityUpdate(activityOutline, activityBar)}
+          >
+            <rect
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              color={0x000000}
+              fill
+              transparency={Layout.BAR_BACKING_WASH}
+            />
+            <layer x="center" y="center" w={{ fill: Layout.BAR_INSET }} h={{ fill: Layout.BAR_INSET }}>
+              <rect
+                ref={activityBar}
+                x="center"
+                y="center"
+                w={Activity.PIP_W}
+                h={Activity.PIP_H}
+                color={PestColor.ACTIVITY_OFF}
+                fill
+              />
+            </layer>
+            <rect ref={activityOutline} x="center" y="center" w="fill" h="fill" color={PestColor.ACTIVITY_OFF} />
+          </layer>
+
+          {PestPortals.map((portal) => (
+            <model
+              x={{ right: portal.right }}
+              y={Layout.PORTAL_ROW_Y}
+              w={Layout.ICON_SIZE}
+              h={Layout.ICON_SIZE}
+              model={portal.portal}
+              zoom={Layout.PORTAL_ROW_ZOOM}
+            />
+          ))}
+
+          {PestPortals.map((portal) => (
+            <model
+              x={{ right: portal.right }}
+              y={Layout.SHIELD_ROW_Y}
+              w={Layout.ICON_SIZE}
+              h={Layout.ICON_SIZE}
+              zoom={Layout.SHIELD_ROW_ZOOM}
+              pitch={portal.pitch}
+            />
+          ))}
+
+          {PestPortals.map((portal) => (
+            <text
+              x={{ right: portal.countRight }}
+              y={Layout.COUNT_Y}
+              w={Layout.COUNT_W}
+              h={Layout.COUNT_H}
+              text="100"
+              font={PestFont.P11}
+              shadow
+              color={portal.color}
+            />
+          ))}
+
+          {PestPortals.map((portal) => (
+            <layer x={{ right: portal.right }} y={Layout.OVERLAY_ROW_Y} w={Layout.ICON_SIZE} h={Layout.ICON_SIZE}>
+              <model
+                x={0}
+                y={0}
+                w={Layout.ICON_SIZE}
+                h={Layout.ICON_SIZE}
+                model={PestModel.PORTAL_OVERLAY}
+                zoom={Layout.OVERLAY_ZOOM}
+              />
+            </layer>
+          ))}
+
+          {PestPortals.map((portal) => (
+            <text
+              x={{ right: portal.right }}
+              y={Layout.LABEL_Y}
+              w={Layout.LABEL_W}
+              h={Layout.LABEL_H}
+              text={portal.label}
+              font={PestFont.P12}
+              shadow
+              align="center"
+              color={portal.color}
+            />
+          ))}
+        </layer>
+      </layer>
+    </layer>
+  );
+}

@@ -1,0 +1,35 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { MotherlodeColor, Sack } from './motherlode-hud.constants';
+
+export function motherlodeSpace(space: ComponentId, capacity: Int): void {
+  const stored: Int = useServerState(Varbits.MOTHERLODE_SACK_TRANSMIT);
+  const left: Int = capacity - stored;
+  if (left === 0) {
+    CS2.if_colour_set(MotherlodeColor.WHITE, space);
+    CS2.if_text_set('Space: 0', space);
+    return;
+  }
+  if (left <= 0) {
+    CS2.if_colour_set(MotherlodeColor.FULL, space);
+  } else {
+    CS2.if_colour_set(MotherlodeColor.WHITE, space);
+  }
+  CS2.if_text_set(`Space: ${stringOf(left)}`, space);
+}
+
+export function motherlodeHudUpdate(count: ComponentId, space: ComponentId): void {
+  const stored: Int = useServerState(Varbits.MOTHERLODE_SACK_TRANSMIT);
+  CS2.if_text_set(stringOf(stored), count);
+  let capacity: Int = Sack.BASE;
+  if (useServerState(Varbits.MOTHERLODE_BIGGERSACK) === 1) {
+    capacity = Sack.UPGRADED;
+  }
+  if (stored >= capacity) {
+    CS2.if_colour_set(MotherlodeColor.FULL, count);
+  } else {
+    CS2.if_colour_set(MotherlodeColor.COUNT_OK, count);
+  }
+  motherlodeSpace(space, capacity);
+}

@@ -1,0 +1,697 @@
+import { CS2, predictServerState, useDerived, useRef, useServerState, useState } from 'ts2';
+import { chatMessage, playSound, textLineCount } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  cameraZoomBig,
+  cameraZoomBigMax,
+  cameraZoomBigMin,
+  cameraZoomSmall,
+  cameraZoomSmallMax,
+  cameraZoomSmallMin,
+  osmDeadsides,
+  osmDeadsidesSlider,
+  settingsDrawDistance,
+} from '../lib/game/varcs';
+import { Colour, Row, SettingsFonts, SettingsVarbits, Sounds } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { rowDescription, rowTitle } from './settings-layout';
+import { rowLockedMessage, settingEnabled } from './settings.helpers';
+import { cameraDoZoom } from '../0016_oculus/oculus.camera';
+import { hideRowTooltip, showRowTooltip } from './settings-tooltip.component';
+
+export function SettingsSlider({
+  row,
+  top,
+  stripe,
+  mobile,
+  compact,
+  width,
+  enabled,
+  pane,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+  pane: Ref;
+}): Component {
+  const title: Int = sliderTitleHeight(row, mobile, width);
+  const description: Int = sliderDescriptionHeight(row, mobile, compact, width);
+  const box: Int = sliderBoxHeight(row, mobile, compact, width);
+
+  const steps: Int = row.sliderSteps ?? Slider.STEPS_DEFAULT;
+  const notches: Int = row.sliderNotches ?? Slider.NOTCHES_DEFAULT;
+  const notchLabels: Enum = row.sliderNotchLabels ?? Slider.NO_ENUM;
+  const labelCount: Int = notchLabels === Slider.NO_ENUM ? 0 : notches;
+
+  const left: Int = width / 2 - Slider.TRACK_W / 2;
+  const first: Int = left + Slider.TILE;
+  const trackY: Int = top + description + title + Slider.TRACK_DY;
+  const labelY: Int = trackY + Slider.TILE + Slider.LABEL_DY;
+
+  const thumbX: Int = useDerived(() => sliderThumbX(row, width));
+  const percent: Int = useDerived(() => sliderVolumePercent(row));
+  const muted: Int = useDerived(() => sliderThumbMuted(row));
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+
+  const customOps: Boolean = row.sliderCustomOps ?? false;
+  const onOverlay: Boolean = row.sliderOpsOnOverlay ?? true;
+  const draggable: Boolean = row.sliderDraggable ?? false;
+  const dragZone = useRef();
+  const thumbSprite: Sprite =
+    muted === 1
+      ? SliderArt.THUMB_MUTED
+      : enabled && enabledFlag === 1
+        ? draggable
+          ? SliderArt.THUMB_DRAG
+          : SliderArt.THUMB_ON
+        : SliderArt.THUMB_OFF;
+
+  return (
+    <>
+      <rect x="center" y={top} w={{ fill: Row.blockInsetW }} h={box} fill color={Colour.BLACK} transparency={stripe} />
+
+      {!mobile && compact && rowDescription(row, mobile).length > 0 ? (
+        <text
+          x="center"
+          y={top + Row.titleDy}
+          w={{ fill: Row.blockInsetW }}
+          h={title}
+          text={percent === Slider.NO_PERCENT ? rowTitle(row, mobile) : `${rowTitle(row, mobile)} - ${percent}%`}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="center"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+          onMouseRepeat={() => showRowTooltip(row, Row.blockInsetW / 2, top + Row.titleDy, title, pane)}
+          onMouseLeave={() => hideRowTooltip()}
+        />
+      ) : (
+        <text
+          x="center"
+          y={top + Row.titleDy}
+          w={{ fill: Row.blockInsetW }}
+          h={title}
+          text={percent === Slider.NO_PERCENT ? rowTitle(row, mobile) : `${rowTitle(row, mobile)} - ${percent}%`}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="center"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      {TRACK.map((sprite, index) => (
+        <sprite x={left + index * Slider.TILE} y={trackY} w={Slider.TILE} h={Slider.TILE} sprite={sprite} />
+      ))}
+
+      {MIDDLE.map(
+        (index) =>
+          index < notches - 1 && (
+            <sprite
+              x={notchX(first, index, notches)}
+              y={trackY}
+              w={Slider.TILE}
+              h={Slider.TILE}
+              sprite={SliderArt.NOTCH}
+            />
+          ),
+      )}
+
+      {NOTCH_LABELS.map(
+        (notch) =>
+          notch.key < labelCount && (
+            <text
+              x={notchX(first, notch.key, notches) + Slider.TILE / 2 - Slider.LABEL_HALF}
+              y={labelY}
+              w={Slider.LABEL_W}
+              h={Slider.TILE}
+              text={notch.label}
+              font={SettingsFonts.BODY}
+              shadow
+              color={Colour.AMBER}
+              align="center"
+              valign="middle"
+              lineHeight={0}
+            />
+          ),
+      )}
+
+      {description > 0 && (
+        <text
+          x="center"
+          y={top + title + Row.titleDy}
+          w={{ fill: Row.blockInsetW }}
+          h={description}
+          text={rowDescription(row, mobile)}
+          font={SettingsFonts.BODY}
+          shadow
+          color={Colour.GREY}
+          align="center"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <layer ref={dragZone} x={first} y={trackY} w={Slider.SPAN} h={Slider.TILE} />
+
+      {STEPS.map(
+        (index) =>
+          !onOverlay &&
+          index < steps && (
+            <rect
+              x={first + CS2.scale(index, steps, Slider.SPAN)}
+              y={trackY}
+              w={CS2.scale(index + 1, steps, Slider.SPAN) - CS2.scale(index, steps, Slider.SPAN)}
+              h={Slider.TILE}
+              fill
+              color={Colour.BLACK}
+              transparency={255}
+              options={[row.sliderOp ?? Slider.OP_DEFAULT]}
+              onOptionSelect={customOps ? undefined : () => sliderOp(row, index, enabled, enabledFlag)}
+              onClick={
+                customOps ? (event) => sliderClick(row, index, event.mouseX, event.component, event.subId) : undefined
+              }
+            />
+          ),
+      )}
+      {draggable ? (
+        <sprite
+          x={thumbX}
+          y={trackY}
+          w={Slider.TILE}
+          h={Slider.TILE}
+          draggable={dragZone}
+          dragDeadZone={row.sliderDragDeadZone ?? Slider.DRAG_DEAD_DEFAULT}
+          dragDeadTime={row.sliderDragDeadTime ?? Slider.DRAG_DEAD_DEFAULT}
+          onDrag={(event) => sliderDrag(row, event.mouseX, event.component, event.subId)}
+          onDragComplete={(event) => sliderDragComplete(row, event.mouseX, event.component, event.subId)}
+          sprite={thumbSprite}
+        />
+      ) : (
+        <sprite x={thumbX} y={trackY} w={Slider.TILE} h={Slider.TILE} sprite={thumbSprite} />
+      )}
+
+      {STEPS.map(
+        (index) =>
+          onOverlay &&
+          index < steps && (
+            <rect
+              x={first + CS2.scale(index, steps, Slider.SPAN)}
+              y={trackY}
+              w={CS2.scale(index + 1, steps, Slider.SPAN) - CS2.scale(index, steps, Slider.SPAN)}
+              h={Slider.TILE}
+              fill
+              color={Colour.BLACK}
+              transparency={255}
+              options={[row.sliderOp ?? Slider.OP_DEFAULT]}
+              onOptionSelect={customOps ? undefined : () => sliderOp(row, index, enabled, enabledFlag)}
+              onClick={
+                customOps ? (event) => sliderClick(row, index, event.mouseX, event.component, event.subId) : undefined
+              }
+            />
+          ),
+      )}
+    </>
+  );
+}
+
+const Slider = {
+  TILE: 16,
+  TRACK_TILES: 19,
+  TRACK_W: 304,
+  SPAN: 272,
+  TRACK_DY: 12,
+  BOX_PAD: 34,
+  LABEL_PAD: 22,
+  LABEL_DY: 6,
+  LABEL_W: 30,
+  LABEL_HALF: 15,
+  MEASURE_INSET: 20,
+  STEPS_DEFAULT: 5,
+  NOTCHES_DEFAULT: 5,
+  OP_DEFAULT: 'Select',
+  DRAG_DEAD_DEFAULT: 5,
+  NO_STEP: -1,
+  THUMB_HALF: 8,
+  TRAVEL: 256,
+  NOTCH_LABEL_DEFAULT: '1',
+  NO_ENUM: -1,
+  NO_PERCENT: -1,
+} as const;
+
+const SliderArt = {
+  CAP_LEFT: Sprites.SETTINGS_SLIDER_0,
+  NOTCH_FIRST: Sprites.SETTINGS_SLIDER_1,
+  BODY: Sprites.SETTINGS_SLIDER_3,
+  NOTCH_LAST: Sprites.SETTINGS_SLIDER_4,
+  CAP_RIGHT: Sprites.SETTINGS_SLIDER_5,
+  THUMB_ON: Sprites.SETTINGS_SLIDER_6,
+  THUMB_OFF: Sprites.SETTINGS_SLIDER_7,
+  THUMB_DRAG: Sprites.SETTINGS_SLIDER_8,
+  NOTCH: Sprites.SETTINGS_SLIDER_11,
+  THUMB_MUTED: Sprites.SETTINGS_SLIDER_12,
+} as const;
+
+const TRACK = [
+  SliderArt.CAP_LEFT,
+  SliderArt.NOTCH_FIRST,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.BODY,
+  SliderArt.NOTCH_LAST,
+  SliderArt.CAP_RIGHT,
+];
+
+const MIDDLE = [1, 2, 3, 4, 5];
+
+const NOTCH_LABELS = [
+  { key: 0, label: '0' },
+  { key: 1, label: '25' },
+  { key: 2, label: '50' },
+  { key: 3, label: Slider.NOTCH_LABEL_DEFAULT },
+  { key: 4, label: Slider.NOTCH_LABEL_DEFAULT },
+  { key: 5, label: Slider.NOTCH_LABEL_DEFAULT },
+  { key: 6, label: Slider.NOTCH_LABEL_DEFAULT },
+];
+
+const STEPS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+];
+
+function notchX(first: Int, index: Int, notches: Int): Int {
+  return first + CS2.scale(index, notches - 1, Slider.SPAN - Slider.TILE);
+}
+
+export function sliderTitleHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  return textLineCount(rowTitle(row, mobile), width - Slider.MEASURE_INSET, SettingsFonts.TITLE) * Row.lineHeight;
+}
+
+export function sliderDescriptionHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  if ((row.hideDescription ?? false) || compact) {
+    return 0;
+  }
+  const text: String = rowDescription(row, mobile);
+  if (text.length <= 0) {
+    return 0;
+  }
+  return textLineCount(text, width - Slider.MEASURE_INSET, SettingsFonts.BODY) * Row.lineHeight;
+}
+
+export function sliderBoxHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  const box: Int =
+    sliderTitleHeight(row, mobile, width) + sliderDescriptionHeight(row, mobile, compact, width) + Slider.BOX_PAD;
+  if ((row.sliderNotchLabels ?? Slider.NO_ENUM) !== Slider.NO_ENUM) {
+    return box + Slider.LABEL_PAD;
+  }
+  return box;
+}
+
+export function sliderValue(row: SettingsRow): Int {
+  const settingId: Int = row.settingId ?? 0;
+
+  if (settingId === SettingId.MINIMAP_ZOOM) {
+    return CS2.native_minimap_zoom_get() - MinimapZoom.OFFSET;
+  }
+  if (settingId === SettingId.BRIGHTNESS) {
+    return CS2.device_option_get(DeviceOption.BRIGHTNESS) / DeviceOption.BRIGHTNESS_STEP;
+  }
+  if (settingId === SettingId.VIEW_DISTANCE) {
+    const [stored] = useState(settingsDrawDistance);
+    let source: Int = stored;
+    if (stored < DrawDistance.LOW || stored > DrawDistance.HIGH) {
+      source = Math.clamp(DrawDistance.LOW, DrawDistance.HIGH, CS2.device_option_get(DeviceOption.DRAW_DISTANCE));
+    }
+    return Math.clamp(
+      0,
+      DrawDistance.MAX_STEP,
+      CS2.interpolate(0, row.sliderSteps ?? Slider.STEPS_DEFAULT, DrawDistance.LOW, DrawDistance.HIGH, source),
+    );
+  }
+  if (settingId === SettingId.MINIMENU_SPACING) {
+    return useServerState(Varbits.SETTINGS_MINIMENU_SPACING);
+  }
+  return 0;
+}
+
+export function sliderThumbX(row: SettingsRow, width: Int): Int {
+  const settingId: Int = row.settingId ?? 0;
+  const left: Int = width / 2 - Slider.TRACK_W / 2;
+  const first: Int = left + Slider.TILE;
+  const last: Int = Slider.TRACK_W + left - Slider.TILE;
+  const travel: Int = Slider.SPAN - Slider.TILE;
+
+  if (!(row.sliderCustomThumb ?? false) || settingId === SettingId.MINIMAP_ZOOM) {
+    const steps: Int = row.sliderSteps ?? Slider.STEPS_DEFAULT;
+    const value: Int = sliderValue(row);
+    if (value === 0) {
+      return first;
+    }
+    if (value === steps - 1) {
+      return last - Slider.TILE;
+    }
+    return first + CS2.scale(value * 2, (steps - 1) * 2, travel);
+  }
+
+  if (settingId === SettingId.MASTER_VOLUME) {
+    return first + Math.clamp(0, travel, CS2.scale(useServerState(Varps.OPTION_MASTER_VOLUME), Volume.FULL, travel));
+  }
+  if (settingId === SettingId.MUSIC_VOLUME) {
+    return first + Math.clamp(0, travel, CS2.scale(useServerState(Varps.OPTION_MUSIC), Volume.FULL, travel));
+  }
+  if (settingId === SettingId.SOUND_VOLUME) {
+    return first + Math.clamp(0, travel, CS2.scale(useServerState(Varps.OPTION_SOUNDS), Volume.FULL, travel));
+  }
+  if (settingId === SettingId.AREA_VOLUME) {
+    return first + Math.clamp(0, travel, CS2.scale(useServerState(Varps.OPTION_AREASOUNDS), Volume.FULL, travel));
+  }
+
+  if (settingId === SettingId.CAMERA_ZOOM) {
+    const [bigMin] = useState(cameraZoomBigMin);
+    const [bigMax] = useState(cameraZoomBigMax);
+    const [smallMin] = useState(cameraZoomSmallMin);
+    const [smallMax] = useState(cameraZoomSmallMax);
+    const [big] = useState(cameraZoomBig);
+    const [small] = useState(cameraZoomSmall);
+    const [viewportW, _] = CS2.viewport_effective_size_get();
+    if (viewportW > Zoom.TALL_VIEWPORT) {
+      if (bigMax - bigMin === 0) {
+        return first;
+      }
+      return first + ((big - bigMin) * travel) / (bigMax - bigMin);
+    }
+    if (smallMax - smallMin === 0) {
+      return first;
+    }
+    return first + ((small - smallMin) * travel) / (smallMax - smallMin);
+  }
+
+  if (settingId === SettingId.DEADZONE) {
+    const [deadzone] = useState(osmDeadsidesSlider);
+    return first + Math.min(CS2.scale(deadzone, Deadzone.FULL, Slider.SPAN), travel);
+  }
+
+  return first;
+}
+
+export function sliderVolumePercent(row: SettingsRow): Int {
+  const settingId: Int = row.settingId ?? 0;
+  if (settingId === SettingId.MASTER_VOLUME) {
+    return Math.clamp(0, Volume.FULL, useServerState(Varps.OPTION_MASTER_VOLUME));
+  }
+  if (settingId === SettingId.MUSIC_VOLUME) {
+    return Math.clamp(0, Volume.FULL, useServerState(Varps.OPTION_MUSIC));
+  }
+  if (settingId === SettingId.SOUND_VOLUME) {
+    return Math.clamp(0, Volume.FULL, useServerState(Varps.OPTION_SOUNDS));
+  }
+  if (settingId === SettingId.AREA_VOLUME) {
+    return Math.clamp(0, Volume.FULL, useServerState(Varps.OPTION_AREASOUNDS));
+  }
+  return Slider.NO_PERCENT;
+}
+
+export function sliderThumbMuted(row: SettingsRow): Int {
+  const settingId: Int = row.settingId ?? 0;
+  if (
+    settingId !== SettingId.MUSIC_VOLUME &&
+    settingId !== SettingId.SOUND_VOLUME &&
+    settingId !== SettingId.AREA_VOLUME
+  ) {
+    return 0;
+  }
+  if (useServerState(Varps.OPTION_MASTER_VOLUME) <= 0) {
+    return 1;
+  }
+  return 0;
+}
+
+function sliderOp(row: SettingsRow, step: Int, enabled: Boolean, enabledFlag: Int): void {
+  if (!enabled || enabledFlag !== 1) {
+    playSound(Sounds.DISMISS);
+    chatMessage(rowLockedMessage(row));
+    return;
+  }
+  playSound(Sounds.TAB_SELECT);
+  setSliderValue(row, step);
+}
+
+function setSliderValue(row: SettingsRow, step: Int): void {
+  const settingId: Int = row.settingId ?? 0;
+  predictServerState(SettingsVarbits.SELECTED_SETTING, settingId);
+
+  if (settingId === SettingId.BRIGHTNESS) {
+    CS2.device_option_set(DeviceOption.BRIGHTNESS, Math.clamp(0, Volume.FULL, step * DeviceOption.BRIGHTNESS_STEP));
+    return;
+  }
+  if (settingId === SettingId.VIEW_DISTANCE) {
+    const [, setDrawDistance] = useState(settingsDrawDistance);
+    const wanted: Int = CS2.interpolate(
+      DrawDistance.LOW,
+      DrawDistance.HIGH,
+      0,
+      (row.sliderSteps ?? Slider.STEPS_DEFAULT) - 1,
+      step,
+    );
+    setDrawDistance(wanted);
+    let pushed: Int = Math.clamp(DrawDistance.LOW, DrawDistance.HIGH, wanted);
+    if (useServerState(Varbits.DRAW_DISTANCE_MAX_OVERRIDE) === 1) {
+      pushed = DrawDistance.HIGH;
+    }
+    CS2.device_option_set(DeviceOption.DRAW_DISTANCE, pushed);
+    return;
+  }
+  if (settingId === SettingId.MINIMENU_SPACING) {
+    const spacing: Int = Math.clamp(0, Volume.FULL, step);
+    predictServerState(Varbits.SETTINGS_MINIMENU_SPACING, spacing);
+    CS2.game_option_set(GameOption.MINIMENU_SPACING, spacing);
+  }
+}
+
+function sliderClick(row: SettingsRow, step: Int, mouseX: Int, host: ComponentId, hostSub: Int): void {
+  sliderPointer(row, step, mouseX, Phase.CLICK, host, hostSub);
+}
+
+function sliderDrag(row: SettingsRow, mouseX: Int, host: ComponentId, hostSub: Int): void {
+  sliderPointer(row, Slider.NO_STEP, mouseX, Phase.DRAG, host, hostSub);
+}
+
+function sliderDragComplete(row: SettingsRow, mouseX: Int, host: ComponentId, hostSub: Int): void {
+  sliderPointer(row, Slider.NO_STEP, mouseX, Phase.DROP, host, hostSub);
+}
+
+function sliderPointer(row: SettingsRow, step: Int, mouseX: Int, phase: Int, host: ComponentId, hostSub: Int): void {
+  const settingId: Int = row.settingId ?? 0;
+
+  if (settingId === SettingId.CAMERA_ZOOM) {
+    if (phase === Phase.DROP) {
+      playSound(Sounds.TAB_SELECT);
+      return;
+    }
+    if (phase === Phase.CLICK) {
+      playSound(Sounds.TAB_SELECT);
+      setCameraZoomFromTrack(mouseX - Slider.THUMB_HALF);
+      return;
+    }
+    setCameraZoomFromTrack(mouseX);
+    return;
+  }
+
+  if (settingId === SettingId.DEADZONE) {
+    if (phase === Phase.CLICK) {
+      setDeadzoneFromTrack(Math.min(mouseX, Slider.TRAVEL));
+      return;
+    }
+    setDeadzoneFromTrack(mouseX);
+    if (phase === Phase.DROP) {
+      playSound(Sounds.TAB_SELECT);
+    }
+    return;
+  }
+
+  if (
+    settingId === SettingId.MASTER_VOLUME ||
+    settingId === SettingId.MUSIC_VOLUME ||
+    settingId === SettingId.SOUND_VOLUME ||
+    settingId === SettingId.AREA_VOLUME
+  ) {
+    if (phase === Phase.CLICK) {
+      setVolumeFromTrack(row, Math.min(mouseX, Slider.TRAVEL), true, host, hostSub);
+      playSound(Sounds.TAB_SELECT);
+      return;
+    }
+    if (phase === Phase.DROP) {
+      setVolumeFromTrack(row, mouseX, true, host, hostSub);
+      playSound(Sounds.TAB_SELECT);
+      return;
+    }
+    setVolumeFromTrack(row, mouseX, false, host, hostSub);
+    return;
+  }
+
+  if (settingId === SettingId.MINIMAP_ZOOM) {
+    if (phase !== Phase.CLICK) {
+      return;
+    }
+    if (useServerState(Varbits.MINIMAP_ZOOM_LOCK_DISABLED) === 1) {
+      return;
+    }
+    CS2.native_minimap_zoom_set(Math.clamp(MinimapZoom.MIN, MinimapZoom.MAX, step + MinimapZoom.OFFSET));
+  }
+}
+
+function setVolumeFromTrack(row: SettingsRow, mouseX: Int, committed: Boolean, host: ComponentId, hostSub: Int): void {
+  const settingId: Int = row.settingId ?? 0;
+  const value: Int = Math.clamp(0, Volume.FULL, CS2.scale(mouseX, Slider.TRAVEL, Volume.FULL));
+
+  if (settingId === SettingId.MASTER_VOLUME) {
+    const notify: Boolean = volumeNotifies(committed, useServerState(Varps.OPTION_MASTER_VOLUME), value);
+    predictServerState(Varps.OPTION_MASTER_VOLUME, value);
+    CS2.device_option_set(DeviceOption.MASTER_VOLUME, value);
+    if (notify) {
+      CS2.if_runscript(Notify.VOLUME_MOVED, host, hostSub, SettingId.MASTER_VOLUME, value, 'ii');
+    }
+    return;
+  }
+  if (settingId === SettingId.MUSIC_VOLUME) {
+    const notify: Boolean = volumeNotifies(committed, useServerState(Varps.OPTION_MUSIC), value);
+    predictServerState(Varps.OPTION_MUSIC, value);
+    CS2.game_option_set(GameOption.MUSIC_VOLUME, value);
+    if (notify) {
+      CS2.if_runscript(Notify.VOLUME_MOVED, host, hostSub, SettingId.MUSIC_VOLUME, value, 'ii');
+    }
+    return;
+  }
+  if (settingId === SettingId.SOUND_VOLUME) {
+    const notify: Boolean = volumeNotifies(committed, useServerState(Varps.OPTION_SOUNDS), value);
+    predictServerState(Varps.OPTION_SOUNDS, value);
+    CS2.game_option_set(GameOption.SOUND_VOLUME, value);
+    if (notify) {
+      CS2.if_runscript(Notify.VOLUME_MOVED, host, hostSub, SettingId.SOUND_VOLUME, value, 'ii');
+    }
+    return;
+  }
+  const notify: Boolean = volumeNotifies(committed, useServerState(Varps.OPTION_AREASOUNDS), value);
+  predictServerState(Varps.OPTION_AREASOUNDS, value);
+  CS2.game_option_set(GameOption.AREA_VOLUME, value);
+  if (notify) {
+    CS2.if_runscript(Notify.VOLUME_MOVED, host, hostSub, SettingId.AREA_VOLUME, value, 'ii');
+  }
+}
+
+function volumeNotifies(committed: Boolean, before: Int, after: Int): Boolean {
+  if (committed) {
+    return true;
+  }
+  if (before <= 0 && after > 0) {
+    return true;
+  }
+  if (before > 0 && after <= 0) {
+    return true;
+  }
+  return false;
+}
+
+function setCameraZoomFromTrack(mouseX: Int): void {
+  if (useServerState(Varbits.FOV_CLAMP) !== 0) {
+    return;
+  }
+  const [bigMin] = useState(cameraZoomBigMin);
+  const [bigMax] = useState(cameraZoomBigMax);
+  const [smallMin] = useState(cameraZoomSmallMin);
+  const [smallMax] = useState(cameraZoomSmallMax);
+
+  const at: Int = Math.clamp(0, Slider.TRAVEL, mouseX);
+  const big: Int = (at * (bigMax - bigMin)) / Slider.TRAVEL + bigMin;
+  const small: Int = (at * (smallMax - smallMin)) / Slider.TRAVEL + smallMin;
+  cameraDoZoom(small, big);
+}
+
+function setDeadzoneFromTrack(mouseX: Int): void {
+  const value: Int = Math.clamp(0, Deadzone.FULL, CS2.scale(mouseX, Slider.SPAN, Deadzone.FULL));
+  const [stored, setStored] = useState(osmDeadsidesSlider);
+  if (stored === value) {
+    return;
+  }
+  setStored(value);
+  const [, setDeadsides] = useState(osmDeadsides);
+  setDeadsides(CS2.scale(Deadzone.WIDTH_LIMIT, Deadzone.FULL, value));
+}
+
+const Phase = {
+  CLICK: 0,
+  DRAG: 1,
+  DROP: 2,
+} as const;
+
+const SettingId = {
+  MASTER_VOLUME: 319,
+  MUSIC_VOLUME: 30,
+  SOUND_VOLUME: 31,
+  AREA_VOLUME: 32,
+  BRIGHTNESS: 15,
+  CAMERA_ZOOM: 14,
+  VIEW_DISTANCE: 168,
+  DEADZONE: 53,
+  MINIMAP_ZOOM: 310,
+  MINIMENU_SPACING: 393,
+} as const;
+
+const DeviceOption = {
+  BRIGHTNESS: 6,
+  BRIGHTNESS_STEP: 5,
+  DRAW_DISTANCE: 14,
+  MASTER_VOLUME: 19,
+} as const;
+
+const GameOption = {
+  MINIMENU_SPACING: 14,
+  MUSIC_VOLUME: 7,
+  SOUND_VOLUME: 8,
+  AREA_VOLUME: 9,
+} as const;
+
+const Volume = { FULL: 100 } as const;
+
+const DrawDistance = {
+  LOW: 25,
+  HIGH: 90,
+  MAX_STEP: 32,
+} as const;
+
+const Zoom = { TALL_VIEWPORT: 334 } as const;
+
+const Deadzone = {
+  FULL: 1000,
+  WIDTH_LIMIT: 2200,
+} as const;
+
+const Notify = {
+  VOLUME_MOVED: -878888337,
+} as const;
+
+const MinimapZoom = {
+  OFFSET: 2,
+  MIN: 2,
+  MAX: 8,
+} as const;

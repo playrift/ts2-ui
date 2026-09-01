@@ -1,0 +1,189 @@
+import { useState, useUniverse, useServerState } from 'ts2';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { SteelBorder } from '../lib/steel-border.component';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  Dropdown,
+  FRAME_FLAGS,
+  FRAME_TITLE,
+  Layout,
+  League,
+  LeagueInfoColors,
+  LeagueInfoFonts,
+  LeagueInfoSprites,
+  LeagueInfoVarbits,
+  MenuButton,
+} from './league-info.constants';
+import { Leagues } from './leagues.data';
+import {
+  blogHeight,
+  blogLine,
+  blogVisible,
+  breakpointOf,
+  columnInset,
+  columnWidth,
+  contentTop,
+  daysLeft,
+  dividerTop,
+  dropdownRows,
+  dropdownWidth,
+  menuButtonVisible,
+  paneInset,
+  universeHeight,
+  universeWidth,
+} from './league-info.helpers';
+import { InfoColumn } from './info-column.component';
+import { LeagueCloseButton } from './league-close-button.component';
+import { LeagueMenuButton, LeagueMenuDropdown, LeagueMenuOverlay } from './league-menu.component';
+
+export function LeagueInfoPanel(): Component {
+  const universe = useUniverse();
+  const [breakpoint, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const league: Int = useServerState(LeagueInfoVarbits.LEAGUE);
+  const row = Leagues.get(league as League);
+
+  const width: Int = universeWidth(breakpoint);
+  const height: Int = universeHeight(breakpoint);
+  const top: Int = contentTop(breakpoint);
+  const inset: Int = columnInset(breakpoint);
+  const column: Int = columnWidth(breakpoint);
+
+  if (row === null) {
+    return (
+      <layer
+        x="center"
+        y="center"
+        w={width}
+        h={height}
+        onTimer={() => setBreakpoint(breakpointOf(universe.width, universe.height))}
+      >
+        <SteelBorder title={FRAME_TITLE} titleColor={LeagueInfoColors.GOLD} flags={FRAME_FLAGS} />
+        <PanelDividers breakpoint={breakpoint} />
+        <LeagueCloseButton league={league} />
+      </layer>
+    );
+  }
+
+  const accent: Int =
+    row === null ? LeagueInfoColors.GOLD : league === League.THREE ? LeagueInfoColors.WHITE : row.accent;
+  const dropdownColour: Int = row === null ? LeagueInfoColors.GOLD : row.accent;
+  const generalGroup: Int = row === null ? -1 : row.generalGroup;
+  const specificGroup: Int = row === null ? -1 : row.specificGroup;
+  const endRuneday: Int = row === null ? 0 : row.endRuneday;
+  const days: Int = daysLeft(endRuneday);
+
+  const blog: String = blogLine(league);
+  const blogH: Int = blogHeight(blog, column, column);
+  const showBlog: Boolean = blogVisible();
+  const menuButton: Boolean = menuButtonVisible();
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w={width}
+      h={height}
+      onTimer={() => setBreakpoint(breakpointOf(universe.width, universe.height))}
+    >
+      <SteelBorder title={FRAME_TITLE} titleColor={accent} flags={FRAME_FLAGS} />
+
+      <layer x="center" y={top} w={{ fill: Layout.OUTER_INSET_W }} h={{ fill: top + Layout.OUTER_INSET_H }}>
+        <text
+          x={0}
+          y={0}
+          w={{ fill: inset }}
+          h={Layout.HEADER_H}
+          text="General League Information"
+          font={LeagueInfoFonts.HEADING}
+          shadow
+          color={accent}
+          align="center"
+          valign="middle"
+        />
+        <text
+          x="right"
+          y={0}
+          w={{ fill: inset }}
+          h={Layout.HEADER_H}
+          text="League Specific Information"
+          font={LeagueInfoFonts.HEADING}
+          shadow
+          color={accent}
+          align="center"
+          valign="middle"
+        />
+
+        <layer x={0} y="bottom" w={{ fill: inset }} h={{ fill: paneInset(breakpoint) }}>
+          <InfoColumn
+            group={generalGroup}
+            width={column}
+            accent={accent}
+            blogText={blog}
+            blogHeight={blogH}
+            showBlog={showBlog}
+            league={league}
+            days={days}
+          />
+        </layer>
+
+        <layer x="right" y="bottom" w={{ fill: inset }} h={{ fill: paneInset(breakpoint) }}>
+          <InfoColumn
+            group={specificGroup}
+            width={column}
+            accent={accent}
+            blogText={blog}
+            blogHeight={blogH}
+            showBlog={showBlog}
+            appendDays
+            league={league}
+            days={days}
+          />
+        </layer>
+
+        <LeagueMenuOverlay />
+      </layer>
+
+      <PanelDividers breakpoint={breakpoint} />
+      <LeagueCloseButton league={league} />
+
+      {menuButton && (
+        <layer
+          x={mobile ? MenuButton.MOBILE.x : MenuButton.DESKTOP.x}
+          y={mobile ? MenuButton.MOBILE.y : MenuButton.DESKTOP.y}
+          w={mobile ? MenuButton.MOBILE.w : MenuButton.DESKTOP.w}
+          h={mobile ? MenuButton.MOBILE.h : MenuButton.DESKTOP.h}
+        >
+          <LeagueMenuButton />
+        </layer>
+      )}
+
+      <layer x={0} y={29} w={dropdownWidth()} h={dropdownRows() + Dropdown.EXTRA_H}>
+        <LeagueMenuDropdown league={league} accent={dropdownColour} />
+      </layer>
+    </layer>
+  );
+}
+
+function PanelDividers({ breakpoint }: { breakpoint: Int }): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y={dividerTop(breakpoint)}
+        w={{ fill: Layout.DIVIDER_INSET }}
+        h={Layout.DIVIDER_H}
+        sprite={LeagueInfoSprites.DIVIDER}
+        tiling
+      />
+      <sprite
+        x="center"
+        y={{ bottom: Layout.RULE_BOTTOM }}
+        w={Layout.RULE_W}
+        h={{ fill: 40 }}
+        sprite={LeagueInfoSprites.COLUMN_RULE}
+        tiling
+      />
+    </>
+  );
+}

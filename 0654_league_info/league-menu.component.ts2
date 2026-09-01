@@ -1,0 +1,198 @@
+import { CS2, useState } from 'ts2';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import {
+  Dropdown,
+  DropdownEntry,
+  LeagueInfoColors,
+  LeagueInfoFade,
+  LeagueInfoFonts,
+  LeagueInfoSounds,
+  LeagueInfoSprites,
+  League,
+  MenuButton,
+} from './league-info.constants';
+import {
+  colourSwapper,
+  combatMasteriesEntry,
+  desktop,
+  dropdownRows,
+  dropdownWidth,
+  inLeagueTutorial,
+  isLeagueThree,
+  isSelectedEntry,
+  rowHoverable,
+} from './league-info.helpers';
+import { leagueMenuOpen } from './league-info.state';
+
+export function LeagueMenuButton(): Component {
+  const [open, setOpen] = useState(leagueMenuOpen);
+  const swap: Boolean = desktop();
+  const locked: Boolean = inLeagueTutorial();
+  const rest: Sprite = open === 1 ? LeagueInfoSprites.MENU_OVER : LeagueInfoSprites.MENU;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Show Menu']}
+      onOptionSelect={() => {
+        if (locked) {
+          CS2.sound_effect(LeagueInfoSounds.REFUSED, 1, 0);
+          setOpen(0);
+        } else if (open === 1) {
+          setOpen(0);
+        } else {
+          setOpen(1);
+        }
+      }}
+    >
+      <sprite
+        x="center"
+        y="center"
+        w={MenuButton.ICON}
+        h={MenuButton.ICON}
+        sprite={rest}
+        onMouseRepeat={
+          swap
+            ? (event) => {
+                event.self.sprite = LeagueInfoSprites.MENU_OVER;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          swap
+            ? (event) => {
+                event.self.sprite = LeagueInfoSprites.MENU;
+              }
+            : undefined
+        }
+      />
+    </layer>
+  );
+}
+
+export function LeagueMenuOverlay(): Component {
+  const [open, setOpen] = useState(leagueMenuOpen);
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      hide={open === 1 ? false : true}
+      noClickThrough
+      onClick={() => {
+        CS2.sound_effect(LeagueInfoSounds.CLICK, 1, 0);
+        setOpen(0);
+      }}
+    />
+  );
+}
+
+function DropdownRow({
+  label,
+  entry,
+  colour,
+  top,
+  height,
+  width,
+}: {
+  label: String;
+  entry: Int;
+  colour: Int;
+  top: Int;
+  height: Int;
+  width: Int;
+}): Component {
+  const [, setOpen] = useState(leagueMenuOpen);
+  const active: Boolean = isSelectedEntry(entry);
+  const swap: Boolean = rowHoverable(active);
+  return (
+    <>
+      <rect
+        x={Dropdown.ROW_X}
+        y={top}
+        w={width - Dropdown.ROW_INSET}
+        h={height}
+        color={LeagueInfoColors.BACKING}
+        fill
+        transparency={active ? LeagueInfoFade.SOFT : LeagueInfoFade.OPAQUE}
+      />
+      <text
+        x={Dropdown.ROW_X}
+        y={top}
+        w={width - Dropdown.ROW_INSET}
+        h={height}
+        text={label}
+        font={LeagueInfoFonts.BODY}
+        shadow
+        color={active ? LeagueInfoColors.WHITE : colour}
+        align="center"
+        valign="middle"
+        onMouseEnter={swap ? (event) => colourSwapper(event.component, LeagueInfoColors.WHITE) : undefined}
+        onMouseLeave={swap ? (event) => colourSwapper(event.component, colour) : undefined}
+        options={[`View ${label}`]}
+        onOptionSelect={() => {
+          CS2.sound_effect(LeagueInfoSounds.CLICK, 1, 0);
+          setOpen(0);
+        }}
+      />
+    </>
+  );
+}
+
+export function LeagueMenuDropdown({ league, accent }: { league: Int; accent: Int }): Component {
+  const [open] = useState(leagueMenuOpen);
+  const rows: Int = dropdownRows();
+  const width: Int = dropdownWidth();
+  const step: Int = rows / 4;
+  const fifth: Boolean = combatMasteriesEntry(league);
+  const three: Boolean = isLeagueThree(league);
+
+  return (
+    <layer w="fill" h="fill" hide={open === 1 ? false : true} noClickThrough={open === 1 ? true : false}>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={LeagueInfoSprites.DROPDOWN_BACK} />
+      <SteelFrame backdrop={false} />
+      <DropdownRow
+        label="Info"
+        entry={DropdownEntry.INFO}
+        colour={accent}
+        top={Dropdown.TOP}
+        height={step}
+        width={width}
+      />
+      <DropdownRow
+        label="Tasks"
+        entry={DropdownEntry.TASKS}
+        colour={accent}
+        top={Dropdown.TOP + step}
+        height={step}
+        width={width}
+      />
+      <DropdownRow
+        label={three ? 'Unlocks' : 'Areas'}
+        entry={DropdownEntry.AREAS}
+        colour={accent}
+        top={Dropdown.TOP + step * 2}
+        height={step}
+        width={width}
+      />
+      <DropdownRow
+        label={three ? 'Fragments' : 'Relics'}
+        entry={DropdownEntry.RELICS}
+        colour={accent}
+        top={Dropdown.TOP + step * 3}
+        height={step}
+        width={width}
+      />
+      {fifth && (
+        <DropdownRow
+          label="Combat Masteries"
+          entry={DropdownEntry.COMBAT_MASTERIES}
+          colour={accent}
+          top={Dropdown.TOP + step * 4}
+          height={step}
+          width={width}
+        />
+      )}
+    </layer>
+  );
+}

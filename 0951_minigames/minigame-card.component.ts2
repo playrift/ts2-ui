@@ -1,0 +1,55 @@
+import { useDerived } from 'ts2';
+
+import { graphicSwapper } from '../lib/lib.helpers';
+import { ThinBox } from '../lib/thin-box.component';
+import { Layout, MinigameArt, MinigameColors, MinigameFonts, MinigameSounds } from './minigames.constants';
+import { soundSynth } from './minigames.helpers';
+import { minigameAvailable, minigameLocation, minigameRequirement } from './minigames.requirements';
+
+export function MinigameCard({ id, name, icon }: { id: Int; name: String; icon: Sprite }): Component {
+  const available: Int = useDerived(() => minigameAvailable(id));
+  let open: Boolean = false;
+  if (available === 1) {
+    open = true;
+  }
+
+  const label: String = open
+    ? `${name}<br><col=808080>${minigameLocation(id)}`
+    : `${name}<br><col=ff0000>${minigameRequirement(id)}`;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[open ? 'Select' : '']}
+      onOptionSelect={open ? () => soundSynth(MinigameSounds.SELECT, 1, 0) : undefined}
+    >
+      <sprite
+        w="fill"
+        h="fill"
+        tiling
+        sprite={open ? MinigameArt.CARD : MinigameArt.CARD_LOCKED}
+        onMouseEnter={open ? (event) => graphicSwapper(event.component, MinigameArt.CARD_HOVER) : undefined}
+        onMouseLeave={open ? (event) => graphicSwapper(event.component, MinigameArt.CARD) : undefined}
+      />
+
+      <ThinBox />
+
+      <sprite x={Layout.PAD} y="center" w={Layout.ICON} h={Layout.ICON} sprite={icon} />
+
+      <text
+        x={{ right: Layout.PAD }}
+        y={0}
+        w={{ fill: Layout.LABEL_INSET }}
+        h="fill"
+        text={label}
+        font={MinigameFonts.LABEL}
+        color={MinigameColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.LINE_HEIGHT}
+      />
+    </layer>
+  );
+}

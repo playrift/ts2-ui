@@ -1,0 +1,156 @@
+import { CS2, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  Dropdown,
+  EventArt,
+  EventColor,
+  EventField,
+  EventFonts,
+  EventSounds,
+  EventVarbits,
+  Layout,
+} from './clans-events-create.constants';
+import { EventOptions, OptionSet, optionSetCount } from './event-options.data';
+import { fieldOptionSet, setEventValue, truncateToWidth } from './clans-events-create.helpers';
+import { dropdownCellWidth, dropdownCellX, dropdownRowHeight, dropdownRowY, openField } from './dropdown.state';
+
+export function EventDropdown(): Component {
+  const [open, setOpen] = useState(openField);
+  if (open === -1) {
+    return null;
+  }
+
+  const field: EventField = open as EventField;
+  const universe = useUniverse();
+  const type: Int = useServerState(EventVarbits.TYPE);
+
+  const set: OptionSet = fieldOptionSet(field, type);
+  const rowHeight: Int = dropdownRowHeight();
+  const contentHeight: Int = optionSetCount(set) * rowHeight;
+  const wanted: Int = contentHeight + Dropdown.BOX_PADDING;
+
+  const cellWidth: Int = dropdownCellWidth(field);
+  const frameX: Int = (universe.width - Layout.FRAME_W) / 2;
+  const frameY: Int = (universe.height - Layout.FRAME_H) / 2;
+  const contentX: Int = frameX + Layout.CONTENT_INSET_W / 2;
+  const cellX: Int = contentX + dropdownCellX(field);
+  const cellY: Int = frameY + Layout.CONTENT_Y + dropdownRowY(field);
+
+  const above: Int = cellY > universe.height / 2 ? 1 : 0;
+  const edge: Int = above === 1 ? cellY + Dropdown.ABOVE_NUDGE : cellY + Layout.ROW_H - 1;
+  const room: Int = above === 1 ? edge : universe.height - edge;
+  const boxHeight: Int = Math.min(wanted, room);
+  const boxY: Int = above === 1 ? edge - boxHeight : edge;
+
+  const scrollHeight: Int = wanted > boxHeight ? contentHeight : 0;
+
+  const list = useRef();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      noClickThrough
+      onClick={() => {
+        setOpen(-1);
+      }}
+    >
+      <layer x={cellX} y={boxY} w={cellWidth} h={boxHeight} noClickThrough>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={EventArt.CELL_BACKING} tiling />
+
+        <layer
+          ref={list}
+          x={Dropdown.LIST_X}
+          y="center"
+          w={{ fill: Dropdown.LIST_INSET_W }}
+          h={{ fill: Dropdown.LIST_INSET_H }}
+          scrollHeight={scrollHeight}
+        >
+          <DropdownEntries field={field} set={set} rowHeight={rowHeight} cellWidth={cellWidth} />
+        </layer>
+
+        <layer
+          x={{ right: Dropdown.SCROLLBAR_X }}
+          y="center"
+          w={Dropdown.SCROLLBAR_W}
+          h={{ fill: Dropdown.LIST_INSET_H }}
+        >
+          <ScrollbarVertical
+            content={list}
+            track={EventArt.SCROLL_TRACK}
+            capTopSprite={EventArt.SCROLL_CAP_TOP}
+            thumbSprite={EventArt.SCROLL_THUMB}
+            capBottomSprite={EventArt.SCROLL_CAP_BOTTOM}
+            arrowUp={EventArt.SCROLL_ARROW_UP}
+            arrowDown={EventArt.SCROLL_ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBox />
+      </layer>
+    </layer>
+  );
+}
+
+function DropdownEntries({
+  field,
+  set,
+  rowHeight,
+  cellWidth,
+}: {
+  field: EventField;
+  set: OptionSet;
+  rowHeight: Int;
+  cellWidth: Int;
+}): Component {
+  const [open, setOpen] = useState(openField);
+  const textWidth: Int = cellWidth - Dropdown.ENTRY_TEXT_INSET;
+  const strip = useRef();
+
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        ref={strip}
+        x="center"
+        y={0}
+        w="fill"
+        h={rowHeight}
+        fill
+        color={EventColor.HOVER_STRIP}
+        transparency={Dropdown.HOVER_TRANSPARENCY}
+        hide
+      />
+      {EventOptions.filter((row) => row.set === set).map((row) => (
+        <text
+          x="center"
+          y={row.order * rowHeight}
+          w="fill"
+          h={rowHeight}
+          color={EventColor.ACCENT}
+          shadow
+          font={EventFonts.VALUE}
+          align="center"
+          valign="middle"
+          text={truncateToWidth(row.label, textWidth, EventFonts.VALUE)}
+          options={['Select']}
+          onMouseRepeat={() => {
+            if (!onMobile()) {
+              strip.hide = false;
+              strip.y = row.order * rowHeight;
+            }
+          }}
+          onMouseLeave={() => {
+            strip.hide = true;
+          }}
+          onOptionSelect={() => {
+            CS2.sound_effect(EventSounds.SELECT, 1, 0);
+            setEventValue(field, row.slot);
+            setOpen(-1);
+          }}
+        />
+      ))}
+    </layer>
+  );
+}

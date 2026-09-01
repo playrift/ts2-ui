@@ -1,0 +1,29 @@
+import { useServerState, useState } from 'ts2';
+
+import { pvpaCountdown } from '../lib/game/varcs';
+import { PvpArenaStagingVarbits } from './pvp-arena-stagingarea-hud.constants';
+
+const Countdown = {
+  UNIT: 30,
+  RESYNC: 90,
+  PER_SECOND: 50,
+  PER_MINUTE: 60,
+  TWO_DIGITS: 10,
+};
+
+export function pvpArenaCountdown(label: ComponentId): void {
+  const [previous, setCountdown] = useState(pvpaCountdown);
+  let ticks: Int = Math.max(0, previous - 1);
+  const fromServer: Int = useServerState(PvpArenaStagingVarbits.TIME_REMAINING) * Countdown.UNIT;
+  if (fromServer > ticks + Countdown.RESYNC || fromServer < ticks - Countdown.RESYNC) {
+    ticks = fromServer;
+  }
+  setCountdown(ticks);
+
+  const seconds: Int = ticks / Countdown.PER_SECOND;
+  if (seconds % Countdown.PER_MINUTE >= Countdown.TWO_DIGITS) {
+    label.text = `${seconds / Countdown.PER_MINUTE}:${seconds % Countdown.PER_MINUTE}`;
+  } else {
+    label.text = `${seconds / Countdown.PER_MINUTE}:0${seconds % Countdown.PER_MINUTE}`;
+  }
+}

@@ -1,0 +1,131 @@
+import { useInventory, useServerState, useState } from 'ts2';
+
+import { Fonts } from './game/fonts';
+import { Inventories } from './game/inventories';
+import { Varbits } from './game/varbits';
+import { Varps } from './game/varps';
+import {
+  Skillmain,
+  skillmainButtonLabel,
+  skillmainButtonOp,
+  skillmainMaterial,
+  skillmainMax,
+} from './skillmain.helpers';
+import { StoneButtonOutFilled } from './stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from './stone-button-pressed-filled.component';
+
+export function SkillQuantityButton({
+  quantity,
+  selected = false,
+  material = -1,
+  isAll = false,
+}: {
+  quantity: Int;
+  selected?: Boolean;
+  material?: Item;
+  isAll?: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const label: String = skillmainButtonLabel(quantity, selected, material, isAll);
+  const pressed: Boolean = selected || hovered === 1 ? true : false;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Quantity:']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onMouseEnter={selected === false ? () => setHovered(1) : undefined}
+      onMouseLeave={selected === false ? () => setHovered(0) : undefined}
+      onOptionSelect={(event) => skillmainButtonOp(event.option, quantity, selected)}
+    >
+      {pressed ? (
+        <>
+          <StoneButtonPressedFilled />
+        </>
+      ) : (
+        <>
+          <StoneButtonOutFilled />
+        </>
+      )}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={Fonts.P11_FULL}
+        align="center"
+        valign="middle"
+        shadow
+        color={Skillmain.LABEL_COLOR}
+        text={selected ? `<col=ffffff>${label}</col>` : label}
+      />
+    </layer>
+  );
+}
+
+export function SkillQuantityStrip({ dx, dy, declared }: { dx: Int; dy: Int; declared: Item }): Component {
+  const material: Item = skillmainMaterial(declared, useServerState(Varbits.SMITHING_BAR_TYPE));
+  const inv = useInventory(Inventories.INV);
+  const held: Int = inv.total(material);
+  const most: Int = skillmainMax(material, held);
+  const chosen: Int = useServerState(Varps.MAKEXCRAFTING);
+  const quantity: Int = Math.min(most, chosen);
+
+  const one: Int = most > 1 ? 1 : 0;
+  const five: Int = most > 5 ? 1 : 0;
+  const ten: Int = most > 10 ? 1 : 0;
+  const custom: Int = most > 2 ? 1 : 0;
+  const some: Int = quantity !== 1 && quantity !== 5 && quantity !== 10 && quantity !== 0 && quantity < most ? 1 : 0;
+
+  const posFive: Int = one;
+  const posTen: Int = one + five;
+  const posCustom: Int = posTen + ten;
+  const posAll: Int = posCustom + custom;
+  const posSome: Int = posAll + 1;
+  const drawn: Int = posSome + some;
+  const half: Int = (dx * (drawn - 1)) / 2;
+
+  return (
+    <layer w="fill" h="fill">
+      {one === 1 ? (
+        <layer x={{ center: 0 - half }} y={0} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+          <SkillQuantityButton quantity={1} selected={quantity === 1 ? true : false} material={material} />
+        </layer>
+      ) : null}
+
+      {five === 1 ? (
+        <layer x={{ center: dx * posFive - half }} y={dy * posFive} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+          <SkillQuantityButton quantity={5} selected={quantity === 5 ? true : false} material={material} />
+        </layer>
+      ) : null}
+
+      {ten === 1 ? (
+        <layer x={{ center: dx * posTen - half }} y={dy * posTen} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+          <SkillQuantityButton quantity={10} selected={quantity === 10 ? true : false} material={material} />
+        </layer>
+      ) : null}
+
+      {custom === 1 ? (
+        <layer x={{ center: dx * posCustom - half }} y={dy * posCustom} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+          <SkillQuantityButton quantity={0} selected={quantity === 0 ? true : false} material={material} />
+        </layer>
+      ) : null}
+
+      <layer x={{ center: dx * posAll - half }} y={dy * posAll} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+        <SkillQuantityButton
+          quantity={Skillmain.MAX}
+          selected={quantity >= most ? true : false}
+          material={material}
+          isAll
+        />
+      </layer>
+
+      {some === 1 ? (
+        <layer x={{ center: dx * posSome - half }} y={dy * posSome} w={Skillmain.BUTTON} h={Skillmain.BUTTON}>
+          <SkillQuantityButton quantity={quantity} selected material={material} />
+        </layer>
+      ) : null}
+    </layer>
+  );
+}

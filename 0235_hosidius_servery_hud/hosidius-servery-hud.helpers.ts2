@@ -1,0 +1,59 @@
+import { CS2, useInventory } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Appreciation } from './hosidius-servery-hud.constants';
+
+const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+  PROPORTION = 2,
+}
+
+export function rgbToHex(red: Int, green: Int, blue: Int): Int {
+  let r: Int = red;
+  let g: Int = green;
+  let b: Int = blue;
+  if (r > 255) {
+    r = 255;
+  } else if (r < 0) {
+    r = 0;
+  }
+  if (g > 255) {
+    g = 255;
+  } else if (g < 0) {
+    g = 0;
+  }
+  if (b > 255) {
+    b = 255;
+  } else if (b < 0) {
+    b = 0;
+  }
+  return (r * 65536) | (g * 256) | b;
+}
+
+export function serveryAppreciation(dish: Item): Int {
+  const wine = useInventory(Inventories.SKILL_GUIDE_COOKING_WINE);
+  const held: Int = wine.total(dish);
+  if (held > Appreciation.FULL) {
+    return Appreciation.FULL;
+  }
+  return held;
+}
+
+export function serveryRow(icon: ComponentId, outline: ComponentId, fill: ComponentId, dish: Item): void {
+  CS2.if_item_nonum_set(dish, 1, icon);
+  const held: Int = serveryAppreciation(dish);
+  CS2.if_size_set((held * Appreciation.PROPORTION) / Appreciation.FULL, 0, SizeMode.PROPORTION, SizeMode.MINUS, fill);
+  let red: Int = 0;
+  let green: Int = 0;
+  if (held <= Appreciation.HALF) {
+    red = Appreciation.CHANNEL;
+    green = CS2.interpolate(0, held, 0, Appreciation.HALF, Appreciation.CHANNEL);
+  } else {
+    red = CS2.interpolate(0, Appreciation.FULL - held, 0, Appreciation.HALF, Appreciation.CHANNEL);
+    green = Appreciation.CHANNEL;
+  }
+  const colour: Int = rgbToHex(red, green, 0);
+  CS2.if_colour_set(colour, outline);
+  CS2.if_colour_set(colour, fill);
+}

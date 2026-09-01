@@ -1,0 +1,69 @@
+import { CS2 } from 'ts2';
+
+import type { GimOptionRow } from './gim-option-rows.data';
+import { CLAN_SETTING_UNAVAILABLE, GimOptionsText } from './gim-options.constants';
+
+export function gimSettingsSelected(asGuest: Int, guestStatus: Int, gimStatus: Int): Boolean {
+  if (asGuest === 1 && guestStatus === 3 && CS2.activeclansettings_listened_find()) {
+    return true;
+  }
+  if (asGuest === 0 && gimStatus === 3 && CS2.activeclansettings_affined_find(1)) {
+    return true;
+  }
+  return false;
+}
+
+export function gimOptionGet(): Int {
+  return CLAN_SETTING_UNAVAILABLE;
+}
+
+export function gimOptionValueText(row: GimOptionRow, asGuest: Int, guestStatus: Int, gimStatus: Int): String {
+  if (!gimSettingsSelected(asGuest, guestStatus, gimStatus)) {
+    return GimOptionsText.PENDING;
+  }
+  if (row.setting) {
+    return GimOptionsText.UNAVAILABLE;
+  }
+  if (gimOptionGet() === 1) {
+    return GimOptionsText.ENABLED;
+  }
+  return GimOptionsText.DISABLED;
+}
+
+export function gimOptionEnabled(row: GimOptionRow, asGuest: Int, guestStatus: Int, gimStatus: Int): Boolean {
+  if (!gimSettingsSelected(asGuest, guestStatus, gimStatus)) {
+    return false;
+  }
+  const slot: Int = CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()));
+  if (slot !== -1) {
+    return true;
+  }
+  return false;
+}
+
+export function gimOptionsTitle(
+  suffix: String,
+  asGuest: Int,
+  guestStatus: Int,
+  gimStatus: Int,
+  clanStatus: Int,
+): String {
+  if (gimSettingsSelected(asGuest, guestStatus, gimStatus)) {
+    return `${CS2.activeclansettings_clan_name_get()}: ${suffix}`;
+  }
+  return clanStatusFallback(asGuest, guestStatus, clanStatus);
+}
+
+function clanStatusFallback(asGuest: Int, guestStatus: Int, clanStatus: Int): String {
+  const shown: Int = asGuest === 1 ? guestStatus : clanStatus;
+  if (shown === 2) {
+    return '<col=9f9f9f>Fetching data...</col>';
+  }
+  if (shown === 1 || shown === 3) {
+    return '<col=9f9f9f>No current clan</col>';
+  }
+  if (shown === 0) {
+    return '<col=9f9f9f>Connecting...</col>';
+  }
+  return '<col=9f9f9f>System unavailable</col>';
+}

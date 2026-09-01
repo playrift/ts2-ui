@@ -1,0 +1,138 @@
+import { sessionState, useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  TooltipBox,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { Layout, Row } from './settings.constants';
+import { settingsWindowHeight } from './settings.component';
+import { SettingsRows } from './settings-rows.data';
+import type { SettingsRow } from './settings-rows.data';
+import { enhancedAny } from './settings.helpers';
+import { categoryBase, rowDescription } from './settings-layout';
+
+export const tooltipRow = sessionState(-1);
+export const tooltipLeft = sessionState(-1);
+export const tooltipTop = sessionState(-1);
+export const tooltipBox = sessionState(-1);
+
+export function showRowTooltip(row: SettingsRow, left: Int, top: Int, box: Int, pane: Ref): void {
+  const [, setRow] = useState(tooltipRow);
+  const [, setLeft] = useState(tooltipLeft);
+  const [, setTop] = useState(tooltipTop);
+  const [, setBox] = useState(tooltipBox);
+  if (onMobile()) {
+    return;
+  }
+  if (enhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Row.tooltipDwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const scrolled: Int = pane.scrollY;
+  const height: Int = pane.height;
+  const clippedTop: Int = clipIntoPane(top, scrolled, height);
+  const clippedBottom: Int = clipIntoPane(top + box, scrolled, height);
+  setRow(categoryBase(row.category) + row.ordinal);
+  setLeft(left);
+  setTop(clippedTop);
+  setBox(clippedBottom - clippedTop);
+  tooltipRaise();
+}
+
+export function hideRowTooltip(): void {
+  const [, setRow] = useState(tooltipRow);
+  tooltipHide();
+  setRow(-1);
+}
+
+function clipIntoPane(y: Int, scrolled: Int, height: Int): Int {
+  const inside: Int = y - scrolled;
+  if (inside < 0) {
+    return 0;
+  }
+  if (inside > height) {
+    return height;
+  }
+  return inside;
+}
+
+function paneOriginX(rootW: Int): Int {
+  return (rootW - Layout.universe.w) / 2 + Layout.body.insetW / 2 + (Layout.pane.insetW - Layout.pane.right);
+}
+
+function paneOriginY(rootH: Int): Int {
+  return (rootH - settingsWindowHeight(rootH)) / 2 + (Layout.body.insetH - Layout.body.bottom) + Layout.pane.insetH;
+}
+
+export function SettingsTooltip({ root }: { root: Ref }): Component {
+  const [key] = useState(tooltipRow);
+  const [left] = useState(tooltipLeft);
+  const [top] = useState(tooltipTop);
+  const [box] = useState(tooltipBox);
+  const mobile: Boolean = onMobile();
+
+  const row: SettingsRow | null = SettingsRows.at(key);
+  let text: String = '';
+  if (tooltipUp() && key >= 0 && row !== null) {
+    text = rowDescription(row, mobile);
+  }
+
+  const hostW: Int = root.width;
+  const hostH: Int = root.height;
+
+  const anchorX: Int = paneOriginX(hostW) + left;
+  const anchorY: Int = paneOriginY(hostH) + top;
+
+  let measure: Int = Row.tooltipWrap;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + box + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer w={Layout.tooltip.w} h={Layout.tooltip.h} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

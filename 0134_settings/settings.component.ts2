@@ -1,0 +1,202 @@
+import { predictServerState, useServerState, useState, useUniverse } from 'ts2';
+import { SteelBorder } from '../lib/steel-border.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { Frame } from '../lib/frame.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { Art, Colour, Layout, SettingsFonts, SettingsVarbits, STEEL_FLAGS, TITLE } from './settings.constants';
+import { SettingsSearchBar } from './settings-searchbar.component';
+import { SettingsPane } from './settings-pane.component';
+import { SettingsTabs } from './settings-tabs.component';
+import { SettingsTooltip } from './settings-tooltip.component';
+
+export function Settings(): Component {
+  const root = useUniverse();
+  const [, setSeenHeight] = useState(0);
+  root.onResize = () => {
+    setSeenHeight(root.height);
+  };
+
+  return (
+    <>
+      <layer x="center" y="center" w={Layout.universe.w} h={settingsWindowHeight(root.height)} noClickThrough>
+        <SteelBorder title={TITLE} titleColor={Colour.AMBER} flags={STEEL_FLAGS} />
+
+        <SettingsCloseButton />
+
+        <SettingsHeaderButton
+          info={true}
+          label={
+            useServerState(SettingsVarbits.COMPACT) === 0
+              ? '<col=ffffff>Less <col=ff981f>info'
+              : '<col=ffffff>More <col=ff981f>info'
+          }
+        />
+        <SettingsHeaderButton
+          info={false}
+          label={
+            useServerState(SettingsVarbits.SHOW_LOCKED) === 0
+              ? '<col=ffffff>Hide<col=ff981f> locked'
+              : '<col=ffffff>Show<col=ff981f> locked'
+          }
+        />
+
+        <layer
+          x="center"
+          y={{ bottom: Layout.body.bottom }}
+          w={{ fill: Layout.body.insetW }}
+          h={{ fill: Layout.body.insetH }}
+        >
+          <layer x="right" y={0} w={{ fill: Layout.searchRow.insetW }} h={Layout.searchRow.h}>
+            <SettingsSearchBar />
+          </layer>
+
+          <SettingsPane />
+        </layer>
+
+        <layer w="fill" h="fill" />
+      </layer>
+
+      <layer w="fill" h="fill">
+        <SettingsTooltip root={root} />
+      </layer>
+    </>
+  );
+}
+
+export function settingsWindowHeight(rootHeight: Int): Int {
+  if (onMobile()) {
+    return Math.min(Layout.universe.h, rootHeight - Layout.universe.mobileInset);
+  }
+  return Math.min(Layout.universe.deskMax, rootHeight - Layout.universe.deskInset);
+}
+
+function SettingsCloseButton(): Component {
+  if (onMobile()) {
+    return (
+      <sprite
+        x={{ right: Layout.closeMobile.right }}
+        y={Layout.closeMobile.y}
+        w={Layout.closeMobile.w}
+        h={Layout.closeMobile.h}
+        sprite={Art.CLOSE_MOBILE}
+        options={['Close', { label: '', hotkey: KEY_ESCAPE }]}
+        onOptionSelect={(event) => opsound(event.option, 2)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={{ right: Layout.closeDesktop.right }}
+      y={Layout.closeDesktop.y}
+      w={Layout.closeDesktop.w}
+      h={Layout.closeDesktop.h}
+      sprite={Art.CLOSE}
+      hover={{ sprite: Art.CLOSE_LIT }}
+      options={['Close', { label: '', hotkey: KEY_ESCAPE }]}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+    />
+  );
+}
+
+const KEY_ESCAPE = 13;
+
+function SettingsHeaderButton({ label, info = false }: { label: String; info?: Boolean }): Component {
+  const mobile: Boolean = onMobile();
+  const [hovered, setHovered] = useState(0);
+
+  const zoneX: Int = info ? Layout.infoButtonDesktop.x : Layout.lockedButtonDesktop.x;
+  const zoneY: Int = mobile ? Layout.infoButtonMobile.y : Layout.infoButtonDesktop.y;
+  const zoneH: Int = mobile ? Layout.infoButtonMobile.h : Layout.infoButtonDesktop.h;
+
+  return (
+    <layer
+      x={zoneX}
+      y={zoneY}
+      w={Layout.infoButtonDesktop.w}
+      h={zoneH}
+      options={['Toggle']}
+      onOptionSelect={() => toggleHeaderFlag(info)}
+      onMouseEnter={mobile ? undefined : () => setHovered(1)}
+      onMouseLeave={mobile ? undefined : () => setHovered(0)}
+    >
+      {mobile && (
+        <layer x="center" y={Layout.buttonFaceMobile.y} w="fill" h={Layout.buttonFaceMobile.h}>
+          {hovered === 1 ? <StoneButtonHoveredFilled /> : <StoneButtonFilled />}
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.buttonCaption.insetW }}
+            h="fill"
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+          />
+        </layer>
+      )}
+      {!mobile && info && (
+        <layer x={Layout.infoFaceDesktop.x} y={Layout.infoFaceDesktop.y} w="fill" h="fill">
+          {hovered === 1 ? <StoneButtonHoveredFilled /> : <StoneButtonFilled />}
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.buttonCaption.insetW }}
+            h="fill"
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+          />
+        </layer>
+      )}
+      {!mobile && !info && (
+        <layer x={0} y={0} w="fill" h={Layout.lockedFaceDesktop.h}>
+          {hovered === 1 ? <StoneButtonHoveredFilled /> : <StoneButtonFilled />}
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.buttonCaption.insetW }}
+            h="fill"
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+          />
+        </layer>
+      )}
+    </layer>
+  );
+}
+
+function StoneButtonHoveredFilled(): Component {
+  return (
+    <layer w="fill" h="fill">
+      <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={897} tiling />
+      <Frame
+        topLeft={921}
+        topRight={922}
+        bottomLeft={923}
+        bottomRight={924}
+        left={925}
+        top={926}
+        right={927}
+        bottom={928}
+      />
+    </layer>
+  );
+}
+
+function toggleHeaderFlag(info: Boolean): void {
+  if (info) {
+    predictServerState(SettingsVarbits.COMPACT, 1 - useServerState(SettingsVarbits.COMPACT));
+    return;
+  }
+  predictServerState(SettingsVarbits.SHOW_LOCKED, 1 - useServerState(SettingsVarbits.SHOW_LOCKED));
+}

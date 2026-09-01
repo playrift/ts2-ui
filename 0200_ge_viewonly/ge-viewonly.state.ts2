@@ -1,0 +1,61 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { tooltipBuilt, tooltipTime } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { TIP_NONE, Tooltip } from './ge-viewonly.constants';
+import { tooltipHost } from './ge-viewonly.refs';
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+function dwellElapsed(): Boolean {
+  const [until, setUntil] = useState(tooltipTime);
+  if (until < clientClock() + Tooltip.DWELL) {
+    if (until < clientClock()) {
+      setUntil(clientClock() + 2);
+    } else {
+      setUntil(until + 2);
+    }
+    return false;
+  }
+  setUntil(clientClock() + Tooltip.DWELL + 10);
+  return true;
+}
+
+function tooltipReady(): Boolean {
+  const [built] = useState(tooltipBuilt);
+  if (built === TIP_NONE && !hiddenComponent(tooltipHost)) {
+    return true;
+  }
+  return false;
+}
+
+function hiddenComponent(component: ComponentId): Boolean {
+  return CS2.if_hide_get(component);
+}
+
+export function showGeTooltip(slot: Int): void {
+  const [, setTip] = useState(tooltipBuilt);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (tooltipReady() && dwellElapsed()) {
+    setTip(slot + 1);
+  }
+}
+
+export function hideGeTooltip(): void {
+  const [, setTip] = useState(tooltipBuilt);
+  setTip(TIP_NONE);
+}

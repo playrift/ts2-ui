@@ -1,0 +1,551 @@
+import { CS2, intArray, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { settingsSearchString } from '../lib/game/varcs';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { SettingsTabs } from './settings-tabs.component';
+import { onMobile } from '../lib/lib.helpers';
+import { Art, Colour, Layout, Row, SettingsFonts, SettingsVarbits } from './settings.constants';
+import { SettingsCategories } from './settings-categories.data';
+import type { SettingsCategory } from './settings-categories.data';
+import { SettingsRows } from './settings-rows.data';
+import type { SettingsRow } from './settings-rows.data';
+import { categoryHidden, rowHidden } from './settings.helpers';
+import {
+  Grid,
+  SearchMatch,
+  categoryBase,
+  categoryRowCount,
+  compactMode,
+  gridStep,
+  isGridCell,
+  rowAdvance,
+  rowHeight,
+  rowInvisible,
+  rowLead,
+  rowSearchMatch,
+  rowStripe,
+  rowStripeStep,
+  searchMode,
+  WidgetKind,
+} from './settings-layout';
+import { buttonCellHeight } from './settings-actionbutton.component';
+import {
+  Drop,
+  DropdownEntry,
+  openDropdownH,
+  openDropdownRow,
+  openDropdownSetting,
+  openDropdownW,
+  openDropdownX,
+  openDropdownY,
+  optionCount,
+  rowOptions,
+} from './settings-dropdown.component';
+import { KeybindEntry } from './settings-keybind.component';
+import { SettingsSetting } from './settings-setting.component';
+
+const ROWS_PER_CATEGORY = 151;
+
+const SOURCE_ROWS = 540;
+
+const SEARCH_HIT_CAP = 80;
+
+const ROW_SLOTS = 1510;
+
+function rowSlot(row: SettingsRow): Int {
+  return row.category * ROWS_PER_CATEGORY + row.ordinal;
+}
+
+function walkStart(firstDrawn: Boolean, visible: Int): Boolean {
+  if (firstDrawn && visible === 0) {
+    return true;
+  }
+  return false;
+}
+
+export function SettingsPane(): Component {
+  const universe = useUniverse();
+  const pane = useRef();
+  const mobile: Boolean = onMobile();
+  const category: Int = useServerState(SettingsVarbits.CATEGORY);
+  const compact: Boolean = compactMode();
+  const searching: Boolean = searchMode();
+  const [query] = useState(settingsSearchString);
+
+  const width: Int = universe.width - Layout.pane.insetW;
+  const height: Int = universe.height - Layout.pane.insetH;
+  const base: Int = categoryBase(category);
+  const count: Int = categoryRowCount(category);
+
+  const measured = intArray(SOURCE_ROWS);
+  const columns = intArray(SOURCE_ROWS);
+  const shown = intArray(ROW_SLOTS);
+
+  let content: Int = Row.firstTop;
+  let state: Int = Grid.fresh;
+  let tallest: Int = 0;
+  let open: Int = -1;
+  let openKeybind: Boolean = false;
+  let openExtra: Int = 0;
+
+  let egg: String = '';
+  if (searching && query.length > 0) {
+    egg = searchEasterEgg(query);
+  }
+
+  let start: Int = base;
+  let stop: Int = base + count;
+  let needle: String = '';
+  if (searching) {
+    start = 0;
+    stop = SOURCE_ROWS;
+    needle = query.toLowerCase();
+    if (query.length === 0 || egg.length > 0) {
+      stop = 0;
+    }
+  }
+
+  let stripeBase: Int = 0;
+  let firstProcessed: Boolean = true;
+  let firstDrawn: Boolean = false;
+
+  let hits: Int = 0;
+  let overflow: Boolean = false;
+
+  let owner: Int = -1;
+  let ownerHidden: Boolean = false;
+  let ownerLabel: String = '';
+  let inherited: Boolean = false;
+
+  let visible: Int = 0;
+  let key: Int = start;
+  while (key < stop) {
+    const row: SettingsRow | null = SettingsRows.at(key);
+    if (row !== null) {
+      const untouched: Boolean = firstProcessed;
+      firstProcessed = false;
+      let keep: Boolean = true;
+      if (searching) {
+        if (row.category !== owner) {
+          owner = row.category;
+          const tab: SettingsCategory | null = SettingsCategories.at(owner);
+          ownerHidden = true;
+          ownerLabel = '';
+          if (tab !== null) {
+            ownerHidden = categoryHidden(tab);
+            ownerLabel = tab.label.toLowerCase();
+          }
+          inherited = false;
+        }
+        keep = false;
+        if (!ownerHidden) {
+          keep = inherited;
+          if ((row.kind ?? 0) === WidgetKind.HEADER && !rowHidden(row)) {
+            inherited = false;
+            keep = false;
+          }
+          if (!keep) {
+            const verdict: Int = rowSearchMatch(row, needle, mobile, ownerLabel);
+            if (verdict !== SearchMatch.NONE) {
+              keep = true;
+              if (verdict === SearchMatch.SEEDS_SECTION && (row.kind ?? 0) === WidgetKind.HEADER) {
+                inherited = true;
+              }
+            }
+          }
+        }
+      }
+      if (keep && !rowInvisible(row, searching)) {
+        const before: Int = content;
+        if (visible === 0) {
+          firstDrawn = untouched;
+        }
+        shown[rowSlot(row)] = 1;
+        if (isGridCell(row)) {
+          const stepped: Int = gridStep(state, row);
+          columns[visible] = stepped;
+          let keybind: Boolean = false;
+          if ((row.kind ?? 0) === WidgetKind.KEYBIND) {
+            keybind = true;
+          }
+          if (!keybind) {
+            const cell: Int = buttonCellHeight(row, mobile, width);
+            if (cell > tallest) {
+              tallest = cell;
+            }
+          }
+          if (stepped === Grid.lastColumn || (row.rowBreak ?? false)) {
+            const closed: Int = keybind ? Grid.keybindCell : tallest;
+            measured[visible] = closed;
+            content = content + closed + (row.extraHeight ?? 0);
+            state = Grid.fresh;
+            tallest = 0;
+            open = -1;
+          } else {
+            measured[visible] = 0;
+            state = stepped;
+            open = visible;
+            openKeybind = keybind;
+            openExtra = row.extraHeight ?? 0;
+          }
+        } else {
+          if (open >= 0) {
+            const flushed: Int = openKeybind ? Grid.keybindCell : tallest;
+            measured[open] = flushed;
+            content = content + flushed + openExtra;
+          }
+          state = Grid.fresh;
+          tallest = 0;
+          open = -1;
+          columns[visible] = 0;
+          const body: Int = rowHeight(row, mobile, compact, width);
+          measured[visible] = body;
+          content = content + rowAdvance(row, body, untouched);
+        }
+        visible = visible + 1;
+        if (searching && content !== before) {
+          hits = hits + 1;
+          if (hits >= SEARCH_HIT_CAP) {
+            overflow = true;
+            key = stop;
+          }
+        }
+      }
+    }
+    key = key + 1;
+  }
+  if (!firstDrawn) {
+    stripeBase = 1;
+  }
+  if (open >= 0) {
+    const flushed: Int = openKeybind ? Grid.keybindCell : tallest;
+    measured[open] = flushed;
+    content = content + flushed + openExtra;
+  }
+  if (overflow) {
+    content = Row.firstTop;
+  }
+  content = content + Row.endPad;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={{ right: Layout.pane.right }}
+        y="bottom"
+        w={{ fill: Layout.pane.insetW }}
+        h={{ fill: Layout.pane.insetH }}
+        scrollHeight={content > height ? content : 0}
+      >
+        <layer w={0} h={0} noClickThrough />
+
+        <layer w="fill" h="fill">
+          {searching && (query.length === 0 || egg.length > 0) ? (
+            <SettingsSearchHint mobile={mobile} egg={egg} />
+          ) : searching && overflow ? (
+            <SettingsSearchNotice
+              text={`<br><br>Your search for '${query}' returned too many results.<br><br>Please try refining your search to narrow down the results.`}
+            />
+          ) : searching && visible === 0 ? (
+            <SettingsSearchNotice text="<br><br>Could not find any settings that match what you are looking for.<br><br>Try searching for something else." />
+          ) : (
+            SettingsRows.filter((row) => shown[rowSlot(row)] === 1).scan(
+              (row, visible, y, advanced) => (
+                <SettingsSetting
+                  row={row}
+                  top={y}
+                  stripe={rowStripe(advanced)}
+                  column={columns[visible]}
+                  mobile={mobile}
+                  compact={compact}
+                  width={width}
+                  pane={pane}
+                  lead={rowLead(row, walkStart(firstDrawn, visible))}
+                />
+              ),
+              [
+                (row, visible) => rowAdvance(row, measured[visible], walkStart(firstDrawn, visible)),
+                (row, visible) => rowStripeStep(row, measured[visible]),
+              ],
+              [Row.firstTop, stripeBase],
+            )
+          )}
+        </layer>
+
+        <layer w="fill" h="fill" />
+
+        <layer x="center" y="center" w="fill" h="fill">
+          <SettingsDropdownOverlay pane={pane} paneHeight={height} mobile={mobile} />
+        </layer>
+      </layer>
+
+      <layer
+        x={{ right: Layout.paneThinBox.right }}
+        y="bottom"
+        w={{ fill: Layout.paneThinBox.insetW }}
+        h={{ fill: Layout.paneThinBox.insetH }}
+      >
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer x={0} y="bottom" w={Layout.tabThinBox.w} h="fill">
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer x={0} y="bottom" w={Layout.tabRail.w} h="fill">
+        <SettingsTabs />
+      </layer>
+
+      <layer x="right" y="bottom" w={Layout.scrollbar.w} h={{ fill: Layout.scrollbar.insetH }}>
+        <ScrollbarVertical
+          content={pane}
+          track={Art.BAR_TRACK}
+          capTopSprite={Art.BAR_CAP_TOP}
+          thumbSprite={Art.BAR_THUMB}
+          capBottomSprite={Art.BAR_CAP_BOTTOM}
+          arrowUp={Art.BAR_ARROW_UP}
+          arrowDown={Art.BAR_ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SettingsDropdownOverlay({
+  pane,
+  paneHeight,
+  mobile,
+}: {
+  pane: Ref;
+  paneHeight: Int;
+  mobile: Boolean;
+}): Component {
+  const list = useRef();
+  const [open, setOpen] = useState(openDropdownSetting);
+  const [slot] = useState(openDropdownRow);
+  const [anchorX] = useState(openDropdownX);
+  const [anchorY] = useState(openDropdownY);
+  const [anchorW] = useState(openDropdownW);
+  const [anchorH] = useState(openDropdownH);
+
+  let row: SettingsRow | null = null;
+  if (open >= 0 && slot >= 0) {
+    row = SettingsRows.at(slot);
+  }
+  let expanded: Boolean = false;
+  let keybind: Boolean = false;
+  let optionsId: Enum = -1;
+  if (row !== null) {
+    if ((row.settingId ?? -1) === open) {
+      expanded = true;
+      if ((row.kind ?? 0) === WidgetKind.KEYBIND) {
+        keybind = true;
+        optionsId = row.options ?? -1;
+        if (mobile && (row.optionsMobile ?? -1) !== -1) {
+          optionsId = row.optionsMobile ?? -1;
+        }
+      } else {
+        optionsId = rowOptions(row, mobile);
+      }
+      if (optionsId === -1) {
+        expanded = false;
+      }
+    }
+  }
+
+  let count: Int = 0;
+  let entryH: Int = Drop.entryH;
+  let inner: Int = 0;
+  let scroll: Int = 0;
+  let panelY: Int = 0;
+  if (expanded) {
+    count = optionCount(optionsId);
+    if (mobile || count === 2) {
+      entryH = Drop.entryHTall;
+    }
+    const listH: Int = count * entryH;
+    inner = Math.min(listH, Drop.panelMax);
+    if (listH > inner) {
+      scroll = listH;
+    }
+    const bottom: Int = pane.scrollY + paneHeight;
+    panelY = anchorY + anchorH;
+    if (anchorY + anchorH + inner + Drop.panelPad > bottom) {
+      panelY = anchorY - inner - Drop.panelPad;
+    }
+  }
+
+  return (
+    <>
+      {expanded ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={Colour.BLACK}
+          transparency={Drop.plateRest}
+          options={['Close dropdown']}
+          onOptionSelect={() => setOpen(-1)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={Colour.BLACK}
+          transparency={Drop.plateRest}
+          options={['Close dropdown']}
+          hide
+        />
+      )}
+
+      {expanded && row !== null ? (
+        <layer x={anchorX} y={panelY} w={anchorW} h={inner + Drop.panelPad} noClickThrough>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={Art.DROPDOWN_BACKING} tiling />
+          <ThinBoxEntrypoint />
+
+          <layer
+            ref={list}
+            x={Layout.dropdownButtons.x}
+            y="center"
+            w={{ fill: Layout.dropdownButtons.insetW }}
+            h={{ fill: Layout.dropdownButtons.insetH }}
+            noClickThrough
+            scrollHeight={scroll}
+          >
+            {!keybind && (
+              <>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((index) => (
+                  <DropdownEntry
+                    row={row}
+                    optionsId={optionsId}
+                    index={index}
+                    count={count}
+                    entryH={entryH}
+                    mobile={mobile}
+                  />
+                ))}
+              </>
+            )}
+            {keybind && (
+              <>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((index) => (
+                  <KeybindEntry
+                    row={row}
+                    optionsId={optionsId}
+                    index={index}
+                    count={count}
+                    entryH={entryH}
+                    mobile={mobile}
+                  />
+                ))}
+              </>
+            )}
+          </layer>
+
+          <layer
+            x={{ right: Layout.dropdownScrollbar.right }}
+            y="center"
+            w={Layout.dropdownScrollbar.w}
+            h={{ fill: Layout.dropdownScrollbar.insetH }}
+            noClickThrough
+          >
+            <ScrollbarVertical
+              content={list}
+              track={Art.BAR_TRACK}
+              capTopSprite={Art.BAR_CAP_TOP}
+              thumbSprite={Art.BAR_THUMB}
+              capBottomSprite={Art.BAR_CAP_BOTTOM}
+              arrowUp={Art.BAR_ARROW_UP}
+              arrowDown={Art.BAR_ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+      ) : (
+        <layer w={Layout.dropdownPanel.w} h={Layout.dropdownPanel.h} hide noClickThrough>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={Art.DROPDOWN_BACKING} tiling />
+          <ThinBoxEntrypoint />
+          <layer
+            x={Layout.dropdownButtons.x}
+            y="center"
+            w={{ fill: Layout.dropdownButtons.insetW }}
+            h={{ fill: Layout.dropdownButtons.insetH }}
+            noClickThrough
+          />
+          <layer
+            x={{ right: Layout.dropdownScrollbar.right }}
+            y="center"
+            w={Layout.dropdownScrollbar.w}
+            h={{ fill: Layout.dropdownScrollbar.insetH }}
+            noClickThrough
+          />
+        </layer>
+      )}
+    </>
+  );
+}
+
+function searchEasterEgg(query: String): String {
+  const q: String = query.toLowerCase();
+  if (CS2.compare(q, 'buying gf') === 0) return '10k.';
+  if (CS2.compare(q, 'cheat') === 0) return '::bank';
+  if (CS2.compare(q, 'cheats') === 0) return '::bank';
+  if (CS2.compare(q, 'rng') === 0) {
+    return "There are no settings for rng, you will just need to suck it up I'm afraid.";
+  }
+  if (CS2.compare(q, '73') === 0) return '(:';
+  if (CS2.compare(q, 'yes') === 0) return 'No.';
+  if (CS2.compare(q, 'goblin league') === 0) return 'Release date TBA.';
+  if (CS2.compare(q, 'the answer to life, the universe and everything') === 0) return '42.';
+  if (CS2.compare(q, 'the answer to life') === 0) return '42.';
+  if (CS2.compare(q, 'the answer to life the universe and everything') === 0) return '42.';
+  if (CS2.compare(q, 'winter 2017') === 0) return 'Mobile coming soon.';
+  if (CS2.compare(q, 'a q p') === 0) return 'W';
+  if (CS2.compare(q, 'paul') === 0) return "Rargh, I'm a lava monster!";
+  if (CS2.compare(q, 'andrew') === 0) return 'Cabbage.';
+  return '';
+}
+
+function SettingsSearchHint({ mobile, egg }: { mobile: Boolean; egg: String }): Component {
+  const instructions: String = mobile
+    ? '<br><br>To search for a setting, type what setting you are looking for.<br>The menu will update based on what you have input into the search bar.<br><br>To cancel the search, select one of the settings tabs.'
+    : '<br><br>To search for a setting, type what setting you are looking for.<br>The menu will update based on what you have typed into the search bar.<br><br>You can press the DEL key to clear your current search text.<br><br>To cancel the search, select one of the settings tabs.';
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w={{ fill: 20 }}
+      h={{ fill: 20 }}
+      text={egg.length > 0 ? egg : instructions}
+      font={SettingsFonts.BODY}
+      shadow
+      color={Colour.AMBER}
+      align="center"
+      valign="top"
+      lineHeight={16}
+    />
+  );
+}
+
+function SettingsSearchNotice({ text }: { text: String }): Component {
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text={text}
+      font={SettingsFonts.BODY}
+      shadow
+      color={Colour.AMBER}
+      align="center"
+      valign="top"
+      lineHeight={16}
+    />
+  );
+}

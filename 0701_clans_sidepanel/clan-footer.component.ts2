@@ -1,0 +1,154 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { clanSettingGroupType } from './clan-settings';
+import { AffinityStatus, ClanGroupType, ClanSidepanelFonts, ClanSidepanelVarbits } from './clans-sidepanel.constants';
+
+const BUTTON_OPSOUND_MASK = 2;
+
+const DEAD_LABEL = '<col=9f9f9f>---</col>';
+
+export function ClanLeaveButton({ asGuest }: { asGuest: Int }): Component {
+  const status: Int =
+    asGuest === 1 ? useServerState(ClanSidepanelVarbits.GUEST_AFFINITY) : useServerState(ClanSidepanelVarbits.AFFINITY);
+  const timeout: Int =
+    asGuest === 1
+      ? useServerState(ClanSidepanelVarbits.GUEST_TIMEOUT)
+      : useServerState(ClanSidepanelVarbits.AFFINED_TIMEOUT);
+  const [pressed, setPressed] = useState(0);
+
+  const loaded: Boolean =
+    asGuest === 1 ? CS2.activeclansettings_listened_find() : CS2.activeclansettings_affined_find(0);
+
+  let label: String = DEAD_LABEL;
+  let option: String = '';
+  let live: Int = 0;
+  let hidden: Int = 0;
+
+  if (status === AffinityStatus.LIVE && loaded) {
+    const listening: Boolean =
+      asGuest === 1 ? CS2.activeclanchannel_listened_find() : CS2.activeclanchannel_affined_find(0);
+
+    let arenaGroup: Int = 0;
+    let ownClan: Int = 0;
+    if (asGuest === 1) {
+      const groupType: Int = clanSettingGroupType();
+      if (groupType === ClanGroupType.CLAN) {
+        ownClan = 1;
+      } else if (
+        groupType === ClanGroupType.ARENA_1V1_HOSTED ||
+        groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+        groupType === ClanGroupType.ARENA_GROUP_HOSTED ||
+        groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+        groupType === ClanGroupType.ARENA_DUEL_HOSTED ||
+        groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+      ) {
+        arenaGroup = 1;
+      }
+    }
+
+    if (ownClan === 1 && !listening) {
+      hidden = 1;
+    } else if (arenaGroup === 1) {
+      live = 0;
+    } else if (timeout !== 1) {
+      live = 1;
+      label = listening ? '<col=ff0000>Leave</col>' : '<col=0dc10d>Chat</col>';
+      option = CS2.tags_remove(label);
+    }
+  }
+
+  let skin: Int = 1;
+  if (live === 1) {
+    skin = pressed;
+  }
+
+  if (hidden === 1) {
+    return null;
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, BUTTON_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={ClanSidepanelFonts.BUTTON} pressed={skin} />
+    </layer>
+  );
+}
+
+export function ClanSettingsButton({ asGuest }: { asGuest: Int }): Component {
+  const status: Int =
+    asGuest === 1 ? useServerState(ClanSidepanelVarbits.GUEST_AFFINITY) : useServerState(ClanSidepanelVarbits.AFFINITY);
+  const [pressed, setPressed] = useState(0);
+
+  const loaded: Boolean =
+    asGuest === 1 ? CS2.activeclansettings_listened_find() : CS2.activeclansettings_affined_find(0);
+
+  let label: String = DEAD_LABEL;
+  let option: String = '';
+  let live: Int = 0;
+  if (status === AffinityStatus.LIVE && loaded) {
+    label = 'Settings';
+    option = 'Settings';
+    live = 1;
+  }
+
+  let skin: Int = 1;
+  if (live === 1) {
+    skin = pressed;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, BUTTON_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={ClanSidepanelFonts.BUTTON} pressed={skin} />
+    </layer>
+  );
+}
+
+export function ClanFindButton(): Component {
+  const status: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+  const [pressed, setPressed] = useState(0);
+  const loaded: Boolean = CS2.activeclansettings_listened_find();
+
+  let label: String = '<col=0dc10d>Find</col>';
+  if (status === AffinityStatus.LIVE && loaded) {
+    label = '<col=ff0000>Discard</col>';
+  }
+  const option: String = CS2.tags_remove(label);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, BUTTON_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={ClanSidepanelFonts.BUTTON} pressed={pressed} />
+    </layer>
+  );
+}

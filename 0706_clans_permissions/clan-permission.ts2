@@ -1,0 +1,246 @@
+import { CS2 } from 'ts2';
+
+import { ClanPermissionRows, PermissionIndex, SettingKind } from './clan-permission-rows.data';
+import type { ClanPermissionRow } from './clan-permission-rows.data';
+import { ClanRankTitles } from './clan-rank-titles.data';
+import type { ClanRankTitle } from './clan-rank-titles.data';
+import { ClanRankValues, CombatAchievementTiers, GuestIronStatus } from './clan-lookups.data';
+import { CLAN_SETTING_UNAVAILABLE, ClanRank, PermissionsText } from './clans-permissions.constants';
+
+export function clanSettingsSelected(asGuest: Int, guestStatus: Int, status: Int): Boolean {
+  if (asGuest === 1 && guestStatus === 3 && CS2.activeclansettings_listened_find()) {
+    return true;
+  }
+  if (asGuest === 0 && status === 3 && CS2.activeclansettings_affined_find(0)) {
+    return true;
+  }
+  return false;
+}
+
+export function clanPermissionGet(setting: ClanPermissionRow): Int {
+  let stored: Int = ClanRank.OWNER + ClanRank.SETTING_OFFSET;
+
+  const rankTalk: ClanPermissionRow = ClanPermissionRows.at(PermissionIndex.RANK_TALK);
+  const rankKick: ClanPermissionRow = ClanPermissionRows.at(PermissionIndex.RANK_KICK);
+
+  if (setting === rankTalk) {
+    stored = CS2.activeclansettings_rank_talk_get() + ClanRank.SETTING_OFFSET;
+  } else if (setting === rankKick) {
+    stored = CS2.activeclansettings_rank_kick_get() + ClanRank.SETTING_OFFSET;
+  } else {
+    stored = CLAN_SETTING_UNAVAILABLE;
+  }
+
+  const rank: Int = stored - ClanRank.SETTING_OFFSET;
+  const floor: Int = setting.minRank;
+  const allowsNobody: Boolean = setting.allowsNobody;
+
+  let found: Int = 0;
+  let index: Int = ClanRankValues.length;
+  while (index > 0) {
+    index = index - 1;
+    const candidate: Int = ClanRankValues.at(index) ?? -1;
+    if (rank === candidate) {
+      if (candidate >= Math.min(0, floor)) {
+        if (candidate <= ClanRank.OWNER) {
+          found = 1;
+        } else if (candidate === ClanRank.NOBODY && allowsNobody) {
+          found = 1;
+        }
+      }
+      index = 0;
+    }
+  }
+
+  if (found === 0) {
+    if (allowsNobody) {
+      return ClanRank.NOBODY;
+    }
+    return ClanRank.OWNER;
+  }
+
+  return Math.max(rank, floor);
+}
+
+function rankTitleKey(rank: Int): Int {
+  if (rank === 128) {
+    return -6;
+  }
+  if (rank === 127) {
+    return -5;
+  }
+  if (rank === 126) {
+    return -4;
+  }
+  if (rank === 125) {
+    return -3;
+  }
+  if (rank === 100) {
+    return -2;
+  }
+  if (rank === -1) {
+    return -1;
+  }
+  return CLAN_SETTING_UNAVAILABLE;
+}
+
+export function clanRankTitle(rank: Int): String {
+  const row: ClanRankTitle | null = ClanRankTitles.get(rankTitleKey(rank));
+  const title: String = row === null ? '' : row.title;
+  if (title.length > 0) {
+    return title;
+  }
+  if (rank > 0) {
+    return `Rank ${stringOf(rank)}`;
+  }
+  return PermissionsText.NOT_RANKED;
+}
+
+export function clanRankIcon(rank: Int): Sprite {
+  const row: ClanRankTitle | null = ClanRankTitles.get(rankTitleKey(rank));
+  const title: String = row === null ? '' : row.title;
+  const icon: Sprite = row === null ? -1 : row.icon;
+  if (title.length > 0) {
+    return icon;
+  }
+  return -1;
+}
+
+export function permissionSettingValue(kind: Int): String {
+  const guestsAllowed: Boolean = CS2.activeclansettings_allow_unaffined_get();
+
+  if (kind === SettingKind.GUESTS_MAY_LISTEN) {
+    return guestsAllowed ? PermissionsText.PERMITTED : PermissionsText.BLOCKED;
+  }
+  if (
+    kind === SettingKind.GUEST_MIN_COMBAT ||
+    kind === SettingKind.GUEST_MIN_SKILL_TOTAL ||
+    kind === SettingKind.GUEST_MIN_QP
+  ) {
+    return guestsAllowed ? PermissionsText.NONE : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.GUEST_IRON_STATUS) {
+    return guestsAllowed
+      ? (GuestIronStatus.get(CLAN_SETTING_UNAVAILABLE) ?? PermissionsText.NONE)
+      : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.LOOT_BROADCAST_VALUE) {
+    return coinThreshold(PermissionIndex.LOOT_BROADCASTS);
+  }
+  if (kind === SettingKind.PK_BROADCAST_VALUE) {
+    return coinThreshold(PermissionIndex.PK_BROADCASTS);
+  }
+  if (kind === SettingKind.LOOT_KEY_BROADCAST_VALUE) {
+    return coinThreshold(PermissionIndex.LOOT_KEY_BROADCASTS);
+  }
+  if (kind === SettingKind.CA_TASK_THRESHOLD) {
+    if (gateOpen(PermissionIndex.CA_TASK_BROADCASTS)) {
+      return CombatAchievementTiers.get(CLAN_SETTING_UNAVAILABLE) ?? PermissionsText.ALL;
+    }
+    return PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.LEVEL_UP_10 || kind === SettingKind.LEVEL_UP_5 || kind === SettingKind.LEVEL_UP_1) {
+    return gateOpen(PermissionIndex.LEVEL_UP_BROADCASTS) ? PermissionsText.NO_MINIMUM : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.POST99_XP_INTERVAL) {
+    return gateOpen(PermissionIndex.POST99_XP_BROADCASTS) ? PermissionsText.NO_INTERVAL : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.COLLECTION_LOG_EVERY) {
+    return gateOpen(PermissionIndex.COLLECTION_LOG_BROADCASTS) ? PermissionsText.ALL : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.EVENT_STARTING) {
+    return gateOpen(PermissionIndex.ORGANISE_EVENTS) ? PermissionsText.NO : PermissionsText.UNAVAILABLE;
+  }
+  if (kind === SettingKind.MAIN_WORLD_ONLY) {
+    return PermissionsText.NO;
+  }
+  return PermissionsText.PENDING;
+}
+
+function gateOpen(index: Int): Boolean {
+  const row: ClanPermissionRow | null = ClanPermissionRows.at(index);
+  if (row === null) {
+    return false;
+  }
+  if (clanPermissionGet(row) !== ClanRank.NOBODY) {
+    return true;
+  }
+  return false;
+}
+
+function coinThreshold(index: Int): String {
+  if (!gateOpen(index)) {
+    return PermissionsText.UNAVAILABLE;
+  }
+  return PermissionsText.NO_MINIMUM;
+}
+
+export function permissionValueText(row: ClanPermissionRow, asGuest: Int, guestStatus: Int, status: Int): String {
+  if (!clanSettingsSelected(asGuest, guestStatus, status)) {
+    return PermissionsText.PENDING;
+  }
+
+  let required: Int = -1;
+  let value: String = PermissionsText.PENDING;
+  if (row.setting) {
+    value = permissionSettingValue(row.settingKind);
+  } else {
+    required = clanPermissionGet(row);
+    value = clanRankTitle(required);
+  }
+
+  const slot: Int = CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()));
+  if (slot !== -1) {
+    const myRank: Int = CS2.activeclansettings_affined_rank_get(slot);
+    if (required === ClanRank.NOBODY) {
+      return `<col=9f9f9f>${value}</col>`;
+    }
+    if (myRank < required) {
+      return `<col=ff0000>${value}</col>`;
+    }
+  }
+  return value;
+}
+
+export function permissionValueIcon(row: ClanPermissionRow, asGuest: Int, guestStatus: Int, status: Int): Sprite {
+  if (!clanSettingsSelected(asGuest, guestStatus, status)) {
+    return -1;
+  }
+  if (row.setting) {
+    return -1;
+  }
+  return clanRankIcon(clanPermissionGet(row));
+}
+
+export function permissionEnabled(row: ClanPermissionRow, asGuest: Int, guestStatus: Int, status: Int): Boolean {
+  if (!clanSettingsSelected(asGuest, guestStatus, status)) {
+    return false;
+  }
+  const slot: Int = CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()));
+  if (slot === -1) {
+    return false;
+  }
+
+  let required: Int = -1;
+  if (!row.setting) {
+    required = clanPermissionGet(row);
+  }
+
+  const myRank: Int = CS2.activeclansettings_affined_rank_get(slot);
+  const access: ClanPermissionRow = ClanPermissionRows.at(PermissionIndex.ACCESS);
+  const accessRank: Int = clanPermissionGet(access);
+
+  if (required === ClanRank.NOBODY) {
+    if (myRank >= accessRank) {
+      return true;
+    }
+    return false;
+  }
+  if (myRank < required) {
+    return false;
+  }
+  if (myRank >= accessRank) {
+    return true;
+  }
+  return false;
+}

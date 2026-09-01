@@ -1,0 +1,84 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { stackingWouldChangeAnything } from './sailing-boat-cargohold.helpers';
+import {
+  CargoColors,
+  CargoFonts,
+  CargoSounds,
+  CargoSprites,
+  CargoVarbits,
+  CargoVarps,
+  StackToggleLayout,
+} from './sailing-boat-cargohold.constants';
+
+const NOTHING_TO_STACK = "There isn't any non-stackable items in this cargo hold that can be stacked or unstacked.";
+
+export function StackToggle(): Component {
+  const stacked: Int = useServerState(CargoVarbits.DRAW_STACKED);
+  const holdId: Int = useServerState(CargoVarps.HOLD_INV);
+  const [hovered, setHovered] = useState(0);
+  const lit: Int = hovered;
+
+  const worthDoing: Boolean = stackingWouldChangeAnything(holdId as Inventory);
+
+  let label: String = 'Stack items';
+  let icon: Sprite = CargoSprites.STACK_ON;
+  if (stacked === 1) {
+    label = 'Un-stack items';
+    icon = CargoSprites.STACK_OFF;
+  }
+
+  let labelColor: Int = CargoColors.TOGGLE_LABEL;
+  if (lit === 1) {
+    labelColor = CargoColors.WHITE;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Toggle']}
+      optionSubject="<col=ff9040>Item stacking</col>"
+      onMouseEnter={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        if (!worthDoing) {
+          chatMessage(NOTHING_TO_STACK);
+          playSound(CargoSounds.REFUSED);
+          return;
+        }
+        predictServerState(CargoVarbits.DRAW_STACKED, 1 - stacked);
+        playSound(CargoSounds.SELECT);
+      }}
+    >
+      {lit === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <sprite
+        x={StackToggleLayout.icon.x}
+        y={StackToggleLayout.label.y}
+        w={StackToggleLayout.icon.size}
+        h={StackToggleLayout.icon.size}
+        sprite={icon}
+      />
+      <text
+        x={StackToggleLayout.label.x}
+        y={StackToggleLayout.label.y}
+        w={{ fill: StackToggleLayout.label.insetW }}
+        h={{ fill: StackToggleLayout.label.insetH }}
+        text={label}
+        font={CargoFonts.BODY}
+        color={labelColor}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={StackToggleLayout.label.lineHeight}
+      />
+    </layer>
+  );
+}

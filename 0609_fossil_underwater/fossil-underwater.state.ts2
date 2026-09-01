@@ -1,0 +1,69 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { fossilOxygenWarning } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { clientClock } from '../lib/lib.engine';
+import { Flash } from './fossil-underwater.constants';
+
+const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+  PROPORTION = 2,
+}
+
+const flashAlpha = sessionState(Flash.START);
+
+export function fossilOxygenLevel(bar: ComponentId, level: ComponentId, warning: ComponentId): void {
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  CS2.if_size_set(CS2.interpolate(0, 16384, 0, 1000, oxygen), 0, SizeMode.PROPORTION, SizeMode.MINUS, bar);
+  if (CS2.if_width_get(bar) === 0 && oxygen !== 0) {
+    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  }
+  if (oxygen === 0) {
+    CS2.if_size_set(0, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+    return;
+  }
+  CS2.if_text_set(`Oxygen Level: ${stringOf(oxygen / 10)}%`, level);
+  const [warned] = useState(fossilOxygenWarning);
+  const [, setAlpha] = useState(flashAlpha);
+  if (oxygen <= Flash.ARM_AT && warned !== 1) {
+    CS2.if_hide_set(false, warning);
+    setAlpha(Flash.START);
+  }
+}
+
+export function fossilWarningFlasher(warning: ComponentId): void {
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  const [alpha, setAlpha] = useState(flashAlpha);
+  const [, setWarned] = useState(fossilOxygenWarning);
+  if (oxygen >= Flash.ARM_AT || oxygen === 0) {
+    CS2.if_transparency_set(Flash.MAX, warning);
+    CS2.if_hide_set(true, warning);
+    setWarned(0);
+    return;
+  }
+  setWarned(1);
+  let step: Int = Flash.STEP;
+  let period: Int = Flash.PERIOD;
+  if (oxygen < Flash.FAST_BELOW) {
+    step = Flash.FAST_STEP;
+    period = oxygen * 2;
+  }
+  CS2.if_transparency_set(alpha, warning);
+  if (clientClock() % period <= period / 2) {
+    step = 0 - step;
+  }
+  setAlpha(minmax(Flash.MIN, Flash.MAX, alpha + step));
+}
+
+function minmax(low: Int, high: Int, value: Int): Int {
+  if (high <= low) {
+    return Math.max(high, Math.min(low, value));
+  }
+  return Math.max(low, Math.min(high, value));
+}
+
+export function fossilUnderwaterTick(bar: ComponentId, level: ComponentId, warning: ComponentId): void {
+  fossilOxygenLevel(bar, level, warning);
+  fossilWarningFlasher(warning);
+}

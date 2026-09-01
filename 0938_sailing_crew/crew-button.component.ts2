@@ -1,0 +1,54 @@
+import { useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonFilledDraw, plainLabel } from './stone-button.component';
+import { CrewSounds, PRESS_CYCLES } from './sailing-crew.constants';
+
+export function CrewButton({ label }: { label: String }): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const deadline: Int = pressedUntil;
+  const skin: Int = hovered;
+
+  if (deadline !== 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[plainLabel(label)]}
+        onTimer={() => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <StoneButtonFilledDraw label={label} pressed={1} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[plainLabel(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(CrewSounds.SELECT);
+        setHovered(0);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+    >
+      <StoneButtonFilledDraw label={label} pressed={skin} />
+    </layer>
+  );
+}

@@ -1,0 +1,113 @@
+import { CS2, predictServerState, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { setTransparency } from '../lib/lib.components';
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { SailingCrewRoster } from './sailing-crew.data';
+import { recruitColor, recruitLabel, recruitRowRest, recruitRowShade } from './sailing-crew.helpers';
+import {
+  CrewColors,
+  CrewFonts,
+  CrewSounds,
+  CrewVarbits,
+  Layout,
+  RecruitRow,
+  RowShade,
+  ScrollbarSprites,
+  Text,
+} from './sailing-crew.constants';
+
+export function RecruitsList(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const selected: Int = useServerState(CrewVarbits.SELECTED_CREW);
+
+  const listHeight: Int = universe.height - Layout.list.insetH;
+  const extent: Int = SailingCrewRoster.length * RecruitRow.H;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.list.inset}
+        y="center"
+        w={{ fill: Layout.list.insetW }}
+        h={{ fill: Layout.list.insetH }}
+        scrollHeight={extent > listHeight ? extent : 0}
+      >
+        {SailingCrewRoster.map((row, index) => (
+          <>
+            <rect
+              y={index * RecruitRow.H}
+              x="center"
+              w="fill"
+              h={RecruitRow.H}
+              fill
+              color={CrewColors.ROW}
+              transparency={recruitRowShade(row.uniqueId, selected)}
+              options={['Select']}
+              optionSubject={`<col=ff9040>${CS2.npc_name(row.npc)}</col>`}
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(CrewSounds.SELECT);
+                predictServerState(CrewVarbits.SELECTED_CREW, row.uniqueId);
+              }}
+              onMouseRepeat={
+                row.uniqueId === selected
+                  ? undefined
+                  : (event) => {
+                      if (!onMobile()) {
+                        setTransparency(event.self, RowShade.HOVER);
+                      }
+                    }
+              }
+              onMouseLeave={
+                row.uniqueId === selected
+                  ? undefined
+                  : (event) => {
+                      setTransparency(event.self, recruitRowRest(row.uniqueId));
+                    }
+              }
+            />
+            <model
+              x={0}
+              y={index * RecruitRow.H}
+              w={RecruitRow.HEAD_W}
+              h={RecruitRow.H}
+              npcHead={row.npc}
+              offsetY={RecruitRow.HEAD_OFFSET_Y}
+              zoom={RecruitRow.HEAD_ZOOM}
+            />
+            <text
+              x={{ right: 0 }}
+              y={index * RecruitRow.H}
+              w={{ fill: RecruitRow.HEAD_W }}
+              h={RecruitRow.H}
+              text={recruitLabel(row.npc, row.uniqueId)}
+              font={CrewFonts.BODY}
+              color={recruitColor(row.uniqueId)}
+              shadow
+              align="center"
+              valign="middle"
+              lineHeight={Text.LINE_HEIGHT}
+            />
+          </>
+        ))}
+      </layer>
+
+      <layer x={{ right: Layout.list.inset }} y="center" w={Layout.list.barW} h={{ fill: Layout.list.insetH }}>
+        <ScrollbarVertical
+          content={list}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

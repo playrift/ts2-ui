@@ -1,0 +1,218 @@
+import { useState, useServerState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Sounds } from '../lib/lib.constants';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { WorldFilterCountries, WorldFilterMembers, WorldFilterThemes } from './world-filter.data';
+import { filterBitSet, pageIconHeight, pageIconWidth, toggleFilterBit } from './worldswitcher-filter.helpers';
+import {
+  FLASH_CYCLES,
+  FilterArt,
+  FilterColour,
+  FilterFonts,
+  FilterPage,
+  FilterVarbits,
+  Layout,
+  SWITCH,
+  Trans,
+} from './worldswitcher-filter.constants';
+
+export function FilterRows(): Component {
+  const page: Int = useServerState(FilterVarbits.PAGE);
+  const mobile: Boolean = onMobile();
+  const rowH: Int = mobile ? Layout.rowHeightMobile : Layout.rowHeight;
+  const [flash, setFlash] = useState(-1);
+  const deadline: Int = clientClock() + FLASH_CYCLES;
+  const iconW: Int = pageIconWidth(page);
+  const iconH: Int = pageIconHeight(page);
+  const inset: Int = Layout.iconX + iconW + Layout.iconGap;
+
+  if (page === FilterPage.MEMBER) {
+    const mask: Int = useServerState(FilterVarbits.MEMBER);
+    return (
+      <layer x={0} y={0} w="fill" h={Layout.padTop + WorldFilterMembers.length * rowH + Layout.padBottom}>
+        {WorldFilterMembers.map((row, index) => (
+          <layer x="center" y={Layout.padTop + index * rowH} w="fill" h={rowH}>
+            <rect
+              w="fill"
+              h="fill"
+              fill
+              color={FilterColour.WHITE}
+              transparency={flash === index ? Trans.FLASH : Trans.REST}
+              options={[SWITCH]}
+              onMouseRepeat={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.HOVER) : undefined}
+              onMouseLeave={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.REST) : undefined}
+              onTimer={
+                flash === index
+                  ? () => {
+                      if (clientClock() >= deadline) {
+                        setFlash(-1);
+                      }
+                    }
+                  : undefined
+              }
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(Sounds.CLICK);
+                toggleFilterBit(FilterPage.MEMBER, mask, row.bit);
+                setFlash(index);
+              }}
+            />
+            <FilterRowMarks
+              rowH={rowH}
+              iconW={iconW}
+              iconH={iconH}
+              inset={inset}
+              icon={row.icon}
+              label={row.label}
+              on={filterBitSet(mask, row.bit)}
+            />
+          </layer>
+        ))}
+      </layer>
+    );
+  }
+
+  if (page === FilterPage.COUNTRY) {
+    const mask: Int = useServerState(FilterVarbits.COUNTRY);
+    return (
+      <layer x={0} y={0} w="fill" h={Layout.padTop + WorldFilterCountries.length * rowH + Layout.padBottom}>
+        {WorldFilterCountries.map((row, index) => (
+          <layer x="center" y={Layout.padTop + index * rowH} w="fill" h={rowH}>
+            <rect
+              w="fill"
+              h="fill"
+              fill
+              color={FilterColour.WHITE}
+              transparency={flash === index ? Trans.FLASH : Trans.REST}
+              options={[SWITCH]}
+              onMouseRepeat={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.HOVER) : undefined}
+              onMouseLeave={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.REST) : undefined}
+              onTimer={
+                flash === index
+                  ? () => {
+                      if (clientClock() >= deadline) {
+                        setFlash(-1);
+                      }
+                    }
+                  : undefined
+              }
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(Sounds.CLICK);
+                toggleFilterBit(FilterPage.COUNTRY, mask, row.bit);
+                setFlash(index);
+              }}
+            />
+            <FilterRowMarks
+              rowH={rowH}
+              iconW={iconW}
+              iconH={iconH}
+              inset={inset}
+              icon={row.icon}
+              label={row.label}
+              on={filterBitSet(mask, row.bit)}
+            />
+          </layer>
+        ))}
+      </layer>
+    );
+  }
+
+  if (page === FilterPage.THEME) {
+    const mask: Int = useServerState(FilterVarbits.THEME);
+    return (
+      <layer x={0} y={0} w="fill" h={Layout.padTop + WorldFilterThemes.length * rowH + Layout.padBottom}>
+        {WorldFilterThemes.map((row, index) => (
+          <layer x="center" y={Layout.padTop + index * rowH} w="fill" h={rowH}>
+            <rect
+              w="fill"
+              h="fill"
+              fill
+              color={FilterColour.WHITE}
+              transparency={flash === index ? Trans.FLASH : Trans.REST}
+              options={[SWITCH]}
+              onMouseRepeat={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.HOVER) : undefined}
+              onMouseLeave={flash !== index && !mobile ? (event) => ccSetTrans(event.self, Trans.REST) : undefined}
+              onTimer={
+                flash === index
+                  ? () => {
+                      if (clientClock() >= deadline) {
+                        setFlash(-1);
+                      }
+                    }
+                  : undefined
+              }
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(Sounds.CLICK);
+                toggleFilterBit(FilterPage.THEME, mask, row.bit);
+                setFlash(index);
+              }}
+            />
+            <FilterRowMarks
+              rowH={rowH}
+              iconW={iconW}
+              iconH={iconH}
+              inset={inset}
+              icon={row.icon}
+              label={row.label}
+              on={filterBitSet(mask, row.bit)}
+            />
+          </layer>
+        ))}
+      </layer>
+    );
+  }
+
+  return null;
+}
+
+function FilterRowMarks({
+  rowH,
+  iconW,
+  iconH,
+  inset,
+  icon,
+  label,
+  on,
+}: {
+  rowH: Int;
+  iconW: Int;
+  iconH: Int;
+  inset: Int;
+  icon: Sprite;
+  label: String;
+  on: Boolean;
+}): Component {
+  return (
+    <>
+      <sprite
+        x={Layout.radio.x}
+        y={(rowH - Layout.radio.size) / 2}
+        w={Layout.radio.size}
+        h={Layout.radio.size}
+        sprite={on ? FilterArt.RADIO_ON : FilterArt.RADIO_OFF}
+      />
+      <sprite x={Layout.iconX} y={(rowH - iconH) / 2} w={iconW} h={iconH} sprite={icon} />
+      <text
+        x="right"
+        y={0}
+        w={{ fill: inset }}
+        h={rowH}
+        text={label}
+        color={FilterColour.AMBER}
+        font={FilterFonts.BODY}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}

@@ -1,0 +1,478 @@
+import { CS2, intArray, useRef, useServerState, useUniverse } from 'ts2';
+
+import { clanInterfaceTitle } from '../0696_clans_storage_main/clan-interface-title';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { setTransparency } from '../lib/lib.components';
+import { playSound, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ClanCofferVarbits } from '../0696_clans_storage_main/clans-storage-main.constants';
+
+import { ClanOpStoneButton } from './clan-op-stone-button.component';
+import { StoneBorderFree } from './stone-border-free.component';
+import { ClanPermissionRows, RowKind } from './clan-permission-rows.data';
+import { ClanRankTitles } from './clan-rank-titles.data';
+import {
+  ButtonFade,
+  IndexFade,
+  Layout,
+  PermissionsArt,
+  PermissionsColor,
+  PermissionsFonts,
+  PermissionsSounds,
+  PermissionsText,
+} from './clans-permissions.constants';
+import { permissionEnabled, permissionValueIcon, permissionValueText } from './clan-permission';
+
+const ROW_SLOTS = 64;
+const CATEGORY_SLOTS = 10;
+
+export function ClansPermissions(): Component {
+  const universe = useUniverse();
+  const listPane = useRef();
+  const indexPane = useRef();
+
+  const mobile: Boolean = onMobile();
+  const asGuest: Int = useServerState(ClanCofferVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanCofferVarbits.GUEST_AFFINITY_STATUS);
+  const status: Int = useServerState(ClanCofferVarbits.AFFINITY_STATUS);
+
+  const exitWidth: Int = Math.max(
+    Layout.EXIT_MIN_W,
+    textWidth(PermissionsText.BACK, Layout.MEASURE_W, PermissionsFonts.BODY) + Layout.EXIT_TEXT_PAD,
+  );
+
+  let leftWidth: Int = exitWidth + Layout.LEFT_EXTRA;
+  let scan: Int = 0;
+  while (scan < ClanPermissionRows.length) {
+    const row = ClanPermissionRows.at(scan);
+    if (row !== null) {
+      if (row.kind === RowKind.HEADER) {
+        const label: String = row.shortTitle ? row.altTitle : row.title;
+        leftWidth = Math.max(
+          leftWidth,
+          textWidth(label, Layout.MEASURE_W, PermissionsFonts.BODY) + Layout.INDEX_TEXT_PAD,
+        );
+      }
+    }
+    scan = scan + 1;
+  }
+
+  let widestTitle: Int = 0;
+  let titleKey: Int = Layout.TITLE_COUNT;
+  while (titleKey > 0) {
+    const named = ClanRankTitles.get(titleKey);
+    if (named !== null) {
+      widestTitle = Math.max(widestTitle, textWidth(named.title, Layout.MEASURE_W, PermissionsFonts.BODY));
+    }
+    titleKey = titleKey - 1;
+  }
+  const valueWidth: Int = widestTitle + Layout.VALUE_PAD * 2 + Layout.ICON * 2 + Layout.VALUE_GAP * 2;
+
+  const contentWidth: Int = Layout.PANEL_W - Layout.CONTENT_INSET_W - (leftWidth + Layout.RIGHT_GUTTER);
+  const halfWidth: Int = (contentWidth - Layout.COLUMN_GAP * 3) / 2;
+  const rightColumnX: Int = Layout.COLUMN_GAP + halfWidth + Layout.COLUMN_GAP;
+
+  const indexRowHeight: Int = mobile
+    ? scaled(Layout.INDEX_ROW_SCALE_NUM, Layout.INDEX_ROW_SCALE_DEN, Layout.INDEX_ROW_H)
+    : Layout.INDEX_ROW_H;
+
+  const boxX = intArray(ROW_SLOTS);
+  const boxY = intArray(ROW_SLOTS);
+  const boxW = intArray(ROW_SLOTS);
+  const boxH = intArray(ROW_SLOTS);
+  const titleH = intArray(ROW_SLOTS);
+  const descH = intArray(ROW_SLOTS);
+  const headerTop = intArray(CATEGORY_SLOTS);
+
+  let cursor: Int = Layout.FIRST_TOP;
+  let headers: Int = 0;
+  let at: Int = 0;
+  while (at < ClanPermissionRows.length) {
+    const row = ClanPermissionRows.at(at);
+    if (row !== null) {
+      if (row.kind === RowKind.HEADER) {
+        boxX[at] = 0;
+        boxY[at] = cursor;
+        boxW[at] = 0;
+        boxH[at] = Layout.HEADER_H;
+        headerTop[headers] = cursor;
+        headers = headers + 1;
+        cursor = cursor + Layout.HEADER_H + Layout.ROW_GAP;
+      } else {
+        let width: Int = halfWidth;
+        let left: Int = Layout.COLUMN_GAP;
+        if (row.full) {
+          width = contentWidth - Layout.COLUMN_GAP * 2;
+        } else if (row.ordinal % 2 === 1) {
+          left = rightColumnX;
+        }
+
+        const inner: Int = width - Layout.BUTTON_PAD * 2;
+        let title: Int = textLineCount(row.title, inner, PermissionsFonts.BODY) * Layout.TEXT_LINE_H + Layout.TEXT_TAIL;
+        let body: Int =
+          textLineCount(row.description, inner, PermissionsFonts.BODY) * Layout.TEXT_LINE_H + Layout.TEXT_TAIL;
+
+        let partner: Int = -1;
+        if (!row.full) {
+          if (row.ordinal % 2 === 1) {
+            partner = at - 1;
+          } else if (!row.lastInCategory) {
+            partner = at + 1;
+          }
+        }
+        if (partner >= 0) {
+          const other = ClanPermissionRows.at(partner);
+          if (other !== null) {
+            title = Math.max(
+              title,
+              textLineCount(other.title, inner, PermissionsFonts.BODY) * Layout.TEXT_LINE_H + Layout.TEXT_TAIL,
+            );
+            body = Math.max(
+              body,
+              textLineCount(other.description, inner, PermissionsFonts.BODY) * Layout.TEXT_LINE_H + Layout.TEXT_TAIL,
+            );
+          }
+        }
+
+        const height: Int =
+          Layout.BUTTON_PAD + title + Layout.VALUE_GAP + Layout.VALUE_H + Layout.VALUE_GAP + body + Layout.BUTTON_PAD;
+
+        boxX[at] = left;
+        boxY[at] = cursor;
+        boxW[at] = width;
+        boxH[at] = height;
+        titleH[at] = title;
+        descH[at] = body;
+
+        if (row.full) {
+          cursor = cursor + height + Layout.ROW_GAP;
+        } else if (row.ordinal % 2 === 1) {
+          cursor = cursor + height + Layout.ROW_GAP;
+        } else if (row.lastInCategory) {
+          cursor = cursor + height + Layout.ROW_GAP;
+        }
+      }
+    }
+    at = at + 1;
+  }
+
+  const listContent: Int = cursor;
+  const indexContent: Int = indexRowHeight * headers;
+
+  const panelHeight: Int = Math.min(universe.height - Layout.SCREEN_MARGIN, Layout.LIST_CHROME + listContent);
+  const listView: Int = panelHeight - Layout.LIST_CHROME;
+  const indexView: Int = panelHeight - Layout.INDEX_CHROME;
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={panelHeight}>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title={clanInterfaceTitle(PermissionsText.TITLE_SUFFIX, asGuest, guestStatus, status)} />
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.SCREEN_MARGIN }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x={0} y="center" w={leftWidth} h="fill">
+          <layer x="center" y="bottom" w={exitWidth} h={40}>
+            <ClanOpStoneButton label={PermissionsText.BACK} font={PermissionsFonts.BODY} />
+          </layer>
+
+          <layer x={0} y={0} w="fill" h={{ fill: 45 }}>
+            <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={PermissionsArt.TILE_DARK} tiling />
+            <ThinBoxEntrypoint />
+
+            <layer
+              ref={indexPane}
+              x={{ right: 3 }}
+              y="center"
+              w={{ fill: 22 }}
+              h={{ fill: 4 }}
+              scrollHeight={indexContent > indexView ? indexContent : 0}
+            >
+              {ClanPermissionRows.filter((row) => row.kind === RowKind.HEADER).map((row, index) => (
+                <PermissionIndexRow
+                  index={index}
+                  rowHeight={indexRowHeight}
+                  label={row.title}
+                  shortLabel={row.altTitle}
+                  short={row.shortTitle}
+                  target={headerTop[index]}
+                  mobile={mobile}
+                  list={listPane}
+                />
+              ))}
+            </layer>
+
+            <layer x={2} y="center" w={Layout.BAR_W} h={{ fill: 4 }}>
+              <ScrollbarVertical
+                content={indexPane}
+                track={PermissionsArt.BAR_TRACK}
+                capTopSprite={PermissionsArt.BAR_CAP_TOP}
+                thumbSprite={PermissionsArt.BAR_THUMB}
+                capBottomSprite={PermissionsArt.BAR_CAP_BOTTOM}
+                arrowUp={PermissionsArt.BAR_ARROW_UP}
+                arrowDown={PermissionsArt.BAR_ARROW_DOWN}
+              />
+            </layer>
+          </layer>
+        </layer>
+
+        <layer x="right" y="center" w={{ fill: leftWidth - 1 }} h="fill">
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={PermissionsArt.TILE_DARK} tiling />
+          <ThinBoxEntrypoint />
+
+          <layer
+            ref={listPane}
+            x={2}
+            y="center"
+            w={{ fill: 20 }}
+            h={{ fill: 4 }}
+            scrollHeight={listContent > listView ? listContent : 0}
+          >
+            {ClanPermissionRows.map((row, index) =>
+              row.kind === RowKind.HEADER ? (
+                <PermissionCategoryTitle top={boxY[index]} title={row.title} />
+              ) : (
+                <PermissionButton
+                  left={boxX[index]}
+                  top={boxY[index]}
+                  w={boxW[index]}
+                  h={boxH[index]}
+                  titleH={titleH[index]}
+                  descH={descH[index]}
+                  valueW={valueWidth}
+                  title={row.title}
+                  description={row.description}
+                  value={permissionValueText(row, asGuest, guestStatus, status)}
+                  icon={permissionValueIcon(row, asGuest, guestStatus, status)}
+                  enabled={permissionEnabled(row, asGuest, guestStatus, status)}
+                  mobile={mobile}
+                />
+              ),
+            )}
+          </layer>
+
+          <layer x={{ right: 2 }} y="center" w={Layout.BAR_W} h={{ fill: 4 }}>
+            <ScrollbarVertical
+              content={listPane}
+              track={PermissionsArt.BAR_TRACK}
+              capTopSprite={PermissionsArt.BAR_CAP_TOP}
+              thumbSprite={PermissionsArt.BAR_THUMB}
+              capBottomSprite={PermissionsArt.BAR_CAP_BOTTOM}
+              arrowUp={PermissionsArt.BAR_ARROW_UP}
+              arrowDown={PermissionsArt.BAR_ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}
+
+function PermissionCategoryTitle({ top, title }: { top: Int; title: String }): Component {
+  return (
+    <>
+      <sprite x="center" y={top} w="fill" h={Layout.HEADER_H} sprite={PermissionsArt.TILE} tiling />
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={Layout.HEADER_H}
+        text={title}
+        font={PermissionsFonts.HEADING}
+        color={PermissionsColor.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function PermissionIndexRow({
+  index,
+  rowHeight,
+  label,
+  shortLabel,
+  short,
+  target,
+  mobile,
+  list,
+}: {
+  index: Int;
+  rowHeight: Int;
+  label: String;
+  shortLabel: String;
+  short: Boolean;
+  target: Int;
+  mobile: Boolean;
+  list: Ref;
+}): Component {
+  const top: Int = index * rowHeight;
+  const rest: Int = index % 2 === 0 ? IndexFade.REST_EVEN : IndexFade.REST_ODD;
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={rowHeight}
+        color={PermissionsColor.WHITE}
+        fill
+        transparency={rest}
+        options={[label]}
+        onOptionSelect={() => jumpToCategory(list, target)}
+        onMouseRepeat={mobile ? undefined : (event) => setTransparency(event.component, IndexFade.HOVER)}
+        onMouseLeave={(event) => setTransparency(event.component, rest)}
+      />
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={rowHeight}
+        text={short ? shortLabel : label}
+        font={short ? PermissionsFonts.SHORT : PermissionsFonts.BODY}
+        color={short ? PermissionsColor.WHITE : PermissionsColor.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function jumpToCategory(list: Ref, target: Int): void {
+  playSound(PermissionsSounds.CLICK);
+  const limit: Int = list.scrollHeight - list.height;
+  list.scrollY = Math.min(limit, Math.max(0, target));
+}
+
+function PermissionButton({
+  left,
+  top,
+  w,
+  h,
+  titleH,
+  descH,
+  valueW,
+  title,
+  description,
+  value,
+  icon,
+  enabled,
+  mobile,
+}: {
+  left: Int;
+  top: Int;
+  w: Int;
+  h: Int;
+  titleH: Int;
+  descH: Int;
+  valueW: Int;
+  title: String;
+  description: String;
+  value: String;
+  icon: Sprite;
+  enabled: Boolean;
+  mobile: Boolean;
+}): Component {
+  const inner: Int = w - Layout.BUTTON_PAD * 2;
+  const valueX: Int = left + (w - valueW) / 2;
+  const valueY: Int = top + Layout.BUTTON_PAD + titleH + Layout.VALUE_GAP;
+  const op: String = CS2.tags_remove(stringFindAndReplace(title, '<br>', ' '));
+
+  return (
+    <>
+      <sprite
+        x={left}
+        y={top}
+        w={w}
+        h={h}
+        sprite={PermissionsArt.TILE}
+        tiling
+        options={[op]}
+        onMouseRepeat={enabled && !mobile ? (event) => setTransparency(event.component, ButtonFade.HOVER) : undefined}
+        onMouseLeave={enabled ? (event) => setTransparency(event.component, ButtonFade.REST) : undefined}
+      />
+
+      <rect
+        x={left}
+        y={top}
+        w={w}
+        h={h}
+        color={PermissionsColor.WHITE}
+        fill
+        transparency={enabled ? ButtonFade.REST : ButtonFade.DISABLED}
+      />
+
+      <StoneBorderFree left={left} top={top} w={w} h={h} />
+
+      <text
+        x={left + Layout.BUTTON_PAD}
+        y={top + Layout.BUTTON_PAD}
+        w={inner}
+        h={titleH}
+        text={title}
+        font={PermissionsFonts.BODY}
+        color={PermissionsColor.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={left + Layout.BUTTON_PAD}
+        y={top + Layout.BUTTON_PAD + titleH + Layout.VALUE_GAP + Layout.VALUE_H + Layout.VALUE_GAP}
+        w={inner}
+        h={descH}
+        text={description}
+        font={PermissionsFonts.BODY}
+        color={PermissionsColor.BODY}
+        align="left"
+        valign="top"
+        shadow
+      />
+
+      <rect x={valueX} y={valueY} w={valueW} h={Layout.VALUE_H} color={PermissionsColor.VALUE_FRAME} fill />
+      <rect
+        x={valueX + 1}
+        y={valueY + 1}
+        w={valueW - 2}
+        h={Layout.VALUE_H - 2}
+        color={PermissionsColor.VALUE_INNER}
+        fill
+      />
+      <sprite
+        x={valueX + 2}
+        y={valueY + 2}
+        w={valueW - 4}
+        h={Layout.VALUE_H - 4}
+        sprite={enabled ? PermissionsArt.TILE : PermissionsArt.TILE_DARK}
+        tiling
+      />
+      <text
+        x={valueX + 2}
+        y={valueY + 2}
+        w={valueW - 4}
+        h={Layout.VALUE_H - 4}
+        text={value}
+        font={PermissionsFonts.BODY}
+        color={PermissionsColor.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite x={valueX + Layout.ICON_DX} y={valueY + Layout.ICON_DY} w={Layout.ICON} h={Layout.ICON} sprite={icon} />
+    </>
+  );
+}

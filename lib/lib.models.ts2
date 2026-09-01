@@ -1,0 +1,47 @@
+import { CS2 } from 'ts2';
+
+export enum DynamicZoom {
+  MIN_HEIGHT = 334,
+  MAX_HEIGHT = 1500,
+  ROOT = 2,
+}
+
+export function modelDynamicZoom(
+  container: ComponentId,
+  model: ComponentId,
+  near: Int,
+  far: Int,
+  offsetX: Int,
+  offsetY: Int,
+  pitch: Int,
+  yaw: Int,
+  roll: Int,
+): void {
+  let clamped: Int = CS2.if_height_get(container);
+  if (clamped < DynamicZoom.MIN_HEIGHT) {
+    clamped = DynamicZoom.MIN_HEIGHT;
+  } else if (clamped > DynamicZoom.MAX_HEIGHT) {
+    clamped = DynamicZoom.MAX_HEIGHT;
+  }
+
+  const excess: Int = CS2.invpow(clamped - DynamicZoom.MIN_HEIGHT, DynamicZoom.ROOT);
+  const full: Int = CS2.invpow(DynamicZoom.MAX_HEIGHT - DynamicZoom.MIN_HEIGHT, DynamicZoom.ROOT);
+  const zoom: Int = near - CS2.interpolate(0, excess, 0, full, near - far);
+
+  CS2.if_model_angle_set(offsetX, offsetY, pitch, yaw, roll, zoom, model);
+}
+
+export function modelTransparentDynamicZoom(
+  container: ComponentId,
+  model: ComponentId,
+  near: Int,
+  far: Int,
+  offsetX: Int,
+  offsetY: Int,
+  pitch: Int,
+  yaw: Int,
+  roll: Int,
+): void {
+  CS2.if_model_transparent_set(true, model);
+  modelDynamicZoom(container, model, near, far, offsetX, offsetY, pitch, yaw, roll);
+}

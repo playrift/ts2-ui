@@ -1,0 +1,133 @@
+import { CS2, intArray, useInventory, useServerState } from 'ts2';
+import { CargoInventories, CargoVarbits } from './sailing-boat-cargohold.constants';
+import { ChartingTools, type ChartingTool, ToolGate } from './charting-tools.data';
+
+export function toolUnlocked(gate: Int): Boolean {
+  const intro: Int = useServerState(CargoVarbits.SAILING_INTRO);
+  switch (gate) {
+    case ToolGate.SPYGLASS:
+      if (intro < 50) {
+        return false;
+      }
+      return true;
+    case ToolGate.CURRENT_DUCK:
+      if (intro < 50 || useServerState(CargoVarbits.CURRENT_AFFAIRS) < 40) {
+        return false;
+      }
+      return true;
+    case ToolGate.CROWBAR:
+      if (intro < 50 || useServerState(CargoVarbits.QUEST_PRY) < 20) {
+        return false;
+      }
+      return true;
+    case ToolGate.DIVING_GEAR:
+      if (intro < 50 || useServerState(CargoVarbits.PIRATE_QUEST) < 40) {
+        return false;
+      }
+      return true;
+  }
+  return true;
+}
+
+export function toolSubstitute(tool: ItemName): ItemName {
+  if (tool === 31986 && useServerState(CargoVarbits.SAILING_INTRO) < 46) {
+    return 31985;
+  }
+  return tool;
+}
+
+export function missingTool(row: ChartingTool): ItemName {
+  const bag = useInventory(CargoInventories.INV);
+  const worn = useInventory(CargoInventories.WORN);
+
+  const first: ItemName = toolSubstitute(row.tool);
+  if (bag.total(first as Item) <= 0 && worn.total(first as Item) <= 0) {
+    return first;
+  }
+  if (row.tool2 !== -1) {
+    const second: ItemName = toolSubstitute(row.tool2);
+    if (bag.total(second as Item) <= 0 && worn.total(second as Item) <= 0) {
+      return second;
+    }
+  }
+  return -1;
+}
+
+export function primaryTool(row: ChartingTool): ItemName {
+  return toolSubstitute(row.tool);
+}
+
+export function visibleToolCount(): Int {
+  let shown: Int = 0;
+  let index: Int = 0;
+  while (index < ChartingTools.length) {
+    const row: ChartingTool | null = ChartingTools.at(index);
+    const gate: Int = row === null ? ToolGate.NONE : row.gate;
+    if (row !== null) {
+      if (toolUnlocked(gate)) {
+        shown = shown + 1;
+      }
+    }
+    index = index + 1;
+  }
+  return shown;
+}
+
+export function labelWidth(text: String, font: Font): Int {
+  return CS2.parawidth(text, 512, font);
+}
+
+export function heldTotal(hold: Inventory, stacked: Int): Int {
+  const seenItems = intArray<Item>(240);
+  let accepted: Int = 0;
+  let held: Int = 0;
+  let slot: Int = 0;
+  while (slot < 240) {
+    const item: Item = CS2.invother_item_get(hold, slot);
+    if (item !== -1) {
+      let duplicate: Int = 0;
+      if (stacked === 1) {
+        let seen: Int = 0;
+        while (seen < accepted) {
+          if (seenItems[seen] === item) {
+            duplicate = 1;
+          }
+          seen = seen + 1;
+        }
+      }
+      if (duplicate === 0) {
+        let count: Int = CS2.invother_total(hold, item);
+        if (CS2.item_stackable(item)) {
+          held = held + 1;
+        } else {
+          if (stacked === 0) {
+            count = 1;
+          }
+          held = held + count;
+        }
+        seenItems[accepted] = item;
+        accepted = accepted + 1;
+      }
+    }
+    slot = slot + 1;
+  }
+  return held;
+}
+
+export function stackingWouldChangeAnything(hold: Inventory): Boolean {
+  if (hold === -1) {
+    return false;
+  }
+  let slot: Int = 0;
+  while (slot < CS2.inv_size(hold)) {
+    const item: Item = CS2.invother_item_get(hold, slot);
+    if (item !== -1 && !CS2.item_stackable(item) && CS2.invother_total(hold, item) > 1) {
+      return true;
+    }
+    if (item === -1) {
+      return false;
+    }
+    slot = slot + 1;
+  }
+  return false;
+}

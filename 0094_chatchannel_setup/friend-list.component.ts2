@@ -1,0 +1,110 @@
+import { CS2, intArray } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import {
+  ChatChannelColor,
+  ChatChannelFonts,
+  ChatChannelSort,
+  FriendListState,
+  FriendRowLayout,
+  Layout,
+  LoadingMessages,
+} from './chatchannel-setup.constants';
+import { currentSort } from './chatchannel-setup.state';
+import { friendList } from './chatchannel-setup.refs';
+import { FriendRow } from './friend-row.component';
+
+function widthOf(component: ComponentId): Int {
+  return CS2.if_width_get(component);
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+export function FriendRows(): Component {
+  const listWidth: Int = widthOf(friendList);
+  const listHeight: Int = heightOf(friendList);
+
+  const mobile: Boolean = onMobile();
+  const rowHeight: Int = mobile ? scaled(8, 5, FriendRowLayout.HEIGHT) : FriendRowLayout.HEIGHT;
+
+  const count: Int = CS2.friend_count();
+
+  let state: Int = 0;
+  if (count <= FriendListState.UNREQUESTED) {
+    state = 1;
+  } else if (count === FriendListState.LOADING) {
+    state = 2;
+  }
+
+  const nameWidth: Int = Layout.SORT_NAME_W - FriendRowLayout.NAME_INSET;
+  const rankWidth: Int = listWidth + Layout.LIST_INSET - Layout.SORT_RANK_INSET - FriendRowLayout.RANK_INSET;
+
+  const sort: Int = currentSort();
+  if (state === 0) {
+    CS2.friendlist_sort_reset();
+    if (sort === ChatChannelSort.LEGACY_REVERSED) {
+      CS2.friendlist_sort_legacy(false);
+    } else if (sort === ChatChannelSort.NAME_ASC) {
+      CS2.friendlist_sort_name(true);
+    } else if (sort === ChatChannelSort.NAME_DESC) {
+      CS2.friendlist_sort_name(false);
+    } else if (sort === ChatChannelSort.RANK_ASC) {
+      CS2.friendlist_sort_rank(true);
+      CS2.friendlist_sort_name(true);
+    } else if (sort === ChatChannelSort.RANK_DESC) {
+      CS2.friendlist_sort_rank(false);
+      CS2.friendlist_sort_name(true);
+    }
+    CS2.friendlist_sort_apply();
+  }
+
+  const live = intArray(FriendRowLayout.MAX_FRIENDS);
+  let at: Int = 0;
+  while (at < FriendRowLayout.MAX_FRIENDS) {
+    live[at] = state === 0 && at < count ? 1 : 0;
+    at = at + 1;
+  }
+
+  let extent: Int = 0;
+  if (state === 0 && count >= 1) {
+    extent = count * rowHeight + FriendRowLayout.TAIL_PAD;
+  }
+  friendList.scrollHeight = extent > listHeight ? extent : 0;
+
+  return (
+    <layer w="fill" h="fill">
+      {state !== 0 && (
+        <text
+          x={0}
+          y={listHeight / 4}
+          w={Layout.SORT_NAME_W}
+          h={listHeight / 2}
+          text={state === 1 ? LoadingMessages.UNREQUESTED : LoadingMessages.LOADING}
+          font={ChatChannelFonts.BODY}
+          color={ChatChannelColor.NAME}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+
+      {live.map(
+        (row, index) =>
+          row === 1 && (
+            <FriendRow
+              index={index}
+              top={index * rowHeight}
+              rowHeight={rowHeight}
+              nameWidth={nameWidth}
+              rankWidth={rankWidth}
+              listWidth={listWidth}
+              mobile={mobile ? 1 : 0}
+            />
+          ),
+      )}
+    </layer>
+  );
+}

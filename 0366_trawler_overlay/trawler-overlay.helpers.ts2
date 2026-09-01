@@ -1,0 +1,138 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { settingValue } from '../0134_settings/settings.helpers';
+import { chatMessage, playSound, scaled } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Sounds } from '../lib/game/sounds';
+import { Varbits } from '../lib/game/varbits';
+import { Catch, CameraWash, Gauge, TrawlerCameraSetting, TrawlerColor } from './trawler-overlay.constants';
+
+export function trawlerWaterUpdate(mount: ComponentId, water: ComponentId, empty: ComponentId): void {
+  const filled: Int = scaled(
+    Math.min(Gauge.WATER_MAX, Math.max(0, useServerState(Varbits.TRAWLER_WATER_PERCENTAGE))),
+    Gauge.WATER_MAX,
+    CS2.if_width_get(mount),
+  );
+  CS2.if_size_set(filled, 0, 0, 1, water);
+  CS2.if_size_set(filled, 0, 1, 1, empty);
+}
+
+export function trawlerActivityUpdate(mount: ComponentId, bar: ComponentId, empty: ComponentId): void {
+  const activity: Int = Math.min(Gauge.ACTIVITY_MAX, Math.max(0, useServerState(Varbits.TRAWLER_ACTIVITY)));
+  if (activity < Gauge.ACTIVITY_MID_AT) {
+    bar.color = TrawlerColor.ACTIVITY_LOW;
+  } else if (activity < Gauge.ACTIVITY_HIGH_AT) {
+    bar.color = TrawlerColor.ACTIVITY_MID;
+  } else {
+    bar.color = TrawlerColor.ACTIVITY_HIGH;
+  }
+  const filled: Int = scaled(activity, Gauge.ACTIVITY_MAX, CS2.if_width_get(mount));
+  CS2.if_size_set(filled, 0, 0, 1, bar);
+  CS2.if_size_set(filled, 0, 1, 1, empty);
+}
+
+export function trawlerInfoUpdate(net: ComponentId, caught: ComponentId, time: ComponentId): void {
+  const activity: Int = useServerState(Varbits.TRAWLER_ACTIVITY);
+  const amount: Int = Math.min(
+    Catch.LOTS,
+    scaled(
+      useServerState(Varbits.TRAWLER_CATCHINFO),
+      Catch.FACTOR_BASE,
+      CS2.interpolate(Catch.FACTOR_MIN, Catch.FACTOR_MAX, Catch.ACTIVITY_AT_MIN, Catch.ACTIVITY_AT_MAX, activity),
+    ),
+  );
+
+  let rail: String = '';
+  const tentacles: Int = useServerState(Varbits.TENTACLE_PORT) + useServerState(Varbits.TENTACLE_STARBOARD);
+  if (tentacles > 0) {
+    net.text = 'Net: <col=dd0000>Kraken attack!</col>';
+  } else {
+    if (useServerState(Varbits.SHIPRAIL_PORT) !== 0 || useServerState(Varbits.SHIPRAIL_STARBOARD) !== 0) {
+      rail = ' - Rail: <col=dd0000>Broken!</col>';
+    }
+    if (useServerState(Varbits.TRAWLER_NETINFO) === 1) {
+      net.text = `Net: <col=dd0000>Ripped!</col>${rail}`;
+    } else {
+      net.text = `Net: <col=00ff00>OK</col>${rail}`;
+    }
+  }
+
+  let tint: String = '<col=dd0000>';
+  if (activity >= Gauge.ACTIVITY_MID_AT) {
+    tint = '<col=ffffff>';
+  }
+  if (amount <= 0) {
+    caught.text = `Catch: ${tint}Nothing`;
+  } else if (amount < Catch.LOTS) {
+    caught.text = `Catch: ${tint}${groupDigits(amount, ',')} fish`;
+  } else {
+    caught.text = 'Catch: Lots!';
+  }
+
+  const minutes: Int = useServerState(Varbits.TRAWLER_TIMEINFO);
+  if (minutes <= 0) {
+    time.text = 'Time left: Under 1 min';
+  } else if (minutes === 1) {
+    time.text = 'Time left: 1 min';
+  } else {
+    time.text = `Time left: ${stringOf(minutes)} mins`;
+  }
+}
+
+export function trawlerCameraEffectOff(): Boolean {
+  if (useServerState(Varbits.OPTION_CAMERA_EFFECT_ATMOSPHERICS_DISABLED) === 1) {
+    return true;
+  }
+  if (settingValue(TrawlerCameraSetting.SETTING_ID) === 0) {
+    return true;
+  }
+  return false;
+}
+
+export function trawlerCameraWash(
+  buttonWash: Int,
+  backdropWash: Int,
+  button: ComponentId,
+  backdrop: ComponentId,
+): void {
+  button.transparency = buttonWash;
+  backdrop.transparency = backdropWash;
+}
+
+export function trawlerCameraRefresh(button: ComponentId, backdrop: ComponentId): void {
+  if (!trawlerCameraEffectOff()) {
+    button.transparency = CameraWash.BUTTON_ON;
+    backdrop.transparency = CameraWash.DIMMED;
+    CS2.if_on_mouserepeat_set(() => trawlerCameraWash(CameraWash.BUTTON_ON, CameraWash.LIT, button, backdrop), button);
+    CS2.if_on_mouseleave_set(
+      () => trawlerCameraWash(CameraWash.BUTTON_ON, CameraWash.DIMMED, button, backdrop),
+      button,
+    );
+    CS2.if_op_set(1, 'Disable', button);
+    CS2.if_onop_set((event) => trawlerCameraOp(event.option, 1, button, backdrop), button);
+  } else {
+    button.transparency = CameraWash.DIMMED;
+    backdrop.transparency = CameraWash.DIMMED;
+    CS2.if_on_mouserepeat_set(() => trawlerCameraWash(CameraWash.LIT, CameraWash.LIT, button, backdrop), button);
+    CS2.if_on_mouseleave_set(() => trawlerCameraWash(CameraWash.DIMMED, CameraWash.DIMMED, button, backdrop), button);
+    CS2.if_op_set(1, 'Enable', button);
+    CS2.if_onop_set((event) => trawlerCameraOp(event.option, 0, button, backdrop), button);
+  }
+}
+
+export function trawlerCameraOp(option: Int, value: Int, button: ComponentId, backdrop: ComponentId): void {
+  if (option !== 1) {
+    return;
+  }
+  if (useServerState(Varbits.OPTION_CAMERA_EFFECT_ATMOSPHERICS_DISABLED) === 1) {
+    playSound(Sounds.PILLORY_WRONG);
+    chatMessage(
+      'You have disabled all atmospheric camera effects in your settings. Turn them on to enable this button.',
+    );
+    trawlerCameraRefresh(button, backdrop);
+    return;
+  }
+  playSound(Sounds.INTERFACE_SELECT1);
+  predictServerState(Varbits.TRAWLER_CAMERA_STATIC, value);
+  trawlerCameraRefresh(button, backdrop);
+}

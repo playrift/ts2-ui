@@ -1,0 +1,225 @@
+import { CS2, useDerived, useRef, useServerState, useState } from 'ts2';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import {
+  CellSkin,
+  EventArt,
+  EventColor,
+  EventField,
+  EventFieldLabels,
+  EventFonts,
+  EventVarbits,
+  Layout,
+} from './clans-events-create.constants';
+import { OptionSet } from './event-options.data';
+import {
+  eventValue,
+  fieldOptionSet,
+  intCellText,
+  joinRankTitle,
+  selectedOptionLabel,
+  truncateToWidth,
+  valueTextWidth,
+} from './clans-events-create.helpers';
+import { openField } from './dropdown.state';
+
+export function SelectionCell({ field, cellWidth = 110 }: { field: EventField; cellWidth?: Int }): Component {
+  const [open, setOpen] = useState(openField);
+  const type: Int = useServerState(EventVarbits.TYPE);
+  const value: Int = useDerived(() => eventValue(field));
+
+  const set: OptionSet = fieldOptionSet(field, type);
+  const text: String = truncateToWidth(selectedOptionLabel(set, value), valueTextWidth(cellWidth), EventFonts.VALUE);
+
+  let isOpen: Int = 0;
+  if (open === field) {
+    isOpen = 1;
+  }
+  const backing = useRef();
+  const arrow = useRef();
+
+  return (
+    <>
+      <sprite
+        ref={backing}
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Layout.VALUE_H}
+        sprite={EventArt.CELL_BACKING}
+        tiling
+        transparency={isOpen === 1 ? CellSkin.OPEN_TRANSPARENCY : CellSkin.REST_TRANSPARENCY}
+        onClick={() => setOpen(field)}
+        onMouseEnter={() => {
+          if (isOpen === 0 && !onMobile()) {
+            backing.transparency = CellSkin.HOVER_TRANSPARENCY;
+            arrow.transparency = CellSkin.HOVER_ARROW_TRANSPARENCY;
+          }
+        }}
+        onMouseLeave={() => {
+          if (isOpen === 0) {
+            backing.transparency = CellSkin.REST_TRANSPARENCY;
+            arrow.transparency = CellSkin.REST_TRANSPARENCY;
+          }
+        }}
+      />
+      <rect x="center" y="bottom" w="fill" h={Layout.VALUE_H} color={EventColor.OUTLINE_OUTER} />
+      <rect x="center" y="bottom" w={{ fill: 2 }} h={Layout.CAPTION_H} color={EventColor.OUTLINE_INNER} />
+      <sprite
+        ref={arrow}
+        x={{ right: 2 }}
+        y={{ bottom: 2 }}
+        w={Layout.ARROW}
+        h={Layout.ARROW}
+        sprite={isOpen === 1 ? EventArt.ARROW_OPEN : EventArt.ARROW_CLOSED}
+      />
+      <text
+        x={{ left: 2 }}
+        y={{ bottom: 2 }}
+        w={{ fill: Layout.VALUE_INSET }}
+        h={Layout.ARROW}
+        font={EventFonts.VALUE}
+        shadow
+        color={EventColor.ACCENT}
+        align="center"
+        valign="middle"
+        text={text}
+      />
+      <text
+        x={2}
+        y={0}
+        w={{ fill: 3 }}
+        h={Layout.CAPTION_H}
+        color={EventColor.ACCENT}
+        shadow
+        font={EventFonts.LABEL}
+        align="left"
+        valign="middle"
+        text={`${EventFieldLabels.get(field)}:`}
+      />
+    </>
+  );
+}
+
+export function RankCell(): Component {
+  const text: String = truncateToWidth(joinRankTitle(), valueTextWidth(Layout.CELL_W), EventFonts.VALUE);
+  const backing = useRef();
+  const arrow = useRef();
+
+  return (
+    <>
+      <sprite
+        ref={backing}
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Layout.VALUE_H}
+        sprite={EventArt.CELL_BACKING}
+        tiling
+        transparency={CellSkin.REST_TRANSPARENCY}
+        onMouseEnter={() => {
+          if (!onMobile()) {
+            backing.transparency = CellSkin.HOVER_TRANSPARENCY;
+            arrow.transparency = CellSkin.HOVER_ARROW_TRANSPARENCY;
+          }
+        }}
+        onMouseLeave={() => {
+          backing.transparency = CellSkin.REST_TRANSPARENCY;
+          arrow.transparency = CellSkin.REST_TRANSPARENCY;
+        }}
+      />
+      <rect x="center" y="bottom" w="fill" h={Layout.VALUE_H} color={EventColor.OUTLINE_OUTER} />
+      <rect x="center" y="bottom" w={{ fill: 2 }} h={Layout.CAPTION_H} color={EventColor.OUTLINE_INNER} />
+      <sprite
+        ref={arrow}
+        x={{ right: 2 }}
+        y={{ bottom: 2 }}
+        w={Layout.ARROW}
+        h={Layout.ARROW}
+        sprite={EventArt.ARROW_CLOSED}
+      />
+      <text
+        x={{ left: 2 }}
+        y={{ bottom: 2 }}
+        w={{ fill: Layout.VALUE_INSET }}
+        h={Layout.ARROW}
+        font={EventFonts.VALUE}
+        shadow
+        color={EventColor.ACCENT}
+        align="center"
+        valign="middle"
+        text={text}
+      />
+      <text
+        x={2}
+        y={0}
+        w={{ fill: 3 }}
+        h={Layout.CAPTION_H}
+        color={EventColor.ACCENT}
+        shadow
+        font={EventFonts.LABEL}
+        align="left"
+        valign="middle"
+        text={`${EventFieldLabels.get(EventField.JOIN_RANK)}:`}
+      />
+    </>
+  );
+}
+
+export function IntCell({ field }: { field: EventField }): Component {
+  const value: Int = useDerived(() => eventValue(field));
+  const backing = useRef();
+
+  return (
+    <>
+      <sprite
+        ref={backing}
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Layout.VALUE_H}
+        sprite={EventArt.CELL_BACKING}
+        tiling
+        transparency={CellSkin.REST_TRANSPARENCY}
+      />
+      <rect x="center" y="bottom" w="fill" h={Layout.VALUE_H} color={EventColor.OUTLINE_OUTER} />
+      <rect x="center" y="bottom" w={{ fill: 2 }} h={Layout.CAPTION_H} color={EventColor.OUTLINE_INNER} />
+      <layer
+        w="fill"
+        h="fill"
+        onMouseEnter={() => {
+          if (!onMobile()) {
+            backing.transparency = CellSkin.HOVER_TRANSPARENCY;
+          }
+        }}
+        onMouseLeave={() => {
+          backing.transparency = CellSkin.REST_TRANSPARENCY;
+        }}
+      >
+        <text
+          x={2}
+          y={{ bottom: 2 }}
+          w="fill"
+          h={Layout.ARROW}
+          font={EventFonts.VALUE}
+          shadow
+          color={EventColor.ACCENT}
+          align="center"
+          valign="middle"
+          text={intCellText(field, value)}
+        />
+      </layer>
+      <text
+        x={2}
+        y={0}
+        w={{ fill: 3 }}
+        h={Layout.CAPTION_H}
+        color={EventColor.ACCENT}
+        shadow
+        font={EventFonts.LABEL}
+        align="left"
+        valign="middle"
+        text={`${EventFieldLabels.get(field)}:`}
+      />
+    </>
+  );
+}

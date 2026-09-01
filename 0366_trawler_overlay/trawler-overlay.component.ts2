@@ -1,0 +1,206 @@
+import { createRef } from 'ts2';
+
+import { opsound } from '../lib/lib.helpers';
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import { Layout, TrawlerColor, TrawlerDodge, TrawlerFont, TrawlerSprite } from './trawler-overlay.constants';
+import {
+  trawlerActivityUpdate,
+  trawlerCameraRefresh,
+  trawlerInfoUpdate,
+  trawlerWaterUpdate,
+} from './trawler-overlay.helpers';
+
+const content = createRef('trawler_overlay_content1');
+
+const cameraBackdrop = createRef('trawler_overlay_background1');
+
+const cameraButton = createRef('trawler_overlay_noshake0');
+
+const waterFilled = createRef('trawler_overlay_water_filled');
+const waterEmpty = createRef('trawler_overlay_water_empty');
+
+const activityFilled = createRef('trawler_overlay_activity_filled');
+const activityEmpty = createRef('trawler_overlay_activity_empty');
+
+const netLine = createRef('trawler_overlay_net1');
+const catchLine = createRef('trawler_overlay_catch2');
+const timeLine = createRef('trawler_overlay_time3');
+
+export function TrawlerOverlay(): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        w="fill"
+        h="fill"
+        onTimer={(event) => overlayRelayout(event.component, content, TrawlerDodge.DODGE, Anchor.CENTRE, Anchor.TOP, 0)}
+      >
+        <layer ref={content} x="center" y={0} w={Layout.CONTENT_W} h={Layout.CONTENT_H}>
+          <sprite
+            ref={cameraBackdrop}
+            x="right"
+            y={Layout.CAMERA_Y}
+            w={Layout.CAMERA_SIZE}
+            h={Layout.CAMERA_SIZE}
+            sprite={TrawlerSprite.CAMERA_BACKDROP}
+            transparency={Layout.CAMERA_BACKDROP_WASH}
+            noClickThrough
+            onClick={() => opsound(0, 0)}
+          />
+
+          <sprite
+            ref={cameraButton}
+            x="right"
+            y={Layout.CAMERA_Y}
+            w={Layout.CAMERA_SIZE}
+            h={Layout.CAMERA_SIZE}
+            sprite={TrawlerSprite.CAMERA_BUTTON}
+            optionSubject="<col=ff8040>Camera motion</col>"
+            options={['*']}
+            onTimer={() => trawlerCameraRefresh(cameraButton, cameraBackdrop)}
+          />
+
+          <layer
+            x={0}
+            y={0}
+            w={{ fill: Layout.LAYER_INSET }}
+            h={Layout.LAYER_H}
+            onTimer={() => trawlerInfoUpdate(netLine, catchLine, timeLine)}
+          >
+            <text
+              x={Layout.CAPTION_X}
+              y={Layout.WATER_CAPTION_Y}
+              w={Layout.CAPTION_W}
+              h={Layout.CAPTION_H}
+              text="Water:"
+              font={TrawlerFont.P12}
+              shadow
+              align="right"
+              color={TrawlerColor.LABEL}
+            />
+
+            <layer
+              x="right"
+              y={Layout.WATER_GAUGE_Y}
+              w={{ fill: Layout.GAUGE_INSET }}
+              h={Layout.GAUGE_H}
+              onTimer={(event) => trawlerWaterUpdate(event.component, waterFilled, waterEmpty)}
+            >
+              <rect
+                ref={waterFilled}
+                x="left"
+                y="center"
+                w={0}
+                h="fill"
+                color={TrawlerColor.WATER}
+                fill
+                transparency={Layout.GAUGE_WASH}
+              />
+              <rect
+                ref={waterEmpty}
+                x="right"
+                y="center"
+                w="fill"
+                h="fill"
+                color={TrawlerColor.EMPTY}
+                fill
+                transparency={Layout.GAUGE_WASH}
+              />
+            </layer>
+
+            <rect
+              x="right"
+              y={Layout.WATER_GAUGE_Y}
+              w={{ fill: Layout.GAUGE_INSET }}
+              h={Layout.GAUGE_H}
+              color={TrawlerColor.GAUGE_FRAME}
+              transparency={Layout.GAUGE_WASH}
+            />
+
+            <text
+              x={Layout.CAPTION_X}
+              y={{ bottom: Layout.ACTIVITY_CAPTION_Y }}
+              w={Layout.CAPTION_W}
+              h={Layout.CAPTION_H}
+              text="Contribution:"
+              font={TrawlerFont.P12}
+              shadow
+              align="right"
+              color={TrawlerColor.LABEL}
+            />
+
+            <layer
+              x="right"
+              y={{ bottom: Layout.ACTIVITY_GAUGE_Y }}
+              w={{ fill: Layout.GAUGE_INSET }}
+              h={Layout.GAUGE_H}
+              onTimer={(event) => trawlerActivityUpdate(event.component, activityFilled, activityEmpty)}
+            >
+              <rect
+                ref={activityFilled}
+                x="left"
+                y="center"
+                w={0}
+                h="fill"
+                color={TrawlerColor.ACTIVITY_LOW}
+                fill
+                transparency={Layout.GAUGE_WASH}
+              />
+              <rect
+                ref={activityEmpty}
+                x="right"
+                y="center"
+                w="fill"
+                h="fill"
+                color={TrawlerColor.EMPTY}
+                fill
+                transparency={Layout.GAUGE_WASH}
+              />
+            </layer>
+
+            <rect
+              x="right"
+              y={{ bottom: Layout.ACTIVITY_GAUGE_Y }}
+              w={{ fill: Layout.GAUGE_INSET }}
+              h={Layout.GAUGE_H}
+              color={TrawlerColor.GAUGE_FRAME}
+              transparency={Layout.GAUGE_WASH}
+            />
+
+            <text
+              ref={netLine}
+              x={0}
+              y={Layout.LINE_Y}
+              w={Layout.NET_W}
+              h={Layout.LINE_H}
+              font={TrawlerFont.P12}
+              shadow
+              color={TrawlerColor.LABEL}
+            />
+            <text
+              ref={catchLine}
+              x="center"
+              y={Layout.LINE_Y}
+              w={Layout.CATCH_W}
+              h={Layout.LINE_H}
+              font={TrawlerFont.P12}
+              shadow
+              align="center"
+              color={TrawlerColor.LABEL}
+            />
+            <text
+              ref={timeLine}
+              x="right"
+              y={Layout.LINE_Y}
+              w={Layout.TIME_W}
+              h={Layout.LINE_H}
+              font={TrawlerFont.P12}
+              shadow
+              align="right"
+              color={TrawlerColor.LABEL}
+            />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}

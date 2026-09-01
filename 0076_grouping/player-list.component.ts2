@@ -1,0 +1,171 @@
+import { CS2, intArray, useRef, useState, useUniverse } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile } from '../lib/lib.helpers';
+import { scaled, textLineCount } from '../lib/lib.engine';
+import {
+  ActivityNames,
+  GroupingColor,
+  GroupingFonts,
+  GroupingScrollbar,
+  GroupingSprites,
+  GroupingText,
+  Layout,
+  Rows,
+  Transparency,
+} from './grouping.constants';
+import { dropdownOpen } from './grouping.refs';
+import { currentChannelActivity, selectActivity } from './grouping.state';
+import { currentActivity } from './grouping-buttons.component';
+import { MemberRow } from './member-row.component';
+
+function ccColourSwapper(target: ComponentId, colour: Int): void {
+  target.color = colour;
+}
+
+export function PlayerListBox(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const [open] = useState(dropdownOpen);
+
+  const activity: Int = currentActivity();
+  const joined: Int = currentChannelActivity();
+
+  const rowHeight: Int = onMobile() ? scaled(8, 5, Rows.MEMBER_HEIGHT) : Rows.MEMBER_HEIGHT;
+
+  const listWidth: Int = universe.width - Layout.LIST_INSET;
+  const listHeight: Int = universe.height - Layout.LIST_DROP;
+
+  let hidden: Boolean = false;
+  if (open === 1) {
+    hidden = true;
+  }
+
+  let mode: Int = 0;
+  if (joined === 0) {
+    mode = 1;
+  } else if (activity !== joined) {
+    mode = 2;
+  }
+
+  const channelName: String = ActivityNames.get(joined) ?? '';
+  const message: String = `You are currently talking in the <col=ffffff>${channelName}</col> channel.`;
+
+  const messageHeight: Int =
+    textLineCount(message, listWidth, GroupingFonts.BODY) * Rows.MESSAGE_LINE + Rows.MESSAGE_PAD;
+
+  const members: Int = mode === 0 ? CS2.friendschat_chat_count_get() : 0;
+  const minKickRank: Int = mode === 0 ? CS2.friendschat_chat_min_kick_get() : 0;
+  const myRank: Int = mode === 0 ? CS2.friendschat_chat_rank_get() : 0;
+  const here: Int = CS2.map_world();
+
+  const slots = intArray(Rows.MAX_MEMBERS);
+  let at: Int = 0;
+  while (at < Rows.MAX_MEMBERS) {
+    slots[at] = at < members ? members - 1 - at : -1;
+    at = at + 1;
+  }
+
+  const extent: Int = members * rowHeight;
+
+  return (
+    <layer w="fill" h="fill" hide={hidden}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={GroupingSprites.BACKING} tiling />
+
+      <rect x={0} y={0} w="fill" h="fill" color={GroupingColor.OUTLINE_OUTER} />
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.LIST_INNER_INSET }}
+        h={{ fill: Layout.LIST_INNER_INSET }}
+        color={GroupingColor.OUTLINE_INNER}
+        transparency={Transparency.INNER_OUTLINE}
+      />
+
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y={Layout.LIST_Y}
+        w={{ fill: Layout.LIST_INSET }}
+        h={{ fill: Layout.LIST_DROP }}
+        scrollHeight={extent}
+      >
+        {mode === 1 && (
+          <text
+            x={0}
+            y={0}
+            w={listWidth}
+            h={listHeight}
+            text={GroupingText.NOT_IN_CHANNEL}
+            font={GroupingFonts.BODY}
+            color={GroupingColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {mode === 2 && (
+          <text
+            x={0}
+            y={(listHeight - messageHeight) / 2}
+            w={listWidth}
+            h={messageHeight}
+            text={message}
+            font={GroupingFonts.BODY}
+            color={GroupingColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+            options={['View Channel']}
+            onOptionSelect={() => selectActivity(joined)}
+            onMouseRepeat={(event) => ccColourSwapper(event.self, GroupingColor.LABEL_HOVER)}
+            onMouseLeave={(event) => ccColourSwapper(event.self, GroupingColor.LABEL)}
+          />
+        )}
+
+        {mode === 0 && members === 0 && (
+          <text
+            x={0}
+            y={0}
+            w={listWidth}
+            h={listHeight}
+            text={GroupingText.EMPTY_CHANNEL}
+            font={GroupingFonts.BODY}
+            color={GroupingColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <MemberRow
+                slot={slot}
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                listWidth={listWidth}
+                here={here}
+                minKickRank={minKickRank}
+                myRank={myRank}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y={Layout.BAR_Y} w={Layout.BAR_W} h={{ fill: Layout.BAR_DROP }}>
+        <ScrollbarVertical
+          content={list}
+          track={GroupingScrollbar.TRACK}
+          capTopSprite={GroupingScrollbar.CAP_TOP}
+          thumbSprite={GroupingScrollbar.THUMB}
+          capBottomSprite={GroupingScrollbar.CAP_BOTTOM}
+          arrowUp={GroupingScrollbar.ARROW_UP}
+          arrowDown={GroupingScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </layer>
+  );
+}

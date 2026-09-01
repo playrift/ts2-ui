@@ -1,0 +1,81 @@
+import { sessionState, useState } from 'ts2';
+
+import { tooltipBuilt, tooltipTime } from './game/varcs';
+import { Fonts } from './game/fonts';
+import { clientClock } from './lib.engine';
+
+const PAD_X = 4;
+const PAD_Y = 7;
+const LINE = 12;
+const NUDGE = 5;
+const STALE_AFTER = 1;
+
+export function tooltipDwellElapsed(delay: Int): Boolean {
+  const [until, setUntil] = useState(tooltipTime);
+  if (until < clientClock() + delay) {
+    if (until < clientClock()) {
+      setUntil(clientClock() + 2);
+    } else {
+      setUntil(until + 2);
+    }
+    return false;
+  }
+  setUntil(clientClock() + delay + 10);
+  return true;
+}
+
+export const tooltipSeen = sessionState(-1);
+
+export function tooltipMark(): void {
+  const [, setSeen] = useState(tooltipSeen);
+  setSeen(clientClock());
+}
+
+export function tooltipStale(): Boolean {
+  const [seen] = useState(tooltipSeen);
+  if (seen === -1) {
+    return false;
+  }
+  if (clientClock() - seen > STALE_AFTER) {
+    return true;
+  }
+  return false;
+}
+
+export function tooltipHide(): void {
+  const [, setBuilt] = useState(tooltipBuilt);
+  const [, setSeen] = useState(tooltipSeen);
+  setBuilt(0);
+  setSeen(-1);
+}
+
+export function tooltipDown(): Boolean {
+  const [built] = useState(tooltipBuilt);
+  if (built === 0) {
+    return true;
+  }
+  return false;
+}
+
+export function tooltipRaise(): void {
+  const [, setBuilt] = useState(tooltipBuilt);
+  setBuilt(1);
+}
+
+export function tooltipUp(): Boolean {
+  const [built] = useState(tooltipBuilt);
+  if (built === 1) {
+    return true;
+  }
+  return false;
+}
+
+export const TooltipBox = {
+  padX: PAD_X,
+  padY: PAD_Y,
+  line: LINE,
+  nudge: NUDGE,
+  fill: 0xffffa0,
+  ink: 0x000000,
+  font: Fonts.P12_FULL,
+} as const;

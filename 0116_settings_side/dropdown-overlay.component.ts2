@@ -1,0 +1,298 @@
+import { CS2, predictServerState, useRef, useState } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { onMobile } from '../lib/lib.helpers';
+import { NpcAttackOptions, PlayerAttackOptions } from './attack-options.data';
+import { ClientLayouts, DeviceOption, FramerateCaps, setFramerateCap } from './display.data';
+import { hoveredEntry, openDropdown } from './settings-side.state';
+import { clickSound, eq } from './settings-side.helpers';
+import {
+  DropdownGeometry,
+  DropdownId,
+  Layout,
+  SideArt,
+  SideColor,
+  SideFont,
+  SideVars,
+} from './settings-side.constants';
+
+export function DropdownOverlay(): Component {
+  const [open, setOpen] = useState(openDropdown);
+  const mobile: Boolean = onMobile();
+  const npc: Boolean = eq(open, DropdownId.NPC_ATTACK);
+  const layout: Boolean = eq(open, DropdownId.CLIENT_LAYOUT);
+
+  const rowY: Int = layout
+    ? DropdownGeometry.layoutRow.y
+    : npc
+      ? DropdownGeometry.npcRow.y
+      : DropdownGeometry.playerRow.y;
+
+  const entryH: Int = mobile ? DropdownGeometry.entryHMobile : DropdownGeometry.entryH;
+  const entries: Int = layout ? (mobile ? 5 : 3) : npc ? 4 : 5;
+  const listH: Int = entries * entryH;
+  const panelH: Int = listH + DropdownGeometry.padding;
+
+  const top: Int = mobile
+    ? Math.max(0, rowY + DropdownGeometry.mobileAnchor - panelH)
+    : rowY + DropdownGeometry.playerRow.h - 1;
+  const room: Int = mobile ? rowY + DropdownGeometry.mobileAnchor - top : Layout.root.h - top;
+  const clamped: Boolean = isClamped(panelH, room);
+  const scrollHeight: Int = clamped ? listH : 0;
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      hide={eq(open, DropdownId.NONE)}
+      noClickThrough
+      onClick={() => {
+        clickSound();
+        setOpen(DropdownId.NONE);
+      }}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={0x000000} fill transparency={255} />
+
+      <layer x={DropdownGeometry.playerRow.x} y={top} w={DropdownGeometry.playerRow.w} h={clamped ? room : panelH}>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={SideArt.BACKING_LIGHT} tiling />
+        {eq(open, DropdownId.PLAYER_ATTACK) && <PlayerAttackList entryH={entryH} scrollHeight={scrollHeight} />}
+        {npc && <NpcAttackList entryH={entryH} scrollHeight={scrollHeight} />}
+        {layout && !mobile && <ClientLayoutList entryH={entryH} scrollHeight={scrollHeight} />}
+        {layout && mobile && <FramerateList entryH={entryH} scrollHeight={scrollHeight} />}
+        <ThinBoxEntrypoint />
+      </layer>
+    </layer>
+  );
+}
+
+function PlayerAttackList({ entryH, scrollHeight }: { entryH: Int; scrollHeight: Int }): Component {
+  const list = useRef();
+  const mobile: Boolean = onMobile();
+  const [hovered, setHovered] = useState(hoveredEntry);
+  const [open, setOpen] = useState(openDropdown);
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={list}
+        x={Layout.overlayList.x}
+        y="center"
+        w={{ fill: Layout.overlayList.insetW }}
+        h={{ fill: Layout.overlayList.insetH }}
+        scrollHeight={scrollHeight}
+        onMouseRepeat={(event) => setHovered((event.mouseY + list.scrollY) / entryH)}
+        onMouseLeave={() => setHovered(-1)}
+      >
+        <HighlightBar hovered={hovered} entryH={entryH} />
+        {PlayerAttackOptions.map((option, index) => (
+          <text
+            x="center"
+            y={index * entryH}
+            w="fill"
+            h={entryH}
+            text={mobile ? option.mobile : option.desktop}
+            font={SideFont.SMALL}
+            shadow
+            color={eq(hovered, index) ? SideColor.LABEL_LIT : SideColor.LABEL}
+            align="center"
+            valign="middle"
+            options={['Select']}
+            onOptionSelect={() => {
+              predictServerState(SideVars.PLAYER_ATTACK, index);
+              setHovered(-1);
+              clickSound();
+              setOpen(DropdownId.NONE);
+            }}
+          />
+        ))}
+      </layer>
+      <ListScrollbar content={list} />
+    </layer>
+  );
+}
+
+function NpcAttackList({ entryH, scrollHeight }: { entryH: Int; scrollHeight: Int }): Component {
+  const list = useRef();
+  const mobile: Boolean = onMobile();
+  const [hovered, setHovered] = useState(hoveredEntry);
+  const [open, setOpen] = useState(openDropdown);
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={list}
+        x={Layout.overlayList.x}
+        y="center"
+        w={{ fill: Layout.overlayList.insetW }}
+        h={{ fill: Layout.overlayList.insetH }}
+        scrollHeight={scrollHeight}
+        onMouseRepeat={(event) => setHovered((event.mouseY + list.scrollY) / entryH)}
+        onMouseLeave={() => setHovered(-1)}
+      >
+        <HighlightBar hovered={hovered} entryH={entryH} />
+        {NpcAttackOptions.map((option, index) => (
+          <text
+            x="center"
+            y={index * entryH}
+            w="fill"
+            h={entryH}
+            text={mobile ? option.mobile : option.desktop}
+            font={SideFont.SMALL}
+            shadow
+            color={eq(hovered, index) ? SideColor.LABEL_LIT : SideColor.LABEL}
+            align="center"
+            valign="middle"
+            options={['Select']}
+            onOptionSelect={() => {
+              predictServerState(SideVars.NPC_ATTACK, index);
+              setHovered(-1);
+              clickSound();
+              setOpen(DropdownId.NONE);
+            }}
+          />
+        ))}
+      </layer>
+      <ListScrollbar content={list} />
+    </layer>
+  );
+}
+
+function ClientLayoutList({ entryH, scrollHeight }: { entryH: Int; scrollHeight: Int }): Component {
+  const list = useRef();
+  const [hovered, setHovered] = useState(hoveredEntry);
+  const [open, setOpen] = useState(openDropdown);
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={list}
+        x={Layout.overlayList.x}
+        y="center"
+        w={{ fill: Layout.overlayList.insetW }}
+        h={{ fill: Layout.overlayList.insetH }}
+        scrollHeight={scrollHeight}
+        onMouseRepeat={(event) => setHovered((event.mouseY + list.scrollY) / entryH)}
+        onMouseLeave={() => setHovered(-1)}
+      >
+        <HighlightBar hovered={hovered} entryH={entryH} />
+        {ClientLayouts.map((option, index) => (
+          <text
+            x="center"
+            y={index * entryH}
+            w="fill"
+            h={entryH}
+            text={option}
+            font={SideFont.SMALL}
+            shadow
+            color={eq(hovered, index) ? SideColor.LABEL_LIT : SideColor.LABEL}
+            align="center"
+            valign="middle"
+            options={['Select']}
+            onOptionSelect={() => {
+              setHovered(-1);
+              clickSound();
+              setOpen(DropdownId.NONE);
+            }}
+          />
+        ))}
+      </layer>
+      <ListScrollbar content={list} />
+    </layer>
+  );
+}
+
+function FramerateList({ entryH, scrollHeight }: { entryH: Int; scrollHeight: Int }): Component {
+  const list = useRef();
+  const [hovered, setHovered] = useState(hoveredEntry);
+  const [open, setOpen] = useState(openDropdown);
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={list}
+        x={Layout.overlayList.x}
+        y="center"
+        w={{ fill: Layout.overlayList.insetW }}
+        h={{ fill: Layout.overlayList.insetH }}
+        scrollHeight={scrollHeight}
+        onMouseRepeat={(event) => setHovered((event.mouseY + list.scrollY) / entryH)}
+        onMouseLeave={() => setHovered(-1)}
+      >
+        <HighlightBar hovered={hovered} entryH={entryH} />
+        {FramerateCaps.map((option, index) => (
+          <text
+            x="center"
+            y={index * entryH}
+            w="fill"
+            h={entryH}
+            text={option}
+            font={SideFont.SMALL}
+            shadow
+            color={eq(hovered, index) ? SideColor.LABEL_LIT : SideColor.LABEL}
+            align="center"
+            valign="middle"
+            options={['Select']}
+            onOptionSelect={() => {
+              setFramerateCap(index);
+              setHovered(-1);
+              clickSound();
+              setOpen(DropdownId.NONE);
+            }}
+          />
+        ))}
+      </layer>
+      <ListScrollbar content={list} />
+    </layer>
+  );
+}
+
+function HighlightBar({ hovered, entryH }: { hovered: Int; entryH: Int }): Component {
+  return (
+    <rect
+      y={hovered * entryH - 1}
+      w="fill"
+      h={entryH + DropdownGeometry.highlightPad}
+      color={SideColor.WHITE}
+      fill
+      transparency={200}
+      hide={noEntryHovered(hovered)}
+    />
+  );
+}
+
+function ListScrollbar({ content }: { content: Ref }): Component {
+  return (
+    <layer
+      x={{ right: Layout.overlayScroll.right }}
+      y="center"
+      w={Layout.overlayScroll.w}
+      h={{ fill: Layout.overlayScroll.insetH }}
+    >
+      <ScrollbarVertical
+        content={content}
+        track={SideArt.SCROLL_TRACK}
+        capTopSprite={SideArt.SCROLL_CAP_TOP}
+        thumbSprite={SideArt.SCROLL_THUMB}
+        capBottomSprite={SideArt.SCROLL_CAP_BOTTOM}
+        arrowUp={SideArt.SCROLL_ARROW_UP}
+        arrowDown={SideArt.SCROLL_ARROW_DOWN}
+      />
+    </layer>
+  );
+}
+
+function isClamped(panelH: Int, room: Int): Boolean {
+  if (panelH > room) {
+    return true;
+  }
+  return false;
+}
+
+function noEntryHovered(hovered: Int): Boolean {
+  if (hovered < 0) {
+    return true;
+  }
+  return false;
+}

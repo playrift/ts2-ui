@@ -1,0 +1,122 @@
+import { CS2, predictServerState, stopTimer, useServerState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import {
+  CONFIRM_LOCKOUT_CYCLES,
+  DIAL_POSITIONS,
+  FairyRingSounds,
+  FairyRingVarbits,
+  PRIMARY_OP,
+  Ring,
+  Spin,
+} from './fairyrings.constants';
+import { rotateOneAcw, rotateOneCw, rotateThreeAcw, rotateThreeCw, rotateTwoAcw, rotateTwoCw } from './fairyrings.refs';
+
+export function turnFairyRing(option: Int, ring: Int, direction: Int): void {
+  if (option !== PRIMARY_OP) {
+    return;
+  }
+  playSound(FairyRingSounds.TURN);
+  if (ring === Ring.ONE) {
+    predictServerState(FairyRingVarbits.RING_1, (useServerState(FairyRingVarbits.RING_1) + direction) % DIAL_POSITIONS);
+  } else if (ring === Ring.TWO) {
+    predictServerState(FairyRingVarbits.RING_2, (useServerState(FairyRingVarbits.RING_2) + direction) % DIAL_POSITIONS);
+  } else if (ring === Ring.THREE) {
+    predictServerState(FairyRingVarbits.RING_3, (useServerState(FairyRingVarbits.RING_3) + direction) % DIAL_POSITIONS);
+  }
+}
+
+export function stepFairyRingRotation(
+  ring: Int,
+  dial: ComponentId,
+  letterA: ComponentId,
+  letterB: ComponentId,
+  letterC: ComponentId,
+  letterD: ComponentId,
+): void {
+  let target: Int = 0;
+  if (ring === Ring.ONE) {
+    target = Spin.FULL - useServerState(FairyRingVarbits.RING_1) * Spin.QUARTER;
+  } else if (ring === Ring.TWO) {
+    target = Spin.FULL - useServerState(FairyRingVarbits.RING_2) * Spin.QUARTER;
+  } else if (ring === Ring.THREE) {
+    target = Spin.FULL - useServerState(FairyRingVarbits.RING_3) * Spin.QUARTER;
+  } else {
+    return;
+  }
+
+  let angle: Int = CS2.if_model_angle_z_get(dial);
+  if (angle < 0 || angle >= Spin.FULL) {
+    angle = 0;
+  }
+
+  let delta: Int = 0;
+  if (angle !== target) {
+    if (target < angle) {
+      target = target + Spin.FULL;
+    }
+    delta = target - angle;
+    if (delta < Spin.HALF) {
+      if (delta > Spin.STEP) {
+        angle = angle + Spin.STEP;
+      } else {
+        angle = target;
+      }
+    } else if (delta < Spin.BACK_STEP) {
+      angle = angle + Spin.BACK_STEP;
+    } else {
+      angle = target;
+    }
+  }
+
+  angle = angle % Spin.FULL;
+  if (angle < 0) {
+    if (angle < -Spin.FULL) {
+      angle = 0;
+    } else {
+      angle = angle + Spin.FULL;
+    }
+  }
+
+  CS2.if_model_angle_set(0, 0, 0, 0, angle, Spin.ZOOM, dial);
+  CS2.if_model_angle_set(0, 0, 0, 0, angle, Spin.ZOOM, letterA);
+  CS2.if_model_angle_set(0, 0, 0, 0, angle, Spin.ZOOM, letterB);
+  CS2.if_model_angle_set(0, 0, 0, 0, angle, Spin.ZOOM, letterC);
+  CS2.if_model_angle_set(0, 0, 0, 0, angle, Spin.ZOOM, letterD);
+}
+
+function releaseRotateHotspots(): void {
+  rotateOneCw.hide = false;
+  rotateOneAcw.hide = false;
+  rotateTwoCw.hide = false;
+  rotateTwoAcw.hide = false;
+  rotateThreeCw.hide = false;
+  rotateThreeAcw.hide = false;
+}
+
+export function confirmFairyRing(option: Int, plate: ComponentId): void {
+  if (option !== PRIMARY_OP) {
+    return;
+  }
+  playSound(FairyRingSounds.CONFIRM);
+
+  rotateOneCw.hide = true;
+  rotateOneAcw.hide = true;
+  rotateTwoCw.hide = true;
+  rotateTwoAcw.hide = true;
+  rotateThreeCw.hide = true;
+  rotateThreeAcw.hide = true;
+
+  const releaseAt: Int = clientClock() + CONFIRM_LOCKOUT_CYCLES;
+  plate.onTimer = () => {
+    if (clientClock() < releaseAt) {
+      return;
+    }
+    releaseRotateHotspots();
+    stopTimer(plate);
+  };
+}
+
+export function swapPlateColour(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}

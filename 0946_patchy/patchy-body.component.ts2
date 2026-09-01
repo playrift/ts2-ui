@@ -1,0 +1,254 @@
+import { CS2, predictServerState, useRef, useServerState } from 'ts2';
+
+import { setTransparency } from '../lib/lib.components';
+import { itemName, playSound, textLineCount } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Sounds } from '../lib/game/sounds';
+import { ConfirmButton } from './stone-button.component';
+import { Recipes } from './costume-recipes.data';
+import { ellipsize } from './patchy.helpers';
+import { StonePanelResizable } from './stone-panel-resizable.component';
+import {
+  Cost,
+  Highlight,
+  Layout,
+  PatchyArt,
+  PatchyBar,
+  PatchyColors,
+  PatchyFonts,
+  PatchyServerScript,
+  PatchyVarps,
+} from './patchy.constants';
+
+export function PatchyBody(): Component {
+  const selected: Int = useServerState(PatchyVarps.SELECTION);
+  const row = Recipes.at(selected);
+
+  const product: Item = row === null ? -1 : row.product;
+  const first: Item = row === null ? -1 : row.first;
+  const second: Item = row === null ? -1 : row.second;
+
+  const mobile: Boolean = onMobile();
+
+  const list = useRef();
+
+  const description: String =
+    `For <col=ffffff>${groupDigits(Cost.MAKE, ',')} coins</col>, Patchy will make` +
+    ` costume pieces by sewing together the component parts.<br><br>He charges` +
+    ` <col=ffffff>${groupDigits(Cost.SEPARATE, ',')} coins</col> to separate them again.`;
+
+  const descriptionHeight: Int =
+    textLineCount(description, Layout.WELL_W, PatchyFonts.BODY) * Layout.DESCRIPTION_LINE_H + Layout.DESCRIPTION_PAD;
+
+  const titleY: Int = descriptionHeight + Layout.GAP;
+  const partsY: Int = titleY + Layout.TITLE_H + Layout.GAP;
+  const pairLabelY: Int = partsY + Layout.PAIR_LABEL_DY;
+  const previewHeight: Int = partsY + Layout.PLACEHOLDER_H + Layout.GAP;
+  const paneHeight: Int = Layout.PANE_PAD + previewHeight + Layout.BUTTON_H + Layout.PANE_PAD;
+
+  const listHeight: Int = Recipes.length * Layout.ROW_H;
+
+  return (
+    <>
+      <layer x={{ center: Layout.BODY_DX }} y={{ center: Layout.BODY_DY }} w={Layout.BODY_W} h={Layout.BODY_H}>
+        <layer
+          ref={list}
+          x={0}
+          y="center"
+          w={Layout.LIST_W}
+          h="fill"
+          scrollHeight={listHeight > list.height ? listHeight : 0}
+        >
+          {Recipes.map((recipe, index) => (
+            <layer
+              x="center"
+              y={index * Layout.ROW_H}
+              w="fill"
+              h={Layout.ROW_H}
+              options={['Select']}
+              optionSubject={`<col=ff9040>${itemName(recipe.product)}</col>`}
+              onOptionSelect={(event) => {
+                playSound(Sounds.INTERFACE_SELECT1);
+                predictServerState(PatchyVarps.SELECTION, recipe.id);
+                CS2.if_runscript(PatchyServerScript.SELECT, event.component, event.subId, recipe.id, 'i');
+              }}
+            >
+              <rect
+                x="center"
+                y="center"
+                w="fill"
+                h="fill"
+                color={PatchyColors.SELECTED}
+                fill
+                transparency={recipe.id === selected ? Highlight.SELECTED : Highlight.REST}
+                onMouseEnter={
+                  recipe.id !== selected && !mobile
+                    ? (event) => setTransparency(event.self, Highlight.HOVER)
+                    : undefined
+                }
+                onMouseLeave={
+                  recipe.id !== selected && !mobile ? (event) => setTransparency(event.self, Highlight.REST) : undefined
+                }
+              />
+
+              <text
+                x="right"
+                y="center"
+                w={{ fill: Layout.ROW_NAME_INSET }}
+                h="fill"
+                text={itemName(recipe.product)}
+                font={PatchyFonts.ROW}
+                color={recipe.id === selected ? PatchyColors.SELECTED : PatchyColors.BODY}
+                valign="middle"
+                shadow
+              />
+
+              <model
+                x={Layout.ROW_ICON_X}
+                y="center"
+                w={Layout.ROW_ICON}
+                h={Layout.ROW_ICON}
+                item={recipe.product}
+                itemCount={-1}
+              />
+            </layer>
+          ))}
+        </layer>
+
+        <layer x="right" y="center" w={{ fill: Layout.PANE_INSET_W }} h={paneHeight}>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={PatchyArt.PANE_BACKDROP} tiling transparency={170} />
+
+          <layer x="center" y="center" w={{ fill: Layout.WELL_INSET }} h={{ fill: Layout.WELL_INSET }}>
+            <layer x="center" y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+              <sprite
+                x="center"
+                y="center"
+                w={{ fill: Layout.BUTTON_BACKDROP_INSET }}
+                h={{ fill: Layout.BUTTON_BACKDROP_INSET }}
+                sprite={PatchyArt.BUTTON_BACKDROP}
+                tiling
+                transparency={150}
+              />
+              <ConfirmButton label="Confirm" />
+            </layer>
+
+            <text
+              x="center"
+              y={0}
+              w="fill"
+              h={descriptionHeight}
+              text={description}
+              font={PatchyFonts.BODY}
+              color={PatchyColors.BODY}
+              align="center"
+              valign="middle"
+              shadow
+            />
+
+            {row === null ? (
+              <>
+                <text
+                  x="center"
+                  y={titleY}
+                  w="fill"
+                  h={Layout.TITLE_H}
+                  text="---"
+                  font={PatchyFonts.TITLE}
+                  color={PatchyColors.BODY}
+                  align="center"
+                  valign="middle"
+                  shadow
+                />
+                <text
+                  x="center"
+                  y={partsY}
+                  w="fill"
+                  h={Layout.PLACEHOLDER_H}
+                  text="<col=ffffff>Select</col> an item for<br>Patchy to create"
+                  font={PatchyFonts.BODY}
+                  color={PatchyColors.BODY}
+                  align="center"
+                  valign="middle"
+                  shadow
+                />
+              </>
+            ) : (
+              <>
+                <text
+                  x="center"
+                  y={titleY}
+                  w="fill"
+                  h={Layout.TITLE_H}
+                  text={`<col=ffffff>${ellipsize(itemName(product), Layout.WELL_W, PatchyFonts.TITLE)}</col>`}
+                  font={PatchyFonts.TITLE}
+                  color={PatchyColors.BODY}
+                  align="center"
+                  valign="middle"
+                  shadow
+                />
+                <sprite
+                  x={{ center: -Layout.ICON_DX }}
+                  y={partsY}
+                  w={Layout.ICON_W}
+                  h={Layout.ICON_H}
+                  item={first}
+                  itemCount={-1}
+                  outline={1}
+                  shadowColor={PatchyColors.ICON_SHADOW}
+                />
+                <sprite
+                  x={{ center: Layout.ICON_DX }}
+                  y={partsY}
+                  w={Layout.ICON_W}
+                  h={Layout.ICON_H}
+                  item={second}
+                  itemCount={-1}
+                  outline={1}
+                  shadowColor={PatchyColors.ICON_SHADOW}
+                />
+                <model
+                  x="center"
+                  y={partsY}
+                  w={Layout.ICON_W}
+                  h={Layout.ICON_H}
+                  model={Layout.JOIN_MODEL}
+                  pitch={Layout.JOIN_PITCH}
+                  yaw={Layout.JOIN_YAW}
+                  zoom={Layout.JOIN_ZOOM}
+                />
+                <text
+                  x="center"
+                  y={pairLabelY}
+                  w="fill"
+                  h={Layout.PAIR_LABEL_H}
+                  text={`${itemName(first)} &<br>${itemName(second)}`}
+                  font={PatchyFonts.BODY}
+                  color={PatchyColors.BODY}
+                  align="center"
+                  valign="middle"
+                  shadow
+                />
+              </>
+            )}
+          </layer>
+
+          <StonePanelResizable />
+        </layer>
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y={{ center: Layout.BAR_DY }} w={Layout.BAR_W} h={Layout.BAR_H}>
+        <ScrollbarVertical
+          content={list}
+          track={PatchyBar.TRACK}
+          capTopSprite={PatchyBar.CAP_TOP}
+          thumbSprite={PatchyBar.THUMB}
+          capBottomSprite={PatchyBar.CAP_BOTTOM}
+          arrowUp={PatchyBar.ARROW_UP}
+          arrowDown={PatchyBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

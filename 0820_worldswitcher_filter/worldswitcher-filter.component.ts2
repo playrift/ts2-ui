@@ -1,0 +1,155 @@
+import { CS2, stopTimer, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { dismissDialog } from '../0862_bond_convert/bond-convert.helpers';
+import { FilterButton } from './filter-button.component';
+import { FilterRows } from './filter-rows.component';
+import { pageIconWidth, pageRowCount, pageWidestLabel } from './worldswitcher-filter.helpers';
+import {
+  FilterAction,
+  FilterArt,
+  FilterColour,
+  FilterScrollbar,
+  FilterVarbits,
+  Layout,
+  TITLE,
+  Trans,
+} from './worldswitcher-filter.constants';
+
+export function WorldSwitcherFilter(): Component {
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Layout.clamp.bottom }}
+      w={{ fill: Layout.clamp.insetX }}
+      h={{ fill: Layout.clamp.insetY }}
+      noClickThrough
+      onClick={() => {
+        dismissDialog(0);
+      }}
+    >
+      <ModalFader />
+      <FilterWindow />
+    </layer>
+  );
+}
+
+function ModalFader(): Component {
+  const startedAt: Int = clientClock();
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      color={FilterColour.FADER}
+      fill
+      transparency={Trans.FADE_FROM}
+      onTimer={(event) => {
+        fadeStep(event.self, startedAt);
+      }}
+    />
+  );
+}
+
+function fadeStep(target: ComponentId, startedAt: Int): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= Trans.FADE_CYCLES) {
+    target.transparency = Trans.FADE_TO;
+    stopTimer(target);
+    return;
+  }
+  target.transparency = Trans.FADE_FROM + CS2.scale(elapsed, Trans.FADE_CYCLES, Trans.FADE_TO - Trans.FADE_FROM);
+}
+
+function FilterWindow(): Component {
+  const universe = useUniverse();
+  const clampH: Int = universe.height;
+  const [seen, setSeen] = useState(0);
+  universe.onResize = () => {
+    setSeen(universe.height);
+  };
+
+  const page: Int = useServerState(FilterVarbits.PAGE);
+  const mobile: Boolean = onMobile();
+  const rowH: Int = mobile ? Layout.rowHeightMobile : Layout.rowHeight;
+  const rows: Int = pageRowCount(page);
+
+  const inset: Int = Layout.iconX + pageIconWidth(page) + Layout.iconGap;
+  const labelW: Int = pageWidestLabel(page) + Layout.labelSlack;
+  const width: Int = Math.max(
+    Layout.windowChromeA + inset + labelW + Layout.windowChromeB + Layout.windowChromeC + Layout.windowChromeD,
+    Layout.minWindowW,
+  );
+  const content: Int = Layout.padTop + rows * rowH + Layout.padBottom;
+  const height: Int = Math.min(clampH - Layout.clampSlack, content + Layout.chromeH);
+  const visible: Int = height - Layout.chromeH;
+
+  const pane = useRef();
+
+  return (
+    <layer x="center" y="center" w={width} h={height} noClickThrough>
+      <SteelBorder title={TITLE} titleColor={SteelborderColor.TITLE} flags={1} />
+
+      <layer x="center" y={Layout.pane.y} w={{ fill: Layout.pane.insetX }} h={{ fill: Layout.pane.insetY }}>
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          sprite={FilterArt.BACKING}
+          tiling
+          transparency={120}
+        />
+
+        <layer
+          ref={pane}
+          x={Layout.options.x}
+          y="center"
+          w={{ fill: Layout.options.insetX }}
+          h={{ fill: Layout.options.insetY }}
+          scrollHeight={content > visible ? content : 0}
+        >
+          <FilterRows />
+        </layer>
+
+        <layer x={{ right: Layout.bar.right }} y="center" w={Layout.bar.w} h={{ fill: Layout.bar.insetY }}>
+          <ScrollbarVertical
+            content={pane}
+            track={FilterScrollbar.TRACK}
+            capTopSprite={FilterScrollbar.CAP_TOP}
+            thumbSprite={FilterScrollbar.THUMB}
+            capBottomSprite={FilterScrollbar.CAP_BOTTOM}
+            arrowUp={FilterScrollbar.ARROW_UP}
+            arrowDown={FilterScrollbar.ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer
+        x={{ center: -Layout.button.dx }}
+        y={{ bottom: Layout.button.bottom }}
+        w={Layout.button.w}
+        h={Layout.button.h}
+      >
+        <FilterButton action={FilterAction.CLEAR} />
+      </layer>
+
+      <layer
+        x={{ center: Layout.button.dx }}
+        y={{ bottom: Layout.button.bottom }}
+        w={Layout.button.w}
+        h={Layout.button.h}
+      >
+        <FilterButton action={FilterAction.DONE} />
+      </layer>
+    </layer>
+  );
+}

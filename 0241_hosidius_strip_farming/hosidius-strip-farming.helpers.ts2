@@ -1,0 +1,63 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { groupDigits } from '../lib/lib.format';
+import { POINTS_CAP, Ramp, TitheColor, TitheFruit } from './hosidius-strip-farming.constants';
+
+export function rgbToHex(red: Int, green: Int, blue: Int): Int {
+  let r: Int = red;
+  let g: Int = green;
+  let b: Int = blue;
+  if (r > 255) {
+    r = 255;
+  } else if (r < 0) {
+    r = 0;
+  }
+  if (g > 255) {
+    g = 255;
+  } else if (g < 0) {
+    g = 0;
+  }
+  if (b > 255) {
+    b = 255;
+  } else if (b < 0) {
+    b = 0;
+  }
+  return (r * 65536) | (g * 256) | b;
+}
+
+export function hosidiusTitheHudUpdate(fruit: ComponentId, counter: ComponentId, points: ComponentId): void {
+  const type: Int = useServerState(Varbits.HOSIDIUS_TITHE_TYPE);
+  if (type === 1) {
+    CS2.if_item_nonum_set(TitheFruit.A, 1, fruit);
+  } else if (type === 2) {
+    CS2.if_item_nonum_set(TitheFruit.B, 1, fruit);
+  } else if (type === 3) {
+    CS2.if_item_nonum_set(TitheFruit.C, 1, fruit);
+  } else {
+    CS2.if_item_nonum_set(TitheFruit.NONE, 1, fruit);
+  }
+
+  const score: Int = useServerState(Varbits.HOSIDIUS_TITHE_SCORE);
+  let shown: Int = Ramp.COUNTER_CAP;
+  if (score <= Ramp.COUNTER_CAP) {
+    shown = score;
+  }
+  CS2.if_text_set(stringOf(shown), counter);
+  const knee: Int = CS2.interpolate(0, Ramp.KNEE, 0, 100, 100);
+  let green: Int = Ramp.GREEN_FLAT;
+  let blue: Int = Ramp.BLUE_FLAT;
+  if (shown < knee) {
+    green = CS2.interpolate(0, shown, 0, knee, Ramp.GREEN_AT_KNEE);
+    blue = CS2.interpolate(0, shown, 0, knee, Ramp.BLUE_AT_KNEE);
+  }
+  CS2.if_colour_set(rgbToHex(Ramp.RED, green, blue), counter);
+
+  const reward: Int = useServerState(Varbits.HOSIDIUS_TITHE_REWARDPOINTS);
+  CS2.if_text_set(`Points: ${groupDigits(reward, ',')}`, points);
+  if (reward >= POINTS_CAP) {
+    CS2.if_colour_set(TitheColor.CAPPED, points);
+  } else {
+    CS2.if_colour_set(TitheColor.AMBER, points);
+  }
+}

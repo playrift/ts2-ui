@@ -1,0 +1,1171 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { hasBit } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { playermember } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { showMoreGroups } from './settings.state';
+import { SettingsVarbits, SettingsVarps } from './settings.constants';
+import type { SettingsCategory } from './settings-categories.data';
+import type { SettingsRow } from './settings-rows.data';
+import { SettingsDeps, SettingsDepValues } from './settings-deps.data';
+import type { SettingsDep, SettingsDepValue } from './settings-deps.data';
+import { dropdownValue } from './settings-dropdown.component';
+
+export function onEnhancedDesktop(): Boolean {
+  if (useServerState(SettingsVarbits.MOBILE_SIMULATED) === 1) {
+    return false;
+  }
+  const type: Int = CS2.clienttype();
+  if (type === 4 || type === 5 || type === 10) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(SettingsVarbits.MOBILE_SIMULATED) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function enhancedAny(): Boolean {
+  if (onEnhancedDesktop()) {
+    return true;
+  }
+  if (onEnhancedMobile()) {
+    return true;
+  }
+  return false;
+}
+
+export function onMac(): Boolean {
+  if (useServerState(SettingsVarbits.MOBILE_SIMULATED) === 1) {
+    return false;
+  }
+  if (useServerState(SettingsVarbits.HD) === 1) {
+    return true;
+  }
+  if (CS2.clienttype() === 5) {
+    return true;
+  }
+  return false;
+}
+
+export function leaguesWorld(): Boolean {
+  const flags: Int = useServerState(SettingsVarps.WORLD_FLAGS);
+  if (!hasBit(flags, 29) && hasBit(flags, 30)) {
+    return true;
+  }
+  return false;
+}
+
+export function specialWorld(): Boolean {
+  const flags: Int = useServerState(SettingsVarps.WORLD_FLAGS);
+  if (hasBit(flags, 25) && hasBit(flags, 23) && !hasBit(flags, 4)) {
+    return true;
+  }
+  return false;
+}
+
+export function speedrunningWorld(): Boolean {
+  return hasBit(useServerState(SettingsVarps.WORLD_FLAGS), 8);
+}
+
+export function pvpArenaWorld(): Boolean {
+  return hasBit(useServerState(SettingsVarps.WORLD_FLAGS), 6);
+}
+
+export function rentalWorld(): Boolean {
+  return hasBit(useServerState(SettingsVarps.WORLD_FLAGS), 13);
+}
+
+export function worldTypeCode(): Int {
+  const flags: Int = useServerState(SettingsVarps.WORLD_FLAGS);
+  if (hasBit(flags, 25)) {
+    return -1;
+  }
+  if (hasBit(flags, 26)) {
+    return 2;
+  }
+  if (hasBit(flags, 30)) {
+    return 3;
+  }
+  if (hasBit(flags, 29)) {
+    return 1;
+  }
+  if (hasBit(flags, 27)) {
+    return 6;
+  }
+  if (hasBit(flags, 8)) {
+    return 5;
+  }
+  if (hasBit(flags, 6)) {
+    return 4;
+  }
+  return 0;
+}
+
+export function groupIronman(): Boolean {
+  const mode: Int = useServerState(SettingsVarbits.IRONMAN);
+  if (mode === 4 || mode === 5 || mode === 6) {
+    return true;
+  }
+  return false;
+}
+
+export function featureFlag(bit: Int): Boolean {
+  return hasBit(useServerState(SettingsVarps.FEATURE_FLAGS), bit);
+}
+
+export function showMoreOpen(group: Int): Boolean {
+  const [expanded] = useState(showMoreGroups);
+  return hasBit(expanded, group);
+}
+
+export function categoryHidden(category: SettingsCategory): Boolean {
+  if ((category.enhancedOnly ?? false) && !enhancedAny()) {
+    return true;
+  }
+  if ((category.leaguesOnly ?? false) && !leaguesWorld()) {
+    return true;
+  }
+  return false;
+}
+
+export function rowHidden(row: SettingsRow): Boolean {
+  const mobile: Boolean = onMobile();
+  const enhanced: Boolean = enhancedAny();
+  const leagues: Boolean = leaguesWorld();
+  const [member] = useState(playermember);
+  const ironmanMode: Int = useServerState(SettingsVarbits.IRONMAN);
+
+  if ((row.membersOnly ?? false) && member === 0) {
+    return true;
+  }
+  if ((row.notOnMobile ?? false) && mobile) {
+    return true;
+  }
+  if ((row.enhancedOrMobileOnly ?? false) && !mobile && !enhanced) {
+    return true;
+  }
+  if ((row.mobileOnly ?? false) && !mobile) {
+    return true;
+  }
+  if ((row.notMac ?? false) && onMac()) {
+    return true;
+  }
+  if ((row.enhancedOnly ?? false) && !enhanced) {
+    return true;
+  }
+
+  if ((row.needsDependency ?? false) && settingEnabledGates(row) === 0) {
+    return true;
+  }
+
+  if ((row.notIronman ?? false) && ironmanMode !== 0) {
+    return true;
+  }
+  if ((row.ironmanOnly ?? false) && ironmanMode === 0) {
+    return true;
+  }
+  if ((row.leaguesOnly ?? false) && !leagues) {
+    return true;
+  }
+
+  if ((row.notSpeedrunning ?? false) && speedrunningWorld()) {
+    return true;
+  }
+  if ((row.speedrunningOnly ?? false) && !speedrunningWorld()) {
+    return true;
+  }
+  if ((row.param1273 ?? false) && !enhanced && !leagues && !featureFlag(3)) {
+    return true;
+  }
+  if ((row.groupIronmanOnly ?? false) && !groupIronman()) {
+    return true;
+  }
+  if (ironmanMode !== 2 && (row.ultimateIronmanOnly ?? false)) {
+    return true;
+  }
+  if ((row.notLeagues ?? false) && leagues) {
+    return true;
+  }
+  if ((row.notDeadman ?? false) && deadmanWorld() !== 0) {
+    return true;
+  }
+  if ((row.notSpecialWorld ?? false) && specialWorld()) {
+    return true;
+  }
+  if ((row.notPvpArena ?? false) && pvpArenaWorld()) {
+    return true;
+  }
+  if ((row.plainWorldOnly ?? false) && worldTypeCode() !== 0) {
+    return true;
+  }
+  if ((row.hdBetaOnly ?? false) && useServerState(SettingsVarbits.HD_BETA) === 0) {
+    return true;
+  }
+  if (
+    (row.pastTutorial ?? false) &&
+    useServerState(SettingsVarps.TUTORIAL) < 1000 &&
+    useServerState(SettingsVarps.TUTORIAL_2) < 1000
+  ) {
+    return true;
+  }
+
+  if (enhanced) {
+    const sdBeta: Int = useServerState(SettingsVarbits.SD_BETA);
+    if ((row.enhancedRenderNew ?? false) && (sdBeta === 0 || CS2.device_option_get(25) === 1)) {
+      return true;
+    }
+    if ((row.enhancedRenderOld ?? false) && (sdBeta === 0 || CS2.device_option_get(25) === 0)) {
+      return true;
+    }
+    if (
+      (row.enhancedGpu ?? false) &&
+      useServerState(SettingsVarbits.HD_NEW_RENDERER) === 0 &&
+      useServerState(SettingsVarbits.HD_BETA_ENABLED) === 0
+    ) {
+      return true;
+    }
+  }
+
+  if ((row.notRentalWorld ?? false) && rentalWorld()) {
+    return true;
+  }
+  if ((row.rentalWorldOnly ?? false) && !rentalWorld()) {
+    return true;
+  }
+  return false;
+}
+
+export function deadmanWorld(): Int {
+  const flags: Int = useServerState(SettingsVarps.WORLD_FLAGS);
+  if (privateEventWorld()) {
+    return 3;
+  }
+  if (hasBit(flags, 29)) {
+    if (hasBit(flags, 30) || hasBit(flags, 26)) {
+      return 3;
+    }
+    return 1;
+  }
+  return 0;
+}
+
+export function privateEventWorld(): Boolean {
+  const flags: Int = useServerState(SettingsVarps.WORLD_FLAGS);
+  if (hasBit(flags, 25) && !hasBit(flags, 23) && hasBit(flags, 4)) {
+    return true;
+  }
+  return false;
+}
+
+export function settingValue(settingId: Int): Int {
+  switch (settingId) {
+    case 7:
+      return useServerState(Varbits.OPTION_HIDE_ROOFTOPS);
+    case 33:
+      return useServerState(Varbits.MUSIC_UNLOCK_TEXT_TOGGLE);
+    case 5:
+      return useServerState(Varbits.HITSPLAT_TINT_DISABLED);
+    case 279:
+      return useServerState(Varbits.HITSPLAT_MAXHIT_DISABLED);
+    case 9:
+      return useServerState(Varbits.WIKI_ICON_DISABLED);
+    case 8:
+      return useServerState(Varbits.ORBS_DISABLED);
+    case 2:
+      return useServerState(Varbits.SIDE_TRANSPARENCY);
+    case 3:
+      return useServerState(Varbits.OPTION_HIDEXPTOLEVEL);
+    case 4:
+      return useServerState(Varbits.OPTION_PRAYERTOOLTIPS);
+    case 6:
+      return useServerState(Varbits.OPTION_SATOOLTIPS);
+    case 10:
+      return useServerState(Varbits.HPBAR_HUD_BOSS_DISABLED);
+    case 299:
+      return useServerState(Varbits.HPBAR_HUD_BOSS_NAME_DISABLED);
+    case 300:
+      return useServerState(Varbits.HPBAR_HUD_BOSS_COMPACT_ENABLED);
+    case 111:
+      return useServerState(Varbits.HPBAR_HUD_STANDARD_DISABLED);
+    case 11:
+      return useServerState(Varbits.CHATBOX_TRANSPARENCY);
+    case 13:
+      return useServerState(Varbits.CAMERA_ZOOM_MOUSE_DISABLED);
+    case 209:
+      return useServerState(Varbits.MOUSEOVER_TOOLTIPS_HIDE_OPCOUNT);
+    case 34:
+      return useServerState(Varps.OPTION_CHAT);
+    case 35:
+      return useServerState(Varps.OPTION_PM);
+    case 36:
+      return useServerState(Varbits.HIDE_PM_ALONGSIDE_CHATBOX);
+    case 37:
+      return useServerState(Varps.OPTION_CHATFILTER_DISABLED);
+    case 431:
+      return useServerState(Varbits.CLAN_DISABLE_LASTSEEN);
+    case 38:
+      return useServerState(Varbits.OPTION_LOOTNOTIFICATION_ON);
+    case 40:
+      return useServerState(Varbits.OPTION_LOOTNOTIFICATION_UNTRADEABLES);
+    case 41:
+      return useServerState(Varbits.BOSS_KILLCOUNT_FILTERED);
+    case 42:
+      return useServerState(Varbits.OPTION_DROPWARNING_ON);
+    case 278:
+      return 1 - useServerState(Varbits.OPTION_ITEM_RETRIEVAL_WARNING_DISABLED);
+    case 46:
+      return useServerState(Varbits.TRANSPARENT_CHATBOX_BLOCKCLICK);
+    case 47:
+      return useServerState(Varbits.TLI_STOREBUTTON_TOGGLE_MOBILE);
+    case 181:
+      return useServerState(Varbits.TLI_STOREBUTTON_TOGGLE_DESKTOP);
+    case 312:
+      return useServerState(Varbits.TRADEOPTION_DISABLED);
+    case 372:
+      return useServerState(Varbits.RIGHTCLICK_REPORT_ABUSE_DISABLED);
+    case 49:
+      return useServerState(Varbits.MOUSECAM_DISABLED);
+    case 50:
+      return useServerState(Varbits.FOLLOWEROPS_DEPRIORITISED);
+    case 51:
+      return useServerState(Varbits.DESKTOP_SHIFTCLICKDROP_ENABLED);
+    case 48:
+      return useServerState(Varps.OPTION_MOUSE);
+    case 408:
+      return useServerState(Varbits.OSM_HIDE_HOTKEYS);
+    case 414:
+      return useServerState(Varbits.SETTINGS_OSM_HOTKEYS_OPEN_SIDEPANELS_ON_LEFT);
+    case 415:
+      return useServerState(Varbits.SETTINGS_OSM_HOTKEYS_SHOW_EMPTY_HOTKEYS);
+    case 54:
+      return useServerState(Varbits.HOTKEY_CANNOT_CLOSE_SIDEPANEL);
+    case 57:
+      return useServerState(Varbits.KEYBINDING_ESC_TO_CLOSE);
+    case 59:
+      return useServerState(Varbits.OPTION_ACCEPTAID);
+    case 60:
+      return useServerState(Varbits.BOUNTY_TELEPORT_WARNING);
+    case 61:
+      return useServerState(Varbits.DAREEYAK_TELEPORT_WARNING);
+    case 62:
+      return useServerState(Varbits.CARRALLAGAR_TELEPORT_WARNING);
+    case 63:
+      return useServerState(Varbits.ANNAKARL_TELEPORT_WARNING);
+    case 64:
+      return useServerState(Varbits.GHORROCK_TELEPORT_WARNING);
+    case 471:
+      return useServerState(Varbits.SAILING_WARNING_TELEPORTOFFBOAT);
+    case 253:
+      return useServerState(Varbits.WILDERNESS_LEVER_BLOCKWARNING_STANDARD);
+    case 254:
+      return useServerState(Varbits.WILDERNESS_LEVER_BLOCKWARNING_HIGHRISK);
+    case 255:
+      return useServerState(Varbits.WILDY_HUB_WARNING);
+    case 308:
+      return useServerState(Varbits.WILDY_HUB_WARNING_HIGHRISK);
+    case 256:
+      return useServerState(Varbits.WILDY_CANOE_WARNING);
+    case 309:
+      return useServerState(Varbits.WILDY_CANOE_WARNING_HIGHRISK);
+    case 65:
+      return useServerState(Varbits.ALCHEMY_WARNING_UNTRADEABLES);
+    case 432:
+      return useServerState(Varbits.ALCHEMY_WARNING_FORINVENTORY_DISABLED);
+    case 67:
+      return useServerState(Varbits.TELETAB_ICE_PLATEAU_WARNING);
+    case 68:
+      return useServerState(Varbits.TELETAB_CEMETERY_WARNING);
+    case 69:
+      return useServerState(Varbits.TELETAB_WILDYCRABS_WARNING);
+    case 70:
+      return useServerState(Varbits.TELETAB_DAREEYAK_WARNING);
+    case 71:
+      return useServerState(Varbits.TELETAB_CARRALLANGAR_WARNING);
+    case 72:
+      return useServerState(Varbits.TELETAB_ANNAKARL_WARNING);
+    case 73:
+      return useServerState(Varbits.TELETAB_GHORROCK_WARNING);
+    case 182:
+      return useServerState(Varbits.IRON_NOLOOT_ICON_DISABLED);
+    case 183:
+      return useServerState(Varbits.IRON_NOLOOT_MESSAGE_DISABLED);
+    case 365:
+      return useServerState(Varbits.CRM_SURPRISEPOPUP_BLOCKED);
+    case 82:
+      return useServerState(Varbits.OPTION_PRECISE_TIMING);
+    case 83:
+      return useServerState(Varbits.OPTION_SEPARATE_HOURS);
+    case 84:
+      return useServerState(Varbits.GRAVESTONE_SUPPLYPILES_DISABLED);
+    case 112:
+      return useServerState(Varbits.TILE_HIGHLIGHTING_DISABLED);
+    case 410:
+      return useServerState(Varbits.SETTINGS_MOBILE_TILE_HIGHLIGHT_ENABLED);
+    case 409:
+      return useServerState(Varbits.SETTINGS_MOBILE_TILE_HIGHLIGHTS_HIDDEN);
+    case 114:
+      return useServerState(Varbits.MOUSEOVER_TOOLTIPS_DISABLED);
+    case 147:
+      return useServerState(Varbits.MOUSEOVER_TEXT_ENABLED);
+    case 115:
+      return useServerState(Varbits.ANTIDRAG_ENABLED);
+    case 116:
+      return useServerState(Varbits.REGEN_INDICATOR_DISABLED);
+    case 118:
+      return useServerState(Varbits.COX_HELPER_DISABLED);
+    case 163:
+      return useServerState(Varbits.AGILITY_HELPER_DISABLED);
+    case 164:
+      return useServerState(Varbits.AGILITY_HELPER_HIGHLIGHT_OBSTACLES_ENABLED);
+    case 453:
+      return useServerState(Varbits.POLL_BOOTH_HIGHLIGHT_DISABLED);
+    case 120:
+      return useServerState(Varbits.FISHING_SPOT_INDICATOR_DISABLED);
+    case 121:
+      return useServerState(Varbits.FISHING_SPOT_INDICATOR_ALL_FISH_DISABLED);
+    case 122:
+      return useServerState(Varbits.FISHING_SPOT_INDICATOR_MORE_INFO_DISABLED);
+    case 123:
+      return useServerState(Varbits.ATTACK_STYLE_ENABLED);
+    case 125:
+      return useServerState(Varbits.BUFF_HOME_TELEPORT_DISABLED);
+    case 126:
+      return useServerState(Varbits.BUFF_MINIGAME_TELEPORT_DISABLED);
+    case 124:
+      return useServerState(Varbits.BUFF_BAR_HIDDEN);
+    case 127:
+      return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+    case 418:
+      return useServerState(Varbits.BUFF_LEAGUE_MASTERIES_HIDDEN);
+    case 128:
+      return useServerState(Varbits.BUFF_BAR_TOOLTIPS_HIDDEN);
+    case 129:
+      return useServerState(Varbits.BUFF_TELEBLOCK_DISABLED);
+    case 130:
+      return useServerState(Varbits.BUFF_CHARGE_SPELL_DISABLED);
+    case 131:
+      return useServerState(Varbits.BUFF_GODWARS_ALTAR_DISABLED);
+    case 132:
+      return useServerState(Varbits.BUFF_DRAGONFIRE_SHIELD_COOLDOWN_DISABLED);
+    case 133:
+      return useServerState(Varbits.BUFF_IMBUED_HEART_COOLDOWN_DISABLED);
+    case 437:
+      return useServerState(Varbits.BUFF_SURGE_POTION_COOLDOWN_DISABLED);
+    case 134:
+      return useServerState(Varbits.BUFF_VENGEANCE_COOLDOWN_DISABLED);
+    case 135:
+      return useServerState(Varbits.BUFF_VENGEANCE_ACTIVE_DISABLED);
+    case 136:
+      return useServerState(Varbits.BUFF_STAMINA_DURATION_DISABLED);
+    case 137:
+      return useServerState(Varbits.BUFF_PRAYER_ENHANCE_DURATION_DISABLED);
+    case 138:
+      return useServerState(Varbits.BUFF_OVERLOAD_DURATION_DISABLED);
+    case 139:
+      return useServerState(Varbits.BUFF_MAGIC_IMBUE_DURATION_DISABLED);
+    case 140:
+      return useServerState(Varbits.BUFF_SIRE_STUN_DURATION_DISABLED);
+    case 141:
+      return useServerState(Varbits.BUFF_FREEZE_DURATION_DISABLED);
+    case 142:
+      return useServerState(Varbits.BUFF_SOTD_DURATION_DISABLED);
+    case 143:
+      return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+    case 144:
+      return useServerState(Varbits.BUFF_ANTIFIRE_DURATION_DISABLED);
+    case 145:
+      return useServerState(Varbits.BUFF_ANTIPOISON_DURATION_DISABLED);
+    case 208:
+      return useServerState(Varbits.BUFF_DESERT_DAMAGE_DISABLED);
+    case 284:
+      return useServerState(Varbits.BUFF_STATRENEWAL_DURATION_DISABLED);
+    case 388:
+      return useServerState(Varbits.BUFF_PRAYER_REGENERATION_POTION_DURATION_DISABLED);
+    case 390:
+      return useServerState(Varbits.BUFF_GOADING_POTION_DURATION_DISABLED);
+    case 285:
+      return useServerState(Varbits.BUFF_APMEKENS_SIGHT_DISABLED);
+    case 286:
+      return useServerState(Varbits.BUFF_AKKHA_BURN_DURATION_DISABLED);
+    case 287:
+      return useServerState(Varbits.BUFF_AKKHA_DARKNESS_DURATION_DISABLED);
+    case 288:
+      return useServerState(Varbits.BUFF_AKKHA_FREEZE_DURATION_DISABLED);
+    case 289:
+      return useServerState(Varbits.BUFF_ZEBAK_BLEED_DURATION_DISABLED);
+    case 290:
+      return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_HEALING_DURATION_DISABLED);
+    case 291:
+      return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_PRAYER_DURATION_DISABLED);
+    case 292:
+      return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_ENERGY_DURATION_DISABLED);
+    case 293:
+      return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_STATS_DURATION_DISABLED);
+    case 146:
+      return useServerState(Varbits.ALWAYS_ON_TOP);
+    case 241:
+      return CS2.device_option_get(17);
+    case 148:
+      return useServerState(Varbits.STAT_BOOSTS_HUD_HIDDEN);
+    case 149:
+      return useServerState(Varbits.STAT_BOOSTS_HUD_TOOLTIPS_HIDDEN);
+    case 151:
+      return useServerState(Varbits.STAT_BOOSTS_HUD_DISPLAY_RELATIVE);
+    case 152:
+      return useServerState(Varbits.BUFF_CORRUPTION_DISABLED);
+    case 153:
+      return useServerState(Varbits.BUFF_MARK_OF_DARKNESS_DISABLED);
+    case 154:
+      return useServerState(Varbits.BUFF_SHADOW_VEIL_DISABLED);
+    case 155:
+      return useServerState(Varbits.BUFF_DEATH_CHARGE_DISABLED);
+    case 156:
+      return useServerState(Varbits.BUFF_WARD_OF_ARCEUUS_DISABLED);
+    case 157:
+      return useServerState(Varbits.BUFF_RESURRECTION_DISABLED);
+    case 161:
+      return useServerState(Varbits.CA_FAILURE_NOTIFICATIONS_ENABLED);
+    case 159:
+      return useServerState(Varbits.CA_TASK_POPUP);
+    case 160:
+      return useServerState(Varbits.CA_TASK_RECOMPLETION_NOTIFICATIONS);
+    case 162: {
+      if (useServerState(Varbits.CA_FAILURE_NOTIFICATIONS_ENABLED) === 1) {
+        return useServerState(Varbits.CA_REFAILURE_NOTIFICATIONS_ENABLED);
+      }
+      return 0;
+    }
+    case 170:
+      return useServerState(Varbits.BUFF_AMMO_DISABLED);
+    case 85:
+      return hasBit(useServerState(Varbits.OPTION_COLLECTION_NEW_ITEM), 0) ? 1 : 0;
+    case 171:
+      return hasBit(useServerState(Varbits.OPTION_COLLECTION_NEW_ITEM), 1) ? 1 : 0;
+    case 172:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_MOUSEOVER_ENABLED);
+    case 175:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_CURRENT_ENABLED);
+    case 178:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_DESTINATION_ENABLED);
+    case 173:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_MOUSEOVER_ALWAYSONTOP);
+    case 176:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_CURRENT_ALWAYSONTOP);
+    case 179:
+      return useServerState(Varbits.HIGHLIGHTING_TILE_DESTINATION_ALWAYSONTOP);
+    case 166:
+      return useServerState(Varbits.MINIMAP_ZOOM_LOCK_DISABLED);
+    case 317:
+      return useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+    case 184:
+      return useServerState(Varbits.SLAYER_HELPER_DISABLED);
+    case 185:
+      return useServerState(Varbits.LOGOUT_NOTIFICATION_DISABLED);
+    case 186:
+      return useServerState(Varbits.BUFF_POISON_DAMAGE_DISABLED);
+    case 189:
+      return useServerState(Varbits.BIRDNEST_NOTIFICATION_DISABLED);
+    case 190:
+      return useServerState(Varbits.MOUSEOVER_ENTITY_HIGHLIGHTS_ENABLED);
+    case 212:
+      return useServerState(Varbits.INTERACT_ENTITY_HIGHLIGHTS_DISABLED);
+    case 251:
+      return useServerState(Varbits.POPOUT_PANEL_DESKTOP_DISABLED);
+    case 252:
+      return useServerState(Varbits.POPOUT_PANEL_MOBILE_ENABLED);
+    case 191:
+      return useServerState(Varbits.POPOUT_XPTRACKER_DISABLED);
+    case 192:
+      return useServerState(Varbits.GRAVESTONE_DISABLE_WARNING);
+    case 362:
+      return useServerState(Varbits.COMPASS_REORIENTATION_SETHEIGHT);
+    case 425:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_COMBAT_DISABLED);
+    case 426:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_ATMOSPHERICS_DISABLED);
+    case 427:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_SHAMANS_DISABLED);
+    case 428:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_OLM_DISABLED);
+    case 429:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_MONKEY_MADNESS_DISABLED);
+    case 281:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_BABA_YAGA_DISABLED);
+    case 282:
+      return 1 - useServerState(Varbits.TRAWLER_CAMERA_STATIC);
+    case 283:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_BARROWS_DISABLED);
+    case 436:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_SNOW_DISABLED);
+    case 305:
+      return useServerState(Varbits.TAKE_AMMO_TOGGLE);
+    case 306:
+      return useServerState(Varbits.TAKE_RUNES_TOGGLE);
+    case 354:
+      return useServerState(Varbits.EMPTYONDEATH_RUNEPOUCH);
+    case 355:
+      return useServerState(Varbits.EMPTYONDEATH_TACKLEBOX);
+    case 356:
+      return useServerState(Varbits.EMPTYONDEATH_BOLTPOUCH);
+    case 357:
+      return useServerState(Varbits.EMPTYONDEATH_SEEDBOX);
+    case 358:
+      return useServerState(Varbits.EMPTYONDEATH_ESSENCEPOUCH);
+    case 359:
+      return useServerState(Varbits.EMPTYONDEATH_HERBSACK);
+    case 195:
+      return useServerState(Varbits.OPTION_CHATBOX_MODE_AUTOSET);
+    case 313:
+      return useServerState(Varbits.PURGEIGNORED_PERMBANNED_DISABLED);
+    case 314:
+      return useServerState(Varbits.PURGEIGNORED_PERMMUTED_ENABLED);
+    case 201:
+      return useServerState(Varbits.OPTION_GIM_LOOT_BROADCASTS_DISABLED);
+    case 202:
+      return useServerState(Varbits.OPTION_GIM_LEVELUP_BROADCASTS_DISABLED);
+    case 203:
+      return useServerState(Varbits.OPTION_GIM_QUEST_BROADCASTS_DISABLED);
+    case 204:
+      return useServerState(Varbits.OPTION_GIM_CA_BROADCASTS_DISABLED);
+    case 210:
+      return useServerState(Varbits.AGILITY_HELPER_HIGHLIGHT_SHORTCUTS_OVERLAY_DISABLED);
+    case 206:
+      return useServerState(Varbits.SKULL_PREVENT_ENABLED);
+    case 205:
+      return useServerState(Varbits.TRADE_DELAY_DISABLED);
+    case 213:
+      return useServerState(Varbits.BUFF_CANNON_AMMO_DISABLED);
+    case 217:
+      return useServerState(Varbits.QUESTLIST_HIDE_NOT_STARTED);
+    case 218:
+      return useServerState(Varbits.QUESTLIST_HIDE_IN_PROGRESS);
+    case 219:
+      return useServerState(Varbits.QUESTLIST_HIDE_COMPLETED);
+    case 220:
+      return useServerState(Varbits.QUESTLIST_HIDE_MINIQUESTS);
+    case 221:
+      return useServerState(Varbits.QUESTLIST_HIDE_QUESTS);
+    case 223:
+      return useServerState(Varbits.QUESTLIST_DISABLE_TEXT_SHADOW);
+    case 229:
+      return useServerState(Varbits.OPTION_HAPTIC_ON_OP_DISABLED);
+    case 230:
+      return useServerState(Varbits.OPTION_HAPTIC_ON_DRAG_DISABLED);
+    case 231:
+      return useServerState(Varbits.OPTION_HAPTIC_ON_MINIMENU_OPEN_DISABLED);
+    case 232:
+      return useServerState(Varbits.OPTION_HAPTIC_ON_MINIMENU_ENTRY_HOVER_ENABLED);
+    case 234:
+      return useServerState(Varbits.EXAMINE_PRICE_GE_ENABLED);
+    case 235:
+      return useServerState(Varbits.EXAMINE_PRICE_ALCH_ENABLED);
+    case 239:
+      return useServerState(Varbits.QUESTLIST_DISABLE_HEADERS);
+    case 240:
+      return useServerState(Varbits.QUESTLIST_HIDE_UNAVAILABLE);
+    case 257:
+      return useServerState(Varbits.OPTION_CONTENT_RECOMMENDER_HIDE);
+    case 242:
+      return useServerState(Varbits.TOG_HELPER_DISABLED);
+    case 243:
+      return useServerState(Varbits.HUNTER_TRAP_TIMERS_DISABLED);
+    case 244:
+      return useServerState(Varbits.BUFF_WATER_CHARGES_DISABLED);
+    case 245:
+      return useServerState(Varbits.HERBIBOAR_HELPER_DISABLED);
+    case 246:
+      return useServerState(Varbits.BUFF_CANNON_DECAY_DISABLED);
+    case 247:
+      return useServerState(Varbits.CANNON_HUD_DISABLED);
+    case 248:
+      return useServerState(Varbits.CANNON_LOW_NOTIFICATION_ENABLED);
+    case 250:
+      return useServerState(Varbits.CANNON_NO_AMMO_NOTIFICATION_ENABLED);
+    case 261:
+      return useServerState(Varbits.OPTION_NPC_INDICATORS_ENABLED);
+    case 416:
+      return useServerState(Varbits.OPTION_NPC_INDICATORS_TAGGING_ENABLED);
+    case 260:
+      return useServerState(Varbits.OPTION_NPC_INDICATORS_OUTLINE_ENABLED);
+    case 265:
+      return useServerState(Varbits.OPTION_MINIMAP_ICONS_MAX_ZOOM_DISABLED);
+    case 268:
+      return useServerState(Varbits.BLAST_FURNACE_HELPER_DISABLED);
+    case 269:
+      return useServerState(Varbits.BLAST_FURNACE_HIGHLIGHTS_DISABLED);
+    case 270:
+      return useServerState(Varbits.OPTION_CLUEHELPER_OVERLAY_ENABLED);
+    case 277:
+      return useServerState(Varbits.OPTION_CLUEHELPER_TARGET_HIGHLIGHT_ENABLED);
+    case 271:
+      return useServerState(Varbits.OPTION_CLUEHELPER_ENABLED);
+    case 272:
+      return useServerState(Varbits.OPTION_CLUEHELPER_WORLDMAP_MARKER_ENABLED);
+    case 273:
+      return useServerState(Varbits.OPTION_CLUEHELPER_TARGET_WORLD_ARROW_ENABLED);
+    case 274:
+      return useServerState(Varbits.OPTION_CLUEHELPER_MENU_HIGHLIGHT_ENABLED);
+    case 275:
+      return useServerState(Varbits.OPTION_CLUEHELPER_INFOBOX_ENABLED);
+    case 276:
+      return useServerState(Varbits.OPTION_CLUEHELPER_INFOBOX_SHOW_CLUE_TEXT);
+    case 294:
+      return useServerState(Varbits.SETTINGS_WARNING_CONFIRMATION_CHARTER_SHIPS);
+    case 295:
+      return useServerState(Varbits.SETTINGS_WARNING_CONFIRMATION_FARMING_PROTECTION);
+    case 347:
+      return useServerState(Varbits.WORLDSWITCHER_DISABLE_CONFIRMATION);
+    case 424:
+      return useServerState(Varbits.BANK_DEPOSITBOX_OPLOCU_ASKQUANTITY);
+    case 370:
+      return useServerState(Varbits.POISON_KARAMBWAN_WARNING_DISABLED);
+    case 420:
+      return useServerState(Varbits.DREAM_PLANKSPELL_PLAIN);
+    case 421:
+      return useServerState(Varbits.DREAM_PLANKSPELL_OAK);
+    case 422:
+      return useServerState(Varbits.DREAM_PLANKSPELL_TEAK);
+    case 423:
+      return useServerState(Varbits.DREAM_PLANKSPELL_MAHOGANY);
+    case 296:
+      return useServerState(Varbits.WILDERNESS_LEVER_FIRST_OP);
+    case 297:
+      return useServerState(Varbits.OPTION_GE_PRICE_BUY_WARNING_DISABLED);
+    case 298:
+      return useServerState(Varbits.OPTION_GE_PRICE_SELL_WARNING_DISABLED);
+    case 302:
+      return useServerState(Varbits.SETTINGS_MUSPAH_MESSAGES);
+    case 303:
+      return useServerState(Varbits.SHOW_DIALOGUE_IN_CHATBOX);
+    case 304:
+      return useServerState(Varbits.SHOW_MESBOX_IN_CHATBOX);
+    case 307:
+      return useServerState(Varbits.BUFF_WBR_EXIT_CAVE);
+    case 311:
+      return useServerState(Varbits.COMBAT_LEVEL_DECIMAL_ENABLED);
+    case 493:
+      return useServerState(Varbits.VARBIT_20158);
+    case 494:
+      return useServerState(Varbits.VARBIT_20159);
+    case 316:
+      return useServerState(Varbits.OPTION_FLETCH_DART_OR_BOLT_MAKEX);
+    case 320:
+      return useServerState(Varbits.POPOUT_LOOTTOOLS_DISABLED);
+    case 321:
+      return useServerState(Varbits.GROUND_ITEMS_ENABLED);
+    case 333:
+      return useServerState(Varbits.GROUND_ITEMS_PRICE_TYPE);
+    case 366:
+      return useServerState(Varbits.GROUND_ITEMS_UNTRADEABLE_ITEMS_DISABLED);
+    case 346:
+      return useServerState(Varbits.GROUND_ITEMS_DISPLAY_PRICE_DISABLED);
+    case 335:
+      return useServerState(Varbits.GROUND_ITEMS_DESPAWN_TIME_ENABLED_MOBILE);
+    case 337:
+      return useServerState(Varbits.GROUND_ITEMS_VISIBILITY_TIME_ENABLED_MOBILE);
+    case 339:
+      return useServerState(Varbits.GROUND_ITEMS_EDIT_MODE_ENABLED_MOBILE);
+    case 343:
+      return useServerState(Varbits.OPTION_LOOTTRACKER_DISABLED);
+    case 344:
+      return useServerState(Varbits.OPTION_LOOTTRACKER_IGNORE_CONSUMED_DROPS);
+    case 348:
+      return useServerState(Varbits.MUSIC_ENABLELOOP);
+    case 360:
+      return useServerState(Varbits.OPTION_SKILL_GUIDE);
+    case 352:
+      return useServerState(Varbits.LOOTINGBAG_USEALLITEMS);
+    case 353:
+      return useServerState(Varbits.LOOTINGBAG_IGNORE_FOOD);
+    case 386:
+      return useServerState(Varbits.DEATH_WAIVECOSMETICSPROTECTION);
+    case 363:
+      return useServerState(Varbits.BUFF_GROUP_GATHERING_WOODCUTTING_DISABLED);
+    case 368:
+      return useServerState(Varbits.QUEST_START_HIGHLIGHT_FILTER_REQUIREMENTS);
+    case 369:
+      return useServerState(Varbits.BUFF_SCURRIUS_FOOD_PILE);
+    case 371:
+      return useServerState(Varbits.SETTINGS_GRAVESTONE_AUTOEQUIP);
+    case 373:
+      return useServerState(Varbits.SETTINGS_BARBARIAN_POTION_MAKEX);
+    case 380:
+      return useServerState(Varbits.AUTO_SMASH_VIALS);
+    case 381:
+      return useServerState(Varbits.BRUT_SMASH_POTS_AUTOMATICALLY);
+    case 374:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_BEGINNER);
+    case 375:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_EASY);
+    case 376:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_MEDIUM);
+    case 377:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_HARD);
+    case 378:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_ELITE);
+    case 379:
+      return useServerState(Varbits.OPTION_TRAIL_REMINDER_MASTER);
+    case 383:
+      return useServerState(Varbits.SETTINGS_HD_BETA_ENABLED);
+    case 385:
+      return useServerState(Varbits.BUFF_DEADMAN_OVERLOAD_POTION);
+    case 391:
+      return useServerState(Varbits.SETTINGS_MINIMENU_START_INDEX_TOGGLE);
+    case 396:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_VISUAL_FEEDBACK);
+    case 397:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_TARGET);
+    case 398:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_ENTITY);
+    case 399:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_INTERFACE);
+    case 400:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_WALK);
+    case 401:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_GLOBAL_CLICK);
+    case 402:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_PLAYER);
+    case 403:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_USE);
+    case 404:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_CANCEL);
+    case 405:
+      return useServerState(Varbits.SETTINGS_MINIMENU_FILTER_EXAMINE);
+    case 406:
+      return useServerState(Varbits.SETTINGS_MINIMENU_REORDERING_TOGGLE);
+    case 447:
+      return useServerState(Varbits.SETTINGS_MOBILE_MINIMENU_ICON_ENABLED);
+    case 417:
+      return useServerState(Varbits.POPOUT_HISCORES_GLOBALCLICK_ENABLED);
+    case 413:
+      return useServerState(Varbits.SETTINGS_MOBILE_TAPTODROP_ENABLED);
+    case 419:
+      return useServerState(Varbits.SETTINGS_MINIMENU_SCROLLBAR_TOGGLE);
+    case 430:
+      return useServerState(Varbits.SETTINGS_MOBILE_SHOW_FILTER_STONES_ENABLED);
+    case 433:
+      return useServerState(Varbits.SETTINGS_DIDYOUKNOW_DISABLED);
+    case 441:
+      return useServerState(Varbits.SETTINGS_WORLD_MAP_HOTKEY_DISABLED);
+    case 439:
+      return useServerState(Varbits.SETTINGS_HD_NEW_RENDERER_TOGGLE);
+    case 442:
+      return useServerState(Varbits.SETTINGS_INTERFACE_RESIZING);
+    case 443:
+      return useServerState(Varbits.BUFF_BOWSTRING_SPOOL_DISABLED);
+    case 444:
+      return useServerState(Varbits.BUFF_ENT_TOTEMS_BONUS_XP_DISABLED);
+    case 445:
+      return 1 - useServerState(Varbits.OPTION_CAMERA_EFFECT_DOM_DISABLED);
+    case 446:
+      return useServerState(Varbits.SETTINGS_FARMING_DIG_DISABLE_WARNING);
+    case 448:
+      return useServerState(Varbits.SETTINGS_BIRDHOUSE_SEED_WARNING_ENABLED);
+    case 451:
+      return useServerState(Varbits.OPTION_HIDEY_HOLES_EQUIPPED);
+    case 452:
+      return useServerState(Varbits.SETTINGS_CA_OPEN_LAST_INTERFACE_DISABLED);
+    case 455:
+      return useServerState(Varbits.SAILING_CHARTING_DRINK_CRATE_WARNING);
+    case 456:
+      return useServerState(Varbits.SETTINGS_SAILING_CHARTING_POPUP);
+    case 457:
+      return useServerState(Varbits.SAILING_PORT_TASK_CANCEL_WARNING_DISABLED);
+    case 458:
+      return useServerState(Varbits.SAILING_CURRENT_DUCK_HINTARROW_DISABLED);
+    case 459:
+      return useServerState(Varbits.SAILING_BARRACUDA_TRIALS_HINTARROW_DISABLED);
+    case 460:
+      return useServerState(Varbits.SETTINGS_COLOURFUL_FADE_DISABLED);
+    case 461:
+      return useServerState(Varbits.KEEP_SAILING_BOAT_WHEN_LEAVING_HELM);
+    case 463:
+      return useServerState(Varbits.PORT_TASK_LOADING_BAY_WARNING_DISMISSED);
+    case 464:
+      return useServerState(Varbits.SAILING_SHOW_CHARTING_HINTS);
+    case 465:
+      return useServerState(Varbits.SETTINGS_SAILING_DROPITEM_WARNING);
+    case 466:
+      return useServerState(Varbits.SAILING_SHOW_CUSTOMISATION_MATERIAL_MESSAGES);
+    case 467:
+      return useServerState(Varbits.SETTINGS_CARGO_IN_HOLD_WARNING);
+    case 469:
+      return useServerState(Varbits.SETTINGS_IRONMAN_CARGO_WARNING);
+    case 472:
+      return useServerState(Varbits.SETTINGS_NEW_MENU_INTERFACE);
+    case 473:
+      return useServerState(Varbits.SETTINGS_NEW_MENU_TRANSPARENT_INTERFACE_DISABLED);
+    case 474:
+      return useServerState(Varbits.SETTINGS_RUNEPOUCH_LOADOUT_NAMES_DISABLED);
+    case 475:
+      return useServerState(Varbits.SETTINGS_FAIRYRING_MOBILE_KEYBOARD_AUTOOPEN_DISABLED);
+    case 476:
+      return useServerState(Varbits.VARBIT_19681);
+    case 484:
+      return useServerState(Varbits.VARBIT_19732);
+    case 479:
+      return useServerState(Varbits.VARBIT_19734);
+    case 480:
+      return useServerState(Varbits.VARBIT_19735);
+    case 481:
+      return useServerState(Varbits.VARBIT_19736);
+    case 500:
+      return useServerState(Varbits.VARBIT_20362);
+  }
+  return 0;
+}
+
+function hdBetaRunning(): Boolean {
+  if (!enhancedAny()) {
+    return false;
+  }
+  if (useServerState(SettingsVarbits.SD_BETA) === 0) {
+    return false;
+  }
+  if (useServerState(SettingsVarbits.HD_NEW_RENDERER) === 0) {
+    return false;
+  }
+  if (CS2.device_option_get(25) === 1) {
+    return false;
+  }
+  return true;
+}
+
+function settingUnlocked(settingId: Int): Boolean {
+  switch (settingId) {
+    case 87:
+    case 89:
+    case 92:
+    case 94:
+    case 97:
+    case 99:
+    case 101:
+    case 103:
+    case 105:
+    case 107:
+    case 196:
+    case 434: {
+      if (CS2.window_mode_get() !== 1 && useServerState(Varbits.CHATBOX_TRANSPARENCY) === 1) {
+        return false;
+      }
+      return true;
+    }
+    case 193:
+    case 198: {
+      if (!groupIronman()) {
+        return false;
+      }
+      if (CS2.window_mode_get() !== 1 && useServerState(Varbits.CHATBOX_TRANSPARENCY) === 1) {
+        return false;
+      }
+      return true;
+    }
+    case 194:
+    case 199: {
+      if (!groupIronman()) {
+        return false;
+      }
+      if (CS2.window_mode_get() === 1 || useServerState(Varbits.CHATBOX_TRANSPARENCY) === 0) {
+        return false;
+      }
+      return true;
+    }
+    case 206: {
+      if (deadmanWorld() !== 0) {
+        return false;
+      }
+      return true;
+    }
+    case 191:
+    case 320: {
+      if (onEnhancedMobile() && useServerState(Varbits.POPOUT_PANEL_MOBILE_ENABLED) === 1) {
+        return true;
+      }
+      if (onEnhancedDesktop() && useServerState(Varbits.POPOUT_PANEL_DESKTOP_DISABLED) === 0) {
+        return true;
+      }
+      return false;
+    }
+    case 296: {
+      if (useServerState(Varbits.WILDERNESS_DIARY_ANY_COMPLETE) === 0) {
+        return false;
+      }
+      return true;
+    }
+    case 380: {
+      if (useServerState(Varps.BARCRAWL) !== 2 && useServerState(Varps.SCORPCATCHER) < 6) {
+        return false;
+      }
+      return true;
+    }
+    case 381: {
+      if (useServerState(Varbits.BRUT_FARMING_SMASHING) < 3) {
+        return false;
+      }
+      return true;
+    }
+    case 373: {
+      if (useServerState(Varbits.BRUT_HERB_POTION) < 3) {
+        return false;
+      }
+      return true;
+    }
+    case 205: {
+      if (useServerState(Varbits.IRONMAN) > 0 && !groupIronman()) {
+        return false;
+      }
+      return true;
+    }
+    case 498: {
+      if (
+        useServerState(SettingsVarbits.HD_NEW_RENDERER) === 0 &&
+        useServerState(SettingsVarbits.HD_BETA_ENABLED) === 0
+      ) {
+        return false;
+      }
+      return true;
+    }
+    case 499: {
+      if (!hdBetaRunning()) {
+        return false;
+      }
+      return true;
+    }
+  }
+  return true;
+}
+
+export function settingEnabledGates(row: SettingsRow): Int {
+  if ((row.mobileAlwaysEnabled ?? false) && onMobile()) {
+    return 1;
+  }
+  if ((row.customEnableCheck ?? false) && !settingUnlocked(row.settingId ?? 0)) {
+    return 0;
+  }
+  return 1;
+}
+
+export function settingEnabled(row: SettingsRow): Int {
+  if ((row.mobileAlwaysEnabled ?? false) && onMobile()) {
+    return 1;
+  }
+  if ((row.customEnableCheck ?? false) && !settingUnlocked(row.settingId ?? 0)) {
+    return 0;
+  }
+  const requireAll: Enum = row.requireAllRows ?? -1;
+  if (requireAll !== -1) {
+    if (!dependencyMet(requireAll, row.requireAllValues ?? 1565, false)) {
+      return 0;
+    }
+  }
+  const requireNone: Enum = row.requireNoneRows ?? -1;
+  if (requireNone !== -1) {
+    if (!dependencyMet(requireNone, row.requireNoneValues ?? -1, true)) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+function dependencyValue(settingId: Int, kind: Int): Int {
+  if (kind === 0) {
+    return settingValue(settingId);
+  }
+  if (kind === 2) {
+    return dropdownValue(settingId);
+  }
+  return 0;
+}
+
+function dependencyEntryMet(
+  settingId: Int,
+  kind: Int,
+  allRows: Enum,
+  allValues: Enum,
+  noneRows: Enum,
+  noneValues: Enum,
+  expected: Int,
+  requireNone: Boolean,
+): Boolean {
+  if (allRows !== -1 && !dependencyMet(allRows, allValues, false)) {
+    return false;
+  }
+  if (noneRows !== -1 && !dependencyMet(noneRows, noneValues, true)) {
+    return false;
+  }
+  if (settingId === 0) {
+    return false;
+  }
+  const actual: Int = dependencyValue(settingId, kind);
+  if (!requireNone) {
+    if (expected !== actual) {
+      return false;
+    }
+    return true;
+  }
+  if (expected === actual) {
+    return false;
+  }
+  return true;
+}
+
+export function dependencyMet(rowsEnum: Enum, valsEnum: Enum, requireNone: Boolean): Boolean {
+  const deps: SettingsDep | null = SettingsDeps.get(rowsEnum);
+  const values: SettingsDepValue | null = SettingsDepValues.get(valsEnum);
+  if (deps === null || values === null) {
+    return false;
+  }
+  if (
+    !dependencyEntryMet(
+      deps.setting0,
+      deps.kind0,
+      deps.all0Rows ?? -1,
+      deps.all0Values ?? 1565,
+      deps.none0Rows ?? -1,
+      deps.none0Values ?? -1,
+      values.v0,
+      requireNone,
+    )
+  ) {
+    return false;
+  }
+  if (deps.count > 1) {
+    if (
+      !dependencyEntryMet(
+        deps.setting1 ?? 0,
+        deps.kind1 ?? 0,
+        deps.all1Rows ?? -1,
+        deps.all1Values ?? 1565,
+        deps.none1Rows ?? -1,
+        deps.none1Values ?? -1,
+        values.v1,
+        requireNone,
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function rowLockedMessage(row: SettingsRow): String {
+  const mobile: String = row.lockedMessageMobile ?? '';
+  if (onMobile() && mobile.length > 0) {
+    return mobile;
+  }
+  return row.lockedMessage ?? LOCKED_MESSAGE;
+}
+
+const LOCKED_MESSAGE = "You can't change this setting at the moment.";

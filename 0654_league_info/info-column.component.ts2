@@ -1,0 +1,236 @@
+import { CS2, useRef, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  BLOG_URL,
+  Layout,
+  LeagueInfoColors,
+  LeagueInfoFade,
+  LeagueInfoFonts,
+  LeagueInfoSounds,
+  LeagueInfoSprites,
+} from './league-info.constants';
+import { InfoSections } from './league-info-sections.data';
+import type { InfoSection } from './league-info-sections.data';
+import { barsToBreaks, bodyHeight, colourSwapper, daysLeftSuffix, desktop } from './league-info.helpers';
+
+function openBlog(): void {
+  CS2.sound_effect(LeagueInfoSounds.CLICK, 1, 0);
+  CS2.url_open(BLOG_URL, true);
+}
+
+function bodyTextOf(section: InfoSection, index: Int, appendDays: Boolean, league: Int, days: Int): String {
+  if (index === 0 && appendDays) {
+    return barsToBreaks(`${section.body}${daysLeftSuffix(league, days)}`);
+  }
+  return barsToBreaks(section.body);
+}
+
+function sectionAdvance(
+  section: InfoSection,
+  index: Int,
+  width: Int,
+  appendDays: Boolean,
+  league: Int,
+  days: Int,
+  blogHeight: Int,
+  showBlog: Boolean,
+): Int {
+  const lead: Int = index === 0 && showBlog ? blogHeight : 0;
+  return lead + Layout.HEADING_H + bodyHeight(bodyTextOf(section, index, appendDays, league, days), width);
+}
+
+export function InfoColumn({
+  group,
+  width,
+  accent,
+  blogText,
+  blogHeight,
+  showBlog,
+  appendDays = false,
+  league,
+  days,
+}: {
+  group: Int;
+  width: Int;
+  accent: Int;
+  blogText: String;
+  blogHeight: Int;
+  showBlog: Boolean;
+  appendDays?: Boolean;
+  league: Int;
+  days: Int;
+}): Component {
+  const pane = useUniverse();
+  const content = useRef();
+
+  const swap: Boolean = desktop();
+  let total: Int = 0;
+  let cursor: Int = 0;
+  let visible: Int = 0;
+  while (cursor < InfoSections.length) {
+    const section: InfoSection | null = InfoSections.at(cursor);
+    if (section !== null) {
+      if (section.group === group) {
+        total = total + sectionAdvance(section, visible, width, appendDays, league, days, blogHeight, showBlog);
+        visible = visible + 1;
+      }
+    }
+    cursor = cursor + 1;
+  }
+
+  return (
+    <>
+      <layer
+        ref={content}
+        x={0}
+        y="center"
+        w={{ fill: Layout.SCROLLBAR_W }}
+        h="fill"
+        scrollHeight={total > pane.height ? total : 0}
+      >
+        {InfoSections.filter((section) => section.group === group).scan(
+          (section, index, y) => (
+            <InfoSectionRows
+              section={section}
+              index={index}
+              top={y}
+              swap={swap}
+              width={width}
+              accent={accent}
+              blogText={blogText}
+              blogHeight={blogHeight}
+              showBlog={showBlog}
+              appendDays={appendDays}
+              league={league}
+              days={days}
+            />
+          ),
+          (section, index) => sectionAdvance(section, index, width, appendDays, league, days, blogHeight, showBlog),
+          0,
+        )}
+      </layer>
+
+      <layer x="right" y="center" w={Layout.SCROLLBAR_W} h="fill">
+        <ScrollbarVertical
+          content={content}
+          track={LeagueInfoSprites.SCROLL_TRACK}
+          capTopSprite={LeagueInfoSprites.SCROLL_CAP_TOP}
+          thumbSprite={LeagueInfoSprites.SCROLL_THUMB}
+          capBottomSprite={LeagueInfoSprites.SCROLL_CAP_BOTTOM}
+          arrowUp={LeagueInfoSprites.SCROLL_ARROW_UP}
+          arrowDown={LeagueInfoSprites.SCROLL_ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function InfoSectionRows({
+  section,
+  index,
+  top,
+  swap,
+  width,
+  accent,
+  blogText,
+  blogHeight,
+  showBlog,
+  appendDays = false,
+  league,
+  days,
+}: {
+  section: InfoSection;
+  index: Int;
+  top: Int;
+  swap: Boolean;
+  width: Int;
+  accent: Int;
+  blogText: String;
+  blogHeight: Int;
+  showBlog: Boolean;
+  appendDays?: Boolean;
+  league: Int;
+  days: Int;
+}): Component {
+  const body: String = bodyTextOf(section, index, appendDays, league, days);
+  const bodyH: Int = bodyHeight(body, width);
+  const lead: Int = index === 0 && showBlog ? blogHeight : 0;
+  const rowTop: Int = top + lead;
+
+  return (
+    <>
+      {index === 0 && showBlog && (
+        <>
+          <rect
+            x={0}
+            y={0}
+            w={width}
+            h={blogHeight}
+            color={LeagueInfoColors.BACKING}
+            fill
+            transparency={LeagueInfoFade.SOFT}
+          />
+          <text
+            x={0}
+            y={top}
+            w={width - Layout.BODY_INSET}
+            h={blogHeight}
+            text={blogText}
+            font={LeagueInfoFonts.BODY}
+            shadow
+            color={accent}
+            align="center"
+            valign="middle"
+            onMouseEnter={swap ? (event) => colourSwapper(event.component, LeagueInfoColors.WHITE) : undefined}
+            onMouseLeave={swap ? (event) => colourSwapper(event.component, accent) : undefined}
+            options={['Open Link']}
+            onOptionSelect={() => openBlog()}
+          />
+        </>
+      )}
+      <rect
+        x={0}
+        y={rowTop}
+        w={width}
+        h={Layout.HEADING_H}
+        color={LeagueInfoColors.BACKING}
+        fill
+        transparency={LeagueInfoFade.OPAQUE}
+      />
+      <text
+        x={0}
+        y={rowTop}
+        w={width}
+        h={Layout.HEADING_H}
+        text={section.heading}
+        font={LeagueInfoFonts.HEADING}
+        shadow
+        color={accent}
+        align="center"
+        valign="middle"
+      />
+      <rect
+        x={0}
+        y={rowTop + Layout.HEADING_H}
+        w={width}
+        h={bodyH}
+        color={LeagueInfoColors.BACKING}
+        fill
+        transparency={LeagueInfoFade.SOFT}
+      />
+      <text
+        x={Layout.BODY_X}
+        y={rowTop + Layout.HEADING_H}
+        w={width - Layout.BODY_INSET}
+        h={bodyH}
+        text={body}
+        font={LeagueInfoFonts.BODY}
+        shadow
+        color={accent}
+        align="left"
+        valign="middle"
+        lineHeight={Layout.LINE_H}
+      />
+    </>
+  );
+}

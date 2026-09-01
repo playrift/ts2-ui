@@ -1,0 +1,152 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Bar, GeColors, NEVER } from './ge-viewonly.constants';
+
+export function geSinkItem(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_0);
+    case 1:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_1);
+    case 2:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_2);
+    case 3:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_3);
+    case 4:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_4);
+    case 5:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_5);
+    case 6:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_6);
+    case 7:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_7);
+  }
+  return -1;
+}
+
+export function geSinkPrice(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_0));
+    case 1:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_1));
+    case 2:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_2));
+    case 3:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_3));
+    case 4:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_4));
+    case 5:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_5));
+    case 6:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_6));
+    case 7:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_7));
+  }
+  return 0;
+}
+
+export function geTax(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_0));
+    case 1:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_1));
+    case 2:
+      return Math.max(0, useServerState(Varps.MUSICLENGTH));
+    case 3:
+      return Math.max(0, useServerState(Varps.LAST_MUSICLENGTH));
+    case 4:
+      return Math.max(0, useServerState(Varps.LAST_SONG));
+    case 5:
+      return Math.max(0, useServerState(Varps.CURRENTSONG));
+    case 6:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_6));
+    case 7:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_7));
+  }
+  return 0;
+}
+
+export function geBarWidth(slot: Int, total: Int, done: Int, colour: Int, span: Int): Int {
+  if (colour !== -1) {
+    return span;
+  }
+  let most: Int = total;
+  if (most <= 0) {
+    most = 1;
+  }
+  if (most < done) {
+    most = done;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return span;
+  }
+  if (most < Bar.SAFE) {
+    return CS2.interpolate(0, done, 0, most, span);
+  }
+  const unit: Int = most / Bar.SCALE;
+  return CS2.interpolate(0, done / unit, 0, most / unit, span);
+}
+
+export function geBarColor(slot: Int, total: Int, done: Int, colour: Int): Int {
+  if (colour !== -1) {
+    return colour;
+  }
+  let most: Int = total;
+  if (most <= 0) {
+    most = 1;
+  }
+  if (most < done) {
+    most = done;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return done < most ? GeColors.SHORT : GeColors.DONE;
+  }
+  return GeColors.RUNNING;
+}
+
+export function geOfferShown(slot: Int): Boolean {
+  if (slot < 0) {
+    return false;
+  }
+  if (CS2.stockmarket_offer_empty_is(slot)) {
+    if (geSinkItem(slot) === -1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function geOfferText(slot: Int): String {
+  if (slot < 0) {
+    return '';
+  }
+  if (CS2.stockmarket_offer_empty_is(slot)) {
+    const sink: Int = geSinkItem(slot);
+    if (sink === -1) {
+      return '';
+    }
+    if (geTax(slot) < NEVER) {
+      return `Sold: ${itemName(sink as Item)}<br>1 / 1`;
+    }
+    return `Selling: ${itemName(sink as Item)}<br>1 / 1`;
+  }
+  const item: Item = CS2.stockmarket_offer_item_get(slot);
+  const counts: String =
+    `${groupDigits(CS2.stockmarket_offer_completed_count_get(slot), ',')}` +
+    ` / ${groupDigits(CS2.stockmarket_offer_count_get(slot), ',')}`;
+  if (CS2.stockmarket_offer_type_get(slot) === 1) {
+    if (CS2.stockmarket_offer_finished_is(slot)) {
+      return `Sold: ${itemName(item)}<br>${counts}`;
+    }
+    return `Selling: ${itemName(item)}<br>${counts}`;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return `Bought: ${itemName(item)}<br>${counts}`;
+  }
+  return `Buying: ${itemName(item)}<br>${counts}`;
+}

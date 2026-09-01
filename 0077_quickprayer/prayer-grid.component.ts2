@@ -1,0 +1,216 @@
+import { useServerState, useSkillBase } from 'ts2';
+import { hasBit, membersWorld, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import {
+  RuinousPrayers,
+  StandardPrayers,
+  StandardPrayersBoth,
+  StandardPrayersDeadeye,
+  StandardPrayersMysticVigour,
+} from './prayers.data';
+import { inInstance, prayerAvailable, quickPrayerSelected, toggleQuickPrayer } from './quickprayer.helpers';
+import {
+  DEADEYE_LEVEL,
+  IconFade,
+  Layout,
+  MYSTIC_VIGOUR_LEVEL,
+  PrayerArt,
+  PrayerBook,
+  PrayerVarbits,
+  Skills,
+  TOGGLE,
+} from './quickprayer.constants';
+
+export function activePrayerBook(): Int {
+  if (useServerState(PrayerVarbits.PRAYERBOOK) === 1) {
+    return PrayerBook.RUINOUS;
+  }
+  const level: Int = useSkillBase(Skills.PRAYER);
+  const deadeye: Int = useServerState(PrayerVarbits.DEADEYE);
+  const mystic: Int = useServerState(PrayerVarbits.MYSTIC_VIGOUR);
+  if (useServerState(PrayerVarbits.PRAYERBOOK) === 0) {
+    if (!membersWorld() || level < DEADEYE_LEVEL || (useServerState(PrayerVarbits.BR_INGAME) === 1 && inInstance())) {
+      return PrayerBook.STANDARD;
+    } else if (deadeye === 0 && mystic === 0) {
+      return PrayerBook.STANDARD;
+    } else if (deadeye === 1 && mystic === 0) {
+      return PrayerBook.DEADEYE;
+    } else if (deadeye === 0 && mystic === 1 && level >= MYSTIC_VIGOUR_LEVEL) {
+      return PrayerBook.MYSTIC_VIGOUR;
+    } else if (deadeye === 1 && mystic === 1) {
+      if (level === DEADEYE_LEVEL) {
+        return PrayerBook.DEADEYE;
+      }
+      return PrayerBook.BOTH;
+    }
+  }
+  return PrayerBook.STANDARD;
+}
+
+export function PrayerGrid(): Component {
+  const book: Int = activePrayerBook();
+  const mask: Int = quickPrayerSelected();
+
+  if (book === PrayerBook.RUINOUS) {
+    return (
+      <layer w="fill" h="fill">
+        {RuinousPrayers.map((row, index) => (
+          <PrayerCell
+            index={index}
+            item={row.item}
+            bit={row.bit}
+            name={row.name}
+            level={row.level}
+            iconOff={row.iconOff}
+            iconOn={row.iconOn}
+            mask={mask}
+            available={prayerAvailable(row.item, row.level)}
+          />
+        ))}
+      </layer>
+    );
+  }
+
+  if (book === PrayerBook.DEADEYE) {
+    return (
+      <layer w="fill" h="fill">
+        {StandardPrayersDeadeye.map((row, index) => (
+          <PrayerCell
+            index={index}
+            item={row.item}
+            bit={row.bit}
+            name={row.name}
+            level={row.level}
+            iconOff={row.iconOff}
+            iconOn={row.iconOn}
+            mask={mask}
+            available={prayerAvailable(row.item, row.level)}
+          />
+        ))}
+      </layer>
+    );
+  }
+
+  if (book === PrayerBook.MYSTIC_VIGOUR) {
+    return (
+      <layer w="fill" h="fill">
+        {StandardPrayersMysticVigour.map((row, index) => (
+          <PrayerCell
+            index={index}
+            item={row.item}
+            bit={row.bit}
+            name={row.name}
+            level={row.level}
+            iconOff={row.iconOff}
+            iconOn={row.iconOn}
+            mask={mask}
+            available={prayerAvailable(row.item, row.level)}
+          />
+        ))}
+      </layer>
+    );
+  }
+
+  if (book === PrayerBook.BOTH) {
+    return (
+      <layer w="fill" h="fill">
+        {StandardPrayersBoth.map((row, index) => (
+          <PrayerCell
+            index={index}
+            item={row.item}
+            bit={row.bit}
+            name={row.name}
+            level={row.level}
+            iconOff={row.iconOff}
+            iconOn={row.iconOn}
+            mask={mask}
+            available={prayerAvailable(row.item, row.level)}
+          />
+        ))}
+      </layer>
+    );
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {StandardPrayers.map((row, index) => (
+        <PrayerCell
+          index={index}
+          item={row.item}
+          bit={row.bit}
+          name={row.name}
+          level={row.level}
+          iconOff={row.iconOff}
+          iconOn={row.iconOn}
+          mask={mask}
+          available={prayerAvailable(row.item, row.level)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function PrayerCell({
+  index,
+  item,
+  bit,
+  name,
+  level,
+  iconOff,
+  iconOn,
+  mask,
+  available,
+}: {
+  index: Int;
+  item: Item;
+  bit: Int;
+  name: String;
+  level: Int;
+  iconOff: Sprite;
+  iconOn: Sprite;
+  mask: Int;
+  available: Boolean;
+}): Component {
+  const left: Int = (index % Layout.columns) * Layout.pitch;
+  const top: Int = (index / Layout.columns) * Layout.pitch;
+
+  return (
+    <>
+      <sprite
+        x={left}
+        y={top}
+        w={Layout.hit}
+        h={Layout.hit}
+        options={[TOGGLE]}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onOptionSelect={(event) => {
+          if (event.option !== 1) {
+            return;
+          }
+          if (toggleQuickPrayer(item, level, mask, bit)) {
+            playSound(Sounds.CLICK);
+          }
+        }}
+      />
+
+      <sprite
+        x={left + Layout.icon.offset}
+        y={top + Layout.icon.offset}
+        w={Layout.icon.size}
+        h={Layout.icon.size}
+        sprite={available ? iconOn : iconOff}
+        transparency={IconFade.REST}
+        hover={{ transparency: IconFade.HOVER }}
+      />
+
+      <sprite x={left} y={top} w={Layout.toggle} h={Layout.toggle} sprite={selectedSprite(mask, bit)} />
+    </>
+  );
+}
+
+function selectedSprite(mask: Int, bit: Int): Sprite {
+  if (hasBit(mask, bit)) {
+    return PrayerArt.TOGGLE_ON;
+  }
+  return PrayerArt.TOGGLE_OFF;
+}

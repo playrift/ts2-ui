@@ -1,0 +1,87 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { DropdownRow } from './dropdown-row.component';
+import { attackOptionText, NpcAttackOptions, PlayerAttackOptions } from './attack-options.data';
+import { SideButtons } from './side-buttons.component';
+import { clickSound, neq } from './settings-side.helpers';
+import {
+  DropdownId,
+  Layout,
+  LineHeight,
+  SideArt,
+  SideColor,
+  SideFont,
+  SideTab,
+  SideVars,
+} from './settings-side.constants';
+
+export function ControlsPanel(): Component {
+  const tab: Int = useServerState(SideVars.TAB);
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w={{ fill: Layout.panel.inset }}
+      h={{ fill: Layout.panel.inset }}
+      hide={neq(tab, SideTab.CONTROLS)}
+    >
+      <SkullPrevention />
+      <DropdownRow
+        y={Layout.dropdown.playerY}
+        label="Player 'Attack' options"
+        text={attackOptionText(PlayerAttackOptions, useServerState(SideVars.PLAYER_ATTACK))}
+        id={DropdownId.PLAYER_ATTACK}
+      />
+      <DropdownRow
+        y={Layout.dropdown.npcY}
+        label="NPC 'Attack' options"
+        text={attackOptionText(NpcAttackOptions, useServerState(SideVars.NPC_ATTACK))}
+        id={DropdownId.NPC_ATTACK}
+      />
+      <SideButtons />
+    </layer>
+  );
+}
+
+function SkullPrevention(): Component {
+  const on: Int = useServerState(SideVars.SKULL_PREVENTION);
+  const [hovered, setHovered] = useState(0);
+
+  return (
+    <layer
+      x="center"
+      y={Layout.skull.y}
+      w={{ fill: Layout.skull.insetW }}
+      h={Layout.skull.h}
+      options={['Toggle skull prevention']}
+      onOptionSelect={() => toggleSkullPrevention(on)}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    >
+      <text
+        w={{ fill: Layout.skull.labelInset }}
+        h="fill"
+        text="PK Skull Prevention"
+        font={SideFont.BODY}
+        shadow
+        color={hovered === 1 && !onMobile() ? SideColor.WHITE : SideColor.LABEL}
+        align="left"
+        valign="middle"
+        lineHeight={LineHeight.ROW}
+      />
+      <sprite
+        x="right"
+        y={Layout.skull.boxY}
+        w={Layout.skull.boxW}
+        h={Layout.skull.boxH}
+        sprite={on === 1 ? SideArt.CHECK_ON : SideArt.CHECK_OFF}
+      />
+    </layer>
+  );
+}
+
+function toggleSkullPrevention(on: Int): void {
+  clickSound();
+  predictServerState(SideVars.SKULL_PREVENTION, on === 1 ? 0 : 1);
+}

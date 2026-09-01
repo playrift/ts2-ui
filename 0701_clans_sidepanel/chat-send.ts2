@@ -1,0 +1,127 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { chatMessage, clientClock } from '../lib/lib.engine';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { chatLastoutput, chatboxMode } from '../lib/game/varcs';
+import { ChatboxModeNames, ClanSidepanelVarbits } from './clans-sidepanel.constants';
+
+export function startsWithPipe(text: String): Boolean {
+  if (CS2.string_length(text) > 0 && CS2.compare(CS2.substring(text, 0, 1), '|') === 0) {
+    return true;
+  }
+  return false;
+}
+
+export function beforePipe(text: String): String {
+  const length: Int = CS2.string_length(text);
+  if (length <= 0) {
+    return '';
+  }
+  const at: Int = CS2.string_indexof_string(text, '|', 0);
+  if (at === -1) {
+    return text;
+  }
+  if (at === 0) {
+    return '';
+  }
+  return CS2.substring(text, 0, at);
+}
+
+export function afterPipe(text: String): String {
+  const length: Int = CS2.string_length(text);
+  if (length <= 0) {
+    return '';
+  }
+  const at: Int = CS2.string_indexof_string(text, '|', 0);
+  if (at === -1) {
+    return '';
+  }
+  if (at === 0) {
+    return CS2.substring(text, 1, length);
+  }
+  if (at + 1 >= length) {
+    return '';
+  }
+  return CS2.substring(text, at + 1, length);
+}
+
+export function chatSend(text: String, type: Int, channel: Int, fromChatboxMode: Int, switchTo: Int): void {
+  const [mode, setMode] = useState(chatboxMode);
+  const [, setLastOutput] = useState(chatLastoutput);
+  const ironman: Int = useServerState(ClanSidepanelVarbits.IRONMAN);
+
+  if (useServerState(ClanSidepanelVarbits.CHAT_STFU) === 1) {
+    if (type === 1) {
+      chatMessage(`${CS2.chat_playername()}: <col=2020ef>${text}</col>`);
+      return;
+    }
+    chatMessage(`${CS2.chat_playername()}: <col=0000ff>${text}</col>`);
+    return;
+  }
+
+  let target: Int = switchTo;
+  if (!isGroupIronman(ironman) && switchTo === 4) {
+    target = mode;
+  }
+
+  let current: Int = mode;
+  if (target !== -1 && target <= 4 && target !== mode) {
+    setMode(target);
+    current = target;
+    if (target !== 0) {
+      chatMessage(
+        `Your chatbox mode is now set to ${ChatboxModeNames.at(target) ?? ''} chat. To reset your mode, type <col=ef1020>/@p</col>.`,
+      );
+    } else {
+      chatMessage(`Your chatbox mode has been reset to ${ChatboxModeNames.at(target) ?? ''} chat.`);
+    }
+  }
+
+  let sendType: Int = type;
+  let sendChannel: Int = channel;
+  if (fromChatboxMode === 1) {
+    if (current === 1) {
+      sendType = 2;
+    } else if (current === 2) {
+      sendType = 3;
+      sendChannel = 0;
+    } else if (current === 3) {
+      sendType = 4;
+      sendChannel = 0;
+    } else if (current === 4) {
+      sendType = 3;
+      sendChannel = 1;
+    }
+  }
+
+  let body: String = text;
+  if (sendType === 3 || sendType === 4) {
+    if (startsWithPipe(body)) {
+      body = afterPipe(body);
+    }
+    if (sendChannel === 1) {
+      body = CS2.append(
+        CS2.string_uppercase(CS2.substring(body, 0, 1)),
+        CS2.substring(body, 1, CS2.string_length(body)),
+      );
+      body = CS2.append('|', body);
+      if (CS2.string_length(body) > 80) {
+        body = CS2.substring(body, 0, 80);
+      }
+    }
+    if (CS2.string_length(body) <= 0) {
+      return;
+    }
+    CS2.chat_sendclan(body, sendType, sendChannel);
+    setLastOutput(clientClock());
+    return;
+  }
+
+  if (sendType === 2 && CS2.string_length(body) > 0 && CS2.compare(CS2.substring(body, 0, 1), '/') !== 0) {
+    body = CS2.append('/', body);
+  }
+  if (CS2.string_length(body) <= 0) {
+    return;
+  }
+  CS2.chat_sendpublic(body, sendType);
+  setLastOutput(clientClock());
+}

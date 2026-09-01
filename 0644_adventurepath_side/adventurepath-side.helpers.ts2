@@ -1,0 +1,196 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { hasBit, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  Bar,
+  PathTaskBase,
+  SideColors,
+  SideText,
+  SideVarbits,
+  SideVarps,
+  TASK_BITS,
+} from './adventurepath-side.constants';
+import { AdventurePathId } from './adventure-paths.data';
+import { AdventureTasks } from './adventure-tasks.data';
+import { SkillXp } from './skill-xp.data';
+
+export function taskFocus(path: Int): Int {
+  if (path === AdventurePathId.P0) {
+    return offsetFocus(useServerState(SideVarbits.COMBAT_TASK_FOCUS), PathTaskBase.P0);
+  }
+  if (path === AdventurePathId.P1) {
+    return offsetFocus(useServerState(SideVarbits.GATHERER_TASK_FOCUS), PathTaskBase.P1);
+  }
+  if (path === AdventurePathId.P2) {
+    return offsetFocus(useServerState(SideVarbits.WARRIOR_TASK_FOCUS), PathTaskBase.P2);
+  }
+  if (path === AdventurePathId.P3) {
+    return offsetFocus(useServerState(SideVarbits.WIZARD_TASK_FOCUS), PathTaskBase.P3);
+  }
+  if (path === AdventurePathId.P4) {
+    return offsetFocus(useServerState(SideVarbits.RANGER_TASK_FOCUS), PathTaskBase.P4);
+  }
+  return 0;
+}
+
+function offsetFocus(value: Int, base: Int): Int {
+  if (value === 0) {
+    return 0;
+  }
+  return value + base;
+}
+
+export function taskDone(taskId: Int): Boolean {
+  if (taskId < TASK_BITS) {
+    return hasBit(useServerState(SideVarps.TASKS_DONE), taskId);
+  }
+  return false;
+}
+
+export function focusedTaskRow(path: Int, focus: Int): Int {
+  let cursor: Int = 0;
+  let found: Int = -1;
+  while (cursor < AdventureTasks.length) {
+    const task = AdventureTasks.at(cursor);
+    if (task !== null && task.path === path && task.taskId === focus) {
+      found = cursor;
+      cursor = AdventureTasks.length;
+    }
+    cursor = cursor + 1;
+  }
+  return found;
+}
+
+export function taskMeasured(gate: Int, skill: Skill): Boolean {
+  if (gate === 0 && skill !== -1) {
+    return true;
+  }
+  return false;
+}
+
+export function taskVisibleXp(skill: Skill): Int {
+  if (skill === -1) {
+    return 0;
+  }
+  return CS2.skill_visible_xp(skill);
+}
+
+export function xpForLevel(level: Int): Int {
+  return SkillXp.get(level) ?? 0;
+}
+
+export function barFill(value: Int, max: Int, width: Int): Int {
+  const span: Int = width - Bar.FILL_INSET;
+  if (value >= max) {
+    return span;
+  }
+  return scaled(value, max, span);
+}
+
+export function barColour(value: Int, max: Int): Int {
+  if (max <= 0) {
+    return 0;
+  }
+  const half: Int = max / 2;
+  if (value <= half) {
+    return Bar.RAMP * 65536 + CS2.interpolate(0, value, 0, half, Bar.RAMP) * 256;
+  }
+  return (Bar.RAMP - CS2.interpolate(0, value - half, 0, half, Bar.RAMP)) * 65536 + Bar.RAMP * 256;
+}
+
+export function barLabel(value: Int, max: Int, suffix: String): String {
+  if (value === 0 && max === 0) {
+    return 'N/A';
+  }
+  if (value === -1 || max === -1) {
+    return 'N/A';
+  }
+  return `${groupDigits(value, SideText.THOUSANDS)}/${groupDigits(max, SideText.THOUSANDS)}${suffix}`;
+}
+
+export function desktop(): Boolean {
+  if (onMobile()) {
+    return false;
+  }
+  return true;
+}
+
+export function toggleOn(value: Int): Boolean {
+  if (value === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function taskFound(row: Int): Boolean {
+  if (row === -1) {
+    return false;
+  }
+  return true;
+}
+
+export function hintLive(found: Boolean, taskId: Int, hint: Int): Boolean {
+  if (found === false) {
+    return false;
+  }
+  if (taskDone(taskId)) {
+    return false;
+  }
+  if (hint === -1) {
+    return false;
+  }
+  return true;
+}
+
+export function noPathPrompt(): String {
+  if (onMobile()) {
+    return SideText.NO_PATH_MOBILE;
+  }
+  return SideText.NO_PATH_DESKTOP;
+}
+
+export function noTaskDescription(): String {
+  if (onMobile()) {
+    return SideText.NO_TASK_DESC_MOBILE;
+  }
+  return SideText.NO_TASK_DESC_DESKTOP;
+}
+
+export function togglePressedColour(): Int {
+  if (onMobile()) {
+    return SideColors.WHITE;
+  }
+  return SideColors.GOLD;
+}
+
+export function settingValue(index: Int): Int {
+  if (index === 0) {
+    return useServerState(SideVarbits.DISABLE_TASK_MESSAGE);
+  }
+  if (index === 1) {
+    return useServerState(SideVarbits.DISABLE_PATH_MESSAGE);
+  }
+  if (index === 2) {
+    return useServerState(SideVarbits.DISABLE_TASK_FOCUS_MESSAGE);
+  }
+  if (index === 3) {
+    return useServerState(SideVarbits.DISABLE_PATH_FOCUS_MESSAGE);
+  }
+  return useServerState(SideVarbits.DISABLE_NOTIFICATION);
+}
+
+export function toggleSetting(index: Int, on: Boolean): void {
+  const next: Int = on ? 0 : 1;
+  if (index === 0) {
+    predictServerState(SideVarbits.DISABLE_TASK_MESSAGE, next);
+  } else if (index === 1) {
+    predictServerState(SideVarbits.DISABLE_PATH_MESSAGE, next);
+  } else if (index === 2) {
+    predictServerState(SideVarbits.DISABLE_TASK_FOCUS_MESSAGE, next);
+  } else if (index === 3) {
+    predictServerState(SideVarbits.DISABLE_PATH_FOCUS_MESSAGE, next);
+  } else {
+    predictServerState(SideVarbits.DISABLE_NOTIFICATION, next);
+  }
+}

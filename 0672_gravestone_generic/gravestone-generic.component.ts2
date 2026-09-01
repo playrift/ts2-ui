@@ -1,0 +1,652 @@
+import { onMounted, onUpdated, useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { setTransparency, flashFor } from '../lib/lib.components';
+import { SteelborderColor } from '../lib/lib.constants';
+import { itemName, scaled, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import {
+  gravestoneHeight,
+  gravestoneTransmitCoffer,
+  gravestoneTransmitFee,
+  gravestoneWidth,
+  gravestoneX,
+  gravestoneY,
+} from '../lib/game/varcs';
+import { FreeReclaimButton, PayButton } from './gravestone-buttons.component';
+import { GravestoneCloseButton } from './gravestone-close-button.component';
+import {
+  cofferText,
+  dragGravestoneWindow,
+  feeText,
+  payRowPrice,
+  priceLabel,
+  scaleGravestoneFee,
+  stretchGravestoneWindow,
+} from './gravestone-generic.helpers';
+import {
+  Fade,
+  GraveArt,
+  GraveBar,
+  GraveColor,
+  GraveFee,
+  GraveFonts,
+  GraveInventories,
+  GraveModels,
+  GraveVarbits,
+  Handle,
+  MAX_INT,
+  Slot,
+  Window,
+} from './gravestone-generic.constants';
+
+export function GravestoneGeneric(): Component {
+  const universe = useUniverse();
+
+  const topInset: Int = onMobile() ? Window.MOBILE_TOP : 0;
+
+  const minW: Int = Window.MIN_W_PADDING + textWidth(cofferText(MAX_INT), Window.MEASURE_W, GraveFonts.LABEL);
+  const minH: Int = Window.MIN_H;
+
+  const [storedW] = useState(gravestoneWidth);
+  const [storedH] = useState(gravestoneHeight);
+  const [storedX] = useState(gravestoneX);
+  const [storedY] = useState(gravestoneY);
+
+  const stageW: Int = universe.width;
+  const stageH: Int = universe.height - topInset;
+
+  const seedW: Int =
+    storedW < minW ? scaled(Window.DEFAULT_W_OF, Window.DEFAULT_W_PER, Window.DEFAULT_W_RANGE) : storedW;
+  const seedH: Int =
+    storedH < minH ? scaled(Window.DEFAULT_H_OF, Window.DEFAULT_H_PER, Window.DEFAULT_H_RANGE) : storedH;
+  const seedX: Int = storedX < 0 ? (stageW - seedW) / 2 : storedX;
+  const seedY: Int = storedY < topInset ? Math.max(topInset, (universe.height - seedH) / 2) : storedY;
+
+  const winW: Int = Math.max(minW, Math.min(seedW, stageW));
+  const winH: Int = Math.max(minH, Math.min(seedH, stageH));
+  const winX: Int = Math.max(0, Math.min(seedX, stageW - winW));
+  const winY: Int = Math.max(topInset, Math.min(seedY, topInset + stageH - winH));
+
+  const extraH: Int = winH - minH;
+  const freeSplit: Int = extraH / 2;
+  const freeH: Int = Window.FREE_MIN_H + freeSplit + 1;
+  const payH: Int = Window.PAY_MIN_H + (extraH - freeSplit);
+
+  const paneW: Int = winW - 82;
+  const cols: Int = Math.max(1, paneW / Slot.PITCH_X);
+  const spread: Int = cols > 1 ? (paneW - cols * Slot.W) / (cols - 1) : 0;
+  const insetX: Int = (paneW - (cols * Slot.W + (cols - 1) * spread) + 1) / 2;
+  const strideX: Int = Slot.W + spread;
+
+  const freeFromRaw: Int = useServerState(GraveVarbits.FREE_FROM) - 1;
+  const freeFrom: Int = freeFromRaw === -1 ? MAX_INT : freeFromRaw;
+  const rate1kRaw: Int = useServerState(GraveVarbits.RATE_1K_FROM) - 1;
+  const rate1kFrom: Int = rate1kRaw === -1 ? MAX_INT : rate1kRaw;
+  const rate10kRaw: Int = useServerState(GraveVarbits.RATE_10K_FROM) - 1;
+  const rate10kFrom: Int = rate10kRaw === -1 ? MAX_INT : rate10kRaw;
+
+  const feeCap: Int = scaleGravestoneFee(GraveFee.CAP);
+
+  const [transmitFee] = useState(gravestoneTransmitFee);
+  const [transmitCoffer] = useState(gravestoneTransmitCoffer);
+
+  const held = useInventory(GraveInventories.LOST);
+
+  const content = useRef();
+  const preview = useRef();
+  const freePane = useRef();
+  const payPane = useRef();
+
+  const size: Int = held.size;
+  let freeCount: Int = 0;
+  let payCount: Int = 0;
+  let slot: Int = 0;
+  while (slot < size) {
+    if (held[slot] !== -1) {
+      if (slot >= freeFrom) {
+        freeCount = freeCount + 1;
+      } else {
+        payCount = payCount + 1;
+      }
+    }
+    slot = slot + 1;
+  }
+  const filled: Int = freeCount + payCount;
+  const freeExtent: Int = freeCount > 0 ? ((freeCount - 1) / cols) * Slot.FREE_STRIDE_Y + Slot.H : 0;
+  const payExtent: Int = payCount > 0 ? ((payCount - 1) / cols) * Slot.PAY_STRIDE_Y + Slot.H + Slot.PRICE_H : 0;
+
+  const owing: Int = transmitFee !== 0 ? 1 : 0;
+
+  const [seenW, setSeenW] = useState(0);
+  const [seenH, setSeenH] = useState(0);
+  onMounted(() => {
+    setSeenW(universe.width);
+    setSeenH(universe.height - topInset);
+  });
+  universe.onResize = () => {
+    stretchGravestoneWindow(seenW, seenH, universe.width, universe.height - topInset, topInset, winW, winH, winX, winY);
+    setSeenW(universe.width);
+    setSeenH(universe.height - topInset);
+  };
+
+  onUpdated(() => {
+    freePane.scrollY = freePane.scrollY;
+    payPane.scrollY = payPane.scrollY;
+  });
+
+  return (
+    <>
+      <layer ref={content} x={winX} y={winY} w={winW} h={winH}>
+        <layer x="center" y="center" w="fill" h="fill" noClickThrough>
+          <SteelBorder
+            title={`Gravestone <col=ffb83f>(${filled}/${size})</col>`}
+            titleColor={SteelborderColor.TITLE}
+            flags={3}
+          />
+        </layer>
+
+        <GravestoneCloseButton />
+
+        <layer x="center" y={40} w={{ fill: 20 }} h={freeH}>
+          <text
+            x="center"
+            y={2}
+            w={{ fill: 4 }}
+            h={12}
+            text="Free to reclaim:"
+            font={GraveFonts.LABEL}
+            color={GraveColor.LABEL}
+            shadow
+            valign="middle"
+          />
+
+          <layer ref={freePane} x={18} y={{ bottom: 2 }} w={{ fill: 62 }} h={{ fill: 16 }} scrollHeight={freeExtent}>
+            {held.scan(
+              (item, index, seen) =>
+                index >= freeFrom &&
+                item !== -1 && (
+                  <sprite
+                    x={insetX + (seen % cols) * strideX}
+                    y={(seen / cols) * Slot.FREE_STRIDE_Y}
+                    w={Slot.W}
+                    h={Slot.H}
+                    item={item}
+                    itemCount={held.count(index)}
+                    outline={Slot.OUTLINE}
+                    shadowColor={GraveColor.SLOT_SHADOW}
+                    options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+                    optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                    onOptionSelect={(event) => {
+                      flashFor(event.self, Fade.SLOT_PRESSED, Fade.REST);
+                    }}
+                  />
+                ),
+              (item, index) => (index >= freeFrom && item !== -1 ? 1 : 0),
+            )}
+          </layer>
+
+          <layer x={2} y={{ bottom: 2 }} w={16} h={{ fill: 16 }}>
+            <ScrollbarVertical
+              content={freePane}
+              track={GraveBar.TRACK}
+              capTopSprite={GraveBar.CAP_TOP}
+              thumbSprite={GraveBar.THUMB}
+              capBottomSprite={GraveBar.CAP_BOTTOM}
+              arrowUp={GraveBar.ARROW_UP}
+              arrowDown={GraveBar.ARROW_DOWN}
+            />
+          </layer>
+
+          <FreeReclaimButton sprite={GraveArt.TAKE_ALL} />
+
+          <ThinBoxEntrypoint />
+        </layer>
+
+        <layer x={10} y={{ bottom: 10 }} w={{ fill: 20 }} h={payH}>
+          <layer x="center" y={2} w={{ fill: 4 }} h={{ fill: 26 }}>
+            <text
+              x="center"
+              y={0}
+              w="fill"
+              h={12}
+              text={feeText(transmitFee)}
+              font={GraveFonts.LABEL}
+              color={GraveColor.LABEL}
+              shadow
+            />
+
+            <layer ref={payPane} x={16} y="bottom" w={{ fill: 58 }} h={{ fill: 12 }} scrollHeight={payExtent}>
+              {held.scan(
+                (item, index, seen) =>
+                  index < freeFrom &&
+                  item !== -1 && (
+                    <>
+                      <sprite
+                        x={insetX + (seen % cols) * strideX}
+                        y={(seen / cols) * Slot.PAY_STRIDE_Y}
+                        w={Slot.W}
+                        h={Slot.H}
+                        item={item}
+                        itemCount={held.count(index)}
+                        outline={Slot.OUTLINE}
+                        shadowColor={GraveColor.SLOT_SHADOW}
+                        options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+                        optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                        onOptionSelect={(event) => {
+                          flashFor(event.self, Fade.SLOT_PRESSED, Fade.REST);
+                        }}
+                      />
+                      <text
+                        x={insetX + (seen % cols) * strideX}
+                        y={(seen / cols) * Slot.PAY_STRIDE_Y + Slot.H}
+                        w={Slot.W}
+                        h={Slot.PRICE_H}
+                        text={priceLabel(payRowPrice(held.count(index), index, rate1kFrom, rate10kFrom, feeCap))}
+                        font={GraveFonts.LABEL}
+                        color={GraveColor.PRICE}
+                        shadow
+                        align="center"
+                        valign="middle"
+                      />
+                    </>
+                  ),
+                (item, index) => (index < freeFrom && item !== -1 ? 1 : 0),
+              )}
+            </layer>
+
+            <layer x={0} y="bottom" w={16} h={{ fill: 12 }}>
+              <ScrollbarVertical
+                content={payPane}
+                track={GraveBar.TRACK}
+                capTopSprite={GraveBar.CAP_TOP}
+                thumbSprite={GraveBar.THUMB}
+                capBottomSprite={GraveBar.CAP_BOTTOM}
+                arrowUp={GraveBar.ARROW_UP}
+                arrowDown={GraveBar.ARROW_DOWN}
+              />
+            </layer>
+
+            <PayButton
+              label={owing === 1 ? 'Unlock' : 'Take-All'}
+              sprite={owing === 1 ? GraveArt.UNLOCK : GraveArt.TAKE_ALL}
+            />
+
+            <model
+              x="right"
+              y="bottom"
+              w={41}
+              h={41}
+              model={GraveModels.INCINERATOR}
+              pitch={114}
+              yaw={1396}
+              zoom={4000}
+              offsetY={150}
+              dragTarget
+            />
+          </layer>
+
+          <text
+            x="center"
+            y={{ bottom: 2 }}
+            w="fill"
+            h={22}
+            text={cofferText(transmitCoffer)}
+            font={GraveFonts.LABEL}
+            color={GraveColor.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+          />
+
+          <ThinBoxEntrypoint />
+        </layer>
+      </layer>
+
+      <layer ref={preview} x="center" y="center" w={220} h={209} hide>
+        <rect x="center" y="center" w="fill" h="fill" color={GraveColor.PREVIEW} fill={false} transparency={100} />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          color={GraveColor.PREVIEW}
+          fill={false}
+          transparency={110}
+        />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 4 }}
+          h={{ fill: 4 }}
+          color={GraveColor.PREVIEW}
+          fill={false}
+          transparency={120}
+        />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 6 }}
+          h={{ fill: 6 }}
+          color={GraveColor.PREVIEW}
+          fill={false}
+          transparency={130}
+        />
+      </layer>
+
+      <sprite
+        x={winX + Window.HANDLE}
+        y={winY}
+        w={winW - Window.HANDLE * 2}
+        h={Window.TITLE_BAR_H}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.TITLE,
+            event.mouseX,
+            event.mouseY,
+            winX + Window.HANDLE,
+            winY,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX + Window.HANDLE}
+        y={winY + winH - Window.HANDLE}
+        w={winW - Window.HANDLE * 2}
+        h={Window.HANDLE}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.BOTTOM,
+            event.mouseX,
+            event.mouseY,
+            winX + Window.HANDLE,
+            winY + winH - Window.HANDLE,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX}
+        y={winY + Window.HANDLE}
+        w={Window.HANDLE}
+        h={winH - Window.HANDLE * 2}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.LEFT,
+            event.mouseX,
+            event.mouseY,
+            winX,
+            winY + Window.HANDLE,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX + winW - Window.HANDLE}
+        y={winY + Window.HANDLE}
+        w={Window.HANDLE}
+        h={winH - Window.HANDLE * 2}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.RIGHT,
+            event.mouseX,
+            event.mouseY,
+            winX + winW - Window.HANDLE,
+            winY + Window.HANDLE,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX}
+        y={winY}
+        w={Window.HANDLE}
+        h={Window.HANDLE}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.TOP_LEFT,
+            event.mouseX,
+            event.mouseY,
+            winX,
+            winY,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX + winW - Window.HANDLE}
+        y={winY}
+        w={Window.HANDLE}
+        h={Window.HANDLE}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.TOP_RIGHT,
+            event.mouseX,
+            event.mouseY,
+            winX + winW - Window.HANDLE,
+            winY,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX}
+        y={winY + winH - Window.HANDLE}
+        w={Window.HANDLE}
+        h={Window.HANDLE}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.BOTTOM_LEFT,
+            event.mouseX,
+            event.mouseY,
+            winX,
+            winY + winH - Window.HANDLE,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+      <sprite
+        x={winX + winW - Window.HANDLE}
+        y={winY + winH - Window.HANDLE}
+        w={Window.HANDLE}
+        h={Window.HANDLE}
+        sprite={GraveArt.HANDLE}
+        tiling
+        transparency={Window.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Window.DRAG_DEAD_ZONE}
+        dragDeadTime={Window.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => {
+          setTransparency(event.component, Window.HANDLE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          setTransparency(event.component, Window.HANDLE_REST);
+        }}
+        onDrag={(event) => {
+          dragGravestoneWindow(
+            event.self,
+            Handle.BOTTOM_RIGHT,
+            event.mouseX,
+            event.mouseY,
+            winX + winW - Window.HANDLE,
+            winY + winH - Window.HANDLE,
+            winW,
+            winH,
+            winX,
+            winY,
+            stageW,
+            stageH,
+            topInset,
+            minW,
+            minH,
+            content,
+            preview,
+          );
+        }}
+      />
+    </>
+  );
+}

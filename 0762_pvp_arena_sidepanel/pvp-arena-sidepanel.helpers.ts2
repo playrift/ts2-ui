@@ -1,0 +1,269 @@
+import { CS2 } from 'ts2';
+import { textDevice } from '../lib/lib.helpers';
+import { clanSettingGroupType } from '../0701_clans_sidepanel/clan-settings';
+import { AffinityStatus, ClanGroupType } from '../0701_clans_sidepanel/clans-sidepanel.constants';
+import { PVPA_GROUP_CAPACITY } from './pvp-arena-sidepanel.constants';
+
+export enum PvpaArm {
+  OWN = 0,
+  GUEST_ARENA = 1,
+  GUEST_OTHER = 2,
+  NONE = 3,
+}
+
+export function pvpaArm(pvpaStatus: Int, guestStatus: Int): Int {
+  if (pvpaStatus === AffinityStatus.LIVE) {
+    if (CS2.activeclansettings_affined_find(2)) {
+      return PvpaArm.OWN;
+    }
+  }
+  if (guestStatus === AffinityStatus.LIVE) {
+    if (CS2.activeclansettings_listened_find()) {
+      if (isArenaGroup(clanSettingGroupType())) {
+        return PvpaArm.GUEST_ARENA;
+      }
+      return PvpaArm.GUEST_OTHER;
+    }
+  }
+  return PvpaArm.NONE;
+}
+
+export function isArenaGroup(groupType: Int): Boolean {
+  if (
+    groupType === ClanGroupType.ARENA_1V1_HOSTED ||
+    groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+    groupType === ClanGroupType.ARENA_GROUP_HOSTED ||
+    groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+    groupType === ClanGroupType.ARENA_DUEL_HOSTED ||
+    groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isOfficialGroup(groupType: Int): Boolean {
+  if (
+    groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+    groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+    groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isGroupHost(groupType: Int): Boolean {
+  if (isOfficialGroup(groupType) || !isArenaGroup(groupType)) {
+    return false;
+  }
+  if (
+    CS2.activeclansettings_current_owner_slot_get() ===
+    CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function pvpaTitleText(arm: Int): String {
+  if (arm === PvpaArm.OWN || arm === PvpaArm.GUEST_ARENA) {
+    const groupType: Int = clanSettingGroupType();
+    if (groupType === ClanGroupType.ARENA_1V1_HOSTED || groupType === ClanGroupType.ARENA_1V1_OFFICIAL) {
+      return '1v1 Tournament';
+    }
+    if (groupType === ClanGroupType.ARENA_GROUP_HOSTED || groupType === ClanGroupType.ARENA_GROUP_OFFICIAL) {
+      return 'Group Battle';
+    }
+    if (groupType === ClanGroupType.ARENA_DUEL_HOSTED || groupType === ClanGroupType.ARENA_DUEL_OFFICIAL) {
+      return '1v1 Duels';
+    }
+    return '';
+  }
+  return 'PvP Arena';
+}
+
+export function pvpaGroupNameText(arm: Int): String {
+  if (arm !== PvpaArm.OWN && arm !== PvpaArm.GUEST_ARENA) {
+    return '<col=808080>---</col>';
+  }
+
+  const groupType: Int = clanSettingGroupType();
+  const guestMode: Int = arm === PvpaArm.GUEST_ARENA ? 1 : 0;
+
+  if (isOfficialGroup(groupType)) {
+    return '<img=1> Official Group';
+  }
+
+  if (isGroupHost(groupType) && guestMode === 0) {
+    return `JC: ${CS2.activeclansettings_clan_name_get()}`;
+  }
+
+  const owner: Int = CS2.activeclansettings_current_owner_slot_get();
+  if (groupType === ClanGroupType.ARENA_1V1_HOSTED) {
+    if (owner !== -1) {
+      return CS2.activeclansettings_affined_display_name_get(owner);
+    }
+    return 'Host not found';
+  }
+  if (groupType === ClanGroupType.ARENA_GROUP_HOSTED || groupType === ClanGroupType.ARENA_DUEL_HOSTED) {
+    if (owner !== -1) {
+      return CS2.activeclansettings_affined_display_name_get(owner);
+    }
+    return CS2.activeclansettings_clan_name_get();
+  }
+  return '';
+}
+
+function groupCounts(): String {
+  return `${stringOf(CS2.activeclansettings_affined_count_get())}/${stringOf(PVPA_GROUP_CAPACITY)}`;
+}
+
+export function pvpaHintText(arm: Int, fightWorld: Int): String {
+  if (arm !== PvpaArm.OWN && arm !== PvpaArm.GUEST_ARENA) {
+    return '<col=808080>---</col>';
+  }
+
+  const groupType: Int = clanSettingGroupType();
+  const guestMode: Int = arm === PvpaArm.GUEST_ARENA ? 1 : 0;
+
+  if (guestMode === 0 && fightWorld !== 0) {
+    return 'A fight has been found for you!';
+  }
+
+  if (isOfficialGroup(groupType)) {
+    if (guestMode === 1) {
+      return '<col=ffb83f>Sign up</col> to be invited to fights.';
+    }
+    return 'Waiting for players to match...';
+  }
+  if (isGroupHost(groupType) && guestMode === 0) {
+    return textDevice(
+      `${groupCounts()} - Click <col=ffb83f>Start</col> when ready.`,
+      `${groupCounts()} - Tap <col=ffb83f>Start</col> when ready.`,
+    );
+  }
+  if (guestMode === 1) {
+    return '<col=ffb83f>Sign up</col> to be invited to the fight.';
+  }
+  return `${groupCounts()} - Waiting for group leader.`;
+}
+
+export function pvpaLeftLabel(arm: Int): String {
+  if (arm === PvpaArm.GUEST_OTHER || arm === PvpaArm.NONE) {
+    return 'Options';
+  }
+  const groupType: Int = clanSettingGroupType();
+  const guestMode: Int = arm === PvpaArm.GUEST_ARENA ? 1 : 0;
+  if (isOfficialGroup(groupType)) {
+    if (guestMode === 1) {
+      return '<col=0dc10d>Sign up</col>';
+    }
+    return 'Options';
+  }
+  if (isGroupHost(groupType) && guestMode === 0) {
+    return '<col=0dc10d>Start</col>';
+  }
+  if (guestMode === 1) {
+    return '<col=0dc10d>Sign up</col>';
+  }
+  return '';
+}
+
+export function pvpaRightLabel(arm: Int): String {
+  if (arm === PvpaArm.GUEST_OTHER) {
+    return '<col=ff0000>Discard</col>';
+  }
+  if (arm === PvpaArm.NONE) {
+    return '<col=0dc10d>Find</col>';
+  }
+  const groupType: Int = clanSettingGroupType();
+  const guestMode: Int = arm === PvpaArm.GUEST_ARENA ? 1 : 0;
+  if (isOfficialGroup(groupType)) {
+    if (guestMode === 1) {
+      return '<col=ff0000>Discard</col>';
+    }
+    return '<col=ff0000>Leave</col>';
+  }
+  if (isGroupHost(groupType) && guestMode === 0) {
+    return '<col=ff981f>Options</col>';
+  }
+  if (guestMode === 1) {
+    return '<col=ff0000>Discard</col>';
+  }
+  return '<col=ff0000>Leave</col>';
+}
+
+export function pvpaWorldhopLabel(arm: Int, fightWorld: Int): String {
+  if (arm !== PvpaArm.OWN || fightWorld === 0) {
+    return '';
+  }
+  if (CS2.map_world() === fightWorld) {
+    return '<col=0dc10d>Join fight</col>';
+  }
+  return '<col=0dc10d>Switch world</col>';
+}
+
+export function pvpaListMessage(arm: Int, fightWorld: Int, pvpaStatus: Int, guestStatus: Int): String {
+  if (arm === PvpaArm.GUEST_OTHER) {
+    return `You have currently loaded <col=ffb83f>${CS2.activeclansettings_clan_name_get()}</col>, which is not a PvP Arena group.`;
+  }
+
+  if (arm === PvpaArm.NONE) {
+    if (pvpaStatus === 1 && guestStatus === 1) {
+      return textDevice(
+        "Click <col=ffb83f>Find</col> to find a PvP Arena group.<br><br>Once you've found a suitable group, <col=ffb83f>sign up</col> to be invited to its fights.",
+        "Tap <col=ffb83f>Find</col> to find a PvP Arena group.<br><br>Once you've found a suitable group, <col=ffb83f>sign up</col> to be invited to its fights.",
+      );
+    }
+    return pvpaStatusText(pvpaShownStatus(pvpaStatus, guestStatus));
+  }
+
+  if (arm === PvpaArm.GUEST_ARENA) {
+    if (CS2.activeclanchannel_listened_find()) {
+      if (CS2.activeclanchannel_user_count_get() > 0) {
+        return '';
+      }
+      return 'There are no players to list.';
+    }
+    return 'Loading player list...';
+  }
+
+  if (fightWorld !== 0) {
+    if (CS2.map_world() === fightWorld) {
+      return 'Join your opponents<br>upstairs in the Arena building. Hurry!';
+    }
+    return `Waiting for you<br>on world ${stringOf(fightWorld)}...`;
+  }
+  if (CS2.activeclanchannel_affined_find(2)) {
+    if (CS2.activeclanchannel_user_count_get() > 0) {
+      return '';
+    }
+    return 'There are no players to list.';
+  }
+  return 'Loading player list...';
+}
+
+function pvpaShownStatus(pvpaStatus: Int, guestStatus: Int): Int {
+  if (pvpaStatus === 0 || pvpaStatus === 2) {
+    return pvpaStatus;
+  }
+  if (guestStatus === AffinityStatus.LIVE) {
+    return pvpaStatus;
+  }
+  return guestStatus;
+}
+
+export function pvpaStatusText(status: Int): String {
+  switch (status) {
+    case 2:
+      return '<col=9f9f9f>Fetching data...</col>';
+    case 1:
+      return '<col=9f9f9f>No group</col>';
+    case 3:
+      return '<col=9f9f9f>No group</col>';
+    case 0:
+      return '<col=9f9f9f>Connecting...</col>';
+  }
+  return '<col=9f9f9f>System unavailable</col>';
+}

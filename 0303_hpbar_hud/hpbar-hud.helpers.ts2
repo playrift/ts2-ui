@@ -1,0 +1,489 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { Fonts } from '../lib/game/fonts';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { hpbarFadeStatus, hpbarHudLastNpc, hpbarSliding } from '../lib/game/varcs';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayInit, overlayLayout } from '../lib/lib.overlay';
+import {
+  BRUTUS_AT,
+  FADE_STEP,
+  FadeStatus,
+  HpBarDodge,
+  HpBarNpc,
+  HpBarParam,
+  MAX_INT,
+  Panel,
+  SizeMode,
+  Slide,
+} from './hpbar-hud.constants';
+
+export function addCapped(value: Int, offset: Int, cap: Int): Int {
+  if (cap - offset <= value) {
+    return cap;
+  }
+  return value + offset;
+}
+
+export function npcDisplayName(npc: Npc, caption: String): String {
+  if (npc === -1) {
+    return '';
+  }
+  if (npc === HpBarNpc.DOM_BOSS || npc === HpBarNpc.DOM_BOSS_BURROWED || npc === HpBarNpc.DOM_BOSS_SHIELDED) {
+    const floor: String = groupDigits(addCapped(useServerState(Varps.DOM_CURRENT_LEVEL_TEMP), 1, MAX_INT), ',');
+    return `${caption} (Level ${floor})`;
+  }
+  if (npc === HpBarNpc.BULL_A || npc === HpBarNpc.BULL_B || npc === HpBarNpc.BULL_C) {
+    if (useServerState(Varbits.VARBIT_20106) >= BRUTUS_AT) {
+      return 'Brutus';
+    }
+    return 'Bull';
+  }
+  return caption;
+}
+
+export function hpHudUpdateBar(bar: ComponentId, target: Int, deadline: Int): void {
+  if (deadline !== Slide.NO_DEADLINE && CS2.clientclock() < deadline) {
+    return;
+  }
+  const [, setSliding] = useState(hpbarSliding);
+  const width: Int = CS2.if_width_get(bar);
+  if (width === target) {
+    CS2.if_size_set(target, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+    CS2.if_on_timer_set(null, bar);
+    setSliding(0);
+    return;
+  }
+  setSliding(1);
+  if (width < target) {
+    CS2.if_size_set(width + 1, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+  } else if (width > target) {
+    CS2.if_size_set(width - 1, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+  }
+}
+
+export function hpHudUpdate(
+  hp: ComponentId,
+  barText: ComponentId,
+  back: ComponentId,
+  sliding: ComponentId,
+  remaining: ComponentId,
+  nameArea: ComponentId,
+  creatureName: ComponentId,
+  lower: ComponentId,
+  upper: ComponentId,
+  mark1: ComponentId,
+  mark2: ComponentId,
+  force: Int,
+): void {
+  if (CS2.if_hide_get(hp)) {
+    return;
+  }
+
+  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
+  const npc: Npc = npcId as Npc;
+  let caption: String = '';
+  if (npcId !== -1) {
+    caption = CS2.npc_param(npc, HpBarParam.CAPTION) as unknown as String;
+    caption = npcDisplayName(npc, caption);
+    if (CS2.compare(caption, '') === 0) {
+      caption = CS2.npc_name(npc);
+    }
+  } else {
+    caption = CS2.if_text_get(creatureName);
+  }
+
+  const barWidth: Int = CS2.if_width_get(back);
+  if (CS2.compare(caption, '') === 0 || useServerState(Varbits.HPBAR_HUD_BOSS_NAME_DISABLED) === 1) {
+    CS2.if_hide_set(true, nameArea);
+    CS2.if_size_set(CS2.if_width_get(hp), Panel.WITHOUT_NAME, SizeMode.ABS, SizeMode.ABS, hp);
+  } else {
+    while (CS2.paraheight(caption, barWidth - 4, Fonts.P11_FULL) > 1) {
+      caption = CS2.append(CS2.substring(caption, 0, CS2.string_length(caption) - 4), '...');
+    }
+    CS2.if_hide_set(false, nameArea);
+    CS2.if_size_set(CS2.if_width_get(hp), Panel.WITH_NAME, SizeMode.ABS, SizeMode.ABS, hp);
+    CS2.if_text_set(caption, creatureName);
+  }
+
+  const health: Int = useServerState(Varbits.HPBAR_HUD_HP);
+  let label: String = `${health} / ${useServerState(Varbits.HPBAR_HUD_BASEHP)}`;
+  const base: Int = Math.max(useServerState(Varbits.HPBAR_HUD_BASEHP), 1);
+  predictServerState(Varbits.HPBAR_HUD_BASEHP, base);
+  if (
+    useServerState(Varbits.HPBAR_HUD_BOSS_PERCENTAGE_ENABLED) === 1 ||
+    (CS2.npc_param(npc, HpBarParam.PERCENTAGE) as unknown as Int) === 1
+  ) {
+    let percent: Int = minmax(1, 99, CS2.scale(health, base, 100));
+    if (health <= 0) {
+      percent = 0;
+    } else if (health >= base) {
+      percent = 100;
+    }
+    label = `${percent}%`;
+  }
+  CS2.if_text_set(label, barText);
+
+  let filled: Int = CS2.scale(health, base, barWidth);
+  const ceiling: Int = base + 1;
+
+  const lowerAt: Int = useServerState(Varbits.HPBAR_HUD_LOWER_THRESHOLD);
+  if (lowerAt > 0 && lowerAt <= ceiling) {
+    CS2.if_hide_set(false, lower);
+    CS2.if_position_set(CS2.scale(lowerAt - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, lower);
+  } else {
+    CS2.if_hide_set(true, lower);
+  }
+
+  const upperAt: Int = useServerState(Varbits.HPBAR_HUD_UPPER_THRESHOLD);
+  if (upperAt > 0 && upperAt <= ceiling) {
+    CS2.if_hide_set(false, upper);
+    CS2.if_position_set(barWidth - CS2.scale(upperAt - 1, base, barWidth), 0, Anchor.RIGHT, Anchor.CENTRE, upper);
+  } else {
+    CS2.if_hide_set(true, upper);
+  }
+
+  const markOne: Int = useServerState(Varbits.HPBAR_HUD_HP_1);
+  if (markOne > 0 && markOne <= ceiling) {
+    CS2.if_hide_set(false, mark1);
+    CS2.if_position_set(CS2.scale(markOne - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, mark1);
+  } else {
+    CS2.if_hide_set(true, mark1);
+  }
+
+  const markTwo: Int = useServerState(Varbits.HPBAR_HUD_HP_2);
+  if (markTwo > 0 && markTwo <= ceiling) {
+    CS2.if_hide_set(false, mark2);
+    CS2.if_position_set(CS2.scale(markTwo - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, mark2);
+  } else {
+    CS2.if_hide_set(true, mark2);
+  }
+
+  if (filled === 0 && health > 0) {
+    filled = 1;
+  }
+  if (filled === CS2.if_width_get(back) && health < base) {
+    filled = filled - 1;
+  }
+  if (
+    (CS2.npc_param(npc, HpBarParam.SEED_ONE_PIXEL) as unknown as Boolean) &&
+    CS2.if_width_get(remaining) === 0 &&
+    filled > 0
+  ) {
+    CS2.if_size_set(1, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
+    CS2.if_size_set(1, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
+  }
+  if (force === 1 || CS2.if_width_get(remaining) === 0) {
+    CS2.if_size_set(filled, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
+    CS2.if_size_set(filled, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
+    CS2.if_on_timer_set(null, sliding);
+    return;
+  }
+
+  const wasFilled: Int = CS2.if_width_get(remaining);
+  if (filled < wasFilled) {
+    CS2.if_size_set(filled, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
+    if (CS2.if_width_get(sliding) < wasFilled) {
+      CS2.if_size_set(wasFilled, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
+    }
+    CS2.if_on_timer_set(null, remaining);
+    const [slidingNow] = useState(hpbarSliding);
+    if (slidingNow === 0) {
+      CS2.if_on_timer_set(() => hpHudUpdateBar(sliding, filled, CS2.clientclock() + Slide.DELAY_CYCLES), sliding);
+    } else {
+      CS2.if_on_timer_set(() => hpHudUpdateBar(sliding, filled, CS2.clientclock()), sliding);
+    }
+  } else {
+    CS2.if_on_timer_set(() => hpHudUpdateBar(remaining, filled, Slide.NO_DEADLINE), remaining);
+  }
+}
+
+export function hpDodgerInit(dodger: ComponentId, content: ComponentId): void {
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
+    overlayInit(dodger, content, HpBarDodge.BOSS, Anchor.CENTRE, Anchor.TOP, 0);
+  } else if (useServerState(Varbits.HPBAR_HUD_BOSS) === 0 && !onMobile()) {
+    overlayInit(dodger, content, HpBarDodge.STANDARD, Anchor.LEFT, Anchor.TOP, 1);
+  } else {
+    overlayInit(dodger, content, HpBarDodge.MOBILE, Anchor.LEFT, Anchor.TOP, 1);
+  }
+}
+
+export function hpDodgerRelayout(dodger: ComponentId, content: ComponentId): void {
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
+    overlayLayout(dodger, content, HpBarDodge.BOSS, Anchor.CENTRE, Anchor.TOP, 0);
+  } else if (useServerState(Varbits.HPBAR_HUD_BOSS) === 0 && !onMobile()) {
+    overlayLayout(dodger, content, HpBarDodge.STANDARD, Anchor.LEFT, Anchor.TOP, 1);
+  } else {
+    overlayLayout(dodger, content, HpBarDodge.MOBILE, Anchor.LEFT, Anchor.TOP, 1);
+  }
+}
+
+export function hpHudPos(
+  universe: ComponentId,
+  hp: ComponentId,
+  nameArea: ComponentId,
+  creatureName: ComponentId,
+  barText: ComponentId,
+  back: ComponentId,
+  sliding: ComponentId,
+  remaining: ComponentId,
+  lower: ComponentId,
+  upper: ComponentId,
+  mark1: ComponentId,
+  mark2: ComponentId,
+  dodger: ComponentId,
+  contentSide: ComponentId,
+): void {
+  const stage: Int = CS2.if_width_get(universe);
+  const height: Int = CS2.if_height_get(hp);
+  let width: Int = Panel.NARROW;
+  let anchor: Int = Anchor.LEFT;
+
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
+    if (useServerState(Varbits.HPBAR_HUD_BOSS_COMPACT_ENABLED) === 1) {
+      width = minmax(Panel.COMPACT_MIN, Panel.COMPACT_MAX, CS2.scale(1, Panel.COMPACT_SHARE, stage));
+    } else {
+      width = minmax(Panel.WIDE_MIN, Panel.WIDE_MAX, CS2.scale(1, Panel.WIDE_SHARE, stage));
+    }
+    anchor = Anchor.CENTRE;
+  }
+
+  if (CS2.if_width_get(hp) === width) {
+    return;
+  }
+  CS2.if_size_set(width, height, SizeMode.ABS, SizeMode.ABS, hp);
+
+  hpDodgerInit(dodger, hp);
+
+  CS2.if_position_set(0, 0, anchor, Anchor.TOP, hp);
+  CS2.if_position_set(0, 0, Anchor.CENTRE, Anchor.TOP, nameArea);
+  CS2.if_position_set(0, 0, Anchor.LEFT, Anchor.TOP, contentSide);
+
+  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+}
+
+export function hpBarReset(
+  universe: ComponentId,
+  barText: ComponentId,
+  back: ComponentId,
+  sliding: ComponentId,
+  remaining: ComponentId,
+  creatureName: ComponentId,
+  outerBorder: ComponentId,
+  nameBacking: ComponentId,
+  innerBorder: ComponentId,
+  lower: ComponentId,
+  upper: ComponentId,
+  mark1: ComponentId,
+  mark2: ComponentId,
+  transparency: Int,
+): void {
+  CS2.if_transparency_set(transparency, outerBorder);
+  CS2.if_transparency_set(transparency, nameBacking);
+  CS2.if_transparency_set(transparency, innerBorder);
+  CS2.if_transparency_set(transparency, back);
+  CS2.if_transparency_set(transparency, sliding);
+  CS2.if_transparency_set(transparency, remaining);
+  CS2.if_transparency_set(transparency, lower);
+  CS2.if_transparency_set(transparency, upper);
+  CS2.if_transparency_set(transparency, mark1);
+  CS2.if_transparency_set(transparency, mark2);
+  CS2.if_transparency_set(transparency, creatureName);
+  CS2.if_transparency_set(transparency, barText);
+  CS2.if_on_timer_set(null, universe);
+  CS2.if_on_timer_set(null, outerBorder);
+  CS2.if_on_timer_set(null, sliding);
+  CS2.if_on_timer_set(null, remaining);
+}
+
+export function hpHudFadeIn(
+  hp: ComponentId,
+  nameArea: ComponentId,
+  outerBorder: ComponentId,
+  nameBacking: ComponentId,
+  creatureName: ComponentId,
+  innerBorder: ComponentId,
+  back: ComponentId,
+  sliding: ComponentId,
+  remaining: ComponentId,
+  barText: ComponentId,
+  lower: ComponentId,
+  upper: ComponentId,
+  mark1: ComponentId,
+  mark2: ComponentId,
+  transparency: Int,
+): void {
+  const [fade, setFade] = useState(hpbarFadeStatus);
+  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
+  let level: Int = transparency;
+  if (
+    (npcId !== -1 && (CS2.npc_param(npcId as Npc, HpBarParam.NO_FADE) as unknown as Int) === 1) ||
+    useServerState(Varbits.HPBAR_HUD_BOSS) === 0
+  ) {
+    level = 0;
+  } else if (fade === FadeStatus.REARM) {
+    level = CS2.if_trans_get(outerBorder);
+  } else if (level !== CS2.if_trans_get(outerBorder)) {
+    return;
+  }
+
+  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+  level = Math.max(0, level - FADE_STEP);
+  setFade(FadeStatus.RUNNING);
+  CS2.if_transparency_set(level, outerBorder);
+  CS2.if_transparency_set(level, nameBacking);
+  CS2.if_transparency_set(level, innerBorder);
+  CS2.if_transparency_set(level, back);
+  CS2.if_transparency_set(level, sliding);
+  CS2.if_transparency_set(level, remaining);
+  CS2.if_transparency_set(level, lower);
+  CS2.if_transparency_set(level, upper);
+  CS2.if_transparency_set(level, mark1);
+  CS2.if_transparency_set(level, mark2);
+  CS2.if_transparency_set(level, creatureName);
+  CS2.if_transparency_set(level, barText);
+  if (level <= 0) {
+    CS2.if_on_timer_set(null, outerBorder);
+    setFade(FadeStatus.IDLE);
+    return;
+  }
+  CS2.if_on_timer_set(
+    () =>
+      hpHudFadeIn(
+        hp,
+        nameArea,
+        outerBorder,
+        nameBacking,
+        creatureName,
+        innerBorder,
+        back,
+        sliding,
+        remaining,
+        barText,
+        lower,
+        upper,
+        mark1,
+        mark2,
+        level,
+      ),
+    outerBorder,
+  );
+}
+
+export function hpHudOpen(
+  universe: ComponentId,
+  dodger: ComponentId,
+  hp: ComponentId,
+  nameArea: ComponentId,
+  barText: ComponentId,
+  back: ComponentId,
+  sliding: ComponentId,
+  remaining: ComponentId,
+  creatureName: ComponentId,
+  outerBorder: ComponentId,
+  nameBacking: ComponentId,
+  innerBorder: ComponentId,
+  lower: ComponentId,
+  upper: ComponentId,
+  mark1: ComponentId,
+  mark2: ComponentId,
+  contentSide: ComponentId,
+): void {
+  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
+  const [lastNpc, setLastNpc] = useState(hpbarHudLastNpc);
+  let changed: Int = 0;
+  if (lastNpc !== npcId) {
+    changed = 1;
+  }
+  setLastNpc(npcId);
+
+  let transparency: Int = 255;
+  if (
+    (npcId !== -1 && (CS2.npc_param(npcId as Npc, HpBarParam.NO_FADE) as unknown as Int) === 1) ||
+    useServerState(Varbits.HPBAR_HUD_BOSS) === 0
+  ) {
+    transparency = 0;
+  }
+
+  const [fade] = useState(hpbarFadeStatus);
+  if (!CS2.if_hide_get(hp)) {
+    if (fade === FadeStatus.REARM) {
+      hpHudFadeIn(
+        hp,
+        nameArea,
+        outerBorder,
+        nameBacking,
+        creatureName,
+        innerBorder,
+        back,
+        sliding,
+        remaining,
+        barText,
+        lower,
+        upper,
+        mark1,
+        mark2,
+        transparency,
+      );
+    }
+    if (changed === 1) {
+      hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+    }
+    return;
+  }
+
+  CS2.if_hide_set(false, hp);
+  hpBarReset(
+    universe,
+    barText,
+    back,
+    sliding,
+    remaining,
+    creatureName,
+    outerBorder,
+    nameBacking,
+    innerBorder,
+    lower,
+    upper,
+    mark1,
+    mark2,
+    transparency,
+  );
+  hpHudFadeIn(
+    hp,
+    nameArea,
+    outerBorder,
+    nameBacking,
+    creatureName,
+    innerBorder,
+    back,
+    sliding,
+    remaining,
+    barText,
+    lower,
+    upper,
+    mark1,
+    mark2,
+    transparency,
+  );
+  hpHudPos(
+    universe,
+    hp,
+    nameArea,
+    creatureName,
+    barText,
+    back,
+    sliding,
+    remaining,
+    lower,
+    upper,
+    mark1,
+    mark2,
+    dodger,
+    contentSide,
+  );
+  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+}

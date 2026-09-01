@@ -1,0 +1,257 @@
+import { CS2, useDerived, useRef } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { graphicSwapper } from '../lib/lib.helpers';
+import { Flash, GeColors, GeSprites, NEVER, Slot } from './ge-viewonly.constants';
+import { geBarColor, geBarWidth, geSinkItem, geTax } from './ge-viewonly.helpers';
+import { StonePanel } from './stone-panel.component';
+
+export function GeOfferBar({ slot }: { slot: Int }): Component {
+  const sink: Int = useDerived(() => geSinkItem(slot));
+  const tax: Int = useDerived(() => geTax(slot));
+  const empty: Boolean = CS2.stockmarket_offer_empty_is(slot);
+
+  if (empty && sink === -1) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <rect x={Slot.BAR_X} y={Slot.BAR_Y} w={0} h={Slot.BAR_H} fill hide />
+      </layer>
+    );
+  }
+
+  if (empty) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <rect
+          x={Slot.BAR_X}
+          y={Slot.BAR_Y}
+          w={Slot.BAR_W}
+          h={Slot.BAR_H}
+          fill
+          color={tax < NEVER ? GeColors.SINK_SOLD : GeColors.SINK_SELLING}
+        />
+      </layer>
+    );
+  }
+
+  const total: Int = CS2.stockmarket_offer_count_get(slot);
+  const done: Int = CS2.stockmarket_offer_completed_count_get(slot);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        w={geBarWidth(slot, total, done, -1, Slot.BAR_W)}
+        h={Slot.BAR_H}
+        fill
+        color={geBarColor(slot, total, done, -1)}
+      />
+    </layer>
+  );
+}
+
+export function GeOfferIcon({ slot }: { slot: Int }): Component {
+  const sink: Int = useDerived(() => geSinkItem(slot));
+  const empty: Boolean = CS2.stockmarket_offer_empty_is(slot);
+
+  if (empty && sink === -1) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <sprite x={Slot.ICON_X} y={Slot.BADGE_Y} w={Slot.BADGE_W} h={Slot.BADGE_H} hide />
+      </layer>
+    );
+  }
+
+  const selling: Boolean = empty || CS2.stockmarket_offer_type_get(slot) === 1 ? true : false;
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite
+        x={Slot.ICON_X}
+        y={Slot.BADGE_Y}
+        w={Slot.BADGE_W}
+        h={Slot.BADGE_H}
+        sprite={selling ? GeSprites.SELLING : GeSprites.BUYING}
+      />
+    </layer>
+  );
+}
+
+export function GeOfferModel({ slot }: { slot: Int }): Component {
+  const sink: Int = useDerived(() => geSinkItem(slot));
+  const empty: Boolean = CS2.stockmarket_offer_empty_is(slot);
+
+  if (empty && sink === -1) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <model x={Slot.MODEL_X} y={Slot.BADGE_Y} w={Slot.BADGE_W} h={Slot.BADGE_H} hide />
+      </layer>
+    );
+  }
+
+  const shown: Item = empty ? (sink as Item) : CS2.stockmarket_offer_item_get(slot);
+  const count: Int = empty ? 1 : CS2.stockmarket_offer_count_get(slot);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <model x={Slot.MODEL_X} y={Slot.BADGE_Y} w={Slot.BADGE_W} h={Slot.BADGE_H} item={shown} itemCount={count} />
+    </layer>
+  );
+}
+
+export function GeOfferSlot({
+  held0,
+  count0,
+  held1,
+  count1,
+  slot,
+}: {
+  held0: Item;
+  count0: Int;
+  held1: Item;
+  count1: Int;
+  slot: Int;
+}): Component {
+  const leftPlinth = useRef();
+  const rightPlinth = useRef();
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={GeSprites.BACKING} tiling />
+
+      <sprite
+        ref={leftPlinth}
+        x={Slot.PLINTH_LEFT_X}
+        y={Slot.PLINTH_Y}
+        w={Slot.PLINTH_W}
+        h={Slot.PLINTH_H}
+        sprite={GeSprites.ITEM_BACKDROP}
+      />
+      <sprite
+        ref={rightPlinth}
+        x={Slot.PLINTH_RIGHT_X}
+        y={Slot.PLINTH_Y}
+        w={Slot.PLINTH_W}
+        h={Slot.PLINTH_H}
+        sprite={GeSprites.ITEM_BACKDROP}
+      />
+
+      {held0 === -1 ? (
+        <sprite
+          x={Slot.ITEM_LEFT_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          hide
+          onOptionSelect={(event) => flashFor(event.self, Flash.PRESSED, Flash.REST)}
+        />
+      ) : (
+        <sprite
+          x={Slot.ITEM_LEFT_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          item={held0}
+          itemCount={count0}
+          options={['', '', '', '', '', '', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(held0)}</col>`}
+          onOptionSelect={(event) => flashFor(event.self, Flash.PRESSED, Flash.REST)}
+          onMouseRepeat={() => graphicSwapper(leftPlinth, GeSprites.ITEM_BACKDROP_OVER)}
+          onMouseLeave={() => graphicSwapper(leftPlinth, GeSprites.ITEM_BACKDROP)}
+        />
+      )}
+
+      {held1 === -1 ? (
+        <sprite
+          x={Slot.ITEM_RIGHT_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          hide
+          onOptionSelect={(event) => flashFor(event.self, Flash.PRESSED, Flash.REST)}
+        />
+      ) : (
+        <sprite
+          x={Slot.ITEM_RIGHT_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          item={held1}
+          itemCount={count1}
+          options={['', '', '', '', '', '', '', '', '', 'Examine']}
+          optionSubject={`<col=ff9040>${itemName(held1)}</col>`}
+          onOptionSelect={(event) => flashFor(event.self, Flash.PRESSED, Flash.REST)}
+          onMouseRepeat={() => graphicSwapper(rightPlinth, GeSprites.ITEM_BACKDROP_OVER)}
+          onMouseLeave={() => graphicSwapper(rightPlinth, GeSprites.ITEM_BACKDROP)}
+        />
+      )}
+
+      <StonePanel divider={-1} />
+
+      <rect
+        x={Slot.BAR_BORDER_X}
+        y={Slot.BAR_BORDER_Y}
+        w={Slot.BAR_BORDER_W}
+        h={Slot.BAR_BORDER_H}
+        color={GeColors.INK}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        w={Slot.BAR_W}
+        h={Slot.BAR_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+      />
+      <GeOfferBar slot={slot} />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        w={Slot.BAR_W}
+        h={Slot.BAR_TOP_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_LEFT_Y}
+        w={Slot.BAR_LEFT_W}
+        h={Slot.BAR_LEFT_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+      />
+
+      <rect
+        x={Slot.ICON_X}
+        y={Slot.BADGE_Y}
+        w={Slot.BADGE_W}
+        h={Slot.BADGE_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+      />
+      <GeOfferIcon slot={slot} />
+
+      <rect
+        x={Slot.MODEL_X}
+        y={Slot.BADGE_Y}
+        w={Slot.BADGE_W}
+        h={Slot.BADGE_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+      />
+      <GeOfferModel slot={slot} />
+    </layer>
+  );
+}

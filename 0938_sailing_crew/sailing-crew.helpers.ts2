@@ -1,0 +1,225 @@
+import { CS2, useServerState, useSkillBase } from 'ts2';
+import {
+  CrewColors,
+  CrewHeads,
+  CrewRow,
+  CrewVarbits,
+  Layout,
+  PanelSize,
+  RecruitRow,
+  RowShade,
+  Skills,
+} from './sailing-crew.constants';
+import { type SailingCrewRow, SailingCrewRoster } from './sailing-crew.data';
+
+export function slotCrew(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(CrewVarbits.SLOT_1);
+    case 1:
+      return useServerState(CrewVarbits.SLOT_2);
+    case 2:
+      return useServerState(CrewVarbits.SLOT_3);
+    case 3:
+      return useServerState(CrewVarbits.SLOT_4);
+    case 4:
+      return useServerState(CrewVarbits.SLOT_5);
+  }
+  return 0;
+}
+
+export function crewUnlocked(uniqueId: Int): Int {
+  switch (uniqueId) {
+    case 1:
+      return useServerState(CrewVarbits.UNLOCKED_1);
+    case 2:
+      return useServerState(CrewVarbits.UNLOCKED_2);
+    case 3:
+      return useServerState(CrewVarbits.UNLOCKED_3);
+    case 4:
+      return useServerState(CrewVarbits.UNLOCKED_4);
+    case 5:
+      return useServerState(CrewVarbits.UNLOCKED_5);
+    case 6:
+      return useServerState(CrewVarbits.UNLOCKED_6);
+    case 7:
+      return useServerState(CrewVarbits.UNLOCKED_7);
+    case 8:
+      return useServerState(CrewVarbits.UNLOCKED_8);
+    case 9:
+      return useServerState(CrewVarbits.UNLOCKED_9);
+    case 10:
+      return useServerState(CrewVarbits.UNLOCKED_10);
+  }
+  return 0;
+}
+
+export function slotStatLine(mine: Int): String {
+  if (mine >= 1) {
+    return `<br>${mine}`;
+  }
+  return '<br><col=9f9f9f>-</col>';
+}
+
+export function recruitStatLine(mine: Int, theirs: Int): String {
+  if (mine >= 1) {
+    if (theirs < 1) {
+      return '<br><col=9f9f9f>-</col>';
+    }
+    if (theirs > mine) {
+      return `<br>${theirs} (<col=0dc10d>+${theirs - mine}</col>)`;
+    }
+    if (theirs < mine) {
+      return `<br>${theirs} (<col=ff4c00>-${mine - theirs}</col>)`;
+    }
+    return `<br>${theirs} (<col=ffffff>=</col>)`;
+  }
+  if (theirs >= 1) {
+    return `<br>${theirs}`;
+  }
+  return '<br><col=9f9f9f>-</col>';
+}
+
+export function crewSlotHead(slot: Int, level: Int): Npc {
+  if (useSkillBase(Skills.SAILING) < level) {
+    return CrewHeads.LOCKED;
+  }
+  const crew: Int = slotCrew(slot);
+  if (crew === 0) {
+    return CrewHeads.EMPTY;
+  }
+  const row: SailingCrewRow | null = SailingCrewRoster.at(crew - 1);
+  return row === null ? -1 : row.npc;
+}
+
+export function crewSlotColor(level: Int): Int {
+  if (useSkillBase(Skills.SAILING) < level) {
+    return CrewColors.MUTED;
+  }
+  return CrewColors.LABEL;
+}
+
+export function crewSlotLabel(slot: Int, level: Int): String {
+  if (useSkillBase(Skills.SAILING) < level) {
+    return `Slot ${slot + 1}:<br>Level ${level}`;
+  }
+  const crew: Int = slotCrew(slot);
+  if (crew === 0) {
+    return `Slot ${slot + 1}:<br>No Crew`;
+  }
+  const row: SailingCrewRow | null = SailingCrewRoster.at(crew - 1);
+  return row === null ? `Slot ${slot + 1}:<br>Crew` : `Slot ${slot + 1}:<br>${CS2.npc_name(row.npc)}`;
+}
+
+export function crewRowShade(slot: Int, selected: Int): Int {
+  if (slot === selected) {
+    return RowShade.PICKED;
+  }
+  return crewRowRest(slot);
+}
+
+export function crewRowRest(slot: Int): Int {
+  if (slot % 2 === 0) {
+    return RowShade.LIGHT;
+  }
+  return RowShade.DARK;
+}
+
+export function recruitRowShade(uniqueId: Int, selected: Int): Int {
+  if (uniqueId === selected) {
+    return RowShade.PICKED;
+  }
+  return recruitRowRest(uniqueId);
+}
+
+export function recruitRowRest(uniqueId: Int): Int {
+  if (uniqueId % 2 === 1) {
+    return RowShade.LIGHT;
+  }
+  return RowShade.DARK;
+}
+
+export function recruitLabel(npc: Npc, uniqueId: Int): String {
+  if (crewUnlocked(uniqueId) === 1) {
+    return CS2.npc_name(npc);
+  }
+  return `${CS2.npc_name(npc)}<br>(Locked)`;
+}
+
+export function recruitColor(uniqueId: Int): Int {
+  if (crewUnlocked(uniqueId) === 1) {
+    return CrewColors.LABEL;
+  }
+  return CrewColors.MUTED;
+}
+
+export function slotCrewStat(uniqueId: Int, which: Int): Int {
+  if (uniqueId === 0) {
+    return 0;
+  }
+  const row: SailingCrewRow | null = SailingCrewRoster.at(uniqueId - 1);
+  if (row === null) {
+    return 1;
+  }
+  switch (which) {
+    case 0:
+      return row.helmsmanship;
+    case 1:
+      return row.privateering;
+    case 2:
+      return row.deckhandiness;
+  }
+  return 0;
+}
+
+export function recruitStat(uniqueId: Int, which: Int): Int {
+  const row: SailingCrewRow | null = SailingCrewRoster.at(uniqueId - 1);
+  if (row === null) {
+    return 0;
+  }
+  switch (which) {
+    case 0:
+      return row.helmsmanship;
+    case 1:
+      return row.privateering;
+    case 2:
+      return row.deckhandiness;
+  }
+  return 0;
+}
+
+export function slotColumnText(slot: Int): String {
+  const crew: Int = slotCrew(slot);
+  let head: String = `Crew slot:<br><col=ffb83f>${slot + 1}</col><br> `;
+  if (crew === 0) {
+    head = `${head}<br><col=9f9f9f>None</col>`;
+  } else {
+    const row: SailingCrewRow | null = SailingCrewRoster.at(crew - 1);
+    if (row === null) {
+      head = `${head}<br>Crew`;
+    } else {
+      head = `${head}<br><col=ffb83f>${CS2.npc_name(row.npc)}</col>`;
+    }
+  }
+  return `${head}${slotStatLine(slotCrewStat(crew, 0))}${slotStatLine(slotCrewStat(crew, 1))}${slotStatLine(slotCrewStat(crew, 2))}`;
+}
+
+export function recruitColumnText(slot: Int, recruit: Int): String {
+  const crew: Int = slotCrew(slot);
+  const row: SailingCrewRow | null = SailingCrewRoster.at(recruit - 1);
+  let head: String = 'Selected<br>recruit:<br> ';
+  if (row === null) {
+    head = `${head}<br><col=9f9f9f>None</col>`;
+  } else {
+    head = `${head}<br><col=ffb83f>${CS2.npc_name(row.npc)}</col>`;
+  }
+  return `${head}${recruitStatLine(slotCrewStat(crew, 0), recruitStat(recruit, 0))}${recruitStatLine(slotCrewStat(crew, 1), recruitStat(recruit, 1))}${recruitStatLine(slotCrewStat(crew, 2), recruitStat(recruit, 2))}`;
+}
+
+export function panelCeiling(): Int {
+  const crewExtent: Int = CrewRow.SLOTS * CrewRow.H;
+  const recruitExtent: Int = SailingCrewRoster.length * RecruitRow.H;
+  const stacked: Int =
+    PanelSize.CHROME_ABOVE + Math.min(crewExtent, recruitExtent) + PanelSize.CHROME_BELOW + Layout.legend.h;
+  return Math.min(PanelSize.HARD_CEILING, stacked);
+}

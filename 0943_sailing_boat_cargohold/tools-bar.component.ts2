@@ -1,0 +1,103 @@
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { flashFor } from '../lib/lib.components';
+import { type ChartingTool, ChartingTools } from './charting-tools.data';
+import { labelWidth, missingTool, primaryTool, toolUnlocked, visibleToolCount } from './sailing-boat-cargohold.helpers';
+import {
+  CargoColors,
+  CargoFonts,
+  Layout,
+  Tool,
+  ToolsBarLayout,
+  Transparency,
+} from './sailing-boat-cargohold.constants';
+
+const TOOLS_LABEL = 'Tools:';
+
+function ToolCell({ row, x }: { row: ChartingTool; x: Int }): Component {
+  const missing: ItemName = missingTool(row);
+
+  if (missing !== -1) {
+    return (
+      <sprite
+        x={x}
+        y="center"
+        w={Tool.W}
+        h={Tool.H}
+        item={missing}
+        itemCount={1}
+        itemCountMode="never"
+        outline={1}
+        shadowColor={CargoColors.SLOT_SHADOW}
+        transparency={Transparency.CLEAR}
+        options={['Take']}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        onOptionSelect={(event) => {
+          flashFor(event.self, Transparency.TOOL_FLASH, Transparency.CLEAR);
+        }}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={x}
+      y="center"
+      w={Tool.W}
+      h={Tool.H}
+      item={primaryTool(row)}
+      itemCount={1}
+      itemCountMode="never"
+      outline={1}
+      shadowColor={CargoColors.SLOT_SHADOW}
+      transparency={Transparency.TOOL_HELD}
+      options={['Take']}
+      optionSubject={`<col=ff9040>${row.name}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Transparency.TOOL_HELD_FLASH, Transparency.TOOL_HELD);
+      }}
+    />
+  );
+}
+
+export function ToolsBar(): Component {
+  const labelW: Int = labelWidth(TOOLS_LABEL, CargoFonts.BODY);
+  const block: Int = ToolsBarLayout.INSET * 2 + labelW + ToolsBarLayout.SLACK;
+  const shown: Int = visibleToolCount();
+  const row: Int = shown * Tool.W + (shown - 1) * Tool.GAP;
+
+  return (
+    <layer x={Layout.tools.x} y={{ bottom: Layout.tools.bottom }} w={block + row} h={Layout.tools.h}>
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.tools.dimInset }}
+        h={{ fill: Layout.tools.dimInset }}
+        fill
+        color={CargoColors.WHITE}
+        transparency={Transparency.DIM}
+      />
+      <layer x={{ right: ToolsBarLayout.INSET }} y="center" w={{ fill: block }} h="fill">
+        {ChartingTools.filter((tool) => toolUnlocked(tool.gate)).scan(
+          (tool, index, x) => (
+            <ToolCell row={tool} x={x} />
+          ),
+          () => Tool.W + Tool.GAP,
+          0,
+        )}
+      </layer>
+      <ThinBoxEntrypoint />
+      <text
+        x={ToolsBarLayout.INSET}
+        y="center"
+        w={labelW}
+        h="fill"
+        text={TOOLS_LABEL}
+        font={CargoFonts.BODY}
+        color={CargoColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

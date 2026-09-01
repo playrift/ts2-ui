@@ -1,0 +1,286 @@
+import { useDerived, useServerState } from 'ts2';
+import { chatMessage, textLineCount } from '../lib/lib.engine';
+import { settingsOpSound } from '../0890_ironman_setup/ironman-setup.helpers';
+import { Varps } from '../lib/game/varps';
+import { Colour, Row, SettingsFonts } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { rowDescription, rowTitle } from './settings-layout';
+import { rowLockedMessage, settingEnabled } from './settings.helpers';
+import { hideRowTooltip, showRowTooltip } from './settings-tooltip.component';
+
+export function SettingsColour({
+  row,
+  top,
+  stripe,
+  mobile,
+  compact,
+  width,
+  enabled,
+  pane,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+  pane: Ref;
+}): Component {
+  const title: Int = colourTitleHeight(row, mobile, width);
+  const description: Int = colourDescriptionHeight(row, mobile, compact, width);
+  const box: Int = title + Row.togglePad + description;
+  const settingId: Int = row.settingId ?? 0;
+  const chosen: Int = useDerived(() => settingsGetColour(settingId));
+  const colour: Int = chosen !== -1 ? chosen : (row.colour ?? 0);
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+  const swatchY: Int = top + (box / 2 - Swatch.halfH);
+
+  return (
+    <>
+      <rect x="center" y={top} w={{ fill: Row.blockInsetW }} h={box} fill color={Colour.BLACK} transparency={stripe} />
+
+      {!mobile && compact && rowDescription(row, mobile).length > 0 ? (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: Swatch.measureInset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+          onMouseRepeat={() => showRowTooltip(row, Row.titleX, top + Row.titleDy, title, pane)}
+          onMouseLeave={() => hideRowTooltip()}
+        />
+      ) : (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: Swatch.measureInset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <rect x={{ right: Swatch.right }} y={swatchY} w={Swatch.w} h={Swatch.h} fill color={colour} />
+
+      {!mobile && enabled && enabledFlag === 1 ? (
+        <rect
+          x={{ right: Swatch.right }}
+          y={swatchY}
+          w={Swatch.w}
+          h={Swatch.h}
+          fill
+          color={Colour.WHITE}
+          transparency={Swatch.veilTransparency}
+          hover={{ transparency: Swatch.hoverTransparency, releaseAfterMs: Swatch.releaseMs }}
+        />
+      ) : (
+        !mobile && (
+          <rect
+            x={{ right: Swatch.right }}
+            y={swatchY}
+            w={Swatch.w}
+            h={Swatch.h}
+            fill
+            color={Colour.WHITE}
+            transparency={Swatch.veilTransparency}
+          />
+        )
+      )}
+
+      <rect x={{ right: Swatch.right }} y={swatchY} w={Swatch.w} h={Swatch.h} color={Swatch.outerOutline} />
+      <rect
+        x={{ right: Swatch.right + 1 }}
+        y={swatchY + 1}
+        w={Swatch.w - Swatch.innerInset}
+        h={Swatch.h - Swatch.innerInset}
+        color={Swatch.innerOutline}
+      />
+
+      {description > 0 && (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy + title}
+          w={{ fill: Swatch.measureInset }}
+          h={description}
+          text={rowDescription(row, mobile)}
+          font={SettingsFonts.BODY}
+          shadow
+          color={Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <rect
+        x={{ right: Swatch.right }}
+        y={swatchY}
+        w={Swatch.w}
+        h={Swatch.h}
+        options={['Select']}
+        onOptionSelect={() => {
+          if (enabled && enabledFlag === 1) {
+            settingsOpSound(1);
+          } else {
+            settingsOpSound(0);
+            chatMessage(rowLockedMessage(row));
+          }
+        }}
+      />
+    </>
+  );
+}
+
+export function colourHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  return colourTitleHeight(row, mobile, width) + Row.togglePad + colourDescriptionHeight(row, mobile, compact, width);
+}
+
+function colourTitleHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  let height: Int =
+    textLineCount(rowTitle(row, mobile), width - Swatch.measureInset, SettingsFonts.TITLE) * Row.lineHeight;
+  if (mobile && height < Row.minTitleHeightMobile) {
+    height = Row.minTitleHeightMobile;
+  }
+  return height;
+}
+
+function colourDescriptionHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  if ((row.hideDescription ?? false) || compact) {
+    return 0;
+  }
+  const text: String = rowDescription(row, mobile);
+  if (text.length <= 0) {
+    return 0;
+  }
+  return textLineCount(text, width - Swatch.measureInset, SettingsFonts.BODY) * Row.lineHeight;
+}
+
+export function settingsGetColour(settingId: Int): Int {
+  switch (settingId) {
+    case 87:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_PUBLIC_OPAQUE) - 1;
+    case 88:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_PUBLIC_TRANSPARENT) - 1;
+    case 89:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_PRIVATE_OPAQUE) - 1;
+    case 90:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_PRIVATE_TRANSPARENT) - 1;
+    case 91:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_PRIVATE_SPLIT) - 1;
+    case 92:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_AUTOCHAT_OPAQUE) - 1;
+    case 93:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_AUTOCHAT_TRANSPARENT) - 1;
+    case 94:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_BROADCAST_OPAQUE) - 1;
+    case 95:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_BROADCAST_TRANSPARENT) - 1;
+    case 96:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_BROADCAST_SPLIT) - 1;
+    case 97:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_FRIENDSCHAT_OPAQUE) - 1;
+    case 98:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_FRIENDSCHAT_TRANSPARENT) - 1;
+    case 99:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CLANCHAT_OPAQUE) - 1;
+    case 100:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CLANCHAT_TRANSPARENT) - 1;
+    case 101:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_TRADEREQ_OPAQUE) - 1;
+    case 102:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_TRADEREQ_TRANSPARENT) - 1;
+    case 103:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CHALLENGEREQ_OPAQUE) - 1;
+    case 104:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CHALLENGEREQ_TRANSPARENT) - 1;
+    case 105:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GUESTCLAN_OPAQUE) - 1;
+    case 106:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GUESTCLAN_TRANSPARENT) - 1;
+    case 193:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GIMCHAT_OPAQUE) - 1;
+    case 194:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GIMCHAT_TRANSPARENT) - 1;
+    case 196:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CLANBROADCAST_OPAQUE) - 1;
+    case 197:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_CLANBROADCAST_TRANSPARENT) - 1;
+    case 198:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GIMBROADCAST_OPAQUE) - 1;
+    case 199:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_GIMBROADCAST_TRANSPARENT) - 1;
+    case 434:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_DIDYOUKNOW_OPAQUE) - 1;
+    case 435:
+      return useServerState(Varps.OPTION_CHAT_COLOUR_DIDYOUKNOW_TRANSPARENT) - 1;
+    case 113:
+      return useServerState(Varps.OPTION_HIGHLIGHTING_PLAYER_TILE_COLOUR) - 1;
+    case 174:
+      return useServerState(Varps.OPTION_HIGHLIGHTING_TILE_MOUSEOVER_COLOUR) - 1;
+    case 177:
+      return useServerState(Varps.OPTION_HIGHLIGHTING_TILE_CURRENT_COLOUR) - 1;
+    case 180:
+      return useServerState(Varps.OPTION_HIGHLIGHTING_TILE_DESTINATION_COLOUR) - 1;
+    case 224:
+      return useServerState(Varps.QUESTLIST_COLOUR_NOT_STARTED) - 1;
+    case 225:
+      return useServerState(Varps.QUESTLIST_COLOUR_IN_PROGRESS) - 1;
+    case 226:
+      return useServerState(Varps.QUESTLIST_COLOUR_COMPLETED) - 1;
+    case 227:
+      return useServerState(Varps.QUESTLIST_COLOUR_UNAVAILABLE) - 1;
+    case 262:
+      return useServerState(Varps.OPTION_NPC_INDICATORS_COLOUR) - 1;
+    case 263:
+      return useServerState(Varps.OPTION_NPC_INDICATORS_TEXT_COLOUR) - 1;
+    case 266:
+      return useServerState(Varps.OPTION_NPC_TEXT_ALL_COLOUR) - 1;
+    case 322:
+      return useServerState(Varps.GROUND_ITEMS_T5_COLOUR) - 1;
+    case 323:
+      return useServerState(Varps.GROUND_ITEMS_T4_COLOUR) - 1;
+    case 324:
+      return useServerState(Varps.GROUND_ITEMS_T3_COLOUR) - 1;
+    case 325:
+      return useServerState(Varps.GROUND_ITEMS_T2_COLOUR) - 1;
+    case 326:
+      return useServerState(Varps.GROUND_ITEMS_T1_COLOUR) - 1;
+    case 327:
+      return useServerState(Varps.GROUND_ITEMS_CUSTOM_COLOUR) - 1;
+    case 485:
+      return useServerState(Varps.VARP_5235) - 1;
+    case 486:
+      return useServerState(Varps.VARP_5236) - 1;
+    case 487:
+      return useServerState(Varps.VARP_5401) - 1;
+    case 488:
+      return useServerState(Varps.VARP_5237) - 1;
+  }
+  return -1;
+}
+
+const Swatch = {
+  w: 50,
+  h: 20,
+  halfH: 10,
+  right: 10,
+  measureInset: 75,
+  innerInset: 2,
+  outerOutline: 0x0e0e0c,
+  innerOutline: 0x474745,
+  veilTransparency: 250,
+  hoverTransparency: 220,
+  releaseMs: 200,
+} as const;

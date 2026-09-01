@@ -1,0 +1,215 @@
+import { predictServerState, sessionState, useServerState, useState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { CLICK_SOUND, Layout, SideColor, SideTab, SideVars, TabArt } from './settings-side.constants';
+import { clickSound, eq, neq } from './settings-side.helpers';
+
+enum TabState {
+  SELECTED = 0,
+  HOVERED = 1,
+  REST = 2,
+}
+
+const NO_TAB = -1;
+
+const hoveredTab = sessionState(NO_TAB);
+
+export function TabRail(): Component {
+  const tab: Int = useServerState(SideVars.TAB);
+  const transparent: Boolean = neq(useServerState(SideVars.TRANSPARENT), 0);
+  const [hovered, setHovered] = useState(hoveredTab);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer x="center" w={Layout.rail.w} h={Layout.rail.h}>
+      <layer
+        x={Layout.tab.edge}
+        y="center"
+        w={Layout.tab.w}
+        h="fill"
+        options={[tab === SideTab.CONTROLS ? '' : 'Controls']}
+        onOptionSelect={() => selectTab(SideTab.CONTROLS)}
+        onMouseRepeat={mobile ? undefined : () => setHovered(SideTab.CONTROLS)}
+        onMouseLeave={mobile ? undefined : () => setHovered(NO_TAB)}
+      >
+        <TabPlates
+          state={stateOf(tab, hovered, SideTab.CONTROLS)}
+          transparent={transparent}
+          restSheenMid={TabArt.SHEEN_MID}
+        />
+        <sprite
+          x="center"
+          y={{ bottom: Layout.iconControls.bottom }}
+          w={Layout.iconControls.w}
+          h={Layout.iconControls.h}
+          sprite={TabArt.ICON_CONTROLS}
+        />
+      </layer>
+
+      <layer
+        x="center"
+        y="center"
+        w={Layout.tab.w}
+        h="fill"
+        options={[tab === SideTab.AUDIO ? '' : 'Audio']}
+        onOptionSelect={() => selectTab(SideTab.AUDIO)}
+        onMouseRepeat={mobile ? undefined : () => setHovered(SideTab.AUDIO)}
+        onMouseLeave={mobile ? undefined : () => setHovered(NO_TAB)}
+      >
+        <TabPlates
+          state={stateOf(tab, hovered, SideTab.AUDIO)}
+          transparent={transparent}
+          restSheenMid={TabArt.T_SELECTED_MID}
+        />
+        <sprite x="center" y="center" w={Layout.iconAudio.w} h={Layout.iconAudio.h} sprite={TabArt.ICON_AUDIO} />
+      </layer>
+
+      <layer
+        x={{ right: Layout.tab.edge }}
+        y="center"
+        w={Layout.tab.w}
+        h="fill"
+        options={[tab === SideTab.DISPLAY ? '' : 'Display']}
+        onOptionSelect={() => selectTab(SideTab.DISPLAY)}
+        onMouseRepeat={mobile ? undefined : () => setHovered(SideTab.DISPLAY)}
+        onMouseLeave={mobile ? undefined : () => setHovered(NO_TAB)}
+      >
+        <TabPlates
+          state={stateOf(tab, hovered, SideTab.DISPLAY)}
+          transparent={transparent}
+          restSheenMid={TabArt.T_SELECTED_MID}
+        />
+        <sprite
+          x="center"
+          y="center"
+          w={Layout.iconDisplay.w}
+          h={Layout.iconDisplay.h}
+          sprite={mobile ? TabArt.ICON_DISPLAY_MOBILE : TabArt.ICON_DISPLAY}
+        />
+      </layer>
+
+      <RailUnderline tab={tab} transparent={transparent} />
+    </layer>
+  );
+}
+
+function selectTab(index: Int): void {
+  clickSound();
+  predictServerState(SideVars.TAB, index);
+}
+
+function stateOf(tab: Int, hovered: Int, index: Int): Int {
+  if (tab === index) {
+    return TabState.SELECTED;
+  }
+  if (hovered === index) {
+    return TabState.HOVERED;
+  }
+  return TabState.REST;
+}
+
+function TabPlates({
+  state,
+  transparent,
+  restSheenMid,
+}: {
+  state: Int;
+  transparent: Boolean;
+  restSheenMid: Sprite;
+}): Component {
+  const selected: Boolean = eq(state, TabState.SELECTED);
+  const hovered: Boolean = eq(state, TabState.HOVERED);
+
+  const plateEnd: Sprite = transparent
+    ? selected
+      ? TabArt.T_SELECTED_END
+      : hovered
+        ? TabArt.T_HOVER_END
+        : TabArt.T_REST_END
+    : selected
+      ? TabArt.SELECTED_END
+      : TabArt.REST_END;
+  const plateMid: Sprite = transparent
+    ? selected
+      ? TabArt.T_SELECTED_MID
+      : hovered
+        ? TabArt.T_HOVER_MID
+        : TabArt.T_REST_MID
+    : selected
+      ? TabArt.SELECTED_MID
+      : TabArt.REST_MID;
+
+  const sheenEnd: Sprite = transparent ? TabArt.SHEEN_END : hovered ? TabArt.HOVER_END : TabArt.SHEEN_END;
+  const sheenMid: Sprite = transparent ? restSheenMid : hovered ? TabArt.HOVER_MID : TabArt.SHEEN_MID;
+  const sheenAlpha: Int = transparent ? 0 : TabArt.SHEEN_TRANSPARENCY;
+  const sheen: Boolean = sheenShows(transparent, selected);
+
+  return (
+    <>
+      {sheen && (
+        <sprite
+          y={{ bottom: Layout.tabPlate.bottom }}
+          w={Layout.tabPlate.w}
+          h={Layout.tabPlate.h}
+          sprite={sheenEnd}
+          transparency={sheenAlpha}
+        />
+      )}
+      <sprite y={{ bottom: Layout.tabPlate.bottom }} w={Layout.tabPlate.w} h={Layout.tabPlate.h} sprite={plateEnd} />
+      {sheen && (
+        <sprite
+          x="center"
+          y={{ bottom: Layout.tabPlate.bottom }}
+          w={Layout.tabPlate.w}
+          h={Layout.tabPlate.h}
+          sprite={sheenMid}
+          transparency={sheenAlpha}
+        />
+      )}
+      <sprite
+        x="center"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={plateMid}
+      />
+      {sheen && (
+        <sprite
+          x="right"
+          y={{ bottom: Layout.tabPlate.bottom }}
+          w={Layout.tabPlate.w}
+          h={Layout.tabPlate.h}
+          sprite={sheenEnd}
+          transparency={sheenAlpha}
+          hflip
+        />
+      )}
+      <sprite
+        x="right"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={plateEnd}
+        hflip
+      />
+    </>
+  );
+}
+
+function RailUnderline({ tab, transparent }: { tab: Int; transparent: Boolean }): Component {
+  const tabX: Int = tab === SideTab.AUDIO ? 65 : tab === SideTab.DISPLAY ? 128 : Layout.tab.edge;
+  const color: Int = transparent ? SideColor.RAIL_LINE_TRANSPARENT : SideColor.RAIL_LINE;
+
+  return (
+    <layer y={{ bottom: Layout.railLine.bottom }} w="fill" h={Layout.railLine.h}>
+      <line w={tabX * 2} h={Layout.railLine.h} color={color} />
+      <line x={tabX + Layout.tab.w} w={Layout.railLineRun} h={Layout.railLine.h} color={color} />
+    </layer>
+  );
+}
+
+function sheenShows(transparent: Boolean, selected: Boolean): Boolean {
+  if (transparent || !selected) {
+    return true;
+  }
+  return false;
+}

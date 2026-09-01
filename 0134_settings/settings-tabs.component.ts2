@@ -1,0 +1,190 @@
+import { predictServerState, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { playSound, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Art, Colour, SettingsFonts, SettingsVarbits, Sounds, Tab } from './settings.constants';
+import { SettingsCategories } from './settings-categories.data';
+import type { SettingsCategory } from './settings-categories.data';
+import { categoryHidden } from './settings.helpers';
+import { openDropdownSetting } from './settings-dropdown.component';
+
+function tabIsSelected(categoryId: Int, selected: Int, searching: Boolean): Boolean {
+  if (searching) {
+    return false;
+  }
+  if (categoryId === selected) {
+    return true;
+  }
+  return false;
+}
+
+function tabHeight(label: String, width: Int, selected: Boolean, mobile: Boolean): Int {
+  let height: Int = textLineCount(label, width - Tab.measureInset, SettingsFonts.BODY) * Tab.lineHeight + Tab.labelPad;
+  if (mobile) {
+    const floor: Int = selected ? Tab.minHeightMobileSelected : Tab.minHeightMobileUnselected;
+    if (height < floor) {
+      height = floor;
+    }
+  }
+  return height;
+}
+
+function tabTop(upto: Int, selected: Int, searching: Boolean, width: Int, mobile: Boolean): Int {
+  let y: Int = Tab.labelPad;
+  let key: Int = 0;
+  while (key < upto) {
+    const category: SettingsCategory | null = SettingsCategories.at(key);
+    if (category !== null) {
+      if (!categoryHidden(category)) {
+        y =
+          y +
+          tabHeight(category.label, width, tabIsSelected(category.categoryId, selected, searching), mobile) +
+          Tab.stride;
+      }
+    }
+    key = key + 1;
+  }
+  return y;
+}
+
+export function SettingsTabs(): Component {
+  const universe = useUniverse();
+  const width: Int = universe.width;
+  const mobile: Boolean = onMobile();
+  const selected: Int = useServerState(SettingsVarbits.CATEGORY);
+  let searching: Boolean = false;
+  if (useServerState(SettingsVarbits.SEARCHING) === 1) {
+    searching = true;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {SettingsCategories.filter((category) => !categoryHidden(category)).map((category) => (
+        <SettingsTab
+          label={category.label}
+          categoryId={category.categoryId}
+          selected={tabIsSelected(category.categoryId, selected, searching)}
+          top={tabTop(category.categoryId, selected, searching, width, mobile)}
+          height={tabHeight(category.label, width, tabIsSelected(category.categoryId, selected, searching), mobile)}
+          mobile={mobile}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function SettingsTab({
+  label,
+  categoryId,
+  selected,
+  top,
+  height,
+  mobile,
+}: {
+  label: String;
+  categoryId: Int;
+  selected: Boolean;
+  top: Int;
+  height: Int;
+  mobile: Boolean;
+}): Component {
+  const caption = useRef();
+  const [, setOpen] = useState(openDropdownSetting);
+  const bottom: Int = height + Tab.corner + top;
+  const edgeInset: Int = selected ? Tab.selectedEdgeInset : Tab.unselectedEdgeInset;
+  const labelInset: Int = selected ? Tab.selectedLabelInset : Tab.unselectedLabelInset;
+
+  return (
+    <>
+      {!selected && (
+        <rect
+          x={0}
+          y={top}
+          w="fill"
+          h={height + Tab.stride}
+          fill
+          color={Colour.WHITE}
+          transparency={255}
+          options={[`Select <col=ff981f>${label}`]}
+          onOptionSelect={() => {
+            selectCategory(categoryId);
+            setOpen(-1);
+          }}
+          onMouseEnter={
+            mobile
+              ? undefined
+              : () => {
+                  caption.color = Colour.WHITE;
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : () => {
+                  caption.color = Colour.AMBER;
+                }
+          }
+        />
+      )}
+
+      {selected ? (
+        <>
+          <sprite x={Tab.corner} y={top} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_ON_TL} />
+          <sprite x="right" y={top} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_ON_TR} />
+          <sprite x={Tab.corner} y={bottom} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_ON_BL} />
+          <sprite x="right" y={bottom} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_ON_BR} />
+          <sprite x={{ center: 2 }} y={top} w={{ fill: edgeInset }} h={Tab.corner} sprite={Art.TAB_ON_TOP} />
+          <sprite x={{ center: 2 }} y={bottom} w={{ fill: edgeInset }} h={Tab.corner} sprite={Art.TAB_ON_BOTTOM} />
+          <sprite x={Tab.corner} y={top + Tab.corner} w={Tab.corner} h={height} sprite={Art.TAB_ON_LEFT} />
+          <sprite x="right" y={top + Tab.corner} w={Tab.corner} h={height} sprite={Art.TAB_ON_RIGHT} />
+          <sprite x={{ center: 2 }} y={top + Tab.corner} w={{ fill: edgeInset }} h={height} sprite={Art.TAB_ON_FILL} />
+          <text
+            x="center"
+            y={top + Tab.corner}
+            w={{ fill: labelInset }}
+            h={height}
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+            lineHeight={Tab.lineHeight}
+          />
+        </>
+      ) : (
+        <>
+          <sprite x={Tab.corner} y={top} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_OFF_TL} />
+          <sprite x={{ right: Tab.corner }} y={top} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_OFF_BL} />
+          <sprite x={Tab.corner} y={bottom} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_OFF_TR} />
+          <sprite x={{ right: Tab.corner }} y={bottom} w={Tab.corner} h={Tab.corner} sprite={Art.TAB_OFF_BR} />
+          <sprite x="center" y={top} w={{ fill: edgeInset }} h={Tab.corner} sprite={Art.TAB_OFF_TOP} />
+          <sprite x="center" y={bottom} w={{ fill: edgeInset }} h={Tab.corner} sprite={Art.TAB_OFF_BOTTOM} />
+          <sprite x={Tab.corner} y={top + Tab.corner} w={Tab.corner} h={height} sprite={Art.TAB_OFF_LEFT} />
+          <sprite x={{ right: Tab.corner }} y={top + Tab.corner} w={Tab.corner} h={height} sprite={Art.TAB_OFF_RIGHT} />
+          <sprite x="center" y={top + Tab.corner} w={{ fill: edgeInset }} h={height} sprite={Art.TAB_OFF_FILL} />
+          <text
+            ref={caption}
+            x="center"
+            y={top + Tab.corner}
+            w={{ fill: labelInset }}
+            h={height}
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+            lineHeight={Tab.lineHeight}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+function selectCategory(categoryId: Int): void {
+  playSound(Sounds.TAB_SELECT);
+  predictServerState(SettingsVarbits.CATEGORY, categoryId);
+  predictServerState(SettingsVarbits.SEARCHING, 0);
+  predictServerState(SettingsVarbits.SELECTED_SETTING, 0);
+}

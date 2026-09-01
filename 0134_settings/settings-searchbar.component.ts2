@@ -1,0 +1,144 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { osmChatKeyboard, settingsSearchString } from '../lib/game/varcs';
+import { Art, Colour, Layout, SettingsFonts, SettingsVarbits, Sounds } from './settings.constants';
+import { searchMode } from './settings-layout';
+
+enum SearchKey {
+  ENTER = 84,
+  BACKSPACE = 85,
+  DELETE = 101,
+}
+
+enum SearchGate {
+  NO_TOPLEVEL = -1,
+  THIS_PANEL = 134,
+}
+
+export function SettingsSearchBar(): Component {
+  const searching: Boolean = searchMode();
+  const mobile: Boolean = onMobile();
+  const [query] = useState(settingsSearchString);
+  const fieldOp: String = searching ? (mobile ? 'Show keyboard' : '') : 'Search';
+
+  return (
+    <>
+      <layer
+        x={Layout.searchField.x}
+        y="center"
+        w={{ fill: Layout.searchField.insetW }}
+        h={{ fill: Layout.searchField.insetH }}
+        options={[fieldOp]}
+        onOptionSelect={searching ? undefined : () => beginSearch()}
+      >
+        <sprite x="center" y="center" w={{ fill: Layout.searchFieldArt.insetW }} h="fill" sprite={Art.FIELD_MID} />
+        <sprite x={0} y="center" w={Layout.searchFieldArt.capW} h="fill" sprite={Art.FIELD_LEFT} />
+        <sprite x="right" y="center" w={Layout.searchFieldArt.capW} h="fill" sprite={Art.FIELD_RIGHT} />
+      </layer>
+
+      {searching ? (
+        <text
+          x={Layout.searchText.x}
+          y="center"
+          w={{ fill: Layout.searchText.insetW }}
+          h={{ fill: Layout.searchText.insetH }}
+          text={query.concat('<col=f4f4f4>*</col>')}
+          font={SettingsFonts.BODY}
+          shadow
+          valign="middle"
+          color={Colour.AMBER}
+          onKey={(event) => typeIntoSearch(event.keyCode, event.keyChar)}
+        />
+      ) : (
+        <text
+          x={Layout.searchText.x}
+          y="center"
+          w={{ fill: Layout.searchText.insetW }}
+          h={{ fill: Layout.searchText.insetH }}
+          text="*"
+          font={SettingsFonts.BODY}
+          shadow
+          valign="middle"
+          color={Colour.AMBER}
+          hover={{ color: Colour.WHITE }}
+        />
+      )}
+
+      <text
+        x={0}
+        y={0}
+        w={Layout.searchLabel.w}
+        h="fill"
+        text="Search:"
+        font={SettingsFonts.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        color={Colour.AMBER}
+      />
+    </>
+  );
+}
+
+function beginSearch(): void {
+  playSound(Sounds.TAB_SELECT);
+  if (useServerState(SettingsVarbits.SEARCHING) === 1) {
+    return;
+  }
+  predictServerState(SettingsVarbits.SEARCHING, 1);
+  predictServerState(SettingsVarbits.SEARCH_KEYBOARD, 1);
+}
+
+function hideKeyboard(): void {
+  if (onMobile() === false) {
+    return;
+  }
+  const [, setChatKeyboard] = useState(osmChatKeyboard);
+  setChatKeyboard(0);
+  CS2.mobile_keyboardhide();
+}
+
+function typeIntoSearch(keyCode: Int, keyChar: Char): void {
+  if (dialogueMayAdvance(SearchGate.NO_TOPLEVEL, SearchGate.THIS_PANEL) === false) {
+    return;
+  }
+  if (useServerState(SettingsVarbits.SEARCH_KEYBOARD) === 0) {
+    return;
+  }
+  if (useServerState(SettingsVarbits.SEARCHING) === 0) {
+    return;
+  }
+
+  const [query, setQuery] = useState(settingsSearchString);
+
+  if (keyCode === SearchKey.DELETE) {
+    setQuery('');
+    return;
+  }
+
+  if (keyCode === SearchKey.ENTER) {
+    if (onMobile()) {
+      hideKeyboard();
+    }
+    return;
+  }
+
+  if (keyCode === SearchKey.BACKSPACE) {
+    if (query.length > 0) {
+      setQuery(query.substring(0, query.length - 1));
+    }
+    return;
+  }
+
+  if (CS2.char_alpha_numeric_is(keyChar) === false && CS2.string_indexof_char(' -/,', keyChar as Int) === -1) {
+    return;
+  }
+
+  const next: String = CS2.append_char(query, keyChar);
+  if (next.length > 50) {
+    return;
+  }
+  setQuery(next);
+}

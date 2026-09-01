@@ -1,0 +1,104 @@
+import { createRef, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { PrayerGrid } from './prayer-grid.component';
+import { CLOSE_CYCLES, DONE, Layout, PrayerArt, PrayerColour, PrayerFonts } from './quickprayer.constants';
+
+const doneLabel = createRef('quickprayer_done_label');
+
+export function QuickPrayer(): Component {
+  return (
+    <>
+      <rect
+        x={Layout.plate1.x}
+        y={Layout.plate1.y}
+        w={Layout.plate1.w}
+        h={Layout.plate1.h}
+        fill
+        color={PrayerColour.PANEL}
+        transparency={Layout.plateTransparency}
+      />
+      <rect
+        x={Layout.plate2.x}
+        y={Layout.plate2.y}
+        w={Layout.plate2.w}
+        h={Layout.plate2.h}
+        fill
+        color={PrayerColour.PANEL}
+        transparency={Layout.plateTransparency}
+      />
+      <rect
+        x={Layout.plate3.x}
+        y={Layout.plate3.y}
+        w={Layout.plate3.w}
+        h={Layout.plate3.h}
+        fill
+        color={PrayerColour.PANEL}
+        transparency={Layout.plateTransparency}
+      />
+
+      <PrayerGrid x={Layout.buttons.x} y={Layout.buttons.y} w={Layout.buttons.w} h={Layout.buttons.h} />
+
+      <DoneButton x={Layout.done.x} y={Layout.done.y} w={Layout.done.w} h={Layout.done.h} />
+
+      <text
+        ref={doneLabel}
+        x={Layout.done.x}
+        y={Layout.done.y}
+        w={Layout.done.w}
+        h={Layout.done.h}
+        text={DONE}
+        font={PrayerFonts.BODY}
+        color={PrayerColour.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function DoneButton(): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  if (pressedUntil !== 0) {
+    return (
+      <sprite
+        w="fill"
+        h="fill"
+        sprite={PrayerArt.BUTTON_PRESSED}
+        options={[DONE]}
+        onMouseEnter={() => textColourSwapper(doneLabel, PrayerColour.LABEL_LIT)}
+        onMouseLeave={() => textColourSwapper(doneLabel, PrayerColour.LABEL)}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      w="fill"
+      h="fill"
+      sprite={PrayerArt.BUTTON}
+      options={[DONE]}
+      onMouseEnter={() => textColourSwapper(doneLabel, PrayerColour.LABEL_LIT)}
+      onMouseLeave={() => textColourSwapper(doneLabel, PrayerColour.LABEL)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + CLOSE_CYCLES);
+      }}
+    />
+  );
+}
+
+function textColourSwapper(target: ComponentId, colour: Int): void {
+  target.color = colour;
+}

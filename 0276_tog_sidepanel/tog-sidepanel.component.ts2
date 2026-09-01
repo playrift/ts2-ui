@@ -1,0 +1,138 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Layout, TogBowls, TogFonts, TogModel, TogState } from './tog-sidepanel.constants';
+
+export function togTimerWidth(questPoints: Int, countdown: Int): Int {
+  const total: Int = Math.max(1, questPoints);
+  const left: Int = countdown < questPoints ? countdown - 1 : countdown;
+
+  if (left <= 0) {
+    return 0;
+  }
+  if (left >= total) {
+    return -1;
+  }
+  return CS2.interpolate(0, left, 0, total, Layout.TRACK_W);
+}
+
+export function TogSidepanel(): Component {
+  const tears: Int = useServerState(TogState.TEARS);
+  const best: Int = useServerState(TogState.BEST);
+  const barWidth: Int = togTimerWidth(useServerState(TogState.QUEST_POINTS), useServerState(TogState.COUNTDOWN));
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y={Layout.TRACK_Y} w={Layout.TRACK_W} h={Layout.TRACK_H}>
+        <layer w={barWidth < 0 ? 'fill' : barWidth} h="fill">
+          <model
+            x={0}
+            y="center"
+            w={Layout.TRACK_W}
+            h={20}
+            model={TogModel.TIMER_FILL}
+            zoom={Layout.MODEL_ZOOM}
+            pitch={500}
+            offsetY={-8}
+          />
+        </layer>
+      </layer>
+
+      <model
+        x="center"
+        y={Layout.TRACK_Y}
+        w={Layout.RIM_W}
+        h={Layout.BOWL_H}
+        model={TogModel.BOWL_RIM}
+        zoom={Layout.MODEL_ZOOM}
+        pitch={437}
+      />
+
+      <model
+        x="center"
+        y={Layout.BOWL_Y}
+        w={Layout.RIM_W}
+        h={Layout.BOWL_H}
+        model={TogModel.BOWL_EMPTY}
+        zoom={Layout.MODEL_ZOOM}
+        pitch={Layout.BOWL_PITCH}
+        yaw={Layout.BOWL_YAW}
+      />
+
+      {TogBowls.map((bowl) => (
+        <model
+          x="center"
+          y={Layout.BOWL_Y}
+          w={Layout.BOWL_W}
+          h={Layout.BOWL_H}
+          hide={tears < bowl.threshold ? true : false}
+          model={bowl.model}
+          zoom={Layout.MODEL_ZOOM}
+          pitch={Layout.BOWL_PITCH}
+          yaw={Layout.BOWL_YAW}
+        />
+      ))}
+
+      <text
+        x="center"
+        y={114}
+        w="fill"
+        h={17}
+        text="Water Collected"
+        font={TogFonts.LABEL}
+        color={Layout.TEXT_COLOR}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="center"
+        y={35}
+        w="fill"
+        h={14}
+        text="Time Left"
+        font={TogFonts.LABEL}
+        color={Layout.TEXT_COLOR}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <model
+        x={130}
+        y={196}
+        w={Layout.RIM_W}
+        h={Layout.BOWL_H}
+        model={TogModel.TEAR}
+        zoom={Layout.MODEL_ZOOM}
+        pitch={409}
+        yaw={97}
+      />
+
+      <text
+        x={136}
+        y={201}
+        w={17}
+        h={14}
+        text={stringOf(tears)}
+        font={TogFonts.LABEL}
+        color={Layout.TEXT_COLOR}
+        shadow
+        align="center"
+      />
+
+      <text
+        x={118}
+        y={215}
+        w={52}
+        h={32}
+        hide={best <= 0 ? true : false}
+        text={`PB: ${stringOf(best)}`}
+        font={TogFonts.BEST}
+        color={Layout.TEXT_COLOR}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

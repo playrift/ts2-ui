@@ -1,0 +1,42 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Anchor } from '../lib/lib.overlay';
+import { Layout, Plate, SizeMode } from './inferno-hp-hud.constants';
+
+export function infernoHudUpdate(barText: ComponentId, remaining: ComponentId, back: ComponentId): void {
+  const health: Int = useServerState(Varbits.INFERNO_ZUK_HP);
+  CS2.if_text_set(`${health} / ${useServerState(Varbits.INFERNO_ZUK_BASE_HP)}`, barText);
+  const barWidth: Int = CS2.if_width_get(back);
+  const base: Int = Math.max(useServerState(Varbits.INFERNO_ZUK_BASE_HP), 1);
+  predictServerState(Varbits.INFERNO_ZUK_BASE_HP, base);
+  let filled: Int = CS2.scale(health, base, barWidth);
+  if (filled === 0 && health > 0) {
+    filled = 1;
+  }
+  if (filled === barWidth && health < base) {
+    filled = filled - 1;
+  }
+  CS2.if_size_set(filled, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
+}
+
+export function infernoHudPos(
+  universe: ComponentId,
+  hp: ComponentId,
+  nameArea: ComponentId,
+  creatureName: ComponentId,
+  barText: ComponentId,
+  remaining: ComponentId,
+  back: ComponentId,
+): void {
+  const stage: Int = CS2.if_width_get(universe);
+  const width: Int = Math.min(Math.max(CS2.scale(1, Plate.SHARE, stage), Plate.MIN_W), Plate.MAX_W);
+  if (CS2.if_width_get(hp) === width) {
+    return;
+  }
+  CS2.if_size_set(width, Plate.H, SizeMode.ABS, SizeMode.ABS, hp);
+  CS2.if_text_align_set(Anchor.LEFT, Anchor.CENTRE, 0, creatureName);
+  CS2.if_position_set(Layout.NAME_X, 0, Anchor.LEFT, Anchor.CENTRE, creatureName);
+  CS2.if_position_set(0, 0, Anchor.LEFT, Anchor.TOP, nameArea);
+  infernoHudUpdate(barText, remaining, back);
+}

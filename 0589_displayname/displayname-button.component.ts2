@@ -1,0 +1,78 @@
+import { CS2, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { meslayermode } from '../lib/game/varcs';
+import { Sounds } from '../lib/lib.constants';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Caption, DisplayNameColour, DisplayNameFonts, MESLAYER_MODAL, PRESS_CYCLES } from './displayname.constants';
+
+export function DisplayNameButton({ label, enabled = false }: { label: String; enabled?: Boolean }): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [layerMode] = useState(meslayermode);
+
+  if (!enabled) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonPressedFilled />
+        <ButtonCaption text={Caption.DISABLED} colour={DisplayNameColour.DISABLED} />
+      </layer>
+    );
+  }
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[CS2.tags_remove(label)]}
+        onTimer={() => {
+          if (clientClock() < pressedUntil || layerMode === MESLAYER_MODAL) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <StoneButtonPressedFilled />
+        <ButtonCaption text={label} colour={DisplayNameColour.AMBER} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <ButtonCaption text={label} colour={DisplayNameColour.AMBER} />
+    </layer>
+  );
+}
+
+function ButtonCaption({ text, colour }: { text: String; colour: Int }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={text}
+      color={colour}
+      font={DisplayNameFonts.BODY}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}

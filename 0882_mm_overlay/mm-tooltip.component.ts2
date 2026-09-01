@@ -1,0 +1,115 @@
+import { CS2, useState, useUniverse } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import { MmFonts, Order, Reagent, Tip, Tooltip } from './mm-overlay.constants';
+import { mmModifierText, mmOrderLevel, mmOrderTop, mmReagentName } from './mm-overlay.helpers';
+import { content } from './mm-overlay.refs';
+
+const enum TooltipColor {
+  FILL = 0xffffa0,
+  INK = 0x000000,
+}
+
+function widthOf(component: ComponentId): Int {
+  return CS2.if_width_get(component);
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+function tipRow(tip: Int): Int {
+  if (tip <= Tip.ORDER_3) {
+    return tip - Tip.ORDER_1;
+  }
+  if (tip <= Tip.MODIFIER_3) {
+    return tip - Tip.MODIFIER_1;
+  }
+  return tip - Tip.REAGENT_1;
+}
+
+function tipText(tip: Int): String {
+  if (tip <= Tip.ORDER_3) {
+    return `You need level ${stringOf(mmOrderLevel(tipRow(tip)))} Herblore for this order`;
+  }
+  if (tip <= Tip.MODIFIER_3) {
+    return mmModifierText(tipRow(tip));
+  }
+  return mmReagentName(tipRow(tip));
+}
+
+function anchorX(tip: Int): Int {
+  const origin: Int = absoluteX(content);
+  if (tip <= Tip.ORDER_3) {
+    return origin + Order.LEFT;
+  }
+  if (tip <= Tip.MODIFIER_3) {
+    return origin + Order.LEFT + Order.ICON_INSET;
+  }
+  const column: Int = widthOf(content) / Reagent.COUNT;
+  return origin + tipRow(tip) * column + column / 2 + Reagent.DX;
+}
+
+function anchorY(tip: Int): Int {
+  const origin: Int = absoluteY(content);
+  if (tip <= Tip.ORDER_3) {
+    return origin + mmOrderTop(tipRow(tip));
+  }
+  if (tip <= Tip.MODIFIER_3) {
+    return origin + mmOrderTop(tipRow(tip)) + Order.ICON_INSET;
+  }
+  return origin + heightOf(content) - Reagent.BOTTOM - Reagent.PLATE_H;
+}
+
+function anchorHeight(tip: Int): Int {
+  if (tip <= Tip.ORDER_3) {
+    return Order.ROW_H;
+  }
+  if (tip <= Tip.MODIFIER_3) {
+    return Order.ICON;
+  }
+  return Reagent.PLATE_H;
+}
+
+export function MmTooltip(): Component {
+  const [tip] = useState(tooltipBuilt);
+  if (tip < Tip.ORDER_1) {
+    return null;
+  }
+
+  const parent = useUniverse();
+  const text: String = tipText(tip);
+
+  const wrap: Int = Math.min(Tooltip.WRAP, parent.width) - Tooltip.PAD_X;
+  const boxW: Int = Tooltip.PAD_X + textWidth(text, wrap, MmFonts.ORDER);
+  const boxH: Int = Tooltip.PAD_Y + Tooltip.LINE * textLineCount(text, wrap, MmFonts.ORDER);
+
+  const ax: Int = anchorX(tip);
+  const ay: Int = anchorY(tip);
+  const below: Int = ay + anchorHeight(tip) + Tooltip.GAP;
+
+  return (
+    <layer
+      x={Math.min(ax + Tooltip.GAP, parent.width - boxW)}
+      y={below > parent.height - boxH ? ay - boxH - Tooltip.GAP : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipColor.FILL} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipColor.INK} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: Tooltip.PAD_X }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={MmFonts.ORDER}
+        color={TooltipColor.INK}
+      />
+    </layer>
+  );
+}

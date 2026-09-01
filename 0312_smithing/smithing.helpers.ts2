@@ -1,0 +1,69 @@
+import { useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { coordInBox } from '../lib/lib.helpers';
+import { membersWorld, playerCoord } from '../lib/lib.engine';
+import { SKILLMAIN_BAR_DEFAULT, SkillmainBars } from '../lib/skillmain.helpers';
+import { Gates, SmithVarbits, SmithVarps, Zones } from './smithing.constants';
+import { SmithGate } from './smithing.data';
+
+export declare const SailingVarbits: {
+  readonly RESTRICTED: typeof Varbits.CONTENT_RESTRICT_SAILING_SERVERSIDE;
+};
+
+export function sailingKeelsOffered(): Boolean {
+  if (membersWorld() === false) {
+    return false;
+  }
+  if (useServerState(SmithVarbits.SAILING_INTRO) < Gates.SAILING_INTRO) {
+    return false;
+  }
+  if (useServerState(SailingVarbits.RESTRICTED) >= 1) {
+    return false;
+  }
+  return true;
+}
+
+export function smithGateOpen(gate: Int): Boolean {
+  if (gate === SmithGate.ALWAYS) {
+    return true;
+  }
+  if (gate === SmithGate.MEMBERS) {
+    return membersWorld();
+  }
+  if (gate === SmithGate.CLAWS) {
+    if (useServerState(SmithVarps.DEATH_EQUIPROOM) >= Gates.DEATH_EQUIPROOM) {
+      return true;
+    }
+    return false;
+  }
+  return sailingKeelsOffered();
+}
+
+export function inLockedForge(): Boolean {
+  return coordInBox(
+    tileOf(Zones.LOCKED_MIN_X, Zones.LOCKED_MIN_Z, 0),
+    tileOf(Zones.LOCKED_MAX_X, Zones.LOCKED_MAX_Z, 0),
+    playerCoord(),
+  );
+}
+
+export function inTutorialForge(): Boolean {
+  return coordInBox(
+    tileOf(Zones.TUTORIAL_MIN_X, Zones.TUTORIAL_MIN_Z, 0),
+    tileOf(Zones.TUTORIAL_MAX_X, Zones.TUTORIAL_MAX_Z, 0),
+    playerCoord(),
+  );
+}
+
+export function barsCaption(bars: Int): String {
+  if (bars === 1) {
+    return '1 bar';
+  }
+  return `${stringOf(bars)} bars`;
+}
+
+export function smithingBar(barType: Int): Item {
+  const bar: Item | null = SkillmainBars.get(barType);
+  return bar === null ? SKILLMAIN_BAR_DEFAULT : bar;
+}

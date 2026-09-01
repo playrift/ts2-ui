@@ -1,0 +1,246 @@
+import { CS2, useServerState } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { textWidth } from '../lib/lib.engine';
+import { ThinBox } from '../lib/thin-box.component';
+import { Varbits } from '../lib/game/varbits';
+import {
+  BACKING_WASH,
+  ClanwarsColor,
+  ClanwarsFonts,
+  ClanwarsSprites,
+  HillPointTarget,
+  KILLS_CEILING,
+  KillTarget,
+  Layout,
+  SkullPointTarget,
+  TEAM_TWO,
+  THOUSANDS,
+  TimedTarget,
+} from './clanwars-hud.constants';
+import { timeRemainingLine } from './clanwars-hud.helpers';
+import { infoBox } from './clanwars-hud.refs';
+
+export function ClanwarsInfo(): Component {
+  const players1: Int = useServerState(Varbits.CLANWARS_PLAYERS_1);
+  const players2: Int = useServerState(Varbits.CLANWARS_PLAYERS_2);
+  if (players1 <= 0 && players2 <= 0) {
+    infoBox.hide = true;
+  } else {
+    infoBox.hide = false;
+  }
+
+  const myTeam: Int = useServerState(Varbits.CLANWARS_MYTEAM);
+
+  let rows: Int = 0;
+  let labels: String = '';
+  let mine: String = '';
+  let theirs: String = '';
+
+  if (useServerState(Varbits.CLANWARS_ACCEPT) === 1) {
+    rows = 1;
+    labels = ' ';
+    if (useServerState(Varbits.CLANWARS_USECLANSYSTEM) === 1) {
+      if (CS2.activeclansettings_affined_find(0)) {
+        mine = CS2.activeclansettings_clan_name_get();
+      } else {
+        mine = 'Your clan';
+      }
+    } else {
+      mine = CS2.friendschat_chat_display_name_get();
+    }
+    theirs = 'Opponents';
+  }
+
+  let widest: Int = 0;
+
+  rows = rows + 1;
+  if (labels.length > 0) {
+    labels = `${labels}<br>`;
+  }
+  labels = `${labels}Fighters:`;
+
+  let cell: String = groupDigits(players1, THOUSANDS);
+  if (myTeam === TEAM_TWO) {
+    cell = groupDigits(players2, THOUSANDS);
+  }
+  if (mine.length > 0) {
+    mine = `${mine}<br>`;
+  }
+  mine = `${mine}${cell}`;
+  widest = textWidth(cell, Layout.MEASURE_W, ClanwarsFonts.BODY);
+
+  cell = groupDigits(players2, THOUSANDS);
+  if (myTeam === TEAM_TWO) {
+    cell = groupDigits(players1, THOUSANDS);
+  }
+  if (theirs.length > 0) {
+    theirs = `${theirs}<br>`;
+  }
+  theirs = `${theirs}${cell}`;
+
+  const condition: Int = useServerState(Varbits.CLANWARS_WINCONDITION);
+  const killTarget: Int = KillTarget.get(condition) ?? 0;
+  const hillTarget: Int = HillPointTarget.get(condition) ?? 0;
+  const skullTarget: Int = SkullPointTarget.get(condition) ?? 0;
+  const timedTarget: Int = TimedTarget.get(condition) ?? 0;
+
+  let footer: String = '';
+  let footerWidth: Int = 0;
+
+  if (killTarget > 0 || hillTarget > 0 || skullTarget > 0 || timedTarget > 0) {
+    rows = rows + 1;
+    labels = `${labels}<br>Kills:`;
+
+    const kills1: Int = useServerState(Varbits.CLANWARS_KILLS_1);
+    const kills2: Int = useServerState(Varbits.CLANWARS_KILLS_2);
+    let myKills: Int = kills1;
+    let theirKills: Int = kills2;
+    if (myTeam === TEAM_TWO) {
+      myKills = kills2;
+      theirKills = kills1;
+    }
+
+    cell = groupDigits(myKills, THOUSANDS);
+    if (myKills >= KILLS_CEILING) {
+      cell = 'Lots!';
+    }
+    mine = `${mine}<br>${cell}`;
+    const killWidth: Int = textWidth(cell, Layout.MEASURE_W, ClanwarsFonts.BODY);
+    if (widest < killWidth) {
+      widest = killWidth;
+    }
+
+    cell = groupDigits(theirKills, THOUSANDS);
+    if (theirKills >= KILLS_CEILING) {
+      cell = 'Lots!';
+    }
+    theirs = `${theirs}<br>${cell}`;
+
+    if (hillTarget > 0 || skullTarget > 0) {
+      rows = rows + 1;
+      cell = 'Points:';
+      if (hillTarget > 0) {
+        cell = 'Hill points:';
+      } else if (skullTarget > 0) {
+        cell = 'Skull points:';
+      }
+      labels = `${labels}<br>${cell}`;
+
+      const points1: Int = useServerState(Varbits.CLANWARS_POINTS_1);
+      const points2: Int = useServerState(Varbits.CLANWARS_POINTS_2);
+      let myPoints: Int = points1;
+      let theirPoints: Int = points2;
+      if (myTeam === TEAM_TWO) {
+        myPoints = points2;
+        theirPoints = points1;
+      }
+
+      cell = groupDigits(myPoints, THOUSANDS);
+      mine = `${mine}<br>${cell}`;
+      const pointWidth: Int = textWidth(cell, Layout.MEASURE_W, ClanwarsFonts.BODY);
+      if (widest < pointWidth) {
+        widest = pointWidth;
+      }
+
+      theirs = `${theirs}<br>${groupDigits(theirPoints, THOUSANDS)}`;
+    }
+
+    if (hillTarget > 0) {
+      footer = `Victory: ${groupDigits(hillTarget, THOUSANDS)} points`;
+    } else if (skullTarget > 0) {
+      footer = `Victory: ${groupDigits(skullTarget, THOUSANDS)} points`;
+    } else if (killTarget > 0) {
+      footer = `Victory: ${groupDigits(killTarget, THOUSANDS)} kills`;
+    } else if (timedTarget > 0) {
+      footer = timeRemainingLine();
+    }
+    footerWidth = textWidth(footer, Layout.MEASURE_W, ClanwarsFonts.BODY);
+  }
+
+  let labelWidth: Int = textWidth(labels, Layout.MEASURE_W, ClanwarsFonts.BODY);
+  const mineWidth: Int = textWidth(mine, Layout.MEASURE_W, ClanwarsFonts.BODY);
+  const theirsWidth: Int = textWidth(theirs, Layout.MEASURE_W, ClanwarsFonts.BODY);
+  const columns: Int = labelWidth + Layout.PAD + mineWidth + Layout.PAD + theirsWidth;
+  if (footerWidth > columns) {
+    labelWidth = labelWidth + (footerWidth - columns);
+    widest = mineWidth;
+  }
+
+  const bodyHeight: Int = rows * Layout.ROW_H + Layout.ROW_EXTRA;
+
+  const labelX: Int = Layout.PAD;
+  let mineX: Int = labelX + labelWidth - ((mineWidth - widest) / 2 - Layout.PAD);
+  if (mineX < Layout.PAD) {
+    mineX = Layout.PAD;
+  }
+  const theirsX: Int = mineX + mineWidth + Layout.PAD;
+  const rightEdge: Int = theirsX + theirsWidth;
+
+  infoBox.width = rightEdge + Layout.PAD;
+  let boxHeight: Int = Layout.PAD + bodyHeight + Layout.PAD;
+  if (footerWidth > 0) {
+    boxHeight = boxHeight + Layout.FOOTER_H;
+  }
+  infoBox.height = boxHeight;
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={ClanwarsSprites.BACKING} tiling transparency={BACKING_WASH} />
+
+      <ThinBox />
+
+      <text
+        x={labelX}
+        y={Layout.PAD}
+        w={labelWidth}
+        h={bodyHeight}
+        text={labels}
+        font={ClanwarsFonts.BODY}
+        align="left"
+        valign="middle"
+        shadow
+        color={ClanwarsColor.LABEL}
+      />
+
+      <text
+        x={mineX}
+        y={Layout.PAD}
+        w={mineWidth}
+        h={bodyHeight}
+        text={mine}
+        font={ClanwarsFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={ClanwarsColor.MINE}
+      />
+
+      <text
+        x={theirsX}
+        y={Layout.PAD}
+        w={theirsWidth}
+        h={bodyHeight}
+        text={theirs}
+        font={ClanwarsFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={ClanwarsColor.THEIRS}
+      />
+
+      <text
+        x={Layout.PAD}
+        y={Layout.PAD + bodyHeight}
+        w={rightEdge - Layout.PAD}
+        h={Layout.FOOTER_H}
+        text={footer}
+        font={ClanwarsFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={ClanwarsColor.LABEL}
+      />
+    </layer>
+  );
+}

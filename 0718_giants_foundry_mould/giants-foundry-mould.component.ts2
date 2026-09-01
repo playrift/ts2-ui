@@ -1,0 +1,394 @@
+import { CS2, onMounted, onUpdated, predictServerState, useDerived, useRef, useServerState, useState } from 'ts2';
+import { SteelBorder } from '../lib/steel-border.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { onMobile } from '../lib/lib.helpers';
+import { BoxStyle, BoxStyles } from './box-styles.data';
+import { Layout, MouldArt, MouldColor, MouldSounds, MouldVarbits } from './giants-foundry-mould.constants';
+import {
+  boldFont,
+  bodyFont,
+  breakpointOf,
+  commissionHeight,
+  commissionWidth,
+  rowHeight,
+  stripOffsetX,
+  tabGap,
+  tabHeight,
+  universeHeight,
+  universeWidth,
+} from './giants-foundry-mould.metrics';
+import { MouldCategory, MouldKeyword, MouldKeywords, MouldRow, Moulds, mouldIndex } from './moulds.data';
+import {
+  allChosen,
+  anythingChosen,
+  commissionText,
+  resetMoulds,
+  selectedSlot,
+  unlockedInCategory,
+} from './giants-foundry-mould.helpers';
+import { MouldList, MouldScrollbar } from './mould-list.component';
+import { universe } from './giants-foundry-mould.refs';
+import { StructBoxFrame } from './struct-box-frame.component';
+import { TabButton } from './tab-button.component';
+
+export function GiantsFoundryMould(): Component {
+  return (
+    <layer static ref={universe} x="center" y="center" w={480} h={314}>
+      <layer w="fill" h="fill">
+        <SteelBorder title="Giants' Foundry Mould Setup" titleColor={MouldColor.ACCENT} flags={16} />
+      </layer>
+
+      <MainContent panel={universe} />
+    </layer>
+  );
+}
+
+function MainContent({ panel }: { panel: Ref }): Component {
+  const stage: ComponentId = CS2.if_layer_get(panel);
+  const breakpoint: Int = breakpointOf(CS2.if_width_get(stage), CS2.if_height_get(stage));
+
+  onMounted(() => {
+    CS2.if_size_set(universeWidth(breakpoint), universeHeight(breakpoint), 0, 0, panel);
+  });
+  onUpdated(() => {
+    CS2.if_size_set(universeWidth(breakpoint), universeHeight(breakpoint), 0, 0, panel);
+  });
+
+  let top: Int = Layout.MAIN_Y;
+  if (breakpoint === 1 || breakpoint === 2) {
+    top = 37;
+  } else if (breakpoint === 3) {
+    top = 39;
+  }
+
+  const content = useRef();
+  const boxHeight: Int = universeHeight(breakpoint);
+  const boxWidth: Int = universeWidth(breakpoint) - Layout.MAIN_INSET_W;
+  const paneBoxHeight: Int = boxHeight - (top + 6);
+  const paneHeight: Int = boxHeight - (top + 6) - Layout.CONTENT_INSET_H;
+  const menuHeight: Int = boxHeight - (top + 6) - Layout.SIDE_MENU_INSET_H;
+
+  const rows: Int = useDerived(() => unlockedInCategory(useServerState(MouldVarbits.CURRENT_TAB) as MouldCategory));
+
+  return (
+    <layer x="center" y={top} w={{ fill: Layout.MAIN_INSET_W }} h={{ fill: top + 6 }}>
+      <rect x={0} y={0} w="fill" h="fill" fill color={MouldColor.ROW} transparency={200} />
+
+      <MouldButtons breakpoint={breakpoint} />
+
+      <MouldStrip breakpoint={breakpoint} />
+
+      <TabPanel boxWidth={boxWidth} boxHeight={paneBoxHeight} />
+
+      <layer
+        ref={content}
+        x={{ right: Layout.CONTENT_X }}
+        y={{ bottom: Layout.CONTENT_Y }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+        scrollHeight={Math.max(paneHeight, rows * rowHeight(breakpoint))}
+      >
+        <MouldList pane={content} paneHeight={paneHeight} breakpoint={breakpoint} />
+      </layer>
+
+      <layer
+        x={{ right: Layout.CONTENT_BOX_X }}
+        y={{ bottom: Layout.CONTENT_BOX_Y }}
+        w={{ fill: Layout.CONTENT_BOX_INSET_W }}
+        h={{ fill: Layout.CONTENT_BOX_INSET_H }}
+      >
+        <ThinBox />
+      </layer>
+
+      <layer
+        x={{ right: Layout.SCROLLBAR_X }}
+        y={{ bottom: Layout.SCROLLBAR_Y }}
+        w={Layout.SCROLLBAR_W}
+        h={{ fill: Layout.CONTENT_BOX_INSET_H }}
+      >
+        <MouldScrollbar content={content} />
+      </layer>
+
+      <layer
+        x={Layout.SIDE_MENU_X}
+        y={{ bottom: Layout.SIDE_MENU_Y }}
+        w={Layout.SIDE_MENU_W}
+        h={{ fill: Layout.SIDE_MENU_INSET_H }}
+      >
+        <SideMenu breakpoint={breakpoint} menuHeight={menuHeight} />
+      </layer>
+
+      <Commission breakpoint={breakpoint} />
+    </layer>
+  );
+}
+
+function SideMenu({ breakpoint, menuHeight }: { breakpoint: Int; menuHeight: Int }): Component {
+  const tab: Int = useServerState(MouldVarbits.CURRENT_TAB);
+
+  return (
+    <layer w="fill" h="fill">
+      <TabButton
+        category={MouldCategory.RICASSO}
+        label="Forte"
+        index={0}
+        breakpoint={breakpoint}
+        menuHeight={menuHeight}
+        currentTab={tab}
+      />
+      <TabButton
+        category={MouldCategory.BLADE}
+        label="Blades"
+        index={1}
+        breakpoint={breakpoint}
+        menuHeight={menuHeight}
+        currentTab={tab}
+      />
+      <TabButton
+        category={MouldCategory.TIP}
+        label="Tips"
+        index={2}
+        breakpoint={breakpoint}
+        menuHeight={menuHeight}
+        currentTab={tab}
+      />
+    </layer>
+  );
+}
+
+function TabPanel({ boxWidth, boxHeight }: { boxWidth: Int; boxHeight: Int }): Component {
+  return (
+    <layer
+      x={{ right: Layout.TAB_PANEL_X }}
+      y={{ bottom: Layout.TAB_PANEL_Y }}
+      w={{ fill: Layout.TAB_PANEL_INSET_W }}
+      h={{ fill: Layout.TAB_PANEL_INSET_H }}
+    >
+      <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} fill color={MouldColor.PANEL} />
+      <StructBoxFrame
+        x={0}
+        y={0}
+        w={boxWidth - Layout.TAB_PANEL_INSET_W}
+        h={boxHeight - Layout.TAB_PANEL_INSET_H}
+        style={BoxStyles.at(BoxStyle.ACTIVE)}
+      />
+    </layer>
+  );
+}
+
+function MouldStrip({ breakpoint }: { breakpoint: Int }): Component {
+  return (
+    <layer x={{ center: stripOffsetX(breakpoint) }} y={Layout.STRIP_Y} w={Layout.STRIP_W} h={Layout.STRIP_H}>
+      <rect x={1} y={0} w={Layout.STEP_W} h={Layout.STEP_H} />
+      <rect x={2} y={1} w={Layout.STEP_W} h={Layout.STEP_H} />
+      <rect x={3} y={2} w={Layout.STEP_W} h={Layout.STEP_H} />
+      <rect x={4} y={3} w={Layout.STEP_W} h={Layout.STEP_H} />
+      <rect x={5} y={4} w={Layout.STEP_W} h={Layout.STEP_H} />
+      <rect x={6} y={5} w={Layout.STEP_W} h={Layout.STEP_H} />
+
+      <sprite
+        x={Layout.BACKING_X}
+        y={Layout.MOULD_Y}
+        w={Layout.MOULD_W}
+        h={Layout.MOULD_H}
+        sprite={MouldArt.LAYOUT_BACKING}
+      />
+
+      <MouldSlot category={MouldCategory.RICASSO} label="Forte" x={Layout.PART1_X} />
+      <MouldSlot category={MouldCategory.BLADE} label="Blades" x={Layout.PART2_X} />
+      <MouldSlot category={MouldCategory.TIP} label="Tips" x={Layout.PART3_X} />
+    </layer>
+  );
+}
+
+function MouldSlot({ category, label, x }: { category: MouldCategory; label: String; x: Int }): Component {
+  const slot: Int = useDerived(() => selectedSlot(category));
+
+  let art: Sprite = MouldArt.LAYOUT_EMPTY;
+  if (slot !== 0) {
+    const row: MouldRow | null = Moulds.at(mouldIndex(category, slot));
+    art = row === null ? MouldArt.LAYOUT_EMPTY : row.art;
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={Layout.MOULD_Y}
+      w={Layout.MOULD_W}
+      h={Layout.MOULD_H}
+      sprite={art}
+      options={['View']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onClick={() => {
+        if (useServerState(MouldVarbits.CURRENT_TAB) !== category) {
+          CS2.sound_effect(MouldSounds.SELECT, 1, 0);
+          predictServerState(MouldVarbits.CURRENT_TAB, category);
+        }
+      }}
+    />
+  );
+}
+
+function Commission({ breakpoint }: { breakpoint: Int }): Component {
+  const tab: MouldCategory = useServerState(MouldVarbits.CURRENT_TAB) as MouldCategory;
+  const word1: MouldKeyword = useServerState(MouldVarbits.COMMISSION_WORD_1) as MouldKeyword;
+  const word2: MouldKeyword = useServerState(MouldVarbits.COMMISSION_WORD_2) as MouldKeyword;
+
+  const body: Font = bodyFont(breakpoint);
+
+  return (
+    <layer
+      x={Layout.COMMISSION_X}
+      y={breakpoint >= 1 ? Layout.COMMISSION_Y : { bottom: Layout.COMMISSION_Y }}
+      w={commissionWidth(breakpoint)}
+      h={commissionHeight(breakpoint)}
+    >
+      <rect x={0} y={0} w="fill" h="fill" fill color={MouldColor.ROW} />
+      <ThinBox />
+
+      <text
+        x="center"
+        y="7.6904296875%"
+        w={{ fill: Layout.TITLE_INSET_W }}
+        h={Layout.COMMISSION_LINE_H}
+        align="center"
+        valign="middle"
+        shadow
+        font={boldFont(breakpoint)}
+        color={MouldColor.ACCENT}
+        text="Commission"
+      />
+      <text
+        x="center"
+        y="36.9201660156%"
+        w={{ fill: Layout.WORD_INSET_W }}
+        h={Layout.COMMISSION_LINE_H}
+        align="left"
+        valign="middle"
+        shadow
+        font={body}
+        color={MouldColor.ACCENT}
+        text={MouldKeywords.get(word1) ?? ''}
+      />
+      <text
+        x="center"
+        y="36.9201660156%"
+        w={{ fill: Layout.WORD_INSET_W }}
+        h={Layout.COMMISSION_LINE_H}
+        align="right"
+        valign="middle"
+        shadow
+        font={body}
+        color={MouldColor.ACCENT}
+        text={commissionText(word1, tab)}
+      />
+      <text
+        x="center"
+        y="64.6118164062%"
+        w={{ fill: Layout.WORD_INSET_W }}
+        h={Layout.COMMISSION_LINE_H}
+        align="left"
+        valign="middle"
+        shadow
+        font={body}
+        color={MouldColor.ACCENT}
+        text={MouldKeywords.get(word2) ?? ''}
+      />
+      <text
+        x="center"
+        y="64.6118164062%"
+        w={{ fill: Layout.WORD_INSET_W }}
+        h={Layout.COMMISSION_LINE_H}
+        align="right"
+        valign="middle"
+        shadow
+        font={body}
+        color={MouldColor.ACCENT}
+        text={commissionText(word2, tab)}
+      />
+    </layer>
+  );
+}
+
+function MouldButtons({ breakpoint }: { breakpoint: Int }): Component {
+  const canReset: Int = useDerived(() => anythingChosen());
+  const canSet: Int = useDerived(() => allChosen());
+
+  return (
+    <>
+      <layer x={{ right: Layout.BUTTON_X }} y={Layout.RESET_Y} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        <MouldButton label="Reset Mould" option="Reset" live={canReset} breakpoint={breakpoint} reset />
+      </layer>
+
+      <layer x={{ right: Layout.BUTTON_X }} y={Layout.SET_Y} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        <MouldButton label="Set Mould" option="Set" live={canSet} breakpoint={breakpoint} />
+      </layer>
+    </>
+  );
+}
+
+function MouldButton({
+  label,
+  option,
+  live,
+  breakpoint,
+  reset = false,
+}: {
+  label: String;
+  option: String;
+  live: Int;
+  breakpoint: Int;
+  reset?: Boolean;
+}): Component {
+  const [pressed, setPressed] = useState(0);
+
+  let skin: Int = 0;
+  if (live === 0 || pressed === 1) {
+    skin = 1;
+  }
+  const color: Int = live === 1 ? MouldColor.ACCENT : MouldColor.DIM;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[live === 1 ? option : '']}
+      optionSubject="<col=ff9040>Mould"
+      onMouseEnter={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onClick={() => {
+        if (reset && live === 1) {
+          resetMoulds();
+        }
+      }}
+    >
+      <sprite
+        x={1}
+        y={1}
+        w={{ fill: Layout.BUTTON_FACE_INSET }}
+        h={{ fill: Layout.BUTTON_FACE_INSET }}
+        sprite={297}
+        tiling
+      />
+      <text
+        x={1}
+        y={1}
+        w={{ fill: Layout.BUTTON_FACE_INSET }}
+        h={{ fill: Layout.BUTTON_FACE_INSET }}
+        align="center"
+        valign="middle"
+        shadow
+        font={boldFont(breakpoint)}
+        color={color}
+        text={label}
+      />
+      {skin === 1 ? <StoneButtonPressed /> : <StoneButton />}
+    </layer>
+  );
+}

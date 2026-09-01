@@ -1,0 +1,226 @@
+import { useServerState } from 'ts2';
+import { closeInterface, graphicSwapper } from '../lib/lib.helpers';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import { BondsButton } from './bonds-button.component';
+import { DisplayNameButton } from './displayname-button.component';
+import { bondsGone, bondsHidden, changeEnabled, checkEnabled, flashStatus, nameLookedUp } from './displayname.helpers';
+import {
+  BONDS,
+  Caption,
+  DisplayNameArt,
+  DisplayNameColour,
+  DisplayNameFonts,
+  DisplayNameStatusValue,
+  DisplayNameVarbits,
+  Layout,
+  RELOAD_NOTE,
+  SMALL_PRINT,
+  TITLE,
+} from './displayname.constants';
+
+export function DisplayName(): Component {
+  return (
+    <>
+      <text
+        x="center"
+        y={Layout.title.y}
+        w="fill"
+        h={Layout.title.h}
+        text={TITLE}
+        font={DisplayNameFonts.TITLE}
+        color={DisplayNameColour.AMBER}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <sprite
+        x={{ right: Layout.close.right }}
+        y={Layout.close.y}
+        w={Layout.close.size}
+        h={Layout.close.size}
+        sprite={DisplayNameArt.CLOSE}
+        options={['Close']}
+        onMouseEnter={(event) => graphicSwapper(event.component, DisplayNameArt.CLOSE_LIT)}
+        onMouseLeave={(event) => graphicSwapper(event.component, DisplayNameArt.CLOSE)}
+        onOptionSelect={() => closeInterface()}
+      />
+
+      <layer x="center" y={Layout.frame.y} w={{ fill: Layout.frame.inset }} h={Layout.frame.h}>
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: Layout.backdrop.inset }}
+          h={{ fill: Layout.backdrop.inset }}
+          fill
+          color={DisplayNameColour.BACKDROP}
+          transparency={Layout.backdrop.transparency}
+        />
+
+        <layer x="center" y="center" w={{ fill: Layout.content.inset }} h={{ fill: Layout.content.inset }}>
+          <text
+            x="center"
+            y={Layout.rows.nameY}
+            w="fill"
+            h={Layout.rows.nameH}
+            font={DisplayNameFonts.SMALL}
+            color={DisplayNameColour.AMBER}
+            shadow
+            align="left"
+            valign="top"
+          />
+
+          <text
+            x="center"
+            y={Layout.rows.subY}
+            w="fill"
+            h={Layout.rows.subH}
+            font={DisplayNameFonts.BODY}
+            color={DisplayNameColour.AMBER_LIGHT}
+            shadow
+            align="center"
+            valign="top"
+          />
+
+          <text
+            x="center"
+            y={Layout.rows.noteY}
+            w="fill"
+            h={Layout.rows.noteH}
+            font={DisplayNameFonts.SMALL}
+            color={DisplayNameColour.AMBER}
+            shadow
+            align="left"
+            valign="top"
+          />
+
+          <text
+            x="center"
+            y={Layout.rows.noteY}
+            w="fill"
+            h={Layout.rows.noteH}
+            text={RELOAD_NOTE}
+            font={DisplayNameFonts.SMALL}
+            color={DisplayNameColour.GREY}
+            shadow
+            align="left"
+            valign="bottom"
+          />
+
+          <text
+            x="center"
+            y={Layout.rows.statusY}
+            w="fill"
+            h={Layout.rows.statusH}
+            text="Status:"
+            font={DisplayNameFonts.BODY}
+            color={DisplayNameColour.AMBER}
+            shadow
+            align="left"
+            valign="top"
+          />
+
+          <layer x="center" y={Layout.field.y} w={{ fill: Layout.field.inset }} h={Layout.field.h}>
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: Layout.field.midInset }}
+              h={Layout.field.h}
+              sprite={DisplayNameArt.FIELD_MID}
+              tiling
+            />
+            <sprite x={0} y="center" w={Layout.field.capW} h={Layout.field.h} sprite={DisplayNameArt.FIELD_LEFT} />
+            <sprite x="right" y="center" w={Layout.field.capW} h={Layout.field.h} sprite={DisplayNameArt.FIELD_RIGHT} />
+            <DisplayNameStatus />
+          </layer>
+
+          <text
+            x="center"
+            y={{ bottom: Layout.smallPrint.bottom }}
+            w="fill"
+            h={Layout.smallPrint.h}
+            text={SMALL_PRINT}
+            font={DisplayNameFonts.SMALL}
+            color={DisplayNameColour.GREY}
+            shadow
+            align="left"
+            valign="middle"
+          />
+
+          <DisplayNameFooter />
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+    </>
+  );
+}
+
+export function DisplayNameStatus(): Component {
+  const status: Int = useServerState(DisplayNameVarbits.STATUS);
+
+  if (status === DisplayNameStatusValue.READY || status === DisplayNameStatusValue.AVAILABLE) {
+    return (
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={DisplayNameFonts.SMALL}
+        color={DisplayNameColour.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.statusLineHeight}
+      />
+    );
+  }
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      font={DisplayNameFonts.SMALL}
+      color={DisplayNameColour.WHITE}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={Layout.statusLineHeight}
+      onTimer={(event) => flashStatus(event.self)}
+    />
+  );
+}
+
+export function DisplayNameFooter(): Component {
+  const blocked: Boolean = bondsHidden();
+  const hasBonds: Int = useServerState(DisplayNameVarbits.HAS_BONDS);
+  const hidden: Boolean = bondsGone(blocked, hasBonds);
+
+  const status: Int = useServerState(DisplayNameVarbits.STATUS);
+  const permit: Int = useServerState(DisplayNameVarbits.PERMIT_CHANGE);
+  const changed: Int = useServerState(DisplayNameVarbits.CHANGED_THIS_SESSION);
+
+  const looked: Boolean = nameLookedUp(status);
+  const checkLive: Boolean = checkEnabled(status);
+  const changeLive: Boolean = changeEnabled(status, permit, changed);
+
+  return (
+    <>
+      <layer x={hidden ? 'center' : 0} y="bottom" w={{ fill: Layout.buttons.inset }} h={Layout.buttons.h}>
+        <layer x="center" y={0} w="fill" h={Layout.buttons.rowH}>
+          <DisplayNameButton label={looked ? Caption.ANOTHER : Caption.LOOK_UP} enabled={checkLive} />
+        </layer>
+
+        <layer x="center" y="bottom" w="fill" h={Layout.buttons.rowH}>
+          <DisplayNameButton label={changeLive ? Caption.CONFIRM : Caption.DISABLED} enabled={changeLive} />
+        </layer>
+      </layer>
+
+      <layer x="right" y="bottom" w={Layout.bonds.w} h={Layout.bonds.h} options={[BONDS]} hide={hidden ? true : false}>
+        {!hidden && <BondsButton />}
+      </layer>
+    </>
+  );
+}

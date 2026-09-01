@@ -1,0 +1,302 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+
+import { Sprites } from '../lib/game/sprites';
+import { Varps } from '../lib/game/varps';
+import { playSound } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { StoneButtonEntrypoint } from '../lib/stone-button-entrypoint.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedEntrypoint } from '../lib/stone-button-pressed-entrypoint.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { MakeoverMenuButton, MakeoverMenuCatcher, MakeoverMenuPanel } from './makeover-menu.component';
+import {
+  Labels,
+  Layout,
+  MakeoverColors,
+  MakeoverMageAnims,
+  MakeoverMageFonts,
+  MakeoverMageSounds,
+  MakeoverMageSprites,
+  MakeoverModels,
+  MENU_PAGE,
+  PRONOUN_BAR_TRANSPARENCY,
+} from './makeover-mage.constants';
+import { SkinColours, skinColourUnlocked } from './skin-colours.data';
+
+function chooseBodyType(index: Int, option: Int): void {
+  opsound(option, 2);
+  predictServerState(Varps.IF1, index);
+}
+
+function chooseSkinColour(key: Int, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(MakeoverMageSounds.CLICK);
+  predictServerState(Varps.IF2, key);
+}
+
+function unlockedSkinColours(): Int {
+  let count: Int = 9;
+  if (skinColourUnlocked(8)) {
+    count = count + 1;
+  }
+  if (skinColourUnlocked(9)) {
+    count = count + 2;
+  }
+  if (skinColourUnlocked(11)) {
+    count = count + 1;
+  }
+  return count;
+}
+
+function BodyTypeCard({
+  index,
+  label,
+  mirrored,
+  headModel,
+  headAnim,
+  headYaw,
+  bodyModel,
+  bodyModel2,
+  bodyYaw,
+}: {
+  index: Int;
+  label: String;
+  mirrored: Int;
+  headModel: Model;
+  headAnim: Animation;
+  headYaw: Int;
+  bodyModel: Model;
+  bodyModel2: Model;
+  bodyYaw: Int;
+}): Component {
+  const chosen: Int = useServerState(Varps.IF1);
+  const [pressed, setPressed] = useState(0);
+  const on: Int = chosen === index ? 1 : 0;
+  const down: Int = on === 1 || pressed === 1 ? 1 : 0;
+
+  return (
+    <layer w="fill" h="fill" options={[label]} onOptionSelect={(event) => chooseBodyType(index, event.option)}>
+      {on === 1 || onMobile() ? (
+        <layer w="fill" h="fill">
+          {down === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+        </layer>
+      ) : (
+        <layer w="fill" h="fill" onMouseRepeat={() => setPressed(1)} onMouseLeave={() => setPressed(0)}>
+          {down === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+        </layer>
+      )}
+
+      <model
+        x={mirrored === 1 ? 'right' : 0}
+        w={{ fill: Layout.HEAD_INSET }}
+        h="fill"
+        model={headModel}
+        anim={headAnim}
+        zoom={Layout.MODEL_ZOOM}
+        pitch={Layout.HEAD_PITCH}
+        yaw={headYaw}
+        offsetY={Layout.HEAD_OFFSET_Y}
+      />
+      <model
+        x={mirrored === 1 ? { right: Layout.BODY_X } : Layout.BODY_X}
+        w={Layout.BODY_W}
+        h={Layout.BODY_H}
+        model={bodyModel}
+        anim={MakeoverMageAnims.BODY}
+        zoom={Layout.MODEL_ZOOM}
+        yaw={bodyYaw}
+        offsetY={Layout.BODY_OFFSET_Y}
+      />
+      {bodyModel2 !== -1 && (
+        <model
+          x={Layout.BODY_X}
+          w={Layout.BODY_W}
+          h={Layout.BODY_H}
+          model={bodyModel2}
+          anim={MakeoverMageAnims.BODY}
+          zoom={Layout.MODEL_ZOOM}
+          yaw={bodyYaw}
+          offsetY={Layout.BODY_OFFSET_Y}
+        />
+      )}
+
+      <text
+        x="center"
+        y={{ bottom: Layout.CARD_LABEL_BOTTOM }}
+        w="fill"
+        h={Layout.CARD_LABEL_H}
+        text={label}
+        font={MakeoverMageFonts.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        color={on === 1 ? MakeoverColors.CHOSEN : MakeoverColors.REST}
+      />
+    </layer>
+  );
+}
+
+function SkinStrip(): Component {
+  const chosen: Int = useServerState(Varps.IF2);
+  const count: Int = unlockedSkinColours();
+  const swatch: Int = Math.min(Layout.SWATCH_MAX, (Layout.STRIP_H - Layout.SWATCH_SLACK) / count);
+  const top: Int = (Layout.STRIP_H - swatch * count) / 2;
+
+  return (
+    <layer w="fill" h="fill">
+      {SkinColours.filter((entry) => skinColourUnlocked(entry.key)).scan(
+        (entry, index, y) => (
+          <>
+            <rect
+              x={Layout.SWATCH_X}
+              y={top + Layout.SWATCH_X + y}
+              w={{ fill: Layout.SWATCH_SLACK }}
+              h={swatch}
+              color={entry.colour}
+              fill
+              options={[Labels.SELECT_COLOUR]}
+              onOptionSelect={(event) => chooseSkinColour(entry.key, event.option)}
+            />
+            {entry.key === chosen && (
+              <sprite
+                x="center"
+                y={top + Layout.SWATCH_X + y - (Layout.TICK - swatch) / 2}
+                w={Layout.TICK}
+                h={Layout.TICK}
+                sprite={MakeoverMageSprites.SWATCH_TICK}
+              />
+            )}
+          </>
+        ),
+        () => swatch,
+      )}
+
+      <rect x={0} y={top} w="fill" h={swatch * count + Layout.SWATCH_SLACK} color={0x000000} />
+    </layer>
+  );
+}
+
+function PronounChoice({ index, label }: { index: Int; label: String }): Component {
+  const chosen: Int = useServerState(Varps.IF3);
+  const on: Int = chosen === index ? 1 : 0;
+
+  return (
+    <layer w="fill" h="fill" options={[label]} targetVerb={Labels.SET_PRONOUNS}>
+      <sprite
+        y="center"
+        w={Layout.DOT}
+        h={Layout.DOT}
+        sprite={on === 1 ? MakeoverMageSprites.RADIO_ON : MakeoverMageSprites.RADIO_OFF}
+      />
+      <text
+        x={Layout.WORD_X}
+        y="center"
+        w={Layout.WORD_W}
+        h="fill"
+        text={label}
+        font={MakeoverMageFonts.LABEL}
+        shadow
+        valign="middle"
+        color={on === 1 ? MakeoverColors.CHOSEN : MakeoverColors.REST}
+      />
+    </layer>
+  );
+}
+
+function PromptButton({ label }: { label: String }): Component {
+  const [over, setOver] = useState(0);
+
+  return (
+    <layer w="fill" h="fill" options={[label]} onMouseEnter={() => setOver(1)} onMouseLeave={() => setOver(0)}>
+      <text
+        w="fill"
+        h="fill"
+        text={label}
+        font={MakeoverMageFonts.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        color={MakeoverColors.REST}
+      />
+      {over === 1 ? <StoneButtonPressedEntrypoint /> : <StoneButtonEntrypoint />}
+    </layer>
+  );
+}
+
+export function MakeoverMage(): Component {
+  return (
+    <>
+      <SteelBorderEntrypoint title={Labels.TITLE} />
+
+      <BodyTypeCard
+        index={0}
+        label={Labels.BODY_A}
+        mirrored={0}
+        headModel={MakeoverModels.HEAD_A}
+        headAnim={MakeoverMageAnims.HEAD_A}
+        headYaw={Layout.HEAD_YAW_A}
+        bodyModel={MakeoverModels.BODY_A1}
+        bodyModel2={MakeoverModels.BODY_A2}
+        bodyYaw={Layout.BODY_YAW_A}
+        x={Layout.CARD_X}
+        y={Layout.CARD_Y}
+        w={Layout.CARD_W}
+        h={Layout.CARD_H}
+      />
+
+      <BodyTypeCard
+        index={1}
+        label={Labels.BODY_B}
+        mirrored={1}
+        headModel={MakeoverModels.HEAD_B}
+        headAnim={MakeoverMageAnims.HEAD_B}
+        headYaw={Layout.HEAD_YAW_B}
+        bodyModel={MakeoverModels.BODY_B}
+        bodyModel2={-1}
+        bodyYaw={Layout.BODY_YAW_B}
+        x={{ right: Layout.CARD_X }}
+        y={Layout.CARD_Y}
+        w={Layout.CARD_W}
+        h={Layout.CARD_H}
+      />
+
+      <SkinStrip x="center" y={Layout.STRIP_Y} w={{ fill: Layout.STRIP_INSET }} h={Layout.STRIP_H} />
+
+      <layer
+        x={Layout.PRONOUN_X}
+        y={{ bottom: Layout.PRONOUN_BOTTOM }}
+        w={{ fill: Layout.PRONOUN_LABEL_INSET }}
+        h={Layout.PRONOUN_H}
+      >
+        <rect w="fill" h="fill" color={MakeoverColors.PRONOUN_BAR} fill transparency={PRONOUN_BAR_TRANSPARENCY} />
+        <text
+          x={Layout.PRONOUN_LABEL_X}
+          y="center"
+          w={{ fill: Layout.PRONOUN_LABEL_INSET }}
+          h="fill"
+          hide
+          text={Labels.PRONOUNS}
+          font={MakeoverMageFonts.LABEL}
+          shadow
+          valign="middle"
+          color={MakeoverColors.REST}
+        />
+        <PronounChoice index={0} label={Labels.HE} x={Layout.HE_X} y={0} w={Layout.HE_W} h="fill" />
+        <PronounChoice index={1} label={Labels.THEY} x="center" y={0} w={Layout.THEY_W} h="fill" />
+        <PronounChoice index={2} label={Labels.SHE} x={{ right: Layout.SHE_X }} y={0} w={Layout.SHE_W} h="fill" />
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.BUTTONS_BOTTOM }} w={Layout.BUTTONS_W} h={Layout.BUTTONS_H}>
+        <PromptButton label={Labels.APPLY} x={0} y="bottom" w={Layout.APPLY_W} h={Layout.BUTTONS_H} />
+        <PromptButton label={Labels.CONFIRM} x="right" y="bottom" w={Layout.CONFIRM_W} h={Layout.BUTTONS_H} />
+      </layer>
+
+      <MakeoverMenuButton />
+      <MakeoverMenuCatcher />
+      <MakeoverMenuPanel page={MENU_PAGE} />
+    </>
+  );
+}

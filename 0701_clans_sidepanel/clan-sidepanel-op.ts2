@@ -1,0 +1,115 @@
+import { CS2 } from 'ts2';
+import { chatMessage } from '../lib/lib.engine';
+import { enhancedAny, rentalWorld } from '../0134_settings/settings.helpers';
+import { chatSend } from './chat-send';
+import { ChannelKind, ClanRowOp, FriendState } from './clans-sidepanel.constants';
+
+export function switchToWorld(world: Int): void {
+  if (!enhancedAny()) {
+    return;
+  }
+  if (!rentalWorld() && (world === 0 || world > 5000 || world <= 260)) {
+    chatMessage('That player is not on an Old School RuneScape world.');
+    return;
+  }
+  chatMessage("Unable to join that player's world.");
+}
+
+export function clanSidepanelOp(option: Int, friend: Int, player: String, slot: Int, channel: Int, world: Int): void {
+  switch (option) {
+    case ClanRowOp.SWITCH_WORLD:
+      if (world !== -1) {
+        switchToWorld(world);
+      }
+      return;
+
+    case ClanRowOp.MAKE_OWNER:
+      return;
+
+    case ClanRowOp.KICK:
+      if (slot === -1) {
+        chatMessage('That player appears to have left the channel.');
+        return;
+      }
+      if (channel === ChannelKind.ARENA && CS2.activeclanchannel_user_rank_get(slot) > -1) {
+        return;
+      }
+      if (channel === ChannelKind.CLAN) {
+        chatSend('Attempting to kick player from clan chat...', 3, channel, 0, -1);
+      }
+      CS2.activeclanchannel_kickuser(slot);
+      return;
+
+    case ClanRowOp.BAN:
+      if (!CS2.activeclansettings_affined_find(channel)) {
+        chatMessage('The game cannot process your Ban request now.');
+        return;
+      }
+      if (channel === ChannelKind.ARENA) {
+        return;
+      }
+      if (slot === -1) {
+        chatMessage('That player appears to have left the channel.');
+        return;
+      }
+      if (channel === ChannelKind.CLAN) {
+        chatSend('Attempting to ban player from clan chat...', 3, channel, 0, -1);
+      }
+      CS2.affinedclansettings_banned_fromchannel_add(slot, channel);
+      return;
+
+    case ClanRowOp.FRIEND:
+      if (friend === FriendState.FRIEND) {
+        CS2.friend_del(player);
+        return;
+      }
+      CS2.friend_add(player);
+      return;
+
+    case ClanRowOp.IGNORE:
+      if (friend === FriendState.IGNORED) {
+        CS2.ignore_del(player);
+        return;
+      }
+      CS2.ignore_add(player);
+      return;
+  }
+}
+
+export function clanSidepanelOpEntrypoint(
+  optionSubject: String,
+  option: Int,
+  friend: Int,
+  asGuest: Int,
+  slot: Int,
+  channel: Int,
+  world: Int,
+): void {
+  const player: String = CS2.tags_remove(optionSubject);
+
+  if (asGuest === 1) {
+    if (
+      CS2.activeclanchannel_listened_find() &&
+      option >= 9 &&
+      CS2.compare(player, CS2.tags_remove(CS2.activeclanchannel_user_display_name_get(slot))) === 0
+    ) {
+      clanSidepanelOp(option, friend, player, slot, channel, world);
+    }
+    return;
+  }
+
+  if (channel === ChannelKind.CLAN && CS2.activeclanchannel_affined_find(0)) {
+    if (CS2.compare(player, CS2.tags_remove(CS2.activeclanchannel_user_display_name_get(slot))) === 0) {
+      clanSidepanelOp(option, friend, player, slot, channel, world);
+    }
+    return;
+  }
+
+  if (
+    channel === ChannelKind.ARENA &&
+    CS2.activeclanchannel_affined_find(2) &&
+    CS2.compare(player, CS2.tags_remove(CS2.activeclanchannel_user_display_name_get(slot))) === 0
+  ) {
+    clanSidepanelOp(option, friend, player, slot, channel, world);
+  }
+}

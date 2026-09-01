@@ -1,0 +1,54 @@
+import { CS2, useServerState } from 'ts2';
+
+import { ThinBox } from '../lib/thin-box.component';
+import { Varbits } from '../lib/game/varbits';
+import { BACKING_WASH, Clock, ClanwarsFonts, ClanwarsSprites, CountdownRamp } from './clanwars-hud.constants';
+import { rgbToHex } from './clanwars-hud.helpers';
+import { countdownBox } from './clanwars-hud.refs';
+
+export function ClanwarsCountdown(): Component {
+  const countdown: Int = useServerState(Varbits.CLANWARS_COUNTDOWN);
+  if (countdown <= 0) {
+    countdownBox.hide = true;
+  } else {
+    countdownBox.hide = false;
+  }
+
+  const cycles: Int = countdown * Clock.PER_GAME_TICK - Clock.COUNTDOWN_LEAD;
+  const seconds: Int = (cycles % Clock.PER_MINUTE) / Clock.PER_SECOND;
+  let face: String = `${stringOf(cycles / Clock.PER_MINUTE)}:0${stringOf(seconds)}`;
+  if (seconds >= 10) {
+    face = `${stringOf(cycles / Clock.PER_MINUTE)}:${stringOf(seconds)}`;
+  }
+
+  let ramp: Int = cycles;
+  if (ramp > CountdownRamp.CLAMP) {
+    ramp = CountdownRamp.CLAMP;
+  }
+  const colour: Int = rgbToHex(
+    CountdownRamp.RED,
+    CS2.interpolate(0, ramp, 0, CountdownRamp.CLAMP, CountdownRamp.GREEN_AT_CLAMP),
+    CS2.interpolate(0, ramp, 0, CountdownRamp.CLAMP, CountdownRamp.BLUE_AT_CLAMP),
+  );
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={ClanwarsSprites.BACKING} tiling transparency={BACKING_WASH} />
+
+      <ThinBox />
+
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={face}
+        color={colour}
+        font={ClanwarsFonts.COUNTDOWN}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

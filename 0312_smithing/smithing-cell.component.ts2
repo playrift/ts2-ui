@@ -1,0 +1,124 @@
+import { useInventory, useRef, useServerState, useSkill, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { itemName, scaled } from '../lib/lib.engine';
+import {
+  BAR_STRIDE,
+  CellLayout,
+  Flash,
+  Gates,
+  RowDefaults,
+  SmithColors,
+  SmithFonts,
+  SmithSkills,
+  SmithVarbits,
+  SmithVarps,
+} from './smithing.constants';
+import { SmithGate, SmithingProduct, SmithingProducts } from './smithing.data';
+import { barsCaption, inLockedForge, inTutorialForge, smithGateOpen, smithingBar } from './smithing.helpers';
+
+const BRONZE_DAGGER = 1205;
+
+export function SmithingCell({ slot, width }: { slot: Int; width: Int }): Component {
+  const barType: Int = useServerState(SmithVarbits.BAR_TYPE);
+  const row: SmithingProduct | null = SmithingProducts.get(barType * BAR_STRIDE + slot);
+
+  const label: String = row === null ? '' : row.label;
+  const product: ItemName = row === null ? -1 : row.item;
+  const bars: Int = row === null ? RowDefaults.BARS : row.bars;
+  const makes: Int = row === null ? RowDefaults.MAKES : row.makes;
+  const level: Int = row === null ? RowDefaults.LEVEL : row.level;
+  const gate: Int = row === null ? SmithGate.ALWAYS : row.gate;
+  const desertGated: Boolean = row === null ? false : row.desertGated;
+
+  const inv = useInventory(Inventories.INV);
+  const held: Int = inv.total(smithingBar(barType));
+  const lastBar: Int = useServerState(SmithVarbits.BAR_LASTTYPE);
+  const lastSlot: Int = useServerState(SmithVarbits.ITEM_LASTTYPE);
+  const smithing: Int = useSkill(SmithSkills.SMITHING);
+  const desertLocked: Boolean =
+    desertGated && useServerState(SmithVarps.DESERTRESCUE) < Gates.DESERTRESCUE ? true : false;
+  const [fade, setFade] = useState(0);
+  const [rising, setRising] = useState(1);
+  const icon = useRef();
+
+  const shown: Boolean = product !== -1 && smithGateOpen(gate) ? true : false;
+
+  const locked: Boolean = desertLocked || (product !== BRONZE_DAGGER && inLockedForge()) ? true : false;
+  const enough: Boolean = held >= bars ? true : false;
+  const highlighted: Boolean = lastBar === barType && lastSlot === slot && lastSlot !== 0 && enough ? true : false;
+  const flashing: Boolean =
+    product === BRONZE_DAGGER && useServerState(SmithVarps.TUTORIAL_2) < Gates.TUTORIAL_2 && inTutorialForge()
+      ? true
+      : false;
+  const opLabel: String = makes > 1 ? 'Smith set' : 'Smith';
+  const dim: Boolean = locked || smithing < level ? true : false;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      hide={shown ? false : true}
+      options={[opLabel]}
+      optionSubject={shown ? `<col=ff9040>${itemName(product as Item)}</col>` : ''}
+    >
+      {shown ? (
+        <>
+          {highlighted ? (
+            <rect w="fill" h="fill" fill color={SmithColors.HIGHLIGHT} transparency={SmithColors.HIGHLIGHT_FADE} />
+          ) : null}
+
+          <sprite
+            ref={icon}
+            x={CellLayout.ICON_X}
+            y={CellLayout.ICON_Y}
+            w={CellLayout.ICON_W}
+            h={CellLayout.ICON_H}
+            outline={CellLayout.ICON_OUTLINE}
+            shadowColor={SmithColors.ICON_SHADOW}
+            item={product}
+            itemCount={makes}
+            onTimer={
+              flashing
+                ? () => {
+                    const step: Int = rising === 1 ? fade + 1 : fade - 1;
+                    setFade(step);
+                    if (step === Flash.STEPS || step === 0) {
+                      setRising(1 - rising);
+                    }
+                    icon.transparency = scaled(step, Flash.STEPS, Flash.MAX);
+                  }
+                : undefined
+            }
+          />
+
+          <text
+            x={CellLayout.TEXT_INSET}
+            y={CellLayout.NAME_Y}
+            w={width - CellLayout.TEXT_INSET}
+            h={CellLayout.TEXT_H}
+            font={SmithFonts.CAPTION}
+            align="left"
+            valign="top"
+            color={dim ? SmithColors.LABEL_LOCKED : SmithColors.LABEL}
+            shadow={dim ? false : true}
+            text={label}
+          />
+
+          <text
+            x={CellLayout.TEXT_INSET}
+            y={CellLayout.BARS_Y}
+            w={width - CellLayout.TEXT_INSET}
+            h={CellLayout.TEXT_H}
+            font={SmithFonts.CAPTION}
+            align="left"
+            valign="top"
+            shadow
+            color={enough ? SmithColors.BARS_OK : SmithColors.BARS_SHORT}
+            text={barsCaption(bars)}
+          />
+        </>
+      ) : null}
+    </layer>
+  );
+}

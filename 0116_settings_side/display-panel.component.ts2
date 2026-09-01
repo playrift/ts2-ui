@@ -1,0 +1,223 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { cameraDoZoom } from '../0016_oculus/oculus.camera';
+import { DropdownRow } from './dropdown-row.component';
+import { SliderTrough } from './slider-trough.component';
+import {
+  BRIGHTNESS_STEPS,
+  ClientLayouts,
+  clientLayoutIndex,
+  DeviceOption,
+  FramerateCaps,
+  framerateCapIndex,
+} from './display.data';
+import { clickSound, neq, onEnhancedAny } from './settings-side.helpers';
+import {
+  AudioArt,
+  DropdownId,
+  Layout,
+  LineHeight,
+  SideArt,
+  SideColor,
+  SideFont,
+  SideTab,
+  SideVars,
+} from './settings-side.constants';
+
+export function DisplayPanel(): Component {
+  const tab: Int = useServerState(SideVars.TAB);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w={{ fill: Layout.panel.inset }}
+      h={{ fill: Layout.panel.inset }}
+      hide={neq(tab, SideTab.DISPLAY)}
+    >
+      <BrightnessRow />
+      <ZoomRow />
+      <DropdownRow
+        y={Layout.displayRow.dropdownY}
+        label={mobile ? 'Limit Framerate' : 'Game client layout'}
+        text={mobile ? framerateText() : layoutText()}
+        id={DropdownId.CLIENT_LAYOUT}
+      />
+      {onEnhancedAny() && <NewRendererRow />}
+    </layer>
+  );
+}
+
+function layoutText(): String {
+  return ClientLayouts.at(clientLayoutIndex()) ?? 'Resizable - Classic layout';
+}
+
+function framerateText(): String {
+  return FramerateCaps.at(framerateCapIndex()) ?? 'Unlimited';
+}
+
+function BrightnessRow(): Component {
+  const step: Int = CS2.device_option_get(DeviceOption.BRIGHTNESS) / 5;
+
+  return (
+    <layer x="center" y={Layout.displayRow.brightnessY} w="fill" h={Layout.displayRow.h}>
+      <layer y="center" w={Layout.audioRow.iconW} h="fill">
+        <sprite
+          x="center"
+          y="center"
+          w={Layout.audioRow.icon}
+          h={Layout.audioRow.icon}
+          sprite={SideArt.ICON_BRIGHTNESS}
+        />
+      </layer>
+
+      <layer x="right" y="center" w={Layout.slider.troughW} h={Layout.slider.h}>
+        <SliderTrough />
+      </layer>
+
+      <layer x={{ right: Layout.slider.zoneInset }} y="center" w={Layout.slider.zoneW} h={Layout.slider.h}>
+        <sprite
+          x={thumbX(step)}
+          w={Layout.slider.thumb}
+          h={Layout.slider.thumb}
+          sprite={SideArt.SLIDER_THUMB_BRIGHTNESS}
+          noClickThrough
+        />
+        {BRIGHTNESS_ZONES.map((zone) => (
+          <rect
+            x={CS2.scale(zone, BRIGHTNESS_STEPS, Layout.slider.zoneW)}
+            w={
+              CS2.scale(zone + 1, BRIGHTNESS_STEPS, Layout.slider.zoneW) -
+              CS2.scale(zone, BRIGHTNESS_STEPS, Layout.slider.zoneW)
+            }
+            h="fill"
+            color={SideColor.WHITE}
+            fill
+            transparency={255}
+            options={['Adjust Brightness']}
+            onOptionSelect={() => setBrightness(zone)}
+          />
+        ))}
+      </layer>
+    </layer>
+  );
+}
+
+const BRIGHTNESS_ZONES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+
+function thumbX(step: Int): Int {
+  if (step === BRIGHTNESS_STEPS - 1) {
+    return Layout.slider.travel;
+  }
+  if (step === 0) {
+    return 0;
+  }
+  const low: Int = CS2.scale(step, BRIGHTNESS_STEPS, Layout.slider.travel);
+  const high: Int = CS2.scale(step + 1, BRIGHTNESS_STEPS, Layout.slider.travel);
+  return Math.clamp(0, Layout.slider.travel, low + (high - low) / 2);
+}
+
+function setBrightness(step: Int): void {
+  clickSound();
+  CS2.device_option_set(DeviceOption.BRIGHTNESS, Math.clamp(0, 100, step * 5));
+}
+
+function ZoomRow(): Component {
+  const mouseZoomOff: Int = useServerState(SideVars.ZOOM_MOUSE_DISABLED);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer x="center" y={Layout.displayRow.zoomY} w={Layout.displayRow.zoomW} h={Layout.displayRow.h}>
+      <layer
+        x={Layout.zoomRow.iconX}
+        y="center"
+        w={Layout.audioRow.icon}
+        h={Layout.audioRow.icon}
+        options={[mouseZoomOff === 0 ? 'Disable' : 'Enable', 'Restore Default Zoom']}
+        onOptionSelect={(event) => zoomOp(event.option, mouseZoomOff)}
+      />
+      <sprite
+        x={Layout.zoomRow.iconX}
+        y="center"
+        w={Layout.audioRow.icon}
+        h={Layout.audioRow.icon}
+        sprite={mobile ? SideArt.ICON_ZOOM_MOBILE : SideArt.ICON_ZOOM}
+        onMouseEnter={(event) => {
+          event.self.outline = 1;
+        }}
+        onMouseLeave={(event) => {
+          event.self.outline = 0;
+        }}
+      />
+      {mouseZoomOff === 1 && (
+        <sprite y="center" w={Layout.audioRow.muted} h={Layout.audioRow.muted} sprite={AudioArt.MUTED} />
+      )}
+      <layer x="right" y="center" w={Layout.slider.troughW} h={Layout.slider.h}>
+        <SliderTrough />
+      </layer>
+      <layer x={{ right: Layout.slider.zoneInset }} y="center" w={Layout.slider.zoneW} h={Layout.slider.h}>
+        <sprite x="center" w={Layout.slider.thumb} h={Layout.slider.thumb} sprite={SideArt.SLIDER_THUMB_ZOOM} />
+      </layer>
+    </layer>
+  );
+}
+
+function zoomOp(option: Int, mouseZoomOff: Int): void {
+  clickSound();
+  if (option === 1) {
+    predictServerState(SideVars.ZOOM_MOUSE_DISABLED, 1 - mouseZoomOff);
+    return;
+  }
+  if (option === 2) {
+    cameraDoZoom(ZOOM_DEFAULT, ZOOM_DEFAULT);
+  }
+}
+
+const ZOOM_DEFAULT = 512;
+
+function NewRendererRow(): Component {
+  const on: Int = useServerState(SideVars.NEW_RENDERER);
+
+  if (
+    useServerState(SideVars.NEW_RENDERER_AVAILABLE) === 0 ||
+    CS2.device_option_get(DeviceOption.NEW_RENDERER_BLOCKED) === 1
+  ) {
+    return null;
+  }
+
+  return (
+    <layer
+      x="center"
+      y={Layout.displayRow.rendererY}
+      w={{ fill: Layout.dropdown.insetW }}
+      h={Layout.dropdown.h}
+      options={['Toggle new renderer']}
+      onOptionSelect={() => toggleNewRenderer(on)}
+    >
+      <text
+        w={{ fill: Layout.skull.labelInset }}
+        h="fill"
+        text="Use new renderer (beta)"
+        font={SideFont.BODY}
+        color={SideColor.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={LineHeight.ROW}
+      />
+      <sprite
+        x="right"
+        y={Layout.displayRow.rendererBoxY}
+        w={Layout.skull.boxW}
+        h={Layout.skull.boxH}
+        sprite={on === 1 ? SideArt.CHECK_ON : SideArt.CHECK_OFF}
+      />
+    </layer>
+  );
+}
+
+function toggleNewRenderer(on: Int): void {
+  clickSound();
+  predictServerState(SideVars.NEW_RENDERER, on === 1 ? 0 : 1);
+}

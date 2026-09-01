@@ -1,0 +1,87 @@
+import { useServerState } from 'ts2';
+
+import { closeInterface, graphicSwapper } from '../lib/lib.helpers';
+import {
+  GauntletMapArt,
+  GauntletMapModels,
+  GauntletMapVarbits,
+  Layout,
+  RoomFade,
+  Role,
+  Rooms,
+} from './gauntlet-map.constants';
+
+export function GauntletMap(): Component {
+  const corrupted: Int = useServerState(GauntletMapVarbits.CORRUPTED);
+  const start: Int = useServerState(GauntletMapVarbits.START);
+  const roomX: Int = useServerState(GauntletMapVarbits.CURRENT_ROOM_X);
+  const roomZ: Int = useServerState(GauntletMapVarbits.CURRENT_ROOM_Z);
+
+  return (
+    <>
+      <model
+        x={Layout.MODEL_X}
+        y={Layout.MODEL_Y}
+        w={Layout.MODEL_W}
+        h={Layout.MODEL_H}
+        model={GauntletMapModels.PARCHMENT}
+        zoom={599}
+        pitch={520}
+        yaw={1}
+      />
+
+      <sprite
+        x={Layout.CLOSE_X}
+        y={Layout.CLOSE_Y}
+        w={Layout.CLOSE_W}
+        h={Layout.CLOSE_H}
+        sprite={GauntletMapArt.CLOSE}
+        options={['Close']}
+        onOptionSelect={() => closeInterface()}
+        onMouseEnter={(event) => {
+          graphicSwapper(event.component, GauntletMapArt.CLOSE_HOVER);
+        }}
+        onMouseLeave={(event) => {
+          graphicSwapper(event.component, GauntletMapArt.CLOSE);
+        }}
+      />
+
+      <layer x={{ center: Layout.HOLDER_DX }} y={{ center: Layout.HOLDER_DY }} w={Layout.HOLDER} h={Layout.HOLDER}>
+        <layer x="center" y="center" w={Layout.HOLDER} h={Layout.HOLDER}>
+          {Rooms.map((room) => (
+            <sprite
+              x={room.x}
+              y={{ bottom: room.y }}
+              w={Layout.TILE}
+              h={Layout.TILE}
+              vflip={room.vflip}
+              hflip={room.hflip}
+              sprite={
+                room.role === Role.BOSS
+                  ? corrupted === 1
+                    ? GauntletMapArt.BOSS_CORRUPTED
+                    : GauntletMapArt.BOSS
+                  : room.role === Role.START_CANDIDATE
+                    ? start === room.index
+                      ? corrupted === 1
+                        ? GauntletMapArt.START_CORRUPTED
+                        : GauntletMapArt.START
+                      : room.sprite
+                    : room.sprite
+              }
+              transparency={useServerState(room.found) === 1 ? RoomFade.FOUND : RoomFade.UNFOUND}
+            />
+          ))}
+        </layer>
+
+        <sprite
+          x={roomX * Layout.MARKER_PITCH + Layout.MARKER_INSET}
+          y={{ bottom: roomZ * Layout.MARKER_PITCH + Layout.MARKER_INSET }}
+          w={Layout.TILE}
+          h={Layout.TILE}
+          sprite={corrupted === 1 ? GauntletMapArt.MARKER_CORRUPTED : GauntletMapArt.MARKER}
+        />
+      </layer>
+    </>
+  );
+}

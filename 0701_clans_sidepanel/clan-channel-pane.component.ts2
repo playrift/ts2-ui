@@ -1,0 +1,285 @@
+import { CS2, intArray, onUpdated, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile } from '../lib/lib.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { clanPermissionGet } from '../0696_clans_storage_main/clan-permission';
+import { ClanPermission, ClanPermissions } from '../0696_clans_storage_main/clans-storage-main.constants';
+import { ClanChannelRow } from './clan-channel-row.component';
+import { GroupRosterList } from './group-roster.component';
+import { clanRankIcon, clanSettingGroupType } from './clan-settings';
+import { rememberClanSearch } from './clan-search-key';
+import { pvpaSidepanelRankIcon } from './pvpa-rank';
+import {
+  AffinityStatus,
+  Channel,
+  ChannelKind,
+  ClanGroupType,
+  ClanSidepanelColor,
+  ClanSidepanelFonts,
+  ClanSidepanelScrollbar,
+  ClanSidepanelVarbits,
+  FriendState,
+  Layout,
+} from './clans-sidepanel.constants';
+
+enum PaneMode {
+  ABSENT = 0,
+  ROWS = 1,
+  MESSAGE = 2,
+  ROSTER = 3,
+}
+
+const Messages = {
+  ARENA:
+    'You have currently loaded a <col=ffb93f>PvP Arena</col> group.<br><br>You can see its details via the <col=ffb93f>Grouping</col> tab.',
+  QUIET: "No-one is currently chatting in this clan's channel.",
+  ELSEWHERE: "You are not currently chatting in this clan's channel.",
+} as const;
+
+export function ClanChannelPane({ asGuest }: { asGuest: Int }): Component {
+  const list = useRef();
+  const universe = useUniverse();
+
+  const status: Int =
+    asGuest === 1 ? useServerState(ClanSidepanelVarbits.GUEST_AFFINITY) : useServerState(ClanSidepanelVarbits.AFFINITY);
+
+  const loaded: Boolean =
+    asGuest === 1 ? CS2.activeclansettings_listened_find() : CS2.activeclansettings_affined_find(0);
+
+  const groupType: Int = clanSettingGroupType();
+
+  let arenaGroup: Int = 0;
+  let ownClan: Int = 0;
+  if (asGuest === 1) {
+    if (groupType === ClanGroupType.CLAN) {
+      ownClan = 1;
+    } else if (
+      groupType === ClanGroupType.ARENA_1V1_HOSTED ||
+      groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_GROUP_HOSTED ||
+      groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_DUEL_HOSTED ||
+      groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+    ) {
+      arenaGroup = 1;
+    }
+  }
+
+  const listening: Boolean =
+    status === AffinityStatus.LIVE && loaded
+      ? asGuest === 1
+        ? CS2.activeclanchannel_listened_find()
+        : CS2.activeclanchannel_affined_find(0)
+      : false;
+
+  const users: Int = listening ? CS2.activeclanchannel_user_count_get() : 0;
+
+  let mode: Int = PaneMode.ABSENT;
+  let message: String = '';
+  if (status === AffinityStatus.LIVE && loaded) {
+    if (arenaGroup === 1) {
+      mode = PaneMode.MESSAGE;
+      message = Messages.ARENA;
+    } else if (listening) {
+      if (users > 0) {
+        mode = PaneMode.ROWS;
+      } else {
+        mode = PaneMode.MESSAGE;
+        message = Messages.QUIET;
+      }
+    } else if (ownClan === 1) {
+      mode = PaneMode.ROSTER;
+    } else {
+      mode = PaneMode.MESSAGE;
+      message = Messages.ELSEWHERE;
+    }
+  }
+
+  if (asGuest === 1 && mode === PaneMode.MESSAGE && arenaGroup === 0) {
+    rememberClanSearch(CS2.activeclansettings_clan_name_get());
+  }
+
+  const rowHeight: Int = onMobile() ? Channel.ROW_HEIGHT_MOBILE : Channel.ROW_HEIGHT;
+
+  const mySlot: Int =
+    mode === PaneMode.ROWS ? CS2.activeclanchannel_user_slot_get(CS2.tags_remove(CS2.chat_playername())) : -1;
+  const myRank: Int = mySlot !== -1 ? CS2.activeclanchannel_user_rank_get(mySlot) : -1;
+
+  let channel: Int = ChannelKind.CLAN;
+  let arena: Int = 0;
+  let host: Int = 0;
+  let kickRank: Int = Channel.RANK_ANY;
+  let banRank: Int = Channel.RANK_NEVER;
+  let iAmOwner: Int = 0;
+  if (mode === PaneMode.ROWS) {
+    if (
+      groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+    ) {
+      channel = ChannelKind.ARENA;
+      arena = 1;
+      host = 0;
+    } else if (
+      groupType === ClanGroupType.ARENA_1V1_HOSTED ||
+      groupType === ClanGroupType.ARENA_GROUP_HOSTED ||
+      groupType === ClanGroupType.ARENA_DUEL_HOSTED
+    ) {
+      channel = ChannelKind.ARENA;
+      arena = 1;
+      host = 1;
+    } else {
+      kickRank = clanPermissionGet(ClanPermissions.at(ClanPermission.RANK_KICK));
+      banRank = banFromChatRank();
+    }
+
+    if (
+      CS2.activeclansettings_current_owner_slot_get() ===
+      CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()))
+    ) {
+      iAmOwner = 1;
+    }
+  }
+  const ownerPath: Int = host === 1 && iAmOwner === 1 ? 1 : 0;
+
+  const here: Int = CS2.map_world();
+  const enhanced: Int = enhancedAny() ? 1 : 0;
+
+  const slots = intArray(Channel.MAX_USERS);
+  const worlds = intArray(Channel.MAX_USERS);
+  const ranks = intArray(Channel.MAX_USERS);
+  const friends = intArray(Channel.MAX_USERS);
+  const icons = intArray<Sprite>(Channel.MAX_USERS);
+  const hits = intArray(Channel.MAX_USERS);
+
+  let selfSeen: Int = 0;
+  let at: Int = 0;
+  while (at < Channel.MAX_USERS) {
+    if (mode === PaneMode.ROWS && at < users) {
+      const slot: Int = CS2.activeclanchannel_sorted_user_slot_get(at);
+      const shown: String = CS2.activeclanchannel_user_display_name_get(slot);
+      const plain: String = CS2.tags_remove(shown);
+      if (CS2.compare(shown, CS2.chat_playername()) === 0) {
+        selfSeen = 1;
+      }
+      const rank: Int = CS2.activeclanchannel_user_rank_get(slot);
+      const affined: Int = CS2.activeclansettings_affined_slot_get(plain);
+
+      slots[at] = slot;
+      worlds[at] = CS2.activeclanchannel_user_world_get(slot);
+      ranks[at] = rank;
+      if (CS2.friend_test(plain)) {
+        friends[at] = FriendState.FRIEND;
+      } else if (CS2.ignore_test(plain)) {
+        friends[at] = FriendState.IGNORED;
+      } else {
+        friends[at] = FriendState.NEITHER;
+      }
+      if (arena === 1) {
+        icons[at] = pvpaSidepanelRankIcon(slot, rank, selfSeen);
+      } else {
+        icons[at] = clanRankIcon(rank);
+      }
+      hits[at] = affined !== -1 && mySlot !== slot ? 1 : 0;
+    } else {
+      slots[at] = -1;
+    }
+    at = at + 1;
+  }
+
+  let barHidden: Boolean = false;
+  if (mode === PaneMode.ABSENT) {
+    barHidden = true;
+  }
+
+  const extent: Int = users * rowHeight;
+  const listHeight: Int = universe.height - Layout.LIST_DROP;
+  const scrollHeight: Int = mode === PaneMode.ROWS && extent > listHeight ? extent : 0;
+
+  onUpdated(() => {
+    list.scrollY = list.scrollY;
+  });
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y="center"
+        w={{ fill: Layout.LIST_INSET }}
+        h={{ fill: Layout.LIST_DROP }}
+        scrollHeight={scrollHeight}
+      >
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <ClanChannelRow
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                name={CS2.activeclanchannel_user_display_name_get(slot)}
+                slot={slot}
+                world={worlds[index]}
+                here={here}
+                icon={icons[index]}
+                rank={ranks[index]}
+                arena={arena}
+                hit={hits[index]}
+                friend={friends[index]}
+                asGuest={asGuest}
+                channel={channel}
+                enhanced={enhanced}
+                ownerPath={ownerPath}
+                myRank={myRank}
+                kickRank={kickRank}
+                banRank={banRank}
+                isMe={mySlot === slot ? 1 : 0}
+              />
+            ),
+        )}
+
+        {mode === PaneMode.ROSTER && (
+          <>
+            <GroupRosterList />
+          </>
+        )}
+
+        {mode === PaneMode.MESSAGE && (
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.MESSAGE_INSET }}
+            h={{ fill: Layout.MESSAGE_INSET }}
+            text={message}
+            font={ClanSidepanelFonts.BUTTON}
+            color={ClanSidepanelColor.MESSAGE}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+      </layer>
+
+      <layer
+        x={{ right: Layout.BAR_RIGHT }}
+        y="center"
+        w={Layout.BAR_W}
+        h={{ fill: Layout.LIST_DROP }}
+        hide={barHidden}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={ClanSidepanelScrollbar.TRACK}
+          capTopSprite={ClanSidepanelScrollbar.CAP_TOP}
+          thumbSprite={ClanSidepanelScrollbar.THUMB}
+          capBottomSprite={ClanSidepanelScrollbar.CAP_BOTTOM}
+          arrowUp={ClanSidepanelScrollbar.ARROW_UP}
+          arrowDown={ClanSidepanelScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function banFromChatRank(): Int {
+  return 126;
+}

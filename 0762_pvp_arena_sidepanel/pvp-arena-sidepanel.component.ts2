@@ -1,0 +1,226 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { StoneBoxEntrypoint } from '../0721_gim_limited_sidepanel/stone-box.component';
+import { StoneBoxSkin } from '../0721_gim_limited_sidepanel/gim-limited-sidepanel.constants';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { graphicSwapper, onMobile, opsound } from '../lib/lib.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import {
+  BACKDROP_TRANSPARENCY,
+  ClanSidepanelFonts,
+  ClanSidepanelVarbits,
+  Layout,
+} from '../0701_clans_sidepanel/clans-sidepanel.constants';
+import { PvpaPlayerPane } from './pvpa-player-pane.component';
+import {
+  pvpaArm,
+  pvpaGroupNameText,
+  pvpaHintText,
+  pvpaLeftLabel,
+  pvpaRightLabel,
+  pvpaTitleText,
+} from './pvp-arena-sidepanel.helpers';
+import { PVPA_OPSOUND_MASK, PvpaColor, PvpaFonts, PvpaLayout, PvpaSprites } from './pvp-arena-sidepanel.constants';
+
+export function PvpArenaSidepanel(): Component {
+  return (
+    <>
+      <layer x="center" y={0} w="fill" h={PvpaLayout.TITLE_H}>
+        <PvpaTitle />
+      </layer>
+
+      <layer
+        x="right"
+        y={0}
+        w={PvpaLayout.CLOSE}
+        h={PvpaLayout.CLOSE}
+        options={['Close']}
+        onOptionSelect={(event) => opsound(event.option, PVPA_OPSOUND_MASK)}
+      >
+        <sprite
+          x={{ right: PvpaLayout.CLOSE_ICON_RIGHT }}
+          y={PvpaLayout.CLOSE_ICON_TOP}
+          w={PvpaLayout.CLOSE_ICON}
+          h={PvpaLayout.CLOSE_ICON}
+          sprite={PvpaSprites.CLOSE}
+          onMouseEnter={(event) => graphicSwapper(event.component, PvpaSprites.CLOSE_HOVER)}
+          onMouseLeave={(event) => graphicSwapper(event.component, PvpaSprites.CLOSE)}
+        />
+      </layer>
+
+      <layer x={0} y={PvpaLayout.GROUP_Y} w={{ fill: PvpaLayout.GROUP_INSET }} h={PvpaLayout.GROUP_H}>
+        <PvpaGroupName />
+      </layer>
+
+      <layer
+        x="center"
+        y={PvpaLayout.FRAME_TOP}
+        w={{ fill: PvpaLayout.FRAME_INSET }}
+        h={{ fill: PvpaLayout.FRAME_DROP }}
+      >
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: PvpaLayout.BACKDROP_INSET }}
+          h={{ fill: PvpaLayout.BACKDROP_INSET }}
+          fill
+          color={PvpaColor.BACKDROP}
+          transparency={BACKDROP_TRANSPARENCY}
+        />
+
+        <layer x="center" y="center" w={{ fill: PvpaLayout.BOX_INSET }} h={{ fill: PvpaLayout.BOX_INSET }}>
+          <PvpaPlayerPane />
+          <ThinBoxEntrypoint />
+        </layer>
+
+        <StoneBoxEntrypoint skin={StoneBoxSkin.PLAIN} />
+      </layer>
+
+      <layer x={0} y={{ bottom: PvpaLayout.HINT_BOTTOM }} w="fill" h={PvpaLayout.HINT_H}>
+        <PvpaHint />
+      </layer>
+
+      <layer
+        x={PvpaLayout.BUTTON_X}
+        y={{ bottom: PvpaLayout.BUTTON_BOTTOM }}
+        w={PvpaLayout.BUTTON_W}
+        h={PvpaLayout.BUTTON_H}
+      >
+        <PvpaLeftButton />
+      </layer>
+
+      <layer
+        x={{ right: PvpaLayout.BUTTON_X }}
+        y={{ bottom: PvpaLayout.BUTTON_BOTTOM }}
+        w={PvpaLayout.BUTTON_W}
+        h={PvpaLayout.BUTTON_H}
+      >
+        <PvpaRightButton />
+      </layer>
+    </>
+  );
+}
+
+function PvpaTitle(): Component {
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={pvpaTitleText(pvpaArm(pvpaStatus, guestStatus))}
+      font={PvpaFonts.TITLE}
+      color={PvpaColor.TITLE}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function PvpaGroupName(): Component {
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={pvpaGroupNameText(pvpaArm(pvpaStatus, guestStatus))}
+      font={PvpaFonts.BODY}
+      color={PvpaColor.GROUP}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function PvpaHint(): Component {
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+  const fightWorld: Int = useServerState(ClanSidepanelVarbits.PVPA_FIGHTWORLD);
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={pvpaHintText(pvpaArm(pvpaStatus, guestStatus), fightWorld)}
+      font={PvpaFonts.BODY}
+      color={PvpaColor.TITLE}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function PvpaLeftButton(): Component {
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+  const [pressed, setPressed] = useState(0);
+
+  const label: String = pvpaLeftLabel(pvpaArm(pvpaStatus, guestStatus));
+
+  let live: Int = 1;
+  let shownLabel: String = label;
+  let option: String = CS2.tags_remove(label);
+  if (CS2.string_length(label) === 0) {
+    live = 0;
+    shownLabel = '<col=9f9f9f>---</col>';
+    option = '';
+  }
+
+  let skin: Int = 1;
+  if (live === 1) {
+    skin = pressed;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (live === 1 && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, PVPA_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={shownLabel} font={ClanSidepanelFonts.BUTTON} pressed={skin} />
+    </layer>
+  );
+}
+
+function PvpaRightButton(): Component {
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+  const [pressed, setPressed] = useState(0);
+
+  const label: String = pvpaRightLabel(pvpaArm(pvpaStatus, guestStatus));
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, PVPA_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={ClanSidepanelFonts.BUTTON} pressed={pressed} />
+    </layer>
+  );
+}

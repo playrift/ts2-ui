@@ -1,0 +1,261 @@
+import { setTransparency } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { RankButtonSkin } from './rank-button-skin.component';
+import { attemptRank, formatDuration } from './sailing-bt-selection.helpers';
+import { TrialRank } from './sailing-trials.data';
+import { Layout, SailingArt, SailingColors, SailingFonts } from './sailing-bt-selection.constants';
+
+export function RankRow({
+  row,
+  label,
+  y,
+  band,
+  icon,
+  objectiveIcon,
+  lossIcon,
+  unlocked,
+  bonusClaimed,
+}: {
+  row: TrialRank;
+  label: String;
+  y: Int;
+  band: Int;
+  icon: Sprite;
+  objectiveIcon: Sprite;
+  lossIcon: Sprite;
+  unlocked: Int;
+  bonusClaimed: Int;
+}): Component {
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        x="center"
+        y={y}
+        w={{ fill: Layout.ROW_BAND_INSET_W }}
+        h={Layout.ROW_BAND_H}
+        color={SailingColors.WHITE}
+        fill
+        transparency={band}
+      />
+
+      <sprite x={Layout.ROW_ICON_X} y={y + Layout.ROW_ICON_DY} w={Layout.ROW_ICON} h={Layout.ROW_ICON} sprite={icon} />
+
+      <layer x={Layout.BUTTON_X} y={y + Layout.BUTTON_DY} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        <RankButtonSkin label={label} locked={unlocked === 1 ? 0 : 1} />
+      </layer>
+
+      <sprite
+        x={Layout.CLOCK_X}
+        y={y + Layout.CLOCK_DY}
+        w={Layout.ICON_18}
+        h={Layout.ICON_18}
+        sprite={SailingArt.CLOCK}
+      />
+      <text
+        x={Layout.TIME_X}
+        y={y + Layout.TIME_DY}
+        w={Layout.TIME_W}
+        h={Layout.TEXT_H}
+        text={
+          row.targetTicks > 0
+            ? formatDuration((row.targetTicks * Layout.TICK_NUMERATOR) / Layout.TICK_DENOMINATOR)
+            : '-'
+        }
+        font={SailingFonts.SMALL}
+        color={SailingColors.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={Layout.COUNT_ICON_X}
+        y={y + Layout.OBJECTIVE_DY}
+        w={Layout.ICON_18}
+        h={Layout.ICON_18}
+        sprite={objectiveIcon}
+      />
+      <text
+        x={Layout.COUNT_X}
+        y={y + Layout.OBJECTIVE_DY}
+        w={Layout.COUNT_W}
+        h={Layout.TEXT_H}
+        text={`${row.objectives}`}
+        font={SailingFonts.SMALL}
+        color={SailingColors.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite x={Layout.COUNT_ICON_X} y={y + Layout.LOSS_DY} w={Layout.ICON_18} h={Layout.ICON_18} sprite={lossIcon} />
+      <text
+        x={Layout.COUNT_X}
+        y={y + Layout.LOSS_DY}
+        w={Layout.COUNT_W}
+        h={Layout.TEXT_H}
+        text={`${row.losses}`}
+        font={SailingFonts.SMALL}
+        color={SailingColors.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      {row.bonusXp === 0 ? (
+        <>
+          <sprite
+            x={Layout.XP_ICON_X}
+            y={y + Layout.XP_ONLY_ICON_DY}
+            w={Layout.XP_ICON}
+            h={Layout.XP_ICON}
+            sprite={SailingArt.XP}
+          />
+          <text
+            x={Layout.XP_X}
+            y={y + Layout.XP_ONLY_TEXT_DY}
+            w={Layout.XP_W}
+            h={Layout.TEXT_H}
+            text={groupDigits(row.xp / Layout.XP_SCALE, ',')}
+            font={SailingFonts.SMALL}
+            color={SailingColors.WHITE}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        </>
+      ) : (
+        <>
+          <sprite
+            x={Layout.XP_ICON_X}
+            y={y + Layout.XP_TOP_DY}
+            w={Layout.XP_ICON}
+            h={Layout.XP_ICON}
+            sprite={SailingArt.XP}
+          />
+          <text
+            x={Layout.XP_X}
+            y={y + Layout.XP_TOP_DY}
+            w={Layout.XP_W}
+            h={Layout.TEXT_H}
+            text={groupDigits(row.xp / Layout.XP_SCALE, ',')}
+            font={SailingFonts.SMALL}
+            color={SailingColors.WHITE}
+            align="center"
+            valign="middle"
+            shadow
+          />
+          <sprite
+            x={Layout.XP_ICON_X}
+            y={y + Layout.XP_BOTTOM_ICON_DY}
+            w={Layout.XP_ICON}
+            h={Layout.XP_ICON}
+            sprite={SailingArt.XP}
+          />
+          {bonusClaimed === 0 ? (
+            <text
+              x={Layout.XP_X}
+              y={y + Layout.XP_BOTTOM_TEXT_DY}
+              w={Layout.XP_W}
+              h={Layout.TEXT_H}
+              text={`+${groupDigits(row.bonusXp / Layout.XP_SCALE, ',')}`}
+              font={SailingFonts.SMALL}
+              color={SailingColors.WHITE}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          ) : (
+            <sprite
+              x={Layout.CLAIMED_X}
+              y={y + Layout.CLAIMED_DY}
+              w={Layout.CLAIMED}
+              h={Layout.CLAIMED}
+              sprite={SailingArt.CLAIMED}
+            />
+          )}
+        </>
+      )}
+
+      {unlocked === 0 && (
+        <rect
+          x="center"
+          y={y}
+          w={{ fill: Layout.ROW_BAND_INSET_W }}
+          h={Layout.ROW_BAND_H}
+          color={SailingColors.LOCKED_VEIL}
+          fill
+          transparency={Layout.LOCKED_VEIL_TRANSPARENCY}
+        />
+      )}
+
+      {row.reward !== -1 && (
+        <>
+          <rect
+            x={Layout.REWARD_BOX_X}
+            y={y + Layout.REWARD_BOX_DY}
+            w={Layout.REWARD_BOX_W}
+            h={Layout.REWARD_BOX_H}
+            color={SailingColors.BOX_OUTER}
+          />
+          <rect
+            x={Layout.REWARD_BOX_X + 1}
+            y={y + Layout.REWARD_BOX_DY + 1}
+            w={Layout.REWARD_BOX_W - 2}
+            h={Layout.REWARD_BOX_H - 2}
+            color={SailingColors.BOX_INNER}
+          />
+          <sprite
+            x={Layout.REWARD_X}
+            y={y + Layout.REWARD_DY}
+            w={Layout.REWARD_W}
+            h={Layout.REWARD_H}
+            item={row.reward}
+            itemCount={-1}
+            outline={1}
+          />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function RankHit({ label, y, unlocked, rank }: { label: String; y: Int; unlocked: Int; rank: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        x={Layout.BUTTON_X}
+        y={y + Layout.BUTTON_DY}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+        transparency={Layout.REWARD_HIT_REST}
+        options={['Select-trial']}
+        optionSubject={`<col=ff9040>${label}</col>`}
+        onOptionSelect={() => attemptRank(unlocked, rank)}
+      />
+    </layer>
+  );
+}
+
+export function RewardHit({ reward, y }: { reward: Item; y: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      {reward !== -1 && (
+        <rect
+          x={Layout.REWARD_BOX_X}
+          y={y + Layout.REWARD_BOX_DY}
+          w={Layout.REWARD_BOX_W}
+          h={Layout.REWARD_BOX_H}
+          color={SailingColors.WHITE}
+          fill
+          transparency={Layout.REWARD_HIT_REST}
+          options={['View']}
+          optionSubject={`<col=ff9040>${itemName(reward)}</col>`}
+          onMouseEnter={(event) => setTransparency(event.self, Layout.REWARD_HIT_HOVER)}
+          onMouseLeave={(event) => setTransparency(event.self, Layout.REWARD_HIT_REST)}
+        />
+      )}
+    </layer>
+  );
+}

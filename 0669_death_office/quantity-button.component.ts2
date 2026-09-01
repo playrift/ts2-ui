@@ -1,0 +1,68 @@
+import { useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { OfficeColor, OfficeFonts, OfficeSounds, PRESS_CYCLES } from './death-office.constants';
+
+export function QuantityButton({ label }: { label: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  const pressed: Int = pressedUntil > clientClock() ? 1 : 0;
+  const lit: Int = pressed === 1 || hovered === 1 ? 1 : 0;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        playSound(OfficeSounds.PRESS);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+      onTimer={
+        pressed === 1
+          ? () => {
+              if (clientClock() >= pressedUntil) {
+                setPressedUntil(0);
+              }
+            }
+          : undefined
+      }
+    >
+      {lit === 1 ? (
+        <StoneButtonPressedFilled>
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={label}
+            shadow
+            align="center"
+            valign="middle"
+            font={OfficeFonts.SMALL}
+            color={pressed === 1 ? OfficeColor.BUTTON_LABEL_PRESSED : OfficeColor.BUTTON_LABEL}
+          />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={label}
+            shadow
+            align="center"
+            valign="middle"
+            font={OfficeFonts.SMALL}
+            color={OfficeColor.BUTTON_LABEL}
+          />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}

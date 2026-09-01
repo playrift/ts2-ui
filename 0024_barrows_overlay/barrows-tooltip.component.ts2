@@ -1,0 +1,56 @@
+import { CS2, useState, useUniverse } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { BarrowsFonts, Tip, Tooltip, TOOLTIP_TEXT, TooltipColor } from './barrows-overlay.constants';
+import { killcount } from './barrows-overlay.refs';
+
+function xOf(component: ComponentId): Int {
+  return CS2.if_x_get(component);
+}
+
+function yOf(component: ComponentId): Int {
+  return CS2.if_y_get(component);
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+export function BarrowsTooltip(): Component {
+  const [tip] = useState(tooltipBuilt);
+  if (tip < Tip.REWARDS) {
+    return null;
+  }
+
+  const parent = useUniverse();
+  const wrap: Int = Math.min(Tooltip.WRAP, parent.width) - Tooltip.PAD;
+  const boxW: Int = Tooltip.PAD + textWidth(TOOLTIP_TEXT, wrap, BarrowsFonts.LABEL);
+  const boxH: Int = Tooltip.PAD + Tooltip.LINE * textLineCount(TOOLTIP_TEXT, wrap, BarrowsFonts.LABEL);
+
+  const anchorY: Int = yOf(killcount);
+  const below: Int = anchorY + heightOf(killcount) + Tooltip.GAP;
+
+  return (
+    <layer
+      x={Math.min(xOf(killcount) + Tooltip.GAP, parent.width - boxW)}
+      y={below > parent.height - boxH ? anchorY - boxH - Tooltip.GAP : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipColor.FILL} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipColor.INK} />
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Tooltip.PAD }}
+        h="fill"
+        text={TOOLTIP_TEXT}
+        align="left"
+        valign="middle"
+        font={BarrowsFonts.LABEL}
+        color={TooltipColor.INK}
+      />
+    </layer>
+  );
+}

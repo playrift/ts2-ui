@@ -1,0 +1,170 @@
+import { useRef, useState, useUniverse } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import {
+  ActivityChannels,
+  ActivityNames,
+  GroupingColor,
+  GroupingFonts,
+  GroupingScrollbar,
+  GroupingSprites,
+  GroupingText,
+  Layout,
+  Rows,
+  Transparency,
+} from './grouping.constants';
+import { dropdownOpen } from './grouping.refs';
+import { selectActivity } from './grouping.state';
+import { currentActivity } from './grouping-buttons.component';
+
+function showHighlight(highlight: Ref, x: Int, y: Int): void {
+  highlight.x = x;
+  highlight.y = y;
+  highlight.hide = false;
+}
+
+function hasChannel(channel: String): Boolean {
+  if (channel.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+function hideHighlight(highlight: Ref): void {
+  highlight.hide = true;
+}
+
+function dropdownEntryCount(activity: Int): Int {
+  let drawn: Int = 0;
+  let at: Int = 1;
+  let channel: String = ActivityChannels.get(at) ?? '';
+  while (channel.length > 0) {
+    if (at !== activity) {
+      drawn = drawn + 1;
+    }
+    at = at + 1;
+    channel = ActivityChannels.get(at) ?? '';
+  }
+  return drawn;
+}
+
+export function ActivityDropdown(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+  const highlight = useRef();
+  const [open] = useState(dropdownOpen);
+
+  const activity: Int = currentActivity();
+
+  const rowHeight: Int = onMobile() ? scaled(8, 5, Rows.DROPDOWN_HEIGHT) : Rows.DROPDOWN_HEIGHT;
+
+  const entryWidth: Int = universe.width - Layout.DROPDOWN_LIST_INSET - Rows.DROPDOWN_TEXT_INSET;
+
+  const drawn: Int = dropdownEntryCount(activity);
+  const noneTop: Int = Rows.DROPDOWN_TOP + drawn * rowHeight;
+  let extent: Int = noneTop;
+  if (activity !== 0) {
+    extent = noneTop + rowHeight;
+  }
+
+  let hidden: Boolean = true;
+  if (open === 1) {
+    hidden = false;
+  }
+
+  return (
+    <layer w="fill" h={Layout.DROPDOWN_H} hide={hidden}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={GroupingSprites.BACKING} tiling />
+
+      <rect x={0} y={0} w="fill" h="fill" color={GroupingColor.OUTLINE_OUTER} />
+      <rect
+        x={Layout.DROPDOWN_INNER_XY}
+        y={Layout.DROPDOWN_INNER_XY}
+        w={{ fill: Layout.DROPDOWN_INNER_INSET }}
+        h={{ fill: Layout.DROPDOWN_INNER_INSET }}
+        color={GroupingColor.OUTLINE_INNER}
+        transparency={Transparency.INNER_OUTLINE}
+      />
+
+      <layer
+        ref={list}
+        x={Layout.DROPDOWN_LIST_XY}
+        y={Layout.DROPDOWN_LIST_XY}
+        w={{ fill: Layout.DROPDOWN_LIST_INSET }}
+        h={{ fill: Layout.DROPDOWN_LIST_DROP }}
+        scrollHeight={extent}
+        noClickThrough
+      >
+        <rect
+          ref={highlight}
+          x={0}
+          y={0}
+          w={entryWidth}
+          h={rowHeight}
+          fill
+          color={GroupingColor.MEMBER}
+          transparency={Transparency.HOVERED}
+          hide
+        />
+
+        {ActivityChannels.scan(
+          (channel, key, index, top) =>
+            key !== activity &&
+            hasChannel(channel) && (
+              <text
+                x={Rows.DROPDOWN_TEXT_X}
+                y={top}
+                w={entryWidth}
+                h={rowHeight}
+                text={ActivityNames.get(key) ?? ''}
+                font={GroupingFonts.BODY}
+                color={GroupingColor.LABEL}
+                align="left"
+                valign="middle"
+                shadow
+                options={['Select']}
+                onOptionSelect={() => selectActivity(key)}
+                onMouseEnter={() => showHighlight(highlight, Rows.DROPDOWN_TEXT_X, top)}
+                onMouseLeave={() => hideHighlight(highlight)}
+              />
+            ),
+          (channel, key) => (key !== activity && hasChannel(channel) ? rowHeight : 0),
+          Rows.DROPDOWN_TOP,
+        )}
+
+        {activity !== 0 && (
+          <text
+            x={Rows.DROPDOWN_TEXT_X}
+            y={noneTop}
+            w={entryWidth}
+            h={rowHeight}
+            text={GroupingText.NONE_ENTRY}
+            font={GroupingFonts.BODY}
+            color={GroupingColor.LABEL}
+            align="left"
+            valign="middle"
+            shadow
+            options={['Select']}
+            onOptionSelect={() => selectActivity(0)}
+            onMouseEnter={() => showHighlight(highlight, Rows.DROPDOWN_TEXT_X, noneTop)}
+            onMouseLeave={() => hideHighlight(highlight)}
+          />
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y={Layout.BAR_Y} w={Layout.BAR_W} h={{ fill: Layout.BAR_DROP }}>
+        <ScrollbarVertical
+          content={list}
+          track={GroupingScrollbar.TRACK}
+          capTopSprite={GroupingScrollbar.CAP_TOP}
+          thumbSprite={GroupingScrollbar.THUMB}
+          capBottomSprite={GroupingScrollbar.CAP_BOTTOM}
+          arrowUp={GroupingScrollbar.ARROW_UP}
+          arrowDown={GroupingScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </layer>
+  );
+}

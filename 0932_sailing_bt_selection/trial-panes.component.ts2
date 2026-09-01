@@ -1,0 +1,282 @@
+import { useDerived, useServerState } from 'ts2';
+
+import { SteelBorder } from '../lib/steel-border.component';
+import { RankHit, RankRow, RewardHit } from './rank-row.component';
+import { Trials, TrialRanks } from './sailing-trials.data';
+import { formatDuration, trialBestTime, trialBonusClaimed, trialSlot } from './sailing-bt-selection.helpers';
+import {
+  Blurb,
+  Layout,
+  RankArt,
+  RankLabels,
+  SailingColors,
+  SailingFonts,
+  SailingVarps,
+} from './sailing-bt-selection.constants';
+
+export function TrialFrame(): Component {
+  const trialId: Int = useServerState(SailingVarps.TRIAL);
+  const trial = Trials.at(trialSlot(trialId));
+  if (trial === null) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <SteelBorder title={`The ${trial.name}`} titleColor={SailingColors.HEADING} flags={0} />
+    </layer>
+  );
+}
+
+export function CurrentRankColumn(): Component {
+  const trialId: Int = useServerState(SailingVarps.TRIAL);
+  const trial = Trials.at(trialSlot(trialId));
+
+  const pbSwordfish: Int = useDerived(() => trialBestTime(trialId, 1));
+  const pbShark: Int = useDerived(() => trialBestTime(trialId, 2));
+  const pbMarlin: Int = useDerived(() => trialBestTime(trialId, 3));
+  const achieved: Int = pbMarlin > 0 ? 3 : pbShark > 0 ? 2 : pbSwordfish > 0 ? 1 : 0;
+
+  if (trial === null) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <rect x={0} y={0} w="fill" h="fill" color={SailingColors.BOX_OUTER} />
+      <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} color={SailingColors.BOX_INNER} />
+
+      <text
+        x="center"
+        y={Layout.HEADING_Y}
+        w={Layout.HEADING_W}
+        h={Layout.HEADING_H}
+        text="Current Rank"
+        font={SailingFonts.HEADING}
+        color={SailingColors.HEADING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x="center"
+        y={Layout.BADGE_Y}
+        w={Layout.BADGE}
+        h={Layout.BADGE}
+        sprite={
+          achieved === 3
+            ? RankArt.BADGE_3
+            : achieved === 2
+              ? RankArt.BADGE_2
+              : achieved === 1
+                ? RankArt.BADGE_1
+                : RankArt.BADGE_0
+        }
+        tiling
+      />
+      <rect x="center" y={Layout.RING_Y} w={Layout.RING} h={Layout.RING} color={SailingColors.BADGE_RING} />
+      <rect
+        x="center"
+        y={Layout.RING_INNER_Y}
+        w={Layout.RING_INNER}
+        h={Layout.RING_INNER}
+        color={
+          achieved === 3
+            ? RankArt.RING_3
+            : achieved === 2
+              ? RankArt.RING_2
+              : achieved === 1
+                ? RankArt.RING_1
+                : RankArt.RING_0
+        }
+      />
+
+      <BestTimeRow
+        y={Layout.SLOT_Y_1}
+        icon={achieved >= 1 ? RankArt.SLOT_LIT_1 : RankArt.SLOT_GREY}
+        best={pbSwordfish}
+      />
+      <BestTimeRow y={Layout.SLOT_Y_2} icon={achieved >= 2 ? RankArt.SLOT_LIT_2 : RankArt.SLOT_GREY} best={pbShark} />
+      <BestTimeRow y={Layout.SLOT_Y_3} icon={achieved >= 3 ? RankArt.SLOT_LIT_3 : RankArt.SLOT_GREY} best={pbMarlin} />
+    </layer>
+  );
+}
+
+export function RankRowsPane(): Component {
+  const trialId: Int = useServerState(SailingVarps.TRIAL);
+  const slot: Int = trialSlot(trialId);
+  const base: Int = slot * 4;
+
+  const trial = Trials.at(slot);
+  const unranked = TrialRanks.at(base);
+  const swordfish = TrialRanks.at(base + 1);
+  const shark = TrialRanks.at(base + 2);
+  const marlin = TrialRanks.at(base + 3);
+
+  const pbSwordfish: Int = useDerived(() => trialBestTime(trialId, 1));
+  const pbShark: Int = useDerived(() => trialBestTime(trialId, 2));
+  const pbMarlin: Int = useDerived(() => trialBestTime(trialId, 3));
+  const firstSwordfish: Int = useDerived(() => trialBonusClaimed(trialId, 1));
+  const firstShark: Int = useDerived(() => trialBonusClaimed(trialId, 2));
+  const firstMarlin: Int = useDerived(() => trialBonusClaimed(trialId, 3));
+
+  const achieved: Int = pbMarlin > 0 ? 3 : pbShark > 0 ? 2 : pbSwordfish > 0 ? 1 : 0;
+
+  if (trial === null || unranked === null || swordfish === null || shark === null || marlin === null) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <rect x={0} y={0} w="fill" h={Layout.BLURB_BOX_H} color={SailingColors.BOX_OUTER} />
+      <rect x={1} y={1} w={{ fill: 2 }} h={Layout.BLURB_BOX_H - 2} color={SailingColors.BOX_INNER} />
+      <text
+        x="center"
+        y={Layout.BLURB_1_Y}
+        w={{ fill: Layout.BLURB_INSET_W }}
+        h={Layout.BLURB_1_H}
+        text={Blurb.LEAD}
+        font={SailingFonts.BODY}
+        color={SailingColors.HEADING}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.BLURB_LINE_H}
+        shadow
+      />
+      <text
+        x="center"
+        y={Layout.BLURB_2_Y}
+        w={{ fill: Layout.BLURB_INSET_W }}
+        h={Layout.BLURB_2_H}
+        text={Blurb.BODY}
+        font={SailingFonts.BODY}
+        color={SailingColors.HEADING}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.BLURB_LINE_H}
+        shadow
+      />
+
+      <rect x={0} y={Layout.ROWS_BOX_Y} w="fill" h={{ fill: Layout.ROWS_BOX_Y }} color={SailingColors.BOX_OUTER} />
+      <rect
+        x={1}
+        y={Layout.ROWS_BOX_Y + 1}
+        w={{ fill: 2 }}
+        h={{ fill: Layout.ROWS_BOX_Y + 2 }}
+        color={SailingColors.BOX_INNER}
+      />
+
+      <RankRow
+        row={unranked}
+        label={RankLabels.UNRANKED}
+        y={Layout.ROW_Y_0}
+        band={Layout.ROW_BAND_EVEN}
+        icon={RankArt.SLOT_GREY}
+        objectiveIcon={trial.objectiveIcon}
+        lossIcon={trial.lossIcon}
+        unlocked={1}
+        bonusClaimed={0}
+      />
+      <RankRow
+        row={swordfish}
+        label={RankLabels.SWORDFISH}
+        y={Layout.ROW_Y_1}
+        band={Layout.ROW_BAND_ODD}
+        icon={achieved >= 1 ? RankArt.SLOT_LIT_1 : RankArt.SLOT_GREY}
+        objectiveIcon={trial.objectiveIcon}
+        lossIcon={trial.lossIcon}
+        unlocked={achieved + 1 >= 1 ? 1 : 0}
+        bonusClaimed={firstSwordfish}
+      />
+      <RankRow
+        row={shark}
+        label={RankLabels.SHARK}
+        y={Layout.ROW_Y_2}
+        band={Layout.ROW_BAND_EVEN}
+        icon={achieved >= 2 ? RankArt.SLOT_LIT_2 : RankArt.SLOT_GREY}
+        objectiveIcon={trial.objectiveIcon}
+        lossIcon={trial.lossIcon}
+        unlocked={achieved + 1 >= 2 ? 1 : 0}
+        bonusClaimed={firstShark}
+      />
+      <RankRow
+        row={marlin}
+        label={RankLabels.MARLIN}
+        y={Layout.ROW_Y_3}
+        band={Layout.ROW_BAND_ODD}
+        icon={achieved >= 3 ? RankArt.SLOT_LIT_3 : RankArt.SLOT_GREY}
+        objectiveIcon={trial.objectiveIcon}
+        lossIcon={trial.lossIcon}
+        unlocked={achieved + 1 >= 3 ? 1 : 0}
+        bonusClaimed={firstMarlin}
+      />
+    </layer>
+  );
+}
+
+export function RankHitsPane(): Component {
+  const trialId: Int = useServerState(SailingVarps.TRIAL);
+  const trial = Trials.at(trialSlot(trialId));
+
+  const pbSwordfish: Int = useDerived(() => trialBestTime(trialId, 1));
+  const pbShark: Int = useDerived(() => trialBestTime(trialId, 2));
+  const pbMarlin: Int = useDerived(() => trialBestTime(trialId, 3));
+  const achieved: Int = pbMarlin > 0 ? 3 : pbShark > 0 ? 2 : pbSwordfish > 0 ? 1 : 0;
+
+  if (trial === null) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <RankHit label={RankLabels.UNRANKED} y={Layout.ROW_Y_0} unlocked={1} rank={0} />
+      <RankHit label={RankLabels.SWORDFISH} y={Layout.ROW_Y_1} unlocked={achieved + 1 >= 1 ? 1 : 0} rank={1} />
+      <RankHit label={RankLabels.SHARK} y={Layout.ROW_Y_2} unlocked={achieved + 1 >= 2 ? 1 : 0} rank={2} />
+      <RankHit label={RankLabels.MARLIN} y={Layout.ROW_Y_3} unlocked={achieved + 1 >= 3 ? 1 : 0} rank={3} />
+    </layer>
+  );
+}
+
+export function RewardHitsPane(): Component {
+  const trialId: Int = useServerState(SailingVarps.TRIAL);
+  const base: Int = trialSlot(trialId) * 4;
+
+  const unranked = TrialRanks.at(base);
+  const swordfish = TrialRanks.at(base + 1);
+  const shark = TrialRanks.at(base + 2);
+  const marlin = TrialRanks.at(base + 3);
+
+  if (unranked === null || swordfish === null || shark === null || marlin === null) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <RewardHit reward={unranked.reward} y={Layout.ROW_Y_0} />
+      <RewardHit reward={swordfish.reward} y={Layout.ROW_Y_1} />
+      <RewardHit reward={shark.reward} y={Layout.ROW_Y_2} />
+      <RewardHit reward={marlin.reward} y={Layout.ROW_Y_3} />
+    </layer>
+  );
+}
+
+function BestTimeRow({ y, icon, best }: { y: Int; icon: Sprite; best: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <sprite x={Layout.SLOT_ICON_X} y={y} w={Layout.SLOT_ICON} h={Layout.SLOT_ICON} sprite={icon} />
+      <text
+        x={Layout.SLOT_TEXT_X}
+        y={y + Layout.SLOT_TEXT_DY}
+        w={Layout.SLOT_TEXT_W}
+        h={Layout.SLOT_TEXT_H}
+        text={best > 0 ? `Best Time: ${formatDuration((best * Layout.TICK_NUMERATOR) / Layout.TICK_DENOMINATOR)}` : '-'}
+        font={SailingFonts.SMALL}
+        color={SailingColors.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

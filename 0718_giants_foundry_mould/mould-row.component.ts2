@@ -1,0 +1,223 @@
+import { CS2, useDerived, useServerState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import { Layout, MouldColor, MouldSkills, MouldSounds, MouldVarbits, RowShade } from './giants-foundry-mould.constants';
+import {
+  barGap,
+  barHeight,
+  barLabelY,
+  barWidth,
+  barX,
+  barY,
+  boldFont,
+  bodyFont,
+  iconX,
+  iconY,
+  levelInset,
+  nameGap,
+  rowHeight,
+  rowTextY,
+  smallFont,
+} from './giants-foundry-mould.metrics';
+import { MouldKeyword, MouldKeywords, MouldRow, mouldIndex } from './moulds.data';
+import { axisKeyword, mouldUsable, setSelectedSlot } from './giants-foundry-mould.helpers';
+
+export function MouldListRow({
+  row,
+  top,
+  index,
+  selected,
+  breakpoint,
+}: {
+  row: MouldRow;
+  top: Int;
+  index: Int;
+  selected: Int;
+  breakpoint: Int;
+}): Component {
+  const height: Int = rowHeight(breakpoint);
+  const level: Int = row.level;
+
+  let locked: Int = 1;
+  if (CS2.stat(MouldSkills.SMITHING) >= level) {
+    locked = 0;
+  }
+
+  const color: Int = locked === 0 ? MouldColor.ACCENT : MouldColor.DIM;
+
+  let shade: Int = index % 2 === 0 ? RowShade.EVEN : RowShade.ODD;
+  if (locked === 1) {
+    shade = index % 2 === 0 ? RowShade.LOCKED_EVEN : RowShade.LOCKED_ODD;
+  } else if (selected === 1) {
+    shade = RowShade.SELECTED;
+  }
+  const backingColor: Int = locked === 0 && selected === 1 ? MouldColor.ROW_HOVER : MouldColor.ROW;
+
+  let live: Int = 0;
+  if (locked === 0 && selected === 0) {
+    live = 1;
+  }
+
+  let hideLevel: Boolean = false;
+  if (locked === 0) {
+    hideLevel = true;
+  }
+
+  const icon: Sprite = row.icon;
+  const iconLeft: Int = iconX(breakpoint);
+  const iconTop: Int = top + iconY(breakpoint);
+  const gap: Int = nameGap(breakpoint);
+  const textY: Int = top + rowTextY(breakpoint);
+  const rightPad: Int = Math.max(gap, iconLeft);
+
+  return (
+    <>
+      {locked === 1 && <sprite x={iconLeft} y={iconTop} w={Layout.ICON_W} h={Layout.ICON_H} sprite={icon} />}
+
+      <rect
+        x={0}
+        y={top}
+        w="fill"
+        h={height}
+        fill
+        color={backingColor}
+        transparency={shade}
+        options={[live === 1 ? 'Select' : '']}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        onMouseEnter={(event) => {
+          if (live === 1 && !onMobile()) {
+            event.self.color = MouldColor.ROW_HOVER;
+          }
+        }}
+        onMouseLeave={(event) => {
+          if (live === 1 && !onMobile()) {
+            event.self.color = MouldColor.ROW;
+          }
+        }}
+        onOptionSelect={() => {
+          if (mouldUsable(mouldIndex(row.category, row.slot), row.level) === 1) {
+            setSelectedSlot(row.category, row.slot);
+            CS2.sound_effect(MouldSounds.SELECT, 1, 0);
+          }
+        }}
+      />
+
+      {locked === 0 && <sprite x={iconLeft} y={iconTop} w={Layout.ICON_W} h={Layout.ICON_H} sprite={icon} />}
+
+      <text
+        x={Layout.ICON_W + iconLeft + gap}
+        y={textY}
+        w={{ fill: Layout.ROW_TEXT_INSET }}
+        h={Layout.ROW_TEXT_H}
+        align="left"
+        valign="middle"
+        shadow
+        font={boldFont(breakpoint)}
+        color={color}
+        text={row.name}
+      />
+      <text
+        x={{ right: rightPad + levelInset(breakpoint) }}
+        y={textY}
+        w={{ fill: Layout.ROW_TEXT_INSET }}
+        h={Layout.ROW_TEXT_H}
+        align="right"
+        valign="middle"
+        shadow
+        font={bodyFont(breakpoint)}
+        color={color}
+        text="Smithing Level:"
+        hide={hideLevel}
+      />
+      <text
+        x={{ right: rightPad }}
+        y={textY}
+        w={{ fill: Layout.ROW_TEXT_INSET }}
+        h={Layout.ROW_TEXT_H}
+        align="right"
+        valign="middle"
+        shadow
+        font={bodyFont(breakpoint)}
+        color={color}
+        text={stringOf(level)}
+        hide={hideLevel}
+      />
+
+      <KeywordBar axis={0} value={row.narrowBroad} top={top} locked={locked} breakpoint={breakpoint} />
+      <KeywordBar axis={1} value={row.lightHeavy} top={top} locked={locked} breakpoint={breakpoint} />
+      <KeywordBar axis={2} value={row.flatSpiked} top={top} locked={locked} breakpoint={breakpoint} />
+    </>
+  );
+}
+
+function KeywordBar({
+  axis,
+  value,
+  top,
+  locked,
+  breakpoint,
+}: {
+  axis: Int;
+  value: Int;
+  top: Int;
+  locked: Int;
+  breakpoint: Int;
+}): Component {
+  const keyword: MouldKeyword = axisKeyword(axis, value);
+  const magnitude: Int = value < 0 ? 0 - value : value;
+
+  const wanted: Int = useDerived(() => wantedByCommission(keyword));
+  let fillColor: Int = wanted === 1 ? MouldColor.WANTED : MouldColor.DIM;
+  if (locked === 1) {
+    fillColor = MouldColor.DIM;
+  }
+  const textColor: Int = locked === 1 ? MouldColor.DIM : MouldColor.KEYWORD;
+
+  const width: Int = barWidth(breakpoint);
+  const left: Int = barX(breakpoint) + axis * (width + barGap(breakpoint));
+  const labelTop: Int = top + barLabelY(breakpoint);
+  const barTop: Int = top + barY(breakpoint);
+  const thickness: Int = barHeight(breakpoint);
+  const font: Font = smallFont(breakpoint);
+
+  return (
+    <>
+      <rect x={left} y={barTop} w={width} h={thickness} fill color={MouldColor.BAR_TRACK} />
+      <rect x={left} y={barTop} w={scaled(magnitude, Layout.BAR_FULL, width)} h={thickness} fill color={fillColor} />
+      <text
+        x={left}
+        y={labelTop}
+        w={width}
+        h={Layout.BAR_TEXT_H}
+        align="left"
+        valign="middle"
+        shadow
+        font={font}
+        color={textColor}
+        text={MouldKeywords.get(keyword) ?? ''}
+      />
+      <text
+        x={left}
+        y={labelTop}
+        w={width}
+        h={Layout.BAR_TEXT_H}
+        align="right"
+        valign="middle"
+        shadow
+        font={font}
+        color={textColor}
+        text={stringOf(magnitude)}
+      />
+    </>
+  );
+}
+
+export function wantedByCommission(keyword: MouldKeyword): Int {
+  if (useServerState(MouldVarbits.COMMISSION_WORD_1) === keyword) {
+    return 1;
+  }
+  if (useServerState(MouldVarbits.COMMISSION_WORD_2) === keyword) {
+    return 1;
+  }
+  return 0;
+}

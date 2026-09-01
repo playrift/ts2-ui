@@ -1,0 +1,154 @@
+import { onUpdated, useInventory, useRef, useServerState } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { SteelborderColor } from '../lib/lib.constants';
+import { itemName } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { QuantityButton } from './quantity-button.component';
+import { TakeAllButton } from './take-all-button.component';
+import { officeTitle, retrievalInfoText, selectPromptText } from './death-office.helpers';
+import {
+  Bar,
+  Fade,
+  OfficeBar,
+  OfficeColor,
+  OfficeFonts,
+  OfficeInventories,
+  OfficeVarps,
+  Panel,
+  Slot,
+} from './death-office.constants';
+
+export function DeathOffice(): Component {
+  const coffer: Int = useServerState(OfficeVarps.COFFER);
+  const selectedSlot: Int = useServerState(OfficeVarps.SELECTED_SLOT);
+  const fee: Int = useServerState(OfficeVarps.FEE);
+
+  const held = useInventory(OfficeInventories.LOST);
+
+  const pane = useRef();
+
+  const size: Int = held.size;
+  let filled: Int = 0;
+  let slot: Int = 0;
+  while (slot < size) {
+    if (held[slot] !== -1) {
+      filled = filled + 1;
+    }
+    slot = slot + 1;
+  }
+
+  const lastRowY: Int = filled > 0 ? ((filled - 1) / Slot.COLUMNS) * Slot.STRIDE_Y : 0;
+  const extent: Int = lastRowY + Slot.H;
+
+  const clampedSlot: Int = Math.clamp(0, Slot.COUNT - 1, selectedSlot);
+  const atSelected: Item = held[clampedSlot];
+  const selectedItem: Item = clampedSlot === selectedSlot ? atSelected : -1;
+  const selectedTotal: Int = selectedItem !== -1 ? held.total(selectedItem) : 0;
+  const hasSelection: Int = selectedItem !== -1 ? 1 : 0;
+
+  onUpdated(() => {
+    pane.scrollY = pane.scrollY;
+  });
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorder title={officeTitle(filled, size)} titleColor={SteelborderColor.TITLE} flags={0} />
+      </layer>
+
+      <layer x="center" y={40} w={{ fill: 20 }} h={{ fill: 90 }}>
+        <layer ref={pane} x={2} y="center" w={{ fill: 20 }} h={{ fill: 4 }} scrollHeight={extent}>
+          {held.scan(
+            (item, index, seen) =>
+              item !== -1 && (
+                <sprite
+                  x={Slot.INSET_X + (seen % Slot.COLUMNS) * Slot.STRIDE_X}
+                  y={(seen / Slot.COLUMNS) * Slot.STRIDE_Y}
+                  w={Slot.W}
+                  h={Slot.H}
+                  item={item}
+                  itemCount={held.count(index)}
+                  outline={index === selectedSlot ? Slot.OUTLINE_SELECTED : Slot.OUTLINE}
+                  shadowColor={OfficeColor.SLOT_SHADOW}
+                  options={['Select', '', '', '', '', '', '', '', '', 'Examine']}
+                  optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                  onOptionSelect={(event) => {
+                    flashFor(event.self, Fade.SLOT_PRESSED, Fade.REST);
+                  }}
+                />
+              ),
+            (item) => (item !== -1 ? 1 : 0),
+          )}
+        </layer>
+
+        <layer x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+          <ScrollbarVertical
+            content={pane}
+            track={OfficeBar.TRACK}
+            capTopSprite={OfficeBar.CAP_TOP}
+            thumbSprite={OfficeBar.THUMB}
+            capBottomSprite={OfficeBar.CAP_BOTTOM}
+            arrowUp={OfficeBar.ARROW_UP}
+            arrowDown={OfficeBar.ARROW_DOWN}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer x="center" y={{ bottom: 10 }} w={{ fill: 20 }} h={36}>
+        <QuantityButton
+          label="1"
+          x={{ right: Bar.RIGHT_1 }}
+          y={0}
+          w={Panel.BUTTON}
+          h={Panel.BUTTON}
+          hide={hasSelection === 1 ? false : true}
+        />
+        <QuantityButton
+          label="5"
+          x={{ right: Bar.RIGHT_5 }}
+          y={0}
+          w={Panel.BUTTON}
+          h={Panel.BUTTON}
+          hide={hasSelection === 1 ? false : true}
+        />
+        <QuantityButton
+          label="X"
+          x={{ right: Bar.RIGHT_X }}
+          y={0}
+          w={Panel.BUTTON}
+          h={Panel.BUTTON}
+          hide={hasSelection === 1 ? false : true}
+        />
+        <QuantityButton
+          label="All"
+          x={{ right: Bar.RIGHT_ALL }}
+          y={0}
+          w={Panel.BUTTON}
+          h={Panel.BUTTON}
+          hide={hasSelection === 1 ? false : true}
+        />
+
+        <TakeAllButton x={{ right: Bar.RIGHT_TAKE_ALL }} y={0} w={Panel.BUTTON} h="fill" />
+
+        <text
+          x={0}
+          y="center"
+          w={hasSelection === 1 ? Bar.INFO_W_ITEM : Bar.INFO_W_EMPTY}
+          h="fill"
+          text={
+            hasSelection === 1 ? retrievalInfoText(selectedItem, selectedTotal, fee, coffer) : selectPromptText(coffer)
+          }
+          font={hasSelection === 1 ? OfficeFonts.SMALL : OfficeFonts.LARGE}
+          color={OfficeColor.INFO}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    </>
+  );
+}

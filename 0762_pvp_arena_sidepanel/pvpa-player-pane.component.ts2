@@ -1,0 +1,240 @@
+import { CS2, intArray, onUpdated, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { clanPermissionGet } from '../0696_clans_storage_main/clan-permission';
+import { ClanPermission, ClanPermissions } from '../0696_clans_storage_main/clans-storage-main.constants';
+import { ClanChannelRow } from '../0701_clans_sidepanel/clan-channel-row.component';
+import { banFromChatRank } from '../0701_clans_sidepanel/clan-channel-pane.component';
+import { clanRankIcon, clanSettingGroupType } from '../0701_clans_sidepanel/clan-settings';
+import { pvpaSidepanelRankIcon } from '../0701_clans_sidepanel/pvpa-rank';
+import {
+  Channel,
+  ChannelKind,
+  ClanGroupType,
+  ClanSidepanelColor,
+  ClanSidepanelFonts,
+  ClanSidepanelScrollbar,
+  ClanSidepanelVarbits,
+  FriendState,
+  Layout,
+} from '../0701_clans_sidepanel/clans-sidepanel.constants';
+import { PvpaArm, pvpaArm, pvpaListMessage, pvpaWorldhopLabel } from './pvp-arena-sidepanel.helpers';
+import { PVPA_OPSOUND_MASK, PvpaColor, PvpaFonts, PvpaLayout } from './pvp-arena-sidepanel.constants';
+
+export function PvpaPlayerPane(): Component {
+  const list = useRef();
+  const universe = useUniverse();
+
+  const pvpaStatus: Int = useServerState(ClanSidepanelVarbits.PVPA_AFFINITY);
+  const guestStatus: Int = useServerState(ClanSidepanelVarbits.GUEST_AFFINITY);
+  const fightWorld: Int = useServerState(ClanSidepanelVarbits.PVPA_FIGHTWORLD);
+
+  const arm: Int = pvpaArm(pvpaStatus, guestStatus);
+  const message: String = pvpaListMessage(arm, fightWorld, pvpaStatus, guestStatus);
+  const worldhop: String = pvpaWorldhopLabel(arm, fightWorld);
+
+  const asGuest: Int = arm === PvpaArm.GUEST_ARENA ? 1 : 0;
+
+  let rows: Int = 0;
+  if (CS2.string_length(message) === 0 && (arm === PvpaArm.OWN || arm === PvpaArm.GUEST_ARENA)) {
+    rows = 1;
+  }
+
+  const users: Int = rows === 1 ? CS2.activeclanchannel_user_count_get() : 0;
+
+  const rowHeight: Int = onMobile() ? Channel.ROW_HEIGHT_MOBILE : Channel.ROW_HEIGHT;
+  const mySlot: Int = rows === 1 ? CS2.activeclanchannel_user_slot_get(CS2.tags_remove(CS2.chat_playername())) : -1;
+  const myRank: Int = mySlot !== -1 ? CS2.activeclanchannel_user_rank_get(mySlot) : -1;
+
+  const groupType: Int = clanSettingGroupType();
+  let channel: Int = ChannelKind.CLAN;
+  let arena: Int = 0;
+  let host: Int = 0;
+  let kickRank: Int = Channel.RANK_ANY;
+  let banRank: Int = Channel.RANK_NEVER;
+  let iAmOwner: Int = 0;
+  if (rows === 1) {
+    if (
+      groupType === ClanGroupType.ARENA_1V1_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_GROUP_OFFICIAL ||
+      groupType === ClanGroupType.ARENA_DUEL_OFFICIAL
+    ) {
+      channel = ChannelKind.ARENA;
+      arena = 1;
+    } else if (
+      groupType === ClanGroupType.ARENA_1V1_HOSTED ||
+      groupType === ClanGroupType.ARENA_GROUP_HOSTED ||
+      groupType === ClanGroupType.ARENA_DUEL_HOSTED
+    ) {
+      channel = ChannelKind.ARENA;
+      arena = 1;
+      host = 1;
+    } else {
+      kickRank = clanPermissionGet(ClanPermissions.at(ClanPermission.RANK_KICK));
+      banRank = banFromChatRank();
+    }
+
+    if (
+      CS2.activeclansettings_current_owner_slot_get() ===
+      CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()))
+    ) {
+      iAmOwner = 1;
+    }
+  }
+  const ownerPath: Int = host === 1 && iAmOwner === 1 ? 1 : 0;
+
+  const here: Int = CS2.map_world();
+  const enhanced: Int = enhancedAny() ? 1 : 0;
+
+  const slots = intArray(Channel.MAX_USERS);
+  const worlds = intArray(Channel.MAX_USERS);
+  const ranks = intArray(Channel.MAX_USERS);
+  const friends = intArray(Channel.MAX_USERS);
+  const icons = intArray<Sprite>(Channel.MAX_USERS);
+  const hits = intArray(Channel.MAX_USERS);
+
+  let selfSeen: Int = 0;
+  let at: Int = 0;
+  while (at < Channel.MAX_USERS) {
+    if (at < users) {
+      const slot: Int = CS2.activeclanchannel_sorted_user_slot_get(at);
+      const shown: String = CS2.activeclanchannel_user_display_name_get(slot);
+      const plain: String = CS2.tags_remove(shown);
+      if (CS2.compare(shown, CS2.chat_playername()) === 0) {
+        selfSeen = 1;
+      }
+      const rank: Int = CS2.activeclanchannel_user_rank_get(slot);
+      const affined: Int = CS2.activeclansettings_affined_slot_get(plain);
+
+      slots[at] = slot;
+      worlds[at] = CS2.activeclanchannel_user_world_get(slot);
+      ranks[at] = rank;
+      if (CS2.friend_test(plain)) {
+        friends[at] = FriendState.FRIEND;
+      } else if (CS2.ignore_test(plain)) {
+        friends[at] = FriendState.IGNORED;
+      } else {
+        friends[at] = FriendState.NEITHER;
+      }
+      if (arena === 1) {
+        icons[at] = pvpaSidepanelRankIcon(slot, rank, selfSeen);
+      } else {
+        icons[at] = clanRankIcon(rank);
+      }
+      hits[at] = affined !== -1 && mySlot !== slot ? 1 : 0;
+    } else {
+      slots[at] = -1;
+    }
+    at = at + 1;
+  }
+
+  const extent: Int = users * rowHeight;
+  const listHeight: Int = universe.height - Layout.LIST_DROP;
+  const scrollHeight: Int = rows === 1 && extent > listHeight ? extent : 0;
+
+  let showMessage: Boolean = false;
+  if (rows === 0) {
+    showMessage = true;
+  }
+  let hideWorldhop: Boolean = true;
+  if (CS2.string_length(worldhop) > 0) {
+    hideWorldhop = false;
+  }
+
+  onUpdated(() => {
+    list.scrollY = list.scrollY;
+  });
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y="center"
+        w={{ fill: Layout.LIST_INSET }}
+        h={{ fill: Layout.LIST_DROP }}
+        scrollHeight={scrollHeight}
+      >
+        <layer
+          x="center"
+          y={{ bottom: PvpaLayout.WORLDHOP_BOTTOM }}
+          w={PvpaLayout.WORLDHOP_W}
+          h={PvpaLayout.WORLDHOP_H}
+          hide={hideWorldhop}
+        >
+          <PvpaWorldhopButton label={worldhop} />
+        </layer>
+
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <ClanChannelRow
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                name={CS2.activeclanchannel_user_display_name_get(slot)}
+                slot={slot}
+                world={worlds[index]}
+                here={here}
+                icon={icons[index]}
+                rank={ranks[index]}
+                arena={arena}
+                hit={hits[index]}
+                friend={friends[index]}
+                asGuest={asGuest}
+                channel={channel}
+                enhanced={enhanced}
+                ownerPath={ownerPath}
+                myRank={myRank}
+                kickRank={kickRank}
+                banRank={banRank}
+                isMe={mySlot === slot ? 1 : 0}
+              />
+            ),
+        )}
+
+        {showMessage && (
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.MESSAGE_INSET }}
+            h={{ fill: Layout.MESSAGE_INSET }}
+            text={message}
+            font={PvpaFonts.BUTTON}
+            color={PvpaColor.TITLE}
+            align="center"
+            valign="middle"
+            shadow
+            lineHeight={15}
+          />
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_DROP }}>
+        <ScrollbarVertical
+          content={list}
+          track={ClanSidepanelScrollbar.TRACK}
+          capTopSprite={ClanSidepanelScrollbar.CAP_TOP}
+          thumbSprite={ClanSidepanelScrollbar.THUMB}
+          capBottomSprite={ClanSidepanelScrollbar.CAP_BOTTOM}
+          arrowUp={ClanSidepanelScrollbar.ARROW_UP}
+          arrowDown={ClanSidepanelScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function PvpaWorldhopButton({ label }: { label: String }): Component {
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onOptionSelect={(event) => opsound(event.option, PVPA_OPSOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={ClanSidepanelFonts.BUTTON} pressed={0} />
+    </layer>
+  );
+}

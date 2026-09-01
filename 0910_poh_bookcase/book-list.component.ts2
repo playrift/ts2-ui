@@ -1,0 +1,152 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+
+import { itemName, playSound } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Books } from './books.data';
+import {
+  BookcaseArt,
+  BookcaseBar,
+  BookcaseColors,
+  BookcaseFonts,
+  BookcaseInventories,
+  BookcaseSounds,
+  BookcaseVarps,
+  Fade,
+  Layout,
+} from './poh-bookcase.constants';
+import { bookRead, pressRow } from './poh-bookcase.helpers';
+
+export function BookList(): Component {
+  const read0: Int = useServerState(BookcaseVarps.READ_0_31);
+  const read1: Int = useServerState(BookcaseVarps.READ_32_63);
+  const read2: Int = useServerState(BookcaseVarps.READ_64_95);
+  const read3: Int = useServerState(BookcaseVarps.READ_96_127);
+  const read4: Int = useServerState(BookcaseVarps.READ_128_159);
+
+  const carried = useInventory(BookcaseInventories.CARRIED);
+
+  const mobile: Boolean = onMobile();
+
+  const list = useRef();
+
+  const pairs: Int = (Books.length + 1) / Layout.COLUMNS;
+  const contentHeight: Int = (pairs - 1) * Layout.ROW_STEP + Layout.ROW_H;
+
+  const pressRestore: Int = mobile ? Fade.REST : Fade.HOT;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y="center"
+        w={{ fill: Layout.LIST_INSET_W }}
+        h={{ fill: Layout.LIST_INSET_H }}
+        scrollHeight={contentHeight > list.height ? contentHeight : 0}
+      >
+        {Books.map((book, index) => (
+          <>
+            {bookRead(read0, read1, read2, read3, read4, book.bit) ? (
+              <sprite
+                x={index % Layout.COLUMNS === 0 ? 0 : Layout.COLUMN_2_X}
+                y={(index / Layout.COLUMNS) * Layout.ROW_STEP}
+                w={Layout.COLUMN_W}
+                h={Layout.ROW_H}
+                sprite={BookcaseArt.ROW}
+                tiling
+                transparency={Fade.REST}
+                options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+                optionSubject={`<col=ff9040>${itemName(book.item)}</col>`}
+                onMouseEnter={
+                  mobile
+                    ? undefined
+                    : (event) => {
+                        event.self.transparency = Fade.HOT;
+                      }
+                }
+                onMouseLeave={
+                  mobile
+                    ? undefined
+                    : (event) => {
+                        event.self.transparency = Fade.REST;
+                      }
+                }
+                onOptionSelect={(event) => {
+                  if (event.option !== 1) {
+                    playSound(BookcaseSounds.DENIED);
+                    return;
+                  }
+                  pressRow(event.self, pressRestore);
+                }}
+              />
+            ) : (
+              <sprite
+                x={index % Layout.COLUMNS === 0 ? 0 : Layout.COLUMN_2_X}
+                y={(index / Layout.COLUMNS) * Layout.ROW_STEP}
+                w={Layout.COLUMN_W}
+                h={Layout.ROW_H}
+                sprite={BookcaseArt.ROW}
+                tiling
+                transparency={Fade.UNREAD}
+                options={['Check']}
+                optionSubject={`<col=ff9040>${itemName(book.item)}</col>`}
+                onOptionSelect={(event) => opsound(event.option, 2)}
+              />
+            )}
+
+            <text
+              x={(index % Layout.COLUMNS === 0 ? 0 : Layout.COLUMN_2_X) + Layout.TITLE_X}
+              y={(index / Layout.COLUMNS) * Layout.ROW_STEP}
+              w={Layout.TITLE_W}
+              h={Layout.ROW_H}
+              text={book.title}
+              font={BookcaseFonts.ROW}
+              color={
+                bookRead(read0, read1, read2, read3, read4, book.bit) ? BookcaseColors.READ : BookcaseColors.UNREAD
+              }
+              valign="middle"
+              lineHeight={Layout.TITLE_LINE_H}
+              shadow
+            />
+
+            <sprite
+              x={(index % Layout.COLUMNS === 0 ? 0 : Layout.COLUMN_2_X) + Layout.ICON_DX}
+              y={(index / Layout.COLUMNS) * Layout.ROW_STEP + Layout.ICON_DY}
+              w={Layout.ICON_W}
+              h={Layout.ICON_H}
+              item={book.item}
+              itemCount={-1}
+              outline={1}
+              shadowColor={BookcaseColors.ICON_SHADOW}
+              transparency={carried.total(book.item) > 0 ? Fade.ICON_CARRIED : Fade.ICON_REST}
+            />
+
+            {index % Layout.COLUMNS === 1 && index < Books.length - 1 && (
+              <sprite
+                x="center"
+                y={(index / Layout.COLUMNS) * Layout.ROW_STEP + Layout.SEPARATOR_DY}
+                w="fill"
+                h={Layout.SEPARATOR_H}
+                sprite={BookcaseArt.SEPARATOR}
+                tiling
+              />
+            )}
+          </>
+        ))}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_X }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_INSET_H }}>
+        <ScrollbarVertical
+          content={list}
+          track={BookcaseBar.TRACK}
+          capTopSprite={BookcaseBar.CAP_TOP}
+          thumbSprite={BookcaseBar.THUMB}
+          capBottomSprite={BookcaseBar.CAP_BOTTOM}
+          arrowUp={BookcaseBar.ARROW_UP}
+          arrowDown={BookcaseBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,128 @@
+import { CS2, intArray } from 'ts2';
+import { textWidth } from '../lib/lib.engine';
+import { clanSettingRosterSize } from './clan-settings';
+import {
+  ClanRankIcons,
+  ClanSidepanelColor,
+  ClanSidepanelFonts,
+  GroupRoster,
+  ROW_HIT_TRANSPARENCY,
+} from './clans-sidepanel.constants';
+
+export function GroupRosterList(): Component {
+  const members: Int = CS2.activeclansettings_affined_count_get();
+  const owner: Int = CS2.activeclansettings_current_owner_slot_get();
+  const vacancies: Int = Math.min(GroupRoster.MAX_VACANCY_ROWS, clanSettingRosterSize());
+
+  const slots = intArray(GroupRoster.MAX_MEMBERS);
+  const vacancyRows = intArray(GroupRoster.MAX_VACANCY_ROWS);
+
+  let at: Int = 0;
+  while (at < GroupRoster.MAX_MEMBERS) {
+    if (at < members) {
+      slots[at] = CS2.activeclansettings_sorted_affined_slot_get(at);
+    } else {
+      slots[at] = -1;
+    }
+    at = at + 1;
+  }
+
+  let pad: Int = 0;
+  while (pad < GroupRoster.MAX_VACANCY_ROWS) {
+    if (members + pad < vacancies) {
+      vacancyRows[pad] = members + pad;
+    } else {
+      vacancyRows[pad] = -1;
+    }
+    pad = pad + 1;
+  }
+
+  return (
+    <>
+      {slots.map(
+        (slot, index) =>
+          slot !== -1 && (
+            <GroupRosterRow
+              slot={slot}
+              top={slot === owner ? 0 : index * GroupRoster.ROW_HEIGHT}
+              isOwner={slot === owner ? 1 : 0}
+            />
+          ),
+      )}
+
+      {vacancyRows.map(
+        (row) =>
+          row !== -1 && (
+            <text
+              x={{ right: 0 }}
+              y={row * GroupRoster.ROW_HEIGHT}
+              w={{ fill: GroupRoster.ICON_COLUMN }}
+              h={GroupRoster.ROW_HEIGHT}
+              text="Vacancy"
+              font={ClanSidepanelFonts.BUTTON}
+              color={ClanSidepanelColor.ABSENT}
+              align="left"
+              valign="middle"
+              shadow
+            />
+          ),
+      )}
+    </>
+  );
+}
+
+function GroupRosterRow({ slot, top, isOwner }: { slot: Int; top: Int; isOwner: Int }): Component {
+  const name: String = CS2.tags_remove(CS2.activeclansettings_affined_display_name_get(slot));
+  const badge: Int = CS2.activeclansettings_affined_extra_info_get(
+    slot,
+    GroupRoster.EXTRA_INFO_BADGE_START,
+    GroupRoster.EXTRA_INFO_BADGE_END,
+  );
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={GroupRoster.ROW_HEIGHT}
+        fill
+        color={ClanSidepanelColor.ROW}
+        transparency={ROW_HIT_TRANSPARENCY}
+      />
+
+      {isOwner === 1 && (
+        <sprite
+          x={(GroupRoster.ICON_COLUMN - GroupRoster.ICON) / 2}
+          y={top + (GroupRoster.ROW_HEIGHT - GroupRoster.ICON) / 2}
+          w={GroupRoster.ICON}
+          h={GroupRoster.ICON}
+          sprite={ClanRankIcons.get(GroupRoster.OWNER_ICON_KEY) ?? -1}
+        />
+      )}
+
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: GroupRoster.ICON_COLUMN }}
+        h={GroupRoster.ROW_HEIGHT}
+        text={name}
+        font={ClanSidepanelFonts.BUTTON}
+        color={ClanSidepanelColor.ROW}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      {badge === 1 && (
+        <sprite
+          x={GroupRoster.ICON_COLUMN + textWidth(name, 190, ClanSidepanelFonts.BUTTON) + 1}
+          y={top + (GroupRoster.ROW_HEIGHT - GroupRoster.ICON) / 2 - 1}
+          w={GroupRoster.ICON}
+          h={GroupRoster.ICON}
+          sprite={ClanRankIcons.get(GroupRoster.BADGE_ICON_KEY) ?? -1}
+        />
+      )}
+    </>
+  );
+}

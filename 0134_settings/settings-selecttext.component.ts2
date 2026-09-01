@@ -1,0 +1,236 @@
+import { useDerived } from 'ts2';
+import { chatMessage, playSound, textLineCount } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import { Fonts } from '../lib/game/fonts';
+import { Colour, Row, SettingsFonts, Sounds } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { rowDescription, rowTitle } from './settings-layout';
+import { rowLockedMessage, settingEnabled } from './settings.helpers';
+import { hideRowTooltip, showRowTooltip } from './settings-tooltip.component';
+
+const ThinBox = {
+  width: 150,
+  textInset: 25,
+  boxPad: 12,
+  minTitleHeightMobile: 20,
+  right: 10,
+  height: 20,
+  halfHeight: 10,
+  fillColour: 0x372e22,
+  outerColour: 0x0e0e0c,
+  innerColour: 0x474745,
+  innerRight: 11,
+  innerInsetW: 2,
+  innerH: 18,
+  veilRest: 250,
+  veilFlash: 220,
+  captionRight: 20,
+  captionInsetW: 16,
+} as const;
+
+function thinBoxDescriptionHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  if ((row.hideDescription ?? false) || compact) {
+    return 0;
+  }
+  const text: String = rowDescription(row, mobile);
+  if (text.length <= 0) {
+    return 0;
+  }
+  return textLineCount(text, width - (ThinBox.width + ThinBox.textInset), SettingsFonts.BODY) * Row.lineHeight;
+}
+
+function thinBoxTitleHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  let height: Int =
+    textLineCount(rowTitle(row, mobile), width - (ThinBox.width + ThinBox.textInset), SettingsFonts.TITLE) *
+    Row.lineHeight;
+  if (mobile && height < ThinBox.minTitleHeightMobile) {
+    height = ThinBox.minTitleHeightMobile;
+  }
+  return height;
+}
+
+export function selectTextRowHeight(row: SettingsRow, mobile: Boolean, compact: Boolean, width: Int): Int {
+  return (
+    thinBoxTitleHeight(row, mobile, width) + thinBoxDescriptionHeight(row, mobile, compact, width) + ThinBox.boxPad
+  );
+}
+
+function settingsOpGate(row: SettingsRow, enabled: Boolean, flag: Int): Boolean {
+  if (enabled && flag === 1) {
+    playSound(Sounds.TAB_SELECT);
+    return true;
+  }
+  playSound(Sounds.DISMISS);
+  chatMessage(rowLockedMessage(row));
+  return false;
+}
+
+function selectTextOp(row: SettingsRow, enabled: Boolean, flag: Int): void {
+  if (!settingsOpGate(row, enabled, flag)) {
+    return;
+  }
+}
+
+export function SettingsSelectText({
+  row,
+  top,
+  stripe,
+  mobile,
+  compact,
+  width,
+  enabled,
+  pane,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+  pane: Ref;
+}): Component {
+  const inset: Int = ThinBox.width + ThinBox.textInset;
+  const title: Int = thinBoxTitleHeight(row, mobile, width);
+  const description: Int = thinBoxDescriptionHeight(row, mobile, compact, width);
+  const box: Int = title + description + ThinBox.boxPad;
+  const boxY: Int = top + (box / 2 - ThinBox.halfHeight);
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+
+  return (
+    <>
+      <rect x="center" y={top} w={{ fill: Row.blockInsetW }} h={box} fill color={Colour.BLACK} transparency={stripe} />
+
+      {!mobile && compact && rowDescription(row, mobile).length > 0 ? (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: inset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+          onMouseRepeat={() => showRowTooltip(row, width - ThinBox.right - ThinBox.width, boxY, ThinBox.height, pane)}
+          onMouseLeave={() => hideRowTooltip()}
+        />
+      ) : (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy}
+          w={{ fill: inset }}
+          h={title}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.TITLE}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <rect
+        x={{ right: ThinBox.right }}
+        y={boxY}
+        w={ThinBox.width}
+        h={ThinBox.height}
+        fill
+        color={ThinBox.fillColour}
+      />
+
+      {!mobile && enabled && enabledFlag === 1 && (
+        <rect
+          x={{ right: ThinBox.right }}
+          y={boxY}
+          w={ThinBox.width}
+          h={ThinBox.height}
+          fill
+          color={Colour.WHITE}
+          transparency={ThinBox.veilRest}
+          onMouseRepeat={(event) => {
+            flashFor(event.self, ThinBox.veilFlash, ThinBox.veilRest);
+          }}
+          onMouseLeave={(event) => {
+            event.self.transparency = ThinBox.veilRest;
+          }}
+        />
+      )}
+      {!mobile && enabled && enabledFlag !== 1 && (
+        <rect
+          x={{ right: ThinBox.right }}
+          y={boxY}
+          w={ThinBox.width}
+          h={ThinBox.height}
+          fill
+          color={Colour.WHITE}
+          transparency={ThinBox.veilRest}
+        />
+      )}
+      {!mobile && !enabled && (
+        <rect
+          x={{ right: ThinBox.right }}
+          y={boxY}
+          w={ThinBox.width}
+          h={ThinBox.height}
+          fill
+          color={Colour.WHITE}
+          transparency={ThinBox.veilRest}
+        />
+      )}
+
+      <rect x={{ right: ThinBox.right }} y={boxY} w={ThinBox.width} h={ThinBox.height} color={ThinBox.outerColour} />
+      <rect
+        x={{ right: ThinBox.innerRight }}
+        y={boxY + 1}
+        w={ThinBox.width - ThinBox.innerInsetW}
+        h={ThinBox.innerH}
+        color={ThinBox.innerColour}
+      />
+
+      <text
+        x={{ right: ThinBox.captionRight }}
+        y={boxY}
+        w={ThinBox.width - ThinBox.captionInsetW}
+        h={ThinBox.height}
+        text={row.thinBoxPlaceholder ?? 'Input value'}
+        font={Fonts.P11_FULL}
+        shadow
+        color={Colour.GREY}
+        align="left"
+        valign="middle"
+        lineHeight={Row.lineHeight}
+      />
+
+      {description > 0 && (
+        <text
+          x={Row.titleX}
+          y={top + Row.titleDy + title}
+          w={{ fill: inset }}
+          h={description}
+          text={rowDescription(row, mobile)}
+          font={SettingsFonts.BODY}
+          shadow
+          color={Colour.GREY}
+          align="left"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      )}
+
+      <rect
+        x={{ right: ThinBox.right }}
+        y={boxY}
+        w={ThinBox.width}
+        h={ThinBox.height}
+        options={['Select']}
+        onOptionSelect={() => {
+          selectTextOp(row, enabled, enabledFlag);
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,93 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import {
+  CYCLES_PER_SECOND,
+  CYCLES_PER_UNIT,
+  DEAD_TEXT,
+  Dt2Varbits,
+  KASONDE_MAX_HP,
+  SECONDS_PER_MINUTE,
+} from './dt2-survival.constants';
+
+const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+}
+
+const survivalCycles = sessionState(-1);
+
+const survivalSeen = sessionState(-1);
+
+export function dt2SurvivalTime(label: ComponentId): void {
+  const [seen, setSeen] = useState(survivalSeen);
+  const [left, setLeft] = useState(survivalCycles);
+  const remaining: Int = useServerState(Dt2Varbits.TIME_REMAINING);
+
+  let cycles: Int = left;
+  if (remaining !== seen) {
+    setSeen(remaining);
+    cycles = remaining * CYCLES_PER_UNIT;
+  }
+
+  if (cycles < 0) {
+    cycles = 0;
+  }
+  const seconds: Int = cycles / CYCLES_PER_SECOND;
+  const minutes: Int = seconds / SECONDS_PER_MINUTE;
+  const rest: Int = seconds % SECONDS_PER_MINUTE;
+  if (rest < 10) {
+    label.text = `Time Left: ${stringOf(minutes)}:0${stringOf(rest)}`;
+  } else {
+    label.text = `Time Left: ${stringOf(minutes)}:${stringOf(rest)}`;
+  }
+
+  setLeft(cycles - 1);
+}
+
+function healthWidth(hp: Int, track: ComponentId): Int {
+  const width: Int = scaled(hp, KASONDE_MAX_HP, CS2.if_width_get(track));
+  if (width > 1) {
+    return width;
+  }
+  return 1;
+}
+
+export function dt2SurvivalHealth(track: ComponentId, percent: ComponentId, bar: ComponentId): void {
+  const hp: Int = useServerState(Dt2Varbits.KASONDE_HP);
+
+  if (hp <= 0) {
+    percent.text = DEAD_TEXT;
+    CS2.if_size_set(0, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+    return;
+  }
+
+  const target: Int = healthWidth(hp, track);
+  const shown: Int = CS2.if_width_get(bar);
+
+  if (shown <= 0) {
+    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  }
+
+  let pct: Int = scaled(hp, KASONDE_MAX_HP, 100);
+  if (pct < 1) {
+    pct = 1;
+  }
+  percent.text = `${stringOf(pct)}%`;
+
+  if (shown <= 0) {
+    return;
+  }
+
+  if (shown === target) {
+    CS2.if_size_set(target, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+    return;
+  }
+  if (shown === 0) {
+    CS2.if_size_set(target, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  } else if (shown < target) {
+    CS2.if_size_set(shown + 1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  } else if (shown > target) {
+    CS2.if_size_set(shown - 1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  }
+}

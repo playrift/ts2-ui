@@ -1,0 +1,355 @@
+import { CS2, predictServerState, useDerived, useRef, useServerState } from 'ts2';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import {
+  Layout,
+  SideColors,
+  SideFonts,
+  SideOps,
+  SideSounds,
+  SideSprites,
+  SideText,
+  SideVarbits,
+} from './adventurepath-side.constants';
+import { AdventurePathId, AdventurePaths, PathFallback } from './adventure-paths.data';
+import { AdventureTasks } from './adventure-tasks.data';
+import {
+  desktop,
+  focusedTaskRow,
+  hintLive,
+  noPathPrompt,
+  noTaskDescription,
+  taskFocus,
+  taskFound,
+  taskMeasured,
+  taskVisibleXp,
+  xpForLevel,
+} from './adventurepath-side.helpers';
+import { ProgressBar } from './progress-bar.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+
+export function MainTab(): Component {
+  const hidden: Boolean = useServerState(SideVarbits.SETTINGS_SELECTED) === 1 ? true : false;
+  const path: Int = useServerState(SideVarbits.PATH_IN_FOCUS);
+  const pathRow = AdventurePaths.get(path as AdventurePathId);
+  const focus: Int = taskFocus(path);
+  const row: Int = focusedTaskRow(path, focus);
+  const task = AdventureTasks.at(row);
+  const found: Boolean = taskFound(row);
+
+  const taskId: Int = task === null ? -1 : task.taskId;
+  const taskName: String = task === null ? SideText.NO_TASK_NAME : task.name;
+  const taskDesc: String = task === null ? noTaskDescription() : task.description;
+  const skill: Skill = task === null ? -1 : task.skill;
+  const level: Int = task === null ? -1 : task.targetLevel;
+  const gate: Int = task === null ? 10000 : task.gate;
+  const hint: Int = task === null ? -1 : task.hint;
+
+  const icon: Sprite = pathRow === null ? PathFallback.icon : pathRow.icon;
+  const pathName: String = pathRow === null ? PathFallback.name : pathRow.name;
+  const title: String = found ? pathName : noPathPrompt();
+
+  const measured: Boolean = taskMeasured(gate, skill);
+  const xp: Int = useDerived(() => taskVisibleXp(skill));
+  const barValue: Int = measured ? xp : 0;
+  const barMax: Int = measured ? xpForLevel(level) : 0;
+  const suffix: String = found ? SideText.XP_SUFFIX : '';
+
+  const live: Boolean = hintLive(found, taskId, hint);
+  const swap: Boolean = desktop();
+
+  return (
+    <layer w="fill" h="fill" hide={hidden}>
+      <layer x={0} y="bottom" w="fill" h={183}>
+        <layer
+          x={7}
+          y={4}
+          w={{ fill: 15 }}
+          h={38}
+          options={[SideOps.TASK]}
+          onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
+        >
+          <text
+            w="fill"
+            h="fill"
+            x="center"
+            y="center"
+            text={taskName}
+            font={SideFonts.BODY}
+            shadow
+            color={SideColors.GOLD}
+            align="center"
+            valign="middle"
+            lineHeight={Layout.BODY_LINE_H}
+            onMouseRepeat={
+              swap
+                ? (event) => {
+                    event.self.color = SideColors.DIM;
+                  }
+                : undefined
+            }
+            onMouseLeave={
+              swap
+                ? (event) => {
+                    event.self.color = SideColors.GOLD;
+                  }
+                : undefined
+            }
+          />
+        </layer>
+
+        <sprite x="center" y={45} w="fill" h={12} sprite={SideSprites.RULE} tiling />
+
+        <layer
+          x={7}
+          y={51}
+          w={{ fill: 14 }}
+          h={60}
+          options={[SideOps.TASK]}
+          onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
+        >
+          <text
+            w="fill"
+            h="fill"
+            x="center"
+            y="center"
+            text={taskDesc}
+            font={SideFonts.SMALL}
+            shadow
+            color={SideColors.GOLD}
+            align="left"
+            valign="top"
+            lineHeight={Layout.BODY_LINE_H}
+            onMouseRepeat={
+              swap
+                ? (event) => {
+                    event.self.color = SideColors.DIM;
+                  }
+                : undefined
+            }
+            onMouseLeave={
+              swap
+                ? (event) => {
+                    event.self.color = SideColors.GOLD;
+                  }
+                : undefined
+            }
+          />
+        </layer>
+
+        <layer x={5} y={{ bottom: 4 }} w={32} h={32}>
+          <SettingsButton />
+        </layer>
+
+        <layer x={{ right: 5 }} y={{ bottom: 4 }} w={143} h={32}>
+          <ProgressBar value={barValue} max={barMax} suffix={suffix} />
+        </layer>
+
+        <layer x={{ right: 5 }} y={{ bottom: 36 }} w={87} h={32}>
+          <HintButton live={live} />
+        </layer>
+
+        <layer x={5} y={{ bottom: 36 }} w={87} h={32}>
+          <OpenPathsButton />
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <layer
+        x={0}
+        y={0}
+        w={136}
+        h={50}
+        options={[SideOps.PATHS]}
+        onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
+      >
+        <text
+          x="center"
+          y="center"
+          w={{ fill: Layout.TITLE_INSET }}
+          h={{ fill: Layout.TITLE_INSET }}
+          text={title}
+          font={SideFonts.TITLE}
+          shadow
+          color={SideColors.GOLD}
+          align="center"
+          valign="middle"
+          lineHeight={Layout.TITLE_LINE_H}
+          onMouseRepeat={
+            swap
+              ? (event) => {
+                  event.self.color = SideColors.DIM;
+                }
+              : undefined
+          }
+          onMouseLeave={
+            swap
+              ? (event) => {
+                  event.self.color = SideColors.GOLD;
+                }
+              : undefined
+          }
+        />
+      </layer>
+
+      <layer x="right" y={0} w={50} h={50}>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={icon} />
+      </layer>
+    </layer>
+  );
+}
+
+function SettingsButton(): Component {
+  const up = useRef();
+  const down = useRef();
+  const gear = useRef();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[SideOps.SETTINGS]}
+      onOptionSelect={() => {
+        CS2.sound_effect(SideSounds.CLICK, 1, 0);
+        predictServerState(SideVarbits.SETTINGS_SELECTED, 1);
+      }}
+      onMouseEnter={() => {
+        gear.transparency = Layout.ICON_PRESSED;
+        up.hide = true;
+        down.hide = false;
+      }}
+      onMouseLeave={() => {
+        gear.transparency = 0;
+        up.hide = false;
+        down.hide = true;
+      }}
+    >
+      <layer ref={up} w="fill" h="fill">
+        <StoneButtonFilled />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide>
+        <StoneButtonPressedFilled />
+      </layer>
+      <sprite ref={gear} x="center" y="center" w={Layout.GEAR} h={Layout.GEAR} sprite={SideSprites.SETTINGS_ICON} />
+    </layer>
+  );
+}
+
+function OpenPathsButton(): Component {
+  const up = useRef();
+  const down = useRef();
+  const label = useRef();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[SideOps.PATHS]}
+      onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
+      onMouseEnter={() => {
+        label.color = SideColors.DIM;
+        up.hide = true;
+        down.hide = false;
+      }}
+      onMouseLeave={() => {
+        label.color = SideColors.GOLD;
+        up.hide = false;
+        down.hide = true;
+      }}
+    >
+      <layer ref={up} w="fill" h="fill">
+        <StoneButtonFilled />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide>
+        <StoneButtonPressedFilled />
+      </layer>
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={SideText.OPEN}
+        font={SideFonts.BODY}
+        shadow
+        color={SideColors.GOLD}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.TITLE_LINE_H}
+      />
+    </layer>
+  );
+}
+
+function HintButton({ live }: { live: Boolean }): Component {
+  const up = useRef();
+  const down = useRef();
+  const pin = useRef();
+  const label = useRef();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[live ? SideOps.HINT : '', live ? SideOps.HINT_REMOVE : '']}
+      onOptionSelect={live ? () => CS2.sound_effect(SideSounds.CLICK, 1, 0) : undefined}
+      onMouseEnter={
+        live
+          ? () => {
+              label.color = SideColors.DIM;
+              pin.transparency = Layout.ICON_PRESSED;
+              up.hide = true;
+              down.hide = false;
+            }
+          : undefined
+      }
+      onMouseLeave={
+        live
+          ? () => {
+              label.color = SideColors.GOLD;
+              pin.transparency = 0;
+              up.hide = false;
+              down.hide = true;
+            }
+          : undefined
+      }
+    >
+      <layer ref={up} w="fill" h="fill" hide={live ? false : true}>
+        <StoneButtonFilled />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide={live ? true : false}>
+        <StoneButtonPressedFilled />
+      </layer>
+      <sprite
+        ref={pin}
+        x={{ right: Layout.HINT_INSET }}
+        y="center"
+        w={Layout.HINT_ICON}
+        h={Layout.HINT_ICON}
+        sprite={SideSprites.HINT_ICON}
+      />
+      <text
+        ref={label}
+        x={Layout.HINT_INSET}
+        y="center"
+        w={{ fill: Layout.HINT_LABEL_INSET }}
+        h="fill"
+        text={SideText.HINT}
+        font={SideFonts.BODY}
+        shadow
+        color={SideColors.GOLD}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.TITLE_LINE_H}
+      />
+      {live === false && (
+        <sprite
+          x={{ center: 2 }}
+          y={{ center: 2 }}
+          w="fill"
+          h="fill"
+          sprite={SideSprites.VEIL}
+          transparency={Layout.VEIL_FADE}
+        />
+      )}
+    </layer>
+  );
+}

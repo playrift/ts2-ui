@@ -1,0 +1,128 @@
+import { CS2, useState, useUniverse } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { itemName, textLineCount, textWidth } from '../lib/lib.engine';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import { ServeryColor, ServeryDish, ServeryFonts, Tip, Tooltip } from './hosidius-servery-hud.constants';
+import { serveryAppreciation } from './hosidius-servery-hud.helpers';
+import {
+  meatPieContainer,
+  meatPieIcon,
+  pineapplePizzaContainer,
+  pineapplePizzaIcon,
+  stewContainer,
+  stewIcon,
+} from './hosidius-servery-hud.refs';
+
+function tipDish(tip: Int): Item {
+  if (tip === Tip.MEAT_PIE_ICON || tip === Tip.MEAT_PIE_BAR) {
+    return ServeryDish.MEAT_PIE;
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_ICON || tip === Tip.PINEAPPLE_PIZZA_BAR) {
+    return ServeryDish.PINEAPPLE_PIZZA;
+  }
+  return ServeryDish.STEW;
+}
+
+function anchorX(tip: Int): Int {
+  if (tip === Tip.MEAT_PIE_ICON) {
+    return absoluteX(meatPieIcon);
+  }
+  if (tip === Tip.MEAT_PIE_BAR) {
+    return absoluteX(meatPieContainer);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_ICON) {
+    return absoluteX(pineapplePizzaIcon);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_BAR) {
+    return absoluteX(pineapplePizzaContainer);
+  }
+  if (tip === Tip.STEW_ICON) {
+    return absoluteX(stewIcon);
+  }
+  return absoluteX(stewContainer);
+}
+
+function anchorY(tip: Int): Int {
+  if (tip === Tip.MEAT_PIE_ICON) {
+    return absoluteY(meatPieIcon);
+  }
+  if (tip === Tip.MEAT_PIE_BAR) {
+    return absoluteY(meatPieContainer);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_ICON) {
+    return absoluteY(pineapplePizzaIcon);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_BAR) {
+    return absoluteY(pineapplePizzaContainer);
+  }
+  if (tip === Tip.STEW_ICON) {
+    return absoluteY(stewIcon);
+  }
+  return absoluteY(stewContainer);
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+function anchorHeight(tip: Int): Int {
+  if (tip === Tip.MEAT_PIE_ICON) {
+    return heightOf(meatPieIcon);
+  }
+  if (tip === Tip.MEAT_PIE_BAR) {
+    return heightOf(meatPieContainer);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_ICON) {
+    return heightOf(pineapplePizzaIcon);
+  }
+  if (tip === Tip.PINEAPPLE_PIZZA_BAR) {
+    return heightOf(pineapplePizzaContainer);
+  }
+  if (tip === Tip.STEW_ICON) {
+    return heightOf(stewIcon);
+  }
+  return heightOf(stewContainer);
+}
+
+export function ServeryTooltip(): Component {
+  const [tip] = useState(tooltipBuilt);
+  if (tip < Tip.MEAT_PIE_ICON) {
+    return null;
+  }
+  const parent = useUniverse();
+  const dish: Item = tipDish(tip);
+  const held: Int = serveryAppreciation(dish);
+  const text: String = `${itemName(dish)}: ${stringOf(held / 10)}.${stringOf(held % 10)}% appreciation`;
+
+  const wrap: Int = Math.min(Tooltip.WRAP, parent.width) - Tooltip.PAD_X;
+  const boxW: Int = Tooltip.PAD_X + textWidth(text, wrap, ServeryFonts.TOOLTIP);
+  const boxH: Int = Tooltip.PAD_Y + Tooltip.LINE * textLineCount(text, wrap, ServeryFonts.TOOLTIP);
+
+  const ax: Int = anchorX(tip);
+  const ay: Int = anchorY(tip);
+  const below: Int = ay + anchorHeight(tip) + Tooltip.GAP;
+
+  return (
+    <layer
+      x={Math.min(ax + Tooltip.GAP, parent.width - boxW)}
+      y={below > parent.height - boxH ? ay - boxH - Tooltip.GAP : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={ServeryColor.TOOLTIP_FILL} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={ServeryColor.TOOLTIP_INK} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: Tooltip.PAD_X }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={ServeryFonts.TOOLTIP}
+        color={ServeryColor.TOOLTIP_INK}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,187 @@
+import { CS2, predictServerState, useDerived, useServerState, useState } from 'ts2';
+import { chatMessage, textLineCount } from '../lib/lib.engine';
+import { settingsOpSound } from '../0890_ironman_setup/ironman-setup.helpers';
+import { Frame } from '../lib/frame.component';
+import { Varbits } from '../lib/game/varbits';
+import { Colour, Row, SettingsFonts, SettingsVarbits } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { Grid, rowTitle } from './settings-layout';
+import { enhancedAny, rowLockedMessage, settingEnabled } from './settings.helpers';
+
+const Button = {
+  gutter: 5,
+  insetW: 10,
+  minCaptionHeight: 22,
+  boxPad: 10,
+  pad: 5,
+  captionDx: 5,
+  captionDy: 5,
+  captionInsetW: 10,
+} as const;
+
+function buttonBoxHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  const cell: Int = width / Grid.columns;
+  let caption: Int = textLineCount(rowTitle(row, mobile), cell - Button.insetW, SettingsFonts.BODY) * Row.lineHeight;
+  if (caption < Button.minCaptionHeight) {
+    caption = Button.minCaptionHeight;
+  }
+  return caption + Button.boxPad;
+}
+
+function buttonPad(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  const box: Int = buttonBoxHeight(row, mobile, width);
+  const requested: Int = row.buttonCellHeight ?? 0;
+  if (requested !== -1 && requested > box) {
+    return (requested - box) / 2;
+  }
+  return Button.pad;
+}
+
+export function buttonCellHeight(row: SettingsRow, mobile: Boolean, width: Int): Int {
+  return buttonBoxHeight(row, mobile, width) + buttonPad(row, mobile, width) * 2;
+}
+
+export function SettingsActionButton({
+  row,
+  top,
+  stripe,
+  column,
+  mobile,
+  compact,
+  width,
+  enabled,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  column: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+}): Component {
+  const stride: Int = width / Grid.columns;
+  const boxW: Int = stride - Button.insetW;
+  const boxH: Int = buttonBoxHeight(row, mobile, width);
+  const left: Int = column * stride + Button.gutter;
+  const boxY: Int = top + buttonPad(row, mobile, width);
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+  const [hovered, setHovered] = useState(0);
+
+  return (
+    <>
+      <layer x={left} y={boxY} w={boxW} h={boxH}>
+        {enabled && enabledFlag === 1 && hovered === 0 ? <ActionButtonRaised /> : <ActionButtonHovered />}
+
+        <text
+          x={Button.captionDx}
+          y={Button.captionDy}
+          w={boxW - Button.captionInsetW}
+          h={boxH - Button.boxPad}
+          text={rowTitle(row, mobile)}
+          font={SettingsFonts.BODY}
+          shadow
+          color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+          align="center"
+          valign="middle"
+          lineHeight={Row.lineHeight}
+        />
+      </layer>
+
+      {!mobile && enabled && enabledFlag === 1 ? (
+        <rect
+          x={left}
+          y={boxY}
+          w={boxW}
+          h={boxH}
+          fill
+          color={Colour.BLACK}
+          transparency={255}
+          onMouseEnter={() => setHovered(1)}
+          onMouseLeave={() => setHovered(0)}
+        />
+      ) : (
+        <rect x={left} y={boxY} w={boxW} h={boxH} fill color={Colour.BLACK} transparency={255} />
+      )}
+
+      <rect
+        x={left}
+        y={boxY}
+        w={boxW}
+        h={boxH}
+        fill
+        color={Colour.BLACK}
+        transparency={255}
+        options={['Select']}
+        onOptionSelect={() => {
+          if (enabled && enabledFlag === 1) {
+            settingsOpSound(1);
+            settingsClickedButton(row);
+          } else {
+            settingsOpSound(0);
+            chatMessage(rowLockedMessage(row));
+          }
+        }}
+      />
+    </>
+  );
+}
+
+export function settingsClickedButton(row: SettingsRow): void {
+  const settingId: Int = row.settingId ?? 0;
+  predictServerState(SettingsVarbits.SELECTED_SETTING, settingId);
+  switch (settingId) {
+    case 167:
+      restoreMinimapZoom();
+      break;
+    case 80:
+      storeInterfaceZoom();
+      break;
+  }
+}
+
+function restoreMinimapZoom(): void {
+  if (enhancedAny() && useServerState(Varbits.MINIMAP_ZOOM_LOCK_DISABLED) !== 1) {
+    CS2.native_minimap_zoom_set(4);
+  }
+}
+
+function storeInterfaceZoom(): void {
+  CS2.device_option_set(27, CS2.native_uizoom_get());
+}
+
+function ActionButtonRaised(): Component {
+  return (
+    <layer w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={297} tiling />
+      <Frame
+        topLeft={913}
+        topRight={914}
+        bottomLeft={915}
+        bottomRight={916}
+        left={917}
+        top={918}
+        right={919}
+        bottom={920}
+      />
+    </layer>
+  );
+}
+
+function ActionButtonHovered(): Component {
+  return (
+    <layer w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={897} tiling />
+      <Frame
+        topLeft={921}
+        topRight={922}
+        bottomLeft={923}
+        bottomRight={924}
+        left={925}
+        top={926}
+        right={927}
+        bottom={928}
+      />
+    </layer>
+  );
+}

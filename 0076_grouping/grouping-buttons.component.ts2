@@ -1,0 +1,199 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_house-options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { graphicSwapper } from '../lib/lib.helpers';
+import { groupingGameid, playermember } from '../lib/game/varcs';
+import {
+  ActivityNames,
+  ActivityWorlds,
+  FREE_FALLBACK_WORLD,
+  GroupingColor,
+  GroupingFonts,
+  GroupingSprites,
+  GroupingText,
+  Layout,
+  MEMBERS_ONLY_ACTIVITY,
+  TELEPORT_COOLDOWN_MINUTES,
+  Transparency,
+  GroupingVarps,
+} from './grouping.constants';
+import { currentChannelActivity, joinChannel } from './grouping.state';
+
+export function currentActivity(): Int {
+  const [stored] = useState(groupingGameid);
+  if (stored > 0 && stored <= 30) {
+    return stored;
+  }
+  return 0;
+}
+
+export function suggestedWorld(activity: Int): Int {
+  const [member] = useState(playermember);
+  const world: Int = ActivityWorlds.get(activity) ?? -1;
+  if (activity === MEMBERS_ONLY_ACTIVITY && member === 0) {
+    return FREE_FALLBACK_WORLD;
+  }
+  return world;
+}
+
+export function HopButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const activity: Int = currentActivity();
+  const world: Int = suggestedWorld(activity);
+
+  let worldText: String = GroupingText.NO_WORLD;
+  let worldColor: Int = GroupingColor.LABEL;
+  if (world !== -1) {
+    worldText = stringOf(world);
+    if (CS2.map_world() === world) {
+      worldColor = GroupingColor.WORLD_HERE;
+    } else {
+      worldColor = GroupingColor.WORLD_AWAY;
+    }
+  }
+
+  let plateHidden: Boolean = true;
+  let hopOp: String = '';
+  if (activity !== 0 && world !== -1) {
+    plateHidden = false;
+    hopOp = `Switch <col=ff8040>${stringOf(world)}</col>`;
+  }
+
+  return (
+    <layer w="fill" h="fill" onMouseRepeat={() => setPressed(1)} onMouseLeave={() => setPressed(0)}>
+      <layer w="fill" h="fill" hide={plateHidden}>
+        {pressed === 1 ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      </layer>
+
+      <text
+        x={0}
+        y={{ bottom: 0 }}
+        w="fill"
+        h={{ fill: Layout.HOP_TEXT_DROP }}
+        text={worldText}
+        font={GroupingFonts.TITLE}
+        color={worldColor}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        color={GroupingColor.MEMBER}
+        transparency={Transparency.INVISIBLE}
+        options={[hopOp]}
+      />
+    </layer>
+  );
+}
+
+export function JoinLeaveButton(): Component {
+  const activity: Int = currentActivity();
+  const joined: Int = currentChannelActivity();
+
+  const name: String = ActivityNames.get(activity) ?? '';
+
+  let label: String = GroupingText.NO_WORLD;
+  let op: String = '';
+  let target: Int = 0;
+  if (activity !== 0) {
+    if (joined !== activity) {
+      label = GroupingText.JOIN;
+      op = `Join <col=ff8040>${name}</col> channel`;
+      target = activity;
+    } else {
+      label = GroupingText.LEAVE;
+      op = `Leave <col=ff8040>${name}</col> channel`;
+      target = 0;
+    }
+  }
+
+  return (
+    <layer w="fill" h="fill" options={[op]} onOptionSelect={() => joinChannel(target)}>
+      <sprite
+        x={0}
+        y={Layout.BUTTON_SKIN_Y}
+        w={Layout.BUTTON_SKIN_W}
+        h={Layout.BUTTON_SKIN_H}
+        sprite={GroupingSprites.BUTTON}
+        onMouseEnter={(event) => graphicSwapper(event.self, GroupingSprites.BUTTON_HOVER)}
+        onMouseLeave={(event) => graphicSwapper(event.self, GroupingSprites.BUTTON)}
+      />
+
+      <text
+        x={0}
+        y={0}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+        text={label}
+        font={GroupingFonts.BUTTON}
+        color={GroupingColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+export function TeleportButton(): Component {
+  const activity: Int = currentActivity();
+  const name: String = ActivityNames.get(activity) ?? '';
+
+  const now: Int = useServerState(GroupingVarps.NOW_MINUTES);
+  const last: Int = useServerState(GroupingVarps.LAST_TELEPORT_MINUTE);
+
+  let labelColor: Int = GroupingColor.LABEL;
+  if (now - last < TELEPORT_COOLDOWN_MINUTES) {
+    labelColor = GroupingColor.TELEPORT_COOLING;
+  }
+
+  let teleportOp: String = 'Teleport';
+  if (activity !== 0) {
+    teleportOp = `Teleport to <col=ff8040>${name}</col>`;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x={0}
+        y={Layout.BUTTON_SKIN_Y}
+        w={Layout.BUTTON_SKIN_W}
+        h={Layout.BUTTON_SKIN_H}
+        sprite={GroupingSprites.BUTTON}
+        onMouseEnter={(event) => graphicSwapper(event.self, GroupingSprites.BUTTON_HOVER)}
+        onMouseLeave={(event) => graphicSwapper(event.self, GroupingSprites.BUTTON)}
+      />
+
+      <text
+        x={0}
+        y={0}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+        text="Teleport"
+        font={GroupingFonts.BUTTON}
+        color={labelColor}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        color={GroupingColor.MEMBER}
+        transparency={Transparency.INVISIBLE}
+        options={[teleportOp]}
+      />
+    </layer>
+  );
+}

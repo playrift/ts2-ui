@@ -1,0 +1,135 @@
+import { CS2, predictServerState, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import {
+  Layout,
+  SideColors,
+  SideFonts,
+  SideOps,
+  SideSounds,
+  SideSprites,
+  SideText,
+  SideVarbits,
+  Toggle,
+} from './adventurepath-side.constants';
+import { desktop } from './adventurepath-side.helpers';
+import { SettingsToggle } from './settings-toggle.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+
+export function SettingsTab(): Component {
+  const showing: Int = useServerState(SideVarbits.SETTINGS_SELECTED);
+  const toggles = useRef();
+
+  return (
+    <layer x={0} y={0} w={184} h={233} hide={showing === 1 ? false : true}>
+      <layer x={0} y="bottom" w={184} h={203}>
+        <layer x={{ right: 7 }} y="center" w={Toggle.SCROLLBAR_W} h={{ fill: Toggle.PANE_INSET_H }}>
+          <ScrollbarVertical
+            content={toggles}
+            track={SideSprites.SCROLL_TRACK}
+            capTopSprite={SideSprites.SCROLL_CAP_TOP}
+            thumbSprite={SideSprites.SCROLL_THUMB}
+            capBottomSprite={SideSprites.SCROLL_CAP_BOTTOM}
+            arrowUp={SideSprites.SCROLL_ARROW_UP}
+            arrowDown={SideSprites.SCROLL_ARROW_DOWN}
+          />
+        </layer>
+
+        <layer
+          ref={toggles}
+          x={7}
+          y="center"
+          w={{ fill: Toggle.PANE_INSET_W }}
+          h={{ fill: Toggle.PANE_INSET_H }}
+          scrollHeight={Toggle.CONTENT_H}
+        >
+          <ToggleRows />
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <text
+        x={75}
+        y={0}
+        w={109}
+        h={30}
+        text={SideText.SETTINGS_TITLE}
+        font={SideFonts.TITLE}
+        shadow
+        color={SideColors.GOLD}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.TITLE_LINE_H}
+      />
+
+      <layer x={0} y={0} w={75} h={30}>
+        <BackButton />
+      </layer>
+    </layer>
+  );
+}
+
+function ToggleRows(): Component {
+  const pane = useUniverse();
+  const width: Int = pane.width;
+  return (
+    <>
+      <SettingsToggle label="Task complete message" index={0} width={width} />
+      <SettingsToggle label="Path complete message" index={1} width={width} />
+      <SettingsToggle label="Task focus message" index={2} width={width} />
+      <SettingsToggle label="Path focus message" index={3} width={width} />
+      <SettingsToggle label="Notifications" index={4} width={width} />
+    </>
+  );
+}
+
+function BackButton(): Component {
+  const up = useRef();
+  const down = useRef();
+  const label = useRef();
+  const swap: Boolean = desktop();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[SideOps.BACK]}
+      onOptionSelect={() => {
+        CS2.sound_effect(SideSounds.CLICK, 1, 0);
+        predictServerState(SideVarbits.SETTINGS_SELECTED, 0);
+      }}
+      onMouseRepeat={() => {
+        up.hide = true;
+        down.hide = false;
+        label.color = swap ? SideColors.WHITE : SideColors.GOLD;
+      }}
+      onMouseLeave={() => {
+        up.hide = false;
+        down.hide = true;
+        label.color = SideColors.GOLD;
+      }}
+    >
+      <layer ref={up} w="fill" h="fill">
+        <StoneButtonFilled />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide>
+        <StoneButtonPressedFilled />
+      </layer>
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={SideText.BACK}
+        font={SideFonts.BODY}
+        shadow
+        color={SideColors.GOLD}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.TITLE_LINE_H}
+      />
+    </layer>
+  );
+}

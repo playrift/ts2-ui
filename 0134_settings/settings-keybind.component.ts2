@@ -1,0 +1,374 @@
+import { predictServerState, useDerived, useServerState, useState } from 'ts2';
+import { playSound, textWidth } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { Art, Colour, SettingsFonts, SettingsVarbits, Sounds } from './settings.constants';
+import type { SettingsRow } from './settings-rows.data';
+import { Grid, categoryBase } from './settings-layout';
+import {
+  openDropdownH,
+  openDropdownRow,
+  openDropdownSetting,
+  openDropdownW,
+  openDropdownX,
+  openDropdownY,
+} from './settings-dropdown.component';
+import { settingEnabled } from './settings.helpers';
+
+export function SettingsKeybind({
+  row,
+  top,
+  stripe,
+  column,
+  mobile,
+  compact,
+  width,
+  enabled,
+}: {
+  row: SettingsRow;
+  top: Int;
+  stripe: Int;
+  column: Int;
+  mobile: Boolean;
+  compact: Boolean;
+  width: Int;
+  enabled: Boolean;
+}): Component {
+  const options: Enum = mobile && (row.optionsMobile ?? -1) !== -1 ? (row.optionsMobile ?? -1) : (row.options ?? -1);
+  const icon: Sprite = row.icon ?? -1;
+  const size: Coord = row.iconSize ?? tileOf(0, 0, 0);
+  const iconW: Int = size.x % Keybind.axisMask;
+  const iconH: Int = size.z % Keybind.axisMask;
+
+  const cellX: Int = column === Grid.lastColumn ? (width / Grid.columns) * 2 : column === 1 ? width / Grid.columns : 0;
+  const cellW: Int = width / Grid.columns - Keybind.cellInsetW;
+
+  const table: Map<Int, String> = options as unknown as Map<Int, String>;
+  const labelW: Int = textWidth(table.get(Keybind.defaultKey), Keybind.measureWidth, SettingsFonts.BODY);
+  const boxW: Int = labelW + Keybind.labelPad;
+  const boxX: Int = cellX + Keybind.labelDx;
+
+  const settingId: Int = row.settingId ?? 0;
+  const code: Int = useDerived(() => keybindCode(settingId));
+  const label: String = table.get(code) ?? '';
+  const enabledFlag: Int = useDerived(() => settingEnabled(row));
+  const [open, setOpen] = useState(openDropdownSetting);
+  const [, setOpenRow] = useState(openDropdownRow);
+  const [, setOpenX] = useState(openDropdownX);
+  const [, setOpenY] = useState(openDropdownY);
+  const [, setOpenW] = useState(openDropdownW);
+  const [, setOpenH] = useState(openDropdownH);
+  const expanded: Boolean = keybindOpen(open, settingId);
+
+  return (
+    <>
+      {options !== -1 && icon !== -1 && (
+        <>
+          <rect
+            x={cellX + Keybind.cellX}
+            y={top}
+            w={cellW}
+            h={Grid.keybindCell}
+            fill
+            color={Colour.BLACK}
+            transparency={stripe}
+          />
+
+          <sprite
+            x={cellX + Keybind.keyX}
+            y={top + Keybind.keyDy}
+            w={Keybind.keyW}
+            h={Keybind.keyH}
+            sprite={KeybindArt.KEY_PLATE}
+          />
+
+          <sprite
+            x={cellX + Keybind.keyX + (Keybind.plateHalf - iconW / 2)}
+            y={top + Keybind.keyDy}
+            w={iconW}
+            h={iconH}
+            sprite={icon}
+          />
+
+          <sprite x={boxX} y={top + Keybind.boxDy} w={boxW} h={Keybind.boxH} sprite={KeybindArt.FIELD} tiling />
+          <rect x={boxX} y={top + Keybind.boxDy} w={boxW} h={Keybind.boxH} color={Keybind.outerOutline} />
+          <rect
+            x={boxX + Keybind.innerDx}
+            y={top + Keybind.innerDy}
+            w={boxW - Keybind.innerInsetW}
+            h={Keybind.innerH}
+            color={Keybind.innerOutline}
+          />
+
+          <sprite
+            x={boxX + labelW + Keybind.arrowDx}
+            y={top + Keybind.arrowDy}
+            w={Keybind.arrow}
+            h={Keybind.arrow}
+            sprite={expanded ? Art.BAR_ARROW_UP : KeybindArt.CHEVRON}
+          />
+
+          <text
+            x={boxX + Keybind.textDx}
+            y={top + Keybind.arrowDy}
+            w={labelW + Keybind.textPad}
+            h={Keybind.textH}
+            text={label}
+            font={SettingsFonts.BODY}
+            shadow
+            color={enabled && enabledFlag === 1 ? Colour.AMBER : Colour.GREY}
+            align="center"
+            valign="middle"
+            lineHeight={Keybind.textLineHeight}
+          />
+
+          {enabled && enabledFlag === 1 ? (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+              options={['Select']}
+              onOptionSelect={() => {
+                playSound(Sounds.TAB_SELECT);
+                setOpenRow(categoryBase(row.category) + row.ordinal);
+                setOpenX(boxX);
+                setOpenY(top + Keybind.boxDy);
+                setOpenW(boxW);
+                setOpenH(Keybind.boxH);
+                setOpen(settingId);
+              }}
+            />
+          ) : (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+              options={['Select']}
+              hide
+            />
+          )}
+
+          {enabled && enabledFlag === 1 && !mobile ? (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+              hover={{ transparency: Keybind.hoverTransparency }}
+            />
+          ) : (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+export function KeybindEntry({
+  row,
+  optionsId,
+  index,
+  count,
+  entryH,
+  mobile,
+}: {
+  row: SettingsRow;
+  optionsId: Enum;
+  index: Int;
+  count: Int;
+  entryH: Int;
+  mobile: Boolean;
+}): Component {
+  const [, setOpen] = useState(openDropdownSetting);
+  const table: Map<Int, String> = optionsId as unknown as Map<Int, String>;
+  const y: Int = index * entryH;
+
+  return (
+    <>
+      {index < count && (
+        <>
+          {mobile ? (
+            <rect
+              y={y}
+              w="fill"
+              h={entryH}
+              fill
+              color={Colour.BLACK}
+              transparency={index % 2 === 0 ? Keybind.entryStripeA : Keybind.entryStripeB}
+            />
+          ) : (
+            <rect
+              y={y}
+              w="fill"
+              h={entryH}
+              fill
+              color={Colour.BLACK}
+              transparency={index % 2 === 0 ? Keybind.entryStripeA : Keybind.entryStripeB}
+              hover={{ transparency: Keybind.entryHover }}
+            />
+          )}
+
+          <text
+            y={y}
+            w="fill"
+            h={entryH}
+            text={table.get(index) ?? ''}
+            font={SettingsFonts.BODY}
+            shadow
+            color={Colour.AMBER}
+            align="center"
+            valign="middle"
+            lineHeight={Keybind.entryLineHeight}
+          />
+
+          <rect
+            y={y}
+            w="fill"
+            h={entryH}
+            fill
+            color={Colour.BLACK}
+            transparency={Keybind.clickTransparency}
+            options={['Select']}
+            onOptionSelect={() => {
+              playSound(Sounds.TAB_SELECT);
+              if (!(row.live ?? false)) {
+                settingsSetKeybind(row);
+              }
+              setOpen(-1);
+            }}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+export function settingsSetKeybind(row: SettingsRow): void {
+  predictServerState(SettingsVarbits.SELECTED_SETTING, row.settingId ?? 0);
+}
+
+function keybindOpen(open: Int, settingId: Int): Boolean {
+  if (open === settingId) {
+    return true;
+  }
+  return false;
+}
+
+export function keybindCode(settingId: Int): Int {
+  switch (settingId) {
+    case 16:
+      return KeybindCodes.get(useServerState(Varbits.STONE_COMBAT_KEY)) ?? 0;
+    case 17:
+      return KeybindCodes.get(useServerState(Varbits.STONE_PRAYER_KEY)) ?? 0;
+    case 18:
+      return KeybindCodes.get(useServerState(Varbits.STONE_OPTIONS1_KEY)) ?? 0;
+    case 19:
+      return KeybindCodes.get(useServerState(Varbits.STONE_STATS_KEY)) ?? 0;
+    case 20:
+      return KeybindCodes.get(useServerState(Varbits.STONE_MAGIC_KEY)) ?? 0;
+    case 21:
+      return KeybindCodes.get(useServerState(Varbits.STONE_OPTIONS2_KEY)) ?? 0;
+    case 22:
+      return KeybindCodes.get(useServerState(Varbits.STONE_JOURNAL_KEY)) ?? 0;
+    case 23:
+      return KeybindCodes.get(useServerState(Varbits.STONE_FRIENDS_KEY)) ?? 0;
+    case 24:
+      return KeybindCodes.get(useServerState(Varbits.STONE_CLANCHAT_KEY)) ?? 0;
+    case 25:
+      return KeybindCodes.get(useServerState(Varbits.STONE_INV_KEY)) ?? 0;
+    case 26:
+      return KeybindCodes.get(useServerState(Varbits.STONE_ACCOUNT_KEY)) ?? 0;
+    case 27:
+      return KeybindCodes.get(useServerState(Varbits.STONE_MUSIC_KEY)) ?? 0;
+    case 28:
+      return KeybindCodes.get(useServerState(Varbits.STONE_WORN_KEY)) ?? 0;
+    case 29:
+      return KeybindCodes.get(useServerState(Varbits.STONE_LOGOUT_KEY)) ?? 0;
+    case 238:
+      return useServerState(Varbits.ANTIDRAG_DISABLEKEY);
+  }
+  return 0;
+}
+
+const KeybindCodes = mapOf<Int, Int>([
+  [1, 1],
+  [2, 2],
+  [3, 3],
+  [4, 4],
+  [5, 5],
+  [6, 6],
+  [7, 7],
+  [8, 8],
+  [9, 9],
+  [10, 10],
+  [11, 11],
+  [12, 12],
+  [13, 13],
+]);
+
+const KeybindArt = {
+  KEY_PLATE: Sprites.PRE_EOC_STONES_0,
+  FIELD: Sprites.TRADEBACKING,
+  CHEVRON: Sprites.SCROLLBAR_V2_1,
+} as const;
+
+export const Keybind = {
+  defaultKey: 2147483647,
+  measureWidth: 1000,
+  axisMask: 64,
+  cellInsetW: 10,
+  cellX: 5,
+  keyX: 10,
+  keyDy: 4,
+  keyW: 33,
+  keyH: 36,
+  plateHalf: 16,
+  labelDx: 53,
+  labelPad: 26,
+  boxH: 20,
+  boxDy: 12,
+  innerDx: 1,
+  innerDy: 13,
+  innerInsetW: 2,
+  innerH: 18,
+  arrow: 16,
+  arrowDx: 8,
+  arrowDy: 14,
+  textDx: 2,
+  textPad: 6,
+  textH: 16,
+  textLineHeight: 0,
+  outerOutline: 0x0e0e0c,
+  innerOutline: 0x474745,
+  clickTransparency: 255,
+  hoverTransparency: 220,
+
+  entryH: 20,
+  entryHTall: 24,
+  entryStripeA: 220,
+  entryStripeB: 200,
+  entryHover: 240,
+  entryLineHeight: 14,
+  panelMax: 120,
+  panelPad: 4,
+} as const;

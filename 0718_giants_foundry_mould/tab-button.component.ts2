@@ -1,0 +1,100 @@
+import { CS2, predictServerState, useState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { BoxStyle, BoxStyleRow, BoxStyles } from './box-styles.data';
+import { MouldCategory } from './moulds.data';
+import { Layout, MouldColor, MouldSounds, MouldVarbits } from './giants-foundry-mould.constants';
+import { bodyFont, tabGap, tabHeight, tabLabelPad } from './giants-foundry-mould.metrics';
+
+export function TabButton({
+  category,
+  label,
+  index,
+  breakpoint,
+  menuHeight,
+  currentTab,
+}: {
+  category: MouldCategory;
+  label: String;
+  index: Int;
+  breakpoint: Int;
+  menuHeight: Int;
+  currentTab: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+
+  const height: Int = tabHeight(breakpoint);
+  const top: Int = index * (height + tabGap(breakpoint));
+
+  let open: Int = 0;
+  if (currentTab === category) {
+    open = 1;
+  }
+
+  let style: BoxStyleRow = BoxStyles.at(BoxStyle.INACTIVE);
+  if (open === 1) {
+    style = BoxStyles.at(BoxStyle.ACTIVE);
+  } else if (hovered === 1) {
+    style = BoxStyles.at(BoxStyle.HOVER);
+  }
+
+  const border: Int = Layout.TAB_BORDER;
+  const fillInset: Int = open === 1 ? border : 2 * border - Layout.TAB_OVERLAP;
+  const topInset: Int = top === 0 && open === 1 ? border : 2 * border - Layout.TAB_OVERLAP;
+  const bottomInset: Int = top + height === menuHeight && open === 1 ? border : 2 * border - Layout.TAB_OVERLAP;
+
+  const labelX: Int = 8 + tabLabelPad(breakpoint);
+
+  return (
+    <>
+      <rect
+        x={1}
+        y={top + 1}
+        w={{ fill: border - Layout.TAB_OVERLAP }}
+        h={height - 2}
+        fill
+        color={MouldColor.PANEL}
+        options={[open === 1 ? '' : 'View']}
+        optionSubject={`<col=ff9040>${label}</col>`}
+        onMouseEnter={() => {
+          if (open === 0 && !onMobile()) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => setHovered(0)}
+        onClick={() => {
+          if (currentTab !== category) {
+            CS2.sound_effect(MouldSounds.SELECT, 1, 0);
+            predictServerState(MouldVarbits.CURRENT_TAB, category);
+          }
+        }}
+      />
+
+      <sprite x={border} y={top + 2} w={{ fill: fillInset }} h={height - 4} sprite={style.fill} tiling />
+      <sprite x={border} y={top} w={{ fill: topInset }} h={border} sprite={style.edgeTop} tiling />
+      <sprite
+        x={border}
+        y={top + height - border}
+        w={{ fill: bottomInset }}
+        h={border}
+        sprite={style.edgeBottom}
+        tiling
+      />
+      <sprite x={0} y={top + border} w={border} h={height - 2 * border} sprite={style.edgeLeft} tiling />
+      <sprite x={0} y={top} w={border} h={border} sprite={style.cornerTl} tiling />
+      <sprite x={0} y={top + height - border} w={border} h={border} sprite={style.cornerBl} tiling />
+
+      <text
+        x={labelX}
+        y={top}
+        w={{ fill: labelX + 6 }}
+        h={height}
+        align="left"
+        valign="middle"
+        shadow
+        font={bodyFont(breakpoint)}
+        color={MouldColor.ACCENT}
+        text={label}
+      />
+    </>
+  );
+}

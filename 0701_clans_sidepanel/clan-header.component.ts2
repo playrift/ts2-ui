@@ -1,0 +1,292 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { textWidth } from '../lib/lib.engine';
+import { clanIfCountShown } from '../lib/game/varcs';
+import {
+  clanAffinityText,
+  clanRankIcon,
+  clanSettingFilled,
+  clanSettingGroupType,
+  clanSettingVacancies,
+  ironmanIsGrouped,
+} from './clan-settings';
+import {
+  AffinityStatus,
+  ChannelKindNames,
+  ClanGroupType,
+  ClanSidepanelColor,
+  ClanSidepanelFonts,
+  ClanSidepanelSprites,
+  ClanSidepanelVarbits,
+  Layout,
+} from './clans-sidepanel.constants';
+
+export function ClanHeader({ asGuest }: { asGuest: Int }): Component {
+  const status: Int =
+    asGuest === 1 ? useServerState(ClanSidepanelVarbits.GUEST_AFFINITY) : useServerState(ClanSidepanelVarbits.AFFINITY);
+  const homeworld: Int =
+    asGuest === 1
+      ? useServerState(ClanSidepanelVarbits.GUEST_HOMEWORLD)
+      : useServerState(ClanSidepanelVarbits.HOMEWORLD);
+
+  const [shown, setShown] = useState(clanIfCountShown);
+
+  const loaded: Boolean =
+    asGuest === 1 ? CS2.activeclansettings_listened_find() : CS2.activeclansettings_affined_find(0);
+
+  const channelName: Int = asGuest === 1 ? 2 : 1;
+
+  let absent: Int = 0;
+  if (status !== AffinityStatus.LIVE || !loaded) {
+    absent = 1;
+  }
+
+  let ownClan: Int = 0;
+  let arenaGroup: Int = 0;
+  let hosted: Int = 0;
+  let vacancy: Int = 0;
+  let title: String = '';
+  let subtitle: String = '';
+  let titleWidth: Int = 0;
+  let guests: Int = 0;
+  let members: Int = 0;
+  let roster: Int = 0;
+  let showGuests: Int = 0;
+  let toggleIcon: Sprite = -1;
+  let toggleText: String = '';
+  let toggleOp: String = '';
+  let badge: Sprite = -1;
+
+  if (absent === 0) {
+    title = CS2.activeclansettings_clan_name_get();
+    const groupType: Int = clanSettingGroupType();
+    if (asGuest === 1) {
+      if (groupType === ClanGroupType.CLAN) {
+        ownClan = 1;
+        if (clanSettingVacancies() > 0 && clanSettingFilled() <= 0) {
+          vacancy = 1;
+        }
+      } else if (groupType === ClanGroupType.ARENA_1V1_HOSTED) {
+        arenaGroup = 1;
+        hosted = 1;
+        title = '1v1 Tournament';
+      } else if (groupType === ClanGroupType.ARENA_1V1_OFFICIAL) {
+        arenaGroup = 1;
+        title = '1v1 Tournament';
+      } else if (groupType === ClanGroupType.ARENA_GROUP_HOSTED) {
+        arenaGroup = 1;
+        hosted = 1;
+        title = 'Group Battle';
+      } else if (groupType === ClanGroupType.ARENA_GROUP_OFFICIAL) {
+        arenaGroup = 1;
+        title = 'Group Battle';
+      } else if (groupType === ClanGroupType.ARENA_DUEL_HOSTED) {
+        arenaGroup = 1;
+        hosted = 1;
+        title = '1v1 Duels';
+      } else if (groupType === ClanGroupType.ARENA_DUEL_OFFICIAL) {
+        arenaGroup = 1;
+        title = '1v1 Duels';
+      }
+    }
+
+    titleWidth = textWidth(title, 150, ClanSidepanelFonts.TITLE);
+
+    subtitle = hosted === 1 ? CS2.activeclansettings_clan_name_get() : '<img=1> Official Group';
+
+    guests = channelGuestCount();
+    members = channelMemberCount();
+    roster = CS2.activeclansettings_affined_count_get();
+    if (ownClan === 0 && shown === 0) {
+      showGuests = 1;
+    }
+    if (showGuests === 1) {
+      toggleIcon = clanRankIcon(-1);
+      toggleText = stringOf(guests);
+      toggleOp = 'View Clan Count';
+    } else {
+      toggleIcon = ClanSidepanelSprites.GROUP_MEMBERS;
+      toggleText = `${stringOf(members)}/${stringOf(roster)}`;
+      toggleOp = 'View Guest Count';
+    }
+    if (ownClan === 1) {
+      toggleOp = '';
+    }
+
+    if (vacancy === 1) {
+      badge = ClanSidepanelSprites.CLAN_BADGE_OPEN;
+    } else if (ironmanIsGrouped()) {
+      badge = ClanSidepanelSprites.CLAN_BADGE_GIM;
+    } else {
+      badge = ClanSidepanelSprites.CLAN_BADGE;
+    }
+  }
+
+  const titleDx: Int = asGuest === 1 ? Layout.NAME_GUEST_DX : 0;
+
+  if (absent === 1) {
+    return (
+      <>
+        <text
+          x={{ center: Layout.ABSENT_TITLE_DX }}
+          y={Layout.ABSENT_TITLE_Y}
+          w={{ fill: Layout.ABSENT_TITLE_INSET }}
+          h={Layout.ABSENT_TITLE_H}
+          text={ChannelKindNames.get(channelName) ?? 'Chat-channel'}
+          font={ClanSidepanelFonts.TITLE}
+          color={ClanSidepanelColor.ABSENT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <text
+          x={Layout.ABSENT_STATUS_X}
+          y={Layout.ABSENT_STATUS_Y}
+          w={Layout.ABSENT_STATUS_W}
+          h={Layout.ABSENT_STATUS_H}
+          text={clanAffinityText(status)}
+          font={ClanSidepanelFonts.BODY}
+          color={ClanSidepanelColor.ABSENT}
+          align="left"
+          valign="middle"
+          shadow
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <text
+        x={{ center: titleDx }}
+        y={Layout.NAME_Y}
+        w={titleWidth}
+        h={Layout.NAME_H}
+        text={title}
+        font={ClanSidepanelFonts.TITLE}
+        color={ClanSidepanelColor.TITLE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      {arenaGroup === 1 ? (
+        <text
+          x={0}
+          y={Layout.ARENA_LABEL_Y}
+          w={{ fill: Layout.ARENA_LABEL_INSET }}
+          h={Layout.NAME_H}
+          text={subtitle}
+          font={ClanSidepanelFonts.BODY}
+          color={ClanSidepanelColor.SUBTEXT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      ) : (
+        <>
+          <sprite
+            x={Layout.ROW_ICON_X}
+            y={Layout.ROW_ICON_Y}
+            w={13}
+            h={13}
+            sprite={toggleIcon}
+            options={[toggleOp]}
+            onOptionSelect={() => setShown((1 + shown) % 2)}
+          />
+          <text
+            x={Layout.COUNT_X}
+            y={Layout.COUNT_Y}
+            w={Layout.COUNT_W}
+            h={Layout.COUNT_H}
+            text={toggleText}
+            font={ClanSidepanelFonts.BODY}
+            color={ClanSidepanelColor.SUBTEXT}
+            align="left"
+            valign="middle"
+            shadow
+            options={[toggleOp]}
+            onOptionSelect={() => setShown((1 + shown) % 2)}
+          />
+
+          {ownClan === 1 ? (
+            <>
+              <sprite
+                x={{ center: -12 - titleWidth / 2 }}
+                y={Layout.NAME_Y}
+                w={Layout.REFRESH_ICON_W}
+                h={Layout.REFRESH_ICON_H}
+                sprite={badge}
+              />
+              <sprite x={{ center: titleWidth / 2 + 4 }} y={2} w={13} h={13} sprite={ClanSidepanelSprites.CLAN_CROWN} />
+              {vacancy === 1 && (
+                <>
+                  <sprite x={Layout.HEART_X} y={Layout.ROW_ICON_Y} w={13} h={13} sprite={ClanSidepanelSprites.HEART} />
+                  <text
+                    x={Layout.VACANCY_X}
+                    y={Layout.COUNT_Y}
+                    w={Layout.WORLD_W}
+                    h={Layout.COUNT_H}
+                    text={stringOf(clanSettingVacancies())}
+                    font={ClanSidepanelFonts.BODY}
+                    color={ClanSidepanelColor.SUBTEXT}
+                    align="center"
+                    valign="middle"
+                    shadow
+                  />
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <sprite
+                x={Layout.WORLD_ICON_X}
+                y={Layout.ROW_ICON_Y}
+                w={13}
+                h={13}
+                sprite={ClanSidepanelSprites.GROUP_WORLD}
+              />
+              <text
+                x={Layout.WORLD_X}
+                y={Layout.COUNT_Y}
+                w={Layout.WORLD_W}
+                h={Layout.COUNT_H}
+                text={homeworld > 0 ? stringOf(homeworld) : '---'}
+                font={ClanSidepanelFonts.BODY}
+                color={ClanSidepanelColor.SUBTEXT}
+                align="center"
+                valign="middle"
+                shadow
+              />
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function channelMemberCount(): Int {
+  let members: Int = 0;
+  let at: Int = 0;
+  const users: Int = CS2.activeclanchannel_user_count_get();
+  while (at < users) {
+    if (CS2.activeclanchannel_user_rank_get(CS2.activeclanchannel_sorted_user_slot_get(at)) > -1) {
+      members = members + 1;
+    }
+    at = at + 1;
+  }
+  return members;
+}
+
+function channelGuestCount(): Int {
+  let guests: Int = 0;
+  let at: Int = 0;
+  const users: Int = CS2.activeclanchannel_user_count_get();
+  while (at < users) {
+    if (CS2.activeclanchannel_user_rank_get(CS2.activeclanchannel_sorted_user_slot_get(at)) <= -1) {
+      guests = guests + 1;
+    }
+    at = at + 1;
+  }
+  return guests;
+}
