@@ -1,0 +1,119 @@
+import { CS2, useInventory, useRef, useServerState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { membersWorld } from '../lib/lib.engine';
+import {
+  EquipParams,
+  EquipmentInventories,
+  Fade,
+  NamedItems,
+  OP_BASE_PREFIX,
+  OP_BASE_SUFFIX,
+  OP_DEFEND,
+  OP_EXAMINE,
+  OP_REMOVE,
+  OP_STOP_SMITHING,
+  OP_SURFACE,
+  OP_TEMPLE,
+  SlotColors,
+  SlotOutline,
+  SlotSprites,
+  SlotVars,
+} from './equipment.constants';
+import { displayItemName } from './equipment.helpers';
+import { SlotIcons } from './tables.data';
+
+export function EquipSlot({ slot }: { slot: Int }): Component {
+  const worn = useInventory(EquipmentInventories.WORN);
+  const grapple: Int = useServerState(SlotVars.GRAPPLE_PENDING);
+  const desertHard: Int = useServerState(SlotVars.DESERT_HARD);
+  const desertElite: Int = useServerState(SlotVars.DESERT_ELITE);
+  const afkMode: Int = useServerState(SlotVars.TELEPORT_CRYSTAL_AFK);
+  const icon = useRef();
+
+  const held: Item = worn[slot];
+
+  let offerable: Boolean = false;
+  if (held !== -1) {
+    if (membersWorld()) {
+      offerable = true;
+    }
+    if (CS2.item_members(held) === 0) {
+      offerable = true;
+    }
+  }
+
+  let first: String = OP_REMOVE;
+  if (grapple === 1) {
+    first = OP_DEFEND;
+  } else if (held === NamedItems.CUSTOM_WEAR_PLACEHOLDER) {
+    first = OP_STOP_SMITHING;
+  }
+
+  let op2: String = '';
+  let op3: String = '';
+  let op4: String = '';
+  let op5: String = '';
+  let op6: String = '';
+  let op7: String = '';
+  let op8: String = '';
+  let op9: String = '';
+  let subject: String = '';
+  if (offerable) {
+    op2 = worn.paramText(slot, EquipParams.WEAR_OP1);
+    op3 = worn.paramText(slot, EquipParams.WEAR_OP2);
+    op4 = worn.paramText(slot, EquipParams.WEAR_OP3);
+    op5 = worn.paramText(slot, EquipParams.WEAR_OP4);
+    op6 = worn.paramText(slot, EquipParams.WEAR_OP5);
+    op7 = worn.paramText(slot, EquipParams.WEAR_OP6);
+    op8 = worn.paramText(slot, EquipParams.WEAR_OP7);
+    op9 = worn.paramText(slot, EquipParams.WEAR_OP8);
+
+    if (held === NamedItems.CAMULET) {
+      if (desertHard === 1 || desertElite === 1) {
+        op3 = OP_TEMPLE;
+        op4 = OP_SURFACE;
+      }
+    }
+    if (held === NamedItems.TOB_TELEPORT) {
+      op4 = afkMode === 1 ? 'Disable-autotele' : 'Enable-autotele';
+    }
+  }
+  if (held !== -1) {
+    subject = `${OP_BASE_PREFIX}${displayItemName(held)}${OP_BASE_SUFFIX}`;
+  }
+
+  if (held === -1) {
+    return (
+      <layer w="fill" h="fill">
+        <sprite x="center" y="center" w={36} h={36} sprite={SlotSprites.PLATE} />
+        <sprite x="center" y="center" w={32} h={32} sprite={SlotIcons.get(slot) ?? -1} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      optionSubject={subject}
+      options={[first, op2, op3, op4, op5, op6, op7, op8, op9, OP_EXAMINE]}
+      onOptionSelect={() => {
+        flashFor(icon, Fade.SLOT_PRESSED, Fade.SLOT_REST);
+      }}
+    >
+      <sprite x="center" y="center" w={36} h={36} sprite={SlotSprites.PLATE} />
+      <sprite
+        ref={icon}
+        x={2}
+        y={2}
+        w={36}
+        h={32}
+        item={held}
+        itemCount={worn.count(slot)}
+        outline={SlotOutline.ITEM}
+        shadowColor={SlotColors.ITEM_SHADOW}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,87 @@
+import { useInventory } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  Grid,
+  isMounted,
+  MOUNT_OP,
+  Transparency,
+  TrophyColor,
+  TrophySideInv,
+  TrophySounds,
+} from './poh-trophy-side.constants';
+
+function TrophySlot({
+  item,
+  count,
+  slot,
+  mountable,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  mountable: Boolean;
+}): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={TrophyColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD_ZONE}
+      dragDeadTime={Grid.DRAG_DEAD_TIME}
+      transparency={mountable ? Transparency.MOUNTABLE : Transparency.OTHER}
+      options={['Mount', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option === MOUNT_OP) {
+          playSound(TrophySounds.CLICK);
+        }
+        flashFor(
+          event.self,
+          mountable ? Transparency.MOUNTABLE_FLASH : Transparency.OTHER_FLASH,
+          mountable ? Transparency.MOUNTABLE : Transparency.OTHER,
+        );
+      }}
+    />
+  );
+}
+
+function TrophyBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      hide
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      outline={Grid.OUTLINE}
+      shadowColor={TrophyColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD_ZONE}
+      dragDeadTime={Grid.DRAG_DEAD_TIME}
+    />
+  );
+}
+
+function TrophyCell({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  if (item === -1) {
+    return <TrophyBlank slot={slot} />;
+  }
+  return <TrophySlot item={item} count={count} slot={slot} mountable={isMounted(item)} />;
+}
+
+export function PohTrophySide(): Component {
+  const bag = useInventory(TrophySideInv.INV);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <TrophyCell item={item} count={bag.count(slot)} slot={slot} />
+      ))}
+    </layer>
+  );
+}

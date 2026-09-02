@@ -1,0 +1,113 @@
+import { useInventory, useServerState } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  EXAMINE_OP,
+  Grid,
+  isTackleBoxItem,
+  Quantity,
+  TackleBox,
+  TackleBoxColor,
+  TackleBoxSounds,
+  TackleBoxVarbits,
+  Transparency,
+} from './tackle-box-side.constants';
+
+function TackleBoxSlot({
+  item,
+  count,
+  slot,
+  armed,
+  storable,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  armed: Int;
+  storable: Boolean;
+}): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={TackleBoxColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={storable ? Transparency.STORABLE : Transparency.REFUSED}
+      options={[
+        armed === Quantity.FIVE
+          ? 'Deposit-5'
+          : armed === Quantity.X
+            ? 'Deposit-X'
+            : armed === Quantity.ALL
+              ? 'Deposit-All'
+              : 'Deposit-1',
+        armed === Quantity.ONE ? '' : 'Deposit-1',
+        armed === Quantity.FIVE ? '' : 'Deposit-5',
+        armed === Quantity.X ? '' : 'Deposit-X',
+        armed === Quantity.ALL ? '' : 'Deposit-All',
+        '',
+        '',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option !== EXAMINE_OP) {
+          playSound(TackleBoxSounds.CLICK);
+        }
+        flashFor(
+          event.self,
+          storable ? Transparency.STORABLE_FLASH : Transparency.REFUSED_FLASH,
+          storable ? Transparency.STORABLE : Transparency.REFUSED,
+        );
+      }}
+    />
+  );
+}
+
+function TackleBoxBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BLANK_ITEM}
+      itemCount={1}
+      itemCountMode="never"
+      outline={Grid.OUTLINE}
+      shadowColor={TackleBoxColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.BLANK}
+    />
+  );
+}
+
+function TackleBoxCell({ item, count, slot, armed }: { item: Item; count: Int; slot: Int; armed: Int }): Component {
+  if (item === -1) {
+    return <TackleBoxBlank slot={slot} />;
+  }
+  return <TackleBoxSlot item={item} count={count} slot={slot} armed={armed} storable={isTackleBoxItem(item)} />;
+}
+
+export function TackleBoxSide(): Component {
+  const bag = useInventory(TackleBox.INV);
+  const armed: Int = useServerState(TackleBoxVarbits.QUANTITY);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <TackleBoxCell item={item} count={bag.count(slot)} slot={slot} armed={armed} />
+      ))}
+    </layer>
+  );
+}

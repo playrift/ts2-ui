@@ -1,0 +1,87 @@
+import { useInventory, useServerState } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  Grid,
+  PartyDrop,
+  PartyDropColor,
+  PartyDropVarbits,
+  Quantity,
+  Transparency,
+} from './partydrop-side.constants';
+
+function PartyDropSlot({ item, count, slot, armed }: { item: Item; count: Int; slot: Int; armed: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={PartyDropColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.FILLED}
+      options={[
+        armed === Quantity.FIVE
+          ? 'Offer 5'
+          : armed === Quantity.X
+            ? 'Offer X'
+            : armed === Quantity.ALL
+              ? 'Offer All'
+              : 'Offer 1',
+        armed === Quantity.ONE ? '' : 'Offer 1',
+        armed === Quantity.FIVE ? '' : 'Offer 5',
+        armed === Quantity.X ? '' : 'Offer X',
+        armed === Quantity.ALL ? '' : 'Offer All',
+        '',
+        '',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Transparency.FLASH, Transparency.FILLED);
+      }}
+    />
+  );
+}
+
+function PartyDropBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BLANK_ITEM}
+      itemCount={1}
+      outline={Grid.OUTLINE}
+      shadowColor={PartyDropColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.BLANK}
+    />
+  );
+}
+
+export function PartydropSide(): Component {
+  const bag = useInventory(PartyDrop.INV);
+  const armed: Int = useServerState(PartyDropVarbits.QUANTITY);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) =>
+        item === -1 ? (
+          <PartyDropBlank slot={slot} />
+        ) : (
+          <PartyDropSlot item={item} count={bag.count(slot)} slot={slot} armed={armed} />
+        ),
+      )}
+    </layer>
+  );
+}

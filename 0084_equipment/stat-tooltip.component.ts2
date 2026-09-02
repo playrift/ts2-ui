@@ -1,0 +1,99 @@
+import { sessionState, useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import {
+  TooltipBox,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { EquipmentLayout, Tooltip } from './equipment.constants';
+import { onEnhancedAny, onEnhancedMobile } from './equipment.helpers';
+import { StatTip, StatTips } from './stat-tips.data';
+import type { StatTipRow } from './stat-tips.data';
+
+export const statTipRow = sessionState(StatTip.NONE);
+
+export function showStatTip(row: StatTip): void {
+  const [, setRow] = useState(statTipRow);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Tooltip.DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setRow(row);
+  tooltipRaise();
+}
+
+export function hideStatTip(): void {
+  const [, setRow] = useState(statTipRow);
+  tooltipHide();
+  setRow(StatTip.NONE);
+}
+
+export function StatTooltip(): Component {
+  const [key] = useState(statTipRow);
+
+  const row: StatTipRow | null = StatTips.at(key);
+  let text: String = '';
+  let anchorX: Int = 0;
+  let anchorY: Int = 0;
+  let anchorH: Int = 0;
+  if (tooltipUp() && key >= 0 && row !== null) {
+    text = row.text;
+    anchorX = row.x;
+    anchorY = row.y;
+    anchorH = row.h;
+  }
+
+  let measure: Int = Tooltip.WRAP;
+  if (measure > EquipmentLayout.ROOT_W) {
+    measure = EquipmentLayout.ROOT_W;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > EquipmentLayout.ROOT_W - boxW) {
+    x = EquipmentLayout.ROOT_W - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > EquipmentLayout.ROOT_H - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (!tooltipUp()) {
+    return <layer w={EquipmentLayout.TIP_HOST_W} h={EquipmentLayout.TIP_HOST_H} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

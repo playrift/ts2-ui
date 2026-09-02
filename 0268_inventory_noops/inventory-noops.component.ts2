@@ -1,0 +1,113 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { displayItemName } from '../0084_equipment/equipment.helpers';
+import {
+  EXAMINE,
+  Fade,
+  InventoryInventories,
+  InventoryItems,
+  InventoryLayout,
+  InventoryVarbits,
+  NO_OPTION_PRIORITY,
+  OP_BASE_PREFIX,
+  OP_BASE_SUFFIX,
+  SlotStyle,
+} from './inventory-noops.constants';
+
+export function InventoryNoops(): Component {
+  const carried = useInventory(InventoryInventories.CARRIED);
+  const interactive: Int = useServerState(InventoryVarbits.ALLOW_INTERACTION);
+
+  return (
+    <layer w="fill" h="fill">
+      {carried.map((item, slot) => (
+        <InventorySlot
+          item={item}
+          count={carried.count(slot)}
+          slot={slot}
+          interactive={interactive}
+          subject={item !== -1 ? `${OP_BASE_PREFIX}${displayItemName(item)}${OP_BASE_SUFFIX}` : ''}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function InventorySlot({
+  item,
+  count,
+  slot,
+  interactive,
+  subject,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  interactive: Int;
+  subject: String;
+}): Component {
+  const x: Int = InventoryLayout.ORIGIN_X + (slot % InventoryLayout.COLUMNS) * InventoryLayout.COLUMN_PITCH;
+  const y: Int = InventoryLayout.ORIGIN_Y + (slot / InventoryLayout.COLUMNS) * InventoryLayout.ROW_PITCH;
+
+  if (item === -1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={InventoryLayout.SLOT_W}
+        h={InventoryLayout.SLOT_H}
+        item={InventoryItems.BLANK}
+        itemCount={1}
+        transparency={Fade.EMPTY}
+        shadowColor={SlotStyle.SHADOW}
+        outline={SlotStyle.OUTLINE}
+        dragDeadZone={SlotStyle.DRAG_DEAD_ZONE}
+        dragDeadTime={SlotStyle.DRAG_DEAD_TIME}
+        optionPriority={NO_OPTION_PRIORITY}
+        hide
+      />
+    );
+  }
+
+  if (interactive === 1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={InventoryLayout.SLOT_W}
+        h={InventoryLayout.SLOT_H}
+        item={item}
+        itemCount={count}
+        transparency={Fade.WASHED}
+        shadowColor={SlotStyle.SHADOW}
+        outline={SlotStyle.OUTLINE}
+        dragDeadZone={SlotStyle.DRAG_DEAD_ZONE}
+        dragDeadTime={SlotStyle.DRAG_DEAD_TIME}
+        optionPriority={NO_OPTION_PRIORITY}
+        optionSubject={subject}
+        options={[EXAMINE]}
+        onOptionSelect={(event) => {
+          flashFor(event.self, Fade.PRESSED, Fade.WASHED);
+        }}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={InventoryLayout.SLOT_W}
+      h={InventoryLayout.SLOT_H}
+      item={item}
+      itemCount={count}
+      transparency={Fade.WASHED}
+      shadowColor={SlotStyle.SHADOW}
+      outline={SlotStyle.OUTLINE}
+      dragDeadZone={SlotStyle.DRAG_DEAD_ZONE}
+      dragDeadTime={SlotStyle.DRAG_DEAD_TIME}
+      optionPriority={NO_OPTION_PRIORITY}
+    />
+  );
+}

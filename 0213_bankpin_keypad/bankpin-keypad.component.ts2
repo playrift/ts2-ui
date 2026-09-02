@@ -1,0 +1,214 @@
+import { intArray, useState } from 'ts2';
+
+import { SteelborderColor } from '../lib/lib.constants';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import {
+  BankpinArt,
+  BankpinColor,
+  BankpinFonts,
+  Cancel,
+  Key,
+  Keys,
+  Layout,
+  Prompt,
+  Shuffle,
+  Stage,
+} from './bankpin-keypad.constants';
+import { bankpinEntry, bankpinStage, exitBankpin, forgotBankpin } from './bankpin-keypad.state';
+import { BankpinButton } from './bankpin-button.component';
+
+const Entered = [0, 1, 2, 3];
+
+function textColourSwapper(component: ComponentId, color: Int): void {
+  component.color = color;
+}
+
+function bankpinPrompt(stage: Stage): String {
+  if (stage === Stage.FOURTH) {
+    return Prompt.FOURTH;
+  }
+  if (stage === Stage.THIRD) {
+    return Prompt.THIRD;
+  }
+  if (stage === Stage.SECOND) {
+    return Prompt.SECOND;
+  }
+  if (stage === Stage.FIRST) {
+    return Prompt.FIRST;
+  }
+  return Prompt.SUBMITTING;
+}
+
+function bankpinFace(stage: Stage, slot: Int): String {
+  if (stage === Stage.SUBMITTING) {
+    return Prompt.ENTERED;
+  }
+  if (slot < stage) {
+    return Prompt.ENTERED;
+  }
+  return Prompt.PENDING;
+}
+
+export function BankpinKeypad(): Component {
+  const [stage] = useState(bankpinStage);
+  const [entry] = useState(bankpinEntry);
+
+  const digits = intArray<Int>(Shuffle.COUNT, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  let passes: Int = Shuffle.PASSES;
+  let pick: Int = 0;
+  let held: Int = 0;
+  while (passes > 0) {
+    passes = passes - 1;
+    pick = Random.int(Shuffle.PICK);
+    held = digits[Shuffle.PIVOT];
+    digits[Shuffle.PIVOT] = digits[pick];
+    digits[pick] = held;
+  }
+
+  return (
+    <layer x={Layout.panel.x} y={Layout.panel.y} w={Layout.panel.w} h={Layout.panel.h}>
+      <layer x={0} y={0} w={Layout.panel.w} h={Layout.panel.h}>
+        <SteelBorder title="" titleColor={SteelborderColor.TITLE} flags={1} />
+      </layer>
+
+      <text
+        x={Layout.warning.x}
+        y={Layout.warning.y}
+        w={Layout.warning.w}
+        h={Layout.warning.h}
+        font={BankpinFonts.MESSAGE}
+        color={BankpinColor.RED}
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      {Entered.map((slot) => (
+        <text
+          x={Layout.entered.x + slot * Layout.entered.dx}
+          y={Layout.entered.y}
+          w={Layout.entered.w}
+          h={Layout.entered.h}
+          text={bankpinFace(stage, slot)}
+          font={BankpinFonts.SMALL}
+          color={BankpinColor.ENTERED}
+          shadow
+          align="center"
+          valign="top"
+        />
+      ))}
+
+      <text
+        x={0}
+        y={Layout.subtitle.y}
+        w={Layout.subtitle.w}
+        h={Layout.subtitle.h}
+        font={BankpinFonts.MESSAGE}
+        color={BankpinColor.HEADING}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <sprite x={Layout.chest.x} y={Layout.chest.y} w={Layout.chest.w} h={Layout.chest.h} sprite={BankpinArt.CHEST} />
+      <sprite x={Layout.coins.x} y={Layout.coins.y} w={Layout.coins.w} h={Layout.coins.h} sprite={BankpinArt.COINS} />
+
+      <text
+        x={0}
+        y={Layout.prompt.y}
+        w={Layout.prompt.w}
+        h={Layout.prompt.h}
+        text={bankpinPrompt(stage)}
+        font={BankpinFonts.MESSAGE}
+        color={BankpinColor.WHITE}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      <layer x={Layout.exitBox.x} y={Layout.exitBox.y} w={Layout.exitBox.w} h={Layout.exitBox.h}>
+        <sprite x={0} y={0} w={Layout.exitBox.w} h={Layout.exitBox.h} sprite={BankpinArt.BUTTON_TILE} tiling />
+
+        {stage === Stage.SUBMITTING ? (
+          <text
+            x={0}
+            y={Layout.EXIT_Y}
+            w={Layout.caption.w}
+            h={Layout.caption.h}
+            text={Cancel.EXIT_LABEL}
+            font={BankpinFonts.SMALL}
+            color={BankpinColor.RED}
+            shadow
+            align="center"
+            valign="middle"
+            onMouseEnter={(event) => textColourSwapper(event.component, BankpinColor.WHITE)}
+            onMouseLeave={(event) => textColourSwapper(event.component, BankpinColor.RED)}
+          />
+        ) : (
+          <text
+            x={0}
+            y={Layout.EXIT_Y}
+            w={Layout.caption.w}
+            h={Layout.caption.h}
+            text={Cancel.EXIT_LABEL}
+            font={BankpinFonts.SMALL}
+            color={BankpinColor.RED}
+            shadow
+            align="center"
+            valign="middle"
+            options={[Cancel.EXIT_LABEL]}
+            onOptionSelect={() => exitBankpin()}
+            onMouseEnter={(event) => textColourSwapper(event.component, BankpinColor.WHITE)}
+            onMouseLeave={(event) => textColourSwapper(event.component, BankpinColor.RED)}
+          />
+        )}
+
+        <layer x={0} y={0} w={Layout.exitBox.w} h={Layout.exitBox.h} hide>
+          {stage === Stage.SUBMITTING ? (
+            <text
+              x={0}
+              y={Layout.UNKNOWN_Y}
+              w={Layout.caption.w}
+              h={Layout.caption.h}
+              text={Cancel.UNKNOWN_LABEL}
+              font={BankpinFonts.SMALL}
+              color={BankpinColor.RED}
+              shadow
+              align="center"
+              valign="middle"
+              onMouseEnter={(event) => textColourSwapper(event.component, BankpinColor.WHITE)}
+              onMouseLeave={(event) => textColourSwapper(event.component, BankpinColor.RED)}
+            />
+          ) : (
+            <text
+              x={0}
+              y={Layout.UNKNOWN_Y}
+              w={Layout.caption.w}
+              h={Layout.caption.h}
+              text={Cancel.UNKNOWN_LABEL}
+              font={BankpinFonts.SMALL}
+              color={BankpinColor.RED}
+              shadow
+              align="center"
+              valign="middle"
+              options={[Cancel.UNKNOWN_LABEL]}
+              onOptionSelect={() => forgotBankpin()}
+              onMouseEnter={(event) => textColourSwapper(event.component, BankpinColor.WHITE)}
+              onMouseLeave={(event) => textColourSwapper(event.component, BankpinColor.RED)}
+            />
+          )}
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      {Keys.map((key, index) => (
+        <layer x={key.x} y={key.y} w={Key.SIZE} h={Key.SIZE}>
+          <sprite x={0} y={0} w={Key.SIZE} h={Key.SIZE} sprite={BankpinArt.KEY} />
+          {stage !== Stage.SUBMITTING && <BankpinButton digit={digits[index]} stage={stage} entry={entry} />}
+        </layer>
+      ))}
+    </layer>
+  );
+}

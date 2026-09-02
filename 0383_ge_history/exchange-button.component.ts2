@@ -1,0 +1,80 @@
+import { useRef, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { Sounds } from '../lib/lib.constants';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { BigButton, EXCHANGE, HistoryColors, HistoryFonts, PRESSED_CYCLES } from './ge-history.constants';
+
+export function ExchangeButton(): Component {
+  const label = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  const width: Int = textWidth(EXCHANGE, BigButton.MEASURE, HistoryFonts.BUTTON) + BigButton.PADDING;
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer
+        w={width}
+        h="fill"
+        options={[EXCHANGE]}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <ButtonBackgroundPressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={HistoryFonts.BUTTON}
+          color={HistoryColors.LABEL_LIT}
+          shadow
+          align="center"
+          valign="middle"
+          text={EXCHANGE}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w={width}
+      h="fill"
+      options={[EXCHANGE]}
+      onMouseRepeat={() => {
+        label.color = HistoryColors.LABEL_LIT;
+      }}
+      onMouseLeave={() => {
+        label.color = HistoryColors.LABEL;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + PRESSED_CYCLES);
+      }}
+    >
+      <ButtonBackground />
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={HistoryFonts.BUTTON}
+        color={HistoryColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={EXCHANGE}
+      />
+    </layer>
+  );
+}

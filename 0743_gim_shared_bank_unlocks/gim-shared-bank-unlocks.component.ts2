@@ -1,0 +1,417 @@
+import { CS2, stopTimer, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { clientClock, hasBit, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { SharedStorageUnlocks, SharedStorageUnlocksRow } from './shared-storage-unlocks.data';
+import {
+  Layout,
+  UnlocksColors,
+  UnlocksFade,
+  UnlocksFonts,
+  UnlocksSprites,
+  UnlocksText,
+  UnlocksVarps,
+} from './gim-shared-bank-unlocks.constants';
+
+export function GimSharedBankUnlocks(): Component {
+  const universe = useUniverse();
+  const clampHeight: Int = universe.height - Layout.CLAMP_INSET_Y;
+
+  const unlockedLow: Int = useServerState(UnlocksVarps.UNLOCKED_LOW);
+  const unlockedHigh: Int = useServerState(UnlocksVarps.UNLOCKED_HIGH);
+  const slotsUnlocked: Int = useServerState(UnlocksVarps.SLOTS_UNLOCKED);
+  const slotsTotal: Int = useServerState(UnlocksVarps.SLOTS_TOTAL);
+  const weeksToEligible: Int = useServerState(UnlocksVarps.WEEKS_TO_ELIGIBLE);
+
+  const [showCompleted, setShowCompleted] = useState(0);
+  const completed: Int = showCompleted;
+
+  const [toggleHovered, setToggleHovered] = useState(0);
+  const hovered: Int = toggleHovered;
+
+  const listContentW: Int = Layout.WINDOW_W - Layout.RIGHT_INSET_X - Layout.LIST_INSET_X - Layout.LIST_INNER_INSET;
+  const descriptionW: Int = listContentW - Layout.DESC_X - Layout.DESC_TAIL;
+
+  const extent: Int = unlocksExtent(completed, unlockedLow, unlockedHigh, descriptionW);
+
+  const windowHeight: Int = Math.min(clampHeight - Layout.SCREEN_MARGIN, extent + Layout.WINDOW_CHROME);
+  const paneHeight: Int = windowHeight - Layout.WINDOW_CHROME;
+
+  const pane = useRef();
+
+  const storageColor: Int = slotsUnlocked >= slotsTotal ? UnlocksColors.COMPLETE : UnlocksColors.HEADING;
+  let eligibilityColor: Int = UnlocksColors.LOCKED_RED;
+  if (weeksToEligible <= 0) {
+    eligibilityColor = UnlocksColors.COMPLETE;
+  }
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        x="center"
+        y={{ bottom: Layout.CLAMP_BOTTOM }}
+        w={{ fill: Layout.CLAMP_INSET_X }}
+        h={{ fill: Layout.CLAMP_INSET_Y }}
+        noClickThrough
+        onClick={() => {
+          dismissUnlocks();
+        }}
+      >
+        <ModalFader />
+
+        <layer x="center" y="center" w={Layout.WINDOW_W} h={windowHeight} noClickThrough>
+          <SteelBorder title={UnlocksText.TITLE} titleColor={SteelborderColor.TITLE} flags={Layout.STEEL_FLAGS} />
+
+          <layer x={Layout.INDEX_X} y={Layout.INDEX_Y} w={Layout.INDEX_W} h={Layout.INDEX_H}>
+            <layer
+              x="center"
+              y={Layout.INDEX_CONTENTS_Y}
+              w={{ fill: Layout.INDEX_INSET_X }}
+              h={{ fill: Layout.INDEX_INSET_Y }}
+            >
+              <text
+                x="center"
+                y={Layout.STORAGE_Y}
+                w={{ fill: Layout.STORAGE_INSET }}
+                h={Layout.STORAGE_H}
+                text={`Storage Space:<br> ${stringOf(slotsUnlocked)}/${stringOf(slotsTotal)}`}
+                font={UnlocksFonts.PANEL}
+                color={storageColor}
+                shadow
+                align="center"
+                lineHeight={Layout.STORAGE_LINE_H}
+              />
+              <text
+                x="center"
+                y={Layout.ELIGIBILITY_Y}
+                w={{ fill: Layout.ELIGIBILITY_INSET_X }}
+                h={{ fill: Layout.ELIGIBILITY_INSET_H }}
+                text={eligibilityText(weeksToEligible)}
+                font={UnlocksFonts.PANEL}
+                color={eligibilityColor}
+                shadow
+                align="center"
+                lineHeight={Layout.ELIGIBILITY_LINE_H}
+              />
+            </layer>
+
+            <layer
+              x={0}
+              y={Layout.SPACER_Y}
+              w={{ fill: Layout.SPACER_INSET }}
+              h={Layout.SPACER_H}
+              options={[UnlocksText.TOGGLE_OP]}
+              optionSubject={UnlocksText.TOGGLE_SUBJECT}
+              onOptionSelect={() => setShowCompleted(completed === 1 ? 0 : 1)}
+              onMouseRepeat={() => setToggleHovered(1)}
+              onMouseLeave={() => setToggleHovered(0)}
+            >
+              <sprite
+                x={Layout.CHECK_X}
+                y={Layout.CHECK_Y}
+                w={Layout.CHECK_BOX}
+                h={Layout.CHECK_BOX}
+                sprite={completed === 1 ? UnlocksSprites.CHECK_ON : UnlocksSprites.CHECK_OFF}
+                transparency={hovered === 1 ? UnlocksFade.CHECK_HOVER : UnlocksFade.CHECK_REST}
+              />
+              <text
+                x={Layout.TOGGLE_LABEL_X}
+                y={Layout.TOGGLE_LABEL_Y}
+                w={Layout.TOGGLE_LABEL_W}
+                h={Layout.TOGGLE_LABEL_H}
+                text={UnlocksText.TOGGLE_LABEL}
+                font={UnlocksFonts.SMALL}
+                color={hovered === 1 ? UnlocksColors.STRIPE : UnlocksColors.HEADING}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={Layout.ROW_LINE_H}
+              />
+            </layer>
+
+            <ExitButton />
+
+            <ThinBoxEntrypoint />
+          </layer>
+
+          <layer
+            x={{ right: Layout.RIGHT_OFFSET_X }}
+            y={{ bottom: Layout.RIGHT_BOTTOM }}
+            w={{ fill: Layout.RIGHT_INSET_X }}
+            h={{ fill: Layout.RIGHT_INSET_Y }}
+          >
+            <layer
+              ref={pane}
+              x={Layout.LIST_X}
+              y="center"
+              w={{ fill: Layout.LIST_INSET_X }}
+              h={{ fill: Layout.LIST_INSET_Y }}
+              scrollHeight={extent > paneHeight ? extent : 0}
+            >
+              <layer x={0} y={0} w="fill" h="fill" />
+
+              <layer
+                x={Layout.LIST_INNER}
+                y={Layout.LIST_INNER}
+                w={{ fill: Layout.LIST_INNER_INSET }}
+                h={{ fill: Layout.LIST_INNER_INSET }}
+              >
+                {SharedStorageUnlocks.filter((row) => shows(row, completed, unlockedLow, unlockedHigh)).scan(
+                  (row, index, top) => (
+                    <UnlockRow
+                      row={row}
+                      top={top}
+                      height={blockHeight(row, descriptionW)}
+                      width={descriptionW}
+                      done={unlockDone(unlockedLow, unlockedHigh, row.requirement) ? 1 : 0}
+                    />
+                  ),
+                  (row) => blockHeight(row, descriptionW) - Layout.ROW_OVERLAP,
+                )}
+              </layer>
+
+              <layer
+                x={Layout.LIST_INNER}
+                y={Layout.LIST_INNER}
+                w={{ fill: Layout.LIST_INNER_INSET }}
+                h={{ fill: Layout.LIST_INNER_INSET }}
+              >
+                {SharedStorageUnlocks.filter((row) => shows(row, completed, unlockedLow, unlockedHigh)).scan(
+                  (row, index, top) => (
+                    <UnlockRowBorders top={top} height={blockHeight(row, descriptionW)} width={descriptionW} />
+                  ),
+                  (row) => blockHeight(row, descriptionW) - Layout.ROW_OVERLAP,
+                )}
+              </layer>
+            </layer>
+
+            <layer x={{ right: Layout.BAR_INSET }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_INSET_Y }}>
+              <ScrollbarVertical
+                content={pane}
+                track={UnlocksSprites.BAR_TRACK}
+                capTopSprite={UnlocksSprites.BAR_CAP_TOP}
+                thumbSprite={UnlocksSprites.BAR_THUMB}
+                capBottomSprite={UnlocksSprites.BAR_CAP_BOTTOM}
+                arrowUp={UnlocksSprites.BAR_ARROW_UP}
+                arrowDown={UnlocksSprites.BAR_ARROW_DOWN}
+              />
+            </layer>
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function ExitButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Layout.EXIT_BOTTOM }}
+      w={{ fill: Layout.EXIT_INSET_X }}
+      h={Layout.EXIT_H}
+      options={[CS2.tags_remove(UnlocksText.CLOSE)]}
+      onOptionSelect={() => dismissUnlocks()}
+      onMouseRepeat={mobile ? undefined : () => setPressed(1)}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={UnlocksText.CLOSE} font={UnlocksFonts.BUTTON} pressed={skin} />
+    </layer>
+  );
+}
+
+function UnlockRow({
+  row,
+  top,
+  height,
+  width,
+  done,
+}: {
+  row: SharedStorageUnlocksRow;
+  top: Int;
+  height: Int;
+  width: Int;
+  done: Int;
+}): Component {
+  const textColor: Int = done === 1 ? UnlocksColors.COMPLETE : UnlocksColors.LOCKED;
+  const stripe: Int = row.requirement % 2 === 0 ? UnlocksFade.STRIPE_EVEN : UnlocksFade.STRIPE_ODD;
+
+  return (
+    <>
+      <rect x={Layout.DESC_X} y={top} w={width} h={height} color={UnlocksColors.STRIPE} fill transparency={stripe} />
+      <text
+        x={Layout.DESC_X + Layout.DESC_PAD}
+        y={top + Layout.DESC_TOP_PAD}
+        w={width - Layout.DESC_PAD * 2}
+        h={height - Layout.DESC_TOP_PAD * 2}
+        text={row.description}
+        font={UnlocksFonts.SMALL}
+        color={textColor}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.ROW_LINE_H}
+      />
+      <rect
+        x={0}
+        y={top}
+        w={Layout.ICON_COL_W}
+        h={height}
+        color={UnlocksColors.STRIPE}
+        fill
+        transparency={UnlocksFade.STRIPE_ODD}
+      />
+      {row.item !== -1 ? (
+        <sprite
+          x={Layout.ITEM_X}
+          y={top + (height - Layout.ICON_H - Layout.ROW_LINE_H) / 2}
+          w={Layout.ICON_W}
+          h={Layout.ICON_H}
+          item={row.item}
+          itemCount={1}
+          outline={1}
+          shadowColor={UnlocksColors.ICON_SHADOW}
+        />
+      ) : (
+        <sprite
+          x={Layout.SPRITE_X}
+          y={top + (height - Layout.SPRITE_BOX - Layout.ROW_LINE_H) / 2}
+          w={Layout.SPRITE_BOX}
+          h={Layout.SPRITE_BOX}
+          sprite={row.icon ?? -1}
+          outline={1}
+          shadowColor={UnlocksColors.ICON_SHADOW}
+        />
+      )}
+      <text
+        x={Layout.DESC_PAD}
+        y={top + height - Layout.ROW_LINE_H}
+        w={Layout.ICON_W}
+        h={Layout.SLOTS_H}
+        text={`Slots: ${stringOf(row.slots)}`}
+        font={UnlocksFonts.SMALL}
+        color={textColor}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.ROW_LINE_H}
+      />
+    </>
+  );
+}
+
+function UnlockRowBorders({ top, height, width }: { top: Int; height: Int; width: Int }): Component {
+  return (
+    <>
+      <rect x={Layout.DESC_X} y={top} w={width} h={height} color={UnlocksColors.BOX_OUTER} />
+      <rect
+        x={Layout.DESC_X + 1}
+        y={top + 1}
+        w={width - Layout.BOX_INSET}
+        h={height - Layout.BOX_INSET}
+        color={UnlocksColors.BOX_INNER}
+      />
+      <rect x={0} y={top} w={Layout.ICON_COL_W} h={height} color={UnlocksColors.BOX_OUTER} />
+      <rect
+        x={1}
+        y={top + 1}
+        w={Layout.ICON_COL_W - Layout.BOX_INSET}
+        h={height - Layout.BOX_INSET}
+        color={UnlocksColors.BOX_INNER}
+      />
+    </>
+  );
+}
+
+function unlockDone(low: Int, high: Int, requirement: Int): Boolean {
+  if (requirement / 32 === 0) {
+    return hasBit(low, requirement % 32);
+  }
+  return hasBit(high, requirement % 32);
+}
+
+function shows(row: SharedStorageUnlocksRow, completed: Int, low: Int, high: Int): Boolean {
+  if (completed === 1) {
+    return true;
+  }
+  if (unlockDone(low, high, row.requirement)) {
+    return false;
+  }
+  return true;
+}
+
+function blockHeight(row: SharedStorageUnlocksRow, width: Int): Int {
+  return Math.max(
+    Layout.ICON_H + Layout.ROW_MIN_PAD,
+    textLineCount(row.description, width - Layout.DESC_PAD * 2, UnlocksFonts.SMALL) * Layout.ROW_LINE_H +
+      Layout.ROW_TEXT_PAD,
+  );
+}
+
+function unlocksExtent(completed: Int, low: Int, high: Int, width: Int): Int {
+  let total: Int = 0;
+  let at: Int = 0;
+  const count: Int = SharedStorageUnlocks.length;
+  while (at < count) {
+    const row: SharedStorageUnlocksRow | null = SharedStorageUnlocks.at(at);
+    if (row !== null && shows(row, completed, low, high)) {
+      total = total + blockHeight(row, width) - Layout.ROW_OVERLAP;
+    }
+    at = at + 1;
+  }
+  return total + Layout.EXTENT_TAIL;
+}
+
+function eligibilityText(weeks: Int): String {
+  if (weeks <= 0) {
+    return UnlocksText.ELIGIBLE;
+  }
+  if (weeks === 1) {
+    return UnlocksText.ELIGIBLE_ONE_WEEK;
+  }
+  return `You will be eligible to unlock group storage slots in ${stringOf(weeks)} weeks<br>`;
+}
+
+function ModalFader(): Component {
+  const startedAt: Int = clientClock();
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      color={UnlocksColors.FADER}
+      fill
+      transparency={UnlocksFade.BACKDROP_CLEAR}
+      onTimer={(event) => {
+        fadeStep(event.self, startedAt);
+      }}
+    />
+  );
+}
+
+function fadeStep(target: ComponentId, startedAt: Int): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= UnlocksFade.BACKDROP_CYCLES) {
+    target.transparency = UnlocksFade.BACKDROP_DIM;
+    stopTimer(target);
+    return;
+  }
+  target.transparency =
+    UnlocksFade.BACKDROP_CLEAR +
+    CS2.scale(elapsed, UnlocksFade.BACKDROP_CYCLES, UnlocksFade.BACKDROP_DIM - UnlocksFade.BACKDROP_CLEAR);
+}
+
+function dismissUnlocks(): void {
+  CS2.countdialog_resume(stringOf(Layout.MAX_INT));
+}

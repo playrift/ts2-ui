@@ -1,0 +1,63 @@
+import { useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { Tooltip } from './zep-interface-side.constants';
+import { zepAnchorHeight, zepAnchorX, zepAnchorY, zepTipText } from './zep-interface-side.helpers';
+import { zepTip } from './zep-interface-side.state';
+
+export function ZepTooltip(): Component {
+  const [tip] = useState(zepTip);
+  const panel = useUniverse();
+  const hostW: Int = panel.width;
+  const hostH: Int = panel.height;
+
+  let text: String = '';
+  if (tooltipUp()) {
+    text = zepTipText(tip);
+  }
+
+  let measure: Int = Tooltip.WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  const anchorX: Int = zepAnchorX(tip, hostW);
+  const anchorY: Int = zepAnchorY(tip, hostH);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + zepAnchorHeight(tip) + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return null;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

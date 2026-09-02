@@ -1,0 +1,113 @@
+import { useInventory, useServerState } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  EXAMINE_OP,
+  Grid,
+  HuntsmansKit,
+  HuntsmansKitColor,
+  HuntsmansKitSounds,
+  HuntsmansKitVarbits,
+  isHuntsmansKitItem,
+  Quantity,
+  Transparency,
+} from './huntsmans-kit-side.constants';
+
+function HuntsmansKitSlot({
+  item,
+  count,
+  slot,
+  armed,
+  storable,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  armed: Int;
+  storable: Boolean;
+}): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={HuntsmansKitColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={storable ? Transparency.STORABLE : Transparency.REFUSED}
+      options={[
+        armed === Quantity.FIVE
+          ? 'Deposit-5'
+          : armed === Quantity.X
+            ? 'Deposit-X'
+            : armed === Quantity.ALL
+              ? 'Deposit-All'
+              : 'Deposit-1',
+        armed === Quantity.ONE ? '' : 'Deposit-1',
+        armed === Quantity.FIVE ? '' : 'Deposit-5',
+        armed === Quantity.X ? '' : 'Deposit-X',
+        armed === Quantity.ALL ? '' : 'Deposit-All',
+        '',
+        '',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option !== EXAMINE_OP) {
+          playSound(HuntsmansKitSounds.CLICK);
+        }
+        flashFor(
+          event.self,
+          storable ? Transparency.STORABLE_FLASH : Transparency.REFUSED_FLASH,
+          storable ? Transparency.STORABLE : Transparency.REFUSED,
+        );
+      }}
+    />
+  );
+}
+
+function HuntsmansKitBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BLANK_ITEM}
+      itemCount={1}
+      itemCountMode="never"
+      outline={Grid.OUTLINE}
+      shadowColor={HuntsmansKitColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.BLANK}
+    />
+  );
+}
+
+function HuntsmansKitCell({ item, count, slot, armed }: { item: Item; count: Int; slot: Int; armed: Int }): Component {
+  if (item === -1) {
+    return <HuntsmansKitBlank slot={slot} />;
+  }
+  return <HuntsmansKitSlot item={item} count={count} slot={slot} armed={armed} storable={isHuntsmansKitItem(item)} />;
+}
+
+export function HuntsmansKitSide(): Component {
+  const bag = useInventory(HuntsmansKit.INV);
+  const armed: Int = useServerState(HuntsmansKitVarbits.QUANTITY);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <HuntsmansKitCell item={item} count={bag.count(slot)} slot={slot} armed={armed} />
+      ))}
+    </layer>
+  );
+}

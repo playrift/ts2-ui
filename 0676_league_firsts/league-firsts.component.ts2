@@ -1,0 +1,297 @@
+import { useState, useUniverse } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { LeagueNames } from './league-names.data';
+import {
+  dropdownOpen,
+  filterHovered,
+  FilterSkin,
+  FirstsColors,
+  FirstsFade,
+  FirstsFonts,
+  FirstsSounds,
+  FirstsSprites,
+  FirstsText,
+  hoveredEntry,
+  Layout,
+  selectedLeague,
+} from './league-firsts.constants';
+
+export function LeagueFirsts(): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y="center" w={{ fill: Layout.STAGE_INSET_X }} h={{ fill: Layout.STAGE_INSET_Y }}>
+        <layer x={0} y={0} w={Layout.BACKDROP_W} h={Layout.BACKDROP_H} />
+
+        <layer x="center" y="bottom" w="fill" h="fill">
+          <line
+            x={Layout.RULE_X}
+            y={Layout.RULE_DARK_Y}
+            w={Layout.RULE_W}
+            lineWidth={Layout.RULE_WIDTH}
+            color={FirstsColors.RULE_DARK}
+          />
+          <line
+            x={Layout.RULE_X}
+            y={Layout.RULE_LIGHT_Y}
+            w={Layout.RULE_W}
+            lineWidth={Layout.RULE_WIDTH}
+            color={FirstsColors.RULE_LIGHT}
+          />
+
+          <layer x={0} y={Layout.TABLE_Y} w="fill" h={{ fill: Layout.TABLE_INSET_H }}>
+            <layer x="center" y={Layout.DATA_Y} w={{ fill: Layout.DATA_INSET_W }} h={Layout.DATA_H}>
+              <layer x={Layout.NAME_X} y={0} w={Layout.NAME_W} h="fill" />
+              <layer x={Layout.MEDAL_X} y={0} w={Layout.MEDAL_W} h="fill" />
+              <layer x={Layout.TITLE_X} y={0} w={Layout.TITLE_W} h="fill" />
+              <layer x={Layout.DATE_X} y={0} w={Layout.DATE_W} h="fill" />
+            </layer>
+
+            <layer
+              x={{ right: Layout.BAR_INSET }}
+              y={Layout.DATA_Y}
+              w={Layout.BAR_W}
+              h={{ fill: Layout.BAR_INSET_H }}
+            />
+
+            <text
+              x={Layout.HEAD_COMPLETED_X}
+              y={Layout.HEAD_Y}
+              w={Layout.HEAD_COMPLETED_W}
+              h={Layout.HEAD_H}
+              text={FirstsText.COL_COMPLETED}
+              font={FirstsFonts.HEADING}
+              color={FirstsColors.HEADING}
+              shadow
+              align="center"
+            />
+            <text
+              x={Layout.HEAD_FIRST_X}
+              y={Layout.HEAD_Y}
+              w={Layout.HEAD_FIRST_W}
+              h={Layout.HEAD_H}
+              text={FirstsText.COL_FIRST}
+              font={FirstsFonts.HEADING}
+              color={FirstsColors.HEADING}
+              shadow
+              align="center"
+            />
+            <text
+              x={Layout.HEAD_PLAYERS_X}
+              y={Layout.HEAD_Y}
+              w={Layout.HEAD_PLAYERS_W}
+              h={Layout.HEAD_H}
+              text={FirstsText.COL_PLAYERS}
+              font={FirstsFonts.HEADING}
+              color={FirstsColors.HEADING}
+              shadow
+              align="center"
+            />
+          </layer>
+
+          <text
+            x={Layout.PROMPT_X}
+            y={Layout.PROMPT_Y}
+            w={Layout.PROMPT_W}
+            h={Layout.PROMPT_H}
+            text={FirstsText.PROMPT}
+            font={FirstsFonts.PROMPT}
+            color={FirstsColors.HEADING}
+            shadow
+          />
+        </layer>
+
+        <layer
+          x={{ right: Layout.CLOSE_INSET }}
+          y={Layout.CLOSE_Y}
+          w={Layout.CLOSE_W}
+          h={Layout.CLOSE_H}
+          options={[FirstsText.CLOSE]}
+        />
+
+        <LeagueFilter x={{ center: Layout.FILTER_DX }} y={Layout.FILTER_Y} w={Layout.FILTER_W} h={Layout.FILTER_H} />
+      </layer>
+
+      <LeagueDropdown x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}
+
+function LeagueFilter(): Component {
+  const [open] = useState(dropdownOpen);
+  const [league] = useState(selectedLeague);
+  const [hover, setHover] = useState(filterHovered);
+  const mobile: Boolean = onMobile();
+
+  let skin: Int = hover === 1 ? FilterSkin.HOVER : FilterSkin.REST;
+  if (open === 1) {
+    skin = FilterSkin.DISABLED;
+  }
+
+  let faceFade: Int = FirstsFade.FACE_REST;
+  if (skin === FilterSkin.HOVER) {
+    faceFade = FirstsFade.FACE_HOVER;
+  }
+  if (skin === FilterSkin.DISABLED) {
+    faceFade = FirstsFade.FACE_DISABLED;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x="center"
+        y="top"
+        w="fill"
+        h={Layout.FILTER_FACE_H}
+        sprite={FirstsSprites.BACKING}
+        tiling
+        transparency={faceFade}
+        onClick={() => openDropdown()}
+        onMouseEnter={mobile || open === 1 ? undefined : () => setHover(1)}
+        onMouseLeave={mobile || open === 1 ? undefined : () => setHover(0)}
+      />
+      <rect x="center" y="top" w="fill" h={Layout.FILTER_FACE_H} color={FirstsColors.OUTLINE_OUTER} />
+      <rect
+        x="center"
+        y={Layout.FILTER_INNER_Y}
+        w={{ fill: Layout.FILTER_INNER_INSET }}
+        h={Layout.FILTER_INNER_H}
+        color={FirstsColors.OUTLINE_INNER}
+      />
+      <sprite
+        x={{ right: Layout.CARET_INSET }}
+        y={Layout.CARET_INSET}
+        w={Layout.CARET_BOX}
+        h={Layout.CARET_BOX}
+        sprite={skin === FilterSkin.DISABLED ? FirstsSprites.CARET_OPEN : FirstsSprites.CARET_SHUT}
+        transparency={skin === FilterSkin.HOVER ? FirstsFade.CARET_HOVER : FirstsFade.CARET_REST}
+      />
+      <text
+        x={Layout.LABEL_X}
+        y={Layout.LABEL_Y}
+        w={{ fill: Layout.LABEL_INSET }}
+        h={Layout.LABEL_H}
+        text={leagueName(league)}
+        font={FirstsFonts.SMALL}
+        color={FirstsColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function LeagueDropdown(): Component {
+  const [open] = useState(dropdownOpen);
+  const [hovered, setHovered] = useState(hoveredEntry);
+  const universe = useUniverse();
+  const mobile: Boolean = onMobile();
+
+  const entryHeight: Int = mobile ? Layout.ENTRY_H_MOBILE : Layout.ENTRY_H;
+  const leagues: Int = LeagueNames.length;
+  const boxHeight: Int = Layout.BOX_PAD + leagues * entryHeight + Layout.BOX_PAD;
+
+  const filterX: Int =
+    Layout.STAGE_INSET_X / 2 + Layout.FILTER_DX + (universe.width - Layout.STAGE_INSET_X - Layout.FILTER_W) / 2;
+  const filterY: Int = Layout.STAGE_INSET_Y / 2 + Layout.FILTER_Y;
+
+  let boxY: Int = filterY + entryHeight + Layout.BOX_DROP;
+  if (mobile) {
+    boxY = filterY + entryHeight;
+  }
+  if (boxY + boxHeight + Layout.BOX_FLIP_SLACK > universe.height) {
+    boxY = filterY + Layout.FILTER_H - boxHeight - Layout.BOX_FLIP_LEAD;
+  }
+
+  let shut: Boolean = true;
+  if (open === 1) {
+    shut = false;
+  }
+  let unlit: Boolean = true;
+  if (hovered >= 1) {
+    unlit = false;
+  }
+
+  return (
+    <layer w="fill" h="fill" hide={shut} noClickThrough onClick={open === 1 ? () => closeDropdown() : undefined}>
+      <layer x={filterX} y={boxY} w={Layout.FILTER_W} h={boxHeight} noClickThrough>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={FirstsSprites.BACKING} tiling />
+
+        <layer x="center" y="center" w={{ fill: Layout.ENTRIES_INSET }} h={{ fill: Layout.ENTRIES_INSET }}>
+          <rect
+            x={0}
+            y={(hovered - 1) * entryHeight}
+            w="fill"
+            h={entryHeight}
+            color={FirstsColors.LABEL}
+            fill
+            transparency={FirstsFade.ENTRY_HIGHLIGHT}
+            hide={unlit}
+          />
+
+          {LeagueNames.map((name, index) => (
+            <text
+              x="center"
+              y={index * entryHeight}
+              w="fill"
+              h={entryHeight}
+              text={name}
+              font={FirstsFonts.SMALL}
+              color={FirstsColors.LABEL}
+              shadow
+              align="center"
+              valign="middle"
+              options={[FirstsText.SELECT]}
+              onMouseRepeat={mobile ? undefined : () => setHovered(index + 1)}
+              onMouseLeave={mobile ? undefined : () => setHovered(0)}
+              onOptionSelect={() => chooseLeague(index + 1)}
+            />
+          ))}
+        </layer>
+
+        <rect x="center" y="center" w="fill" h="fill" color={FirstsColors.OUTLINE_OUTER} />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: Layout.BOX_BORDER_INSET }}
+          h={{ fill: Layout.BOX_BORDER_INSET }}
+          color={FirstsColors.OUTLINE_INNER}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function leagueName(league: Int): String {
+  return LeagueNames.at(league - 1) ?? '';
+}
+
+function openDropdown(): void {
+  playSound(FirstsSounds.CLICK);
+  const [, setOpen] = useState(dropdownOpen);
+  setOpen(1);
+}
+
+function closeDropdown(): void {
+  playSound(FirstsSounds.CLICK);
+  const [, setOpen] = useState(dropdownOpen);
+  const [, setHovered] = useState(hoveredEntry);
+  const [, setHover] = useState(filterHovered);
+  setOpen(0);
+  setHovered(0);
+  setHover(0);
+}
+
+function chooseLeague(league: Int): void {
+  playSound(FirstsSounds.CLICK);
+  const [, setOpen] = useState(dropdownOpen);
+  const [, setHovered] = useState(hoveredEntry);
+  const [, setHover] = useState(filterHovered);
+  const [, setLeague] = useState(selectedLeague);
+  setOpen(0);
+  setHovered(0);
+  setHover(0);
+  setLeague(league);
+}

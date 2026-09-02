@@ -1,0 +1,150 @@
+import { intArray, useInventory, useServerState } from 'ts2';
+import { opsound } from '../lib/lib.helpers';
+import { switchTab } from './bankmain-tab.helpers';
+import { isPlaceholder } from './bankmain.helpers';
+import { Bank, BankColors, BankFonts, BankSprites, BankVars, Tabs } from './bankmain.constants';
+
+const TabSlots = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+export function BankTabs(): Component {
+  const bank = useInventory(Bank.INV);
+  const currentTab: Int = useServerState(BankVars.CURRENT_TAB);
+  const tabDisplay: Int = useServerState(BankVars.TAB_DISPLAY);
+
+  const t1: Int = useServerState(BankVars.TAB_1);
+  const t2: Int = useServerState(BankVars.TAB_2);
+  const t3: Int = useServerState(BankVars.TAB_3);
+  const t4: Int = useServerState(BankVars.TAB_4);
+  const t5: Int = useServerState(BankVars.TAB_5);
+  const t6: Int = useServerState(BankVars.TAB_6);
+  const t7: Int = useServerState(BankVars.TAB_7);
+  const t8: Int = useServerState(BankVars.TAB_8);
+  const t9: Int = useServerState(BankVars.TAB_9);
+
+  const counts = intArray(Tabs.COUNT, [0, t1, t2, t3, t4, t5, t6, t7, t8, t9]);
+
+  const starts = intArray(Tabs.COUNT);
+  let newTab: Int = -1;
+  let running: Int = 0;
+  let tab: Int = 1;
+  while (tab < Tabs.COUNT) {
+    starts[tab] = running;
+    running = running + counts[tab];
+    if (counts[tab] <= 0 && newTab < 0) {
+      newTab = tab;
+    }
+    tab = tab + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <line x={0} y={39} w={488} color={BankColors.RULE} lineWidth={1} />
+
+      {TabSlots.map((slot) => (
+        <sprite
+          x={slot * Tabs.PITCH + Tabs.ORIGIN_X}
+          y={0}
+          w={Tabs.BACKING_W}
+          h={Tabs.BACKING_H}
+          hide={slot > 0 && counts[slot] <= 0 && slot !== newTab ? true : false}
+          sprite={
+            slot === newTab
+              ? BankSprites.TAB_NEW
+              : currentTab === slot
+                ? BankSprites.TAB_SELECTED
+                : BankSprites.TAB_REST
+          }
+          hover={{
+            sprite:
+              slot === newTab
+                ? BankSprites.TAB_NEW
+                : currentTab === slot
+                  ? BankSprites.TAB_SELECTED
+                  : BankSprites.TAB_HOVER,
+          }}
+        />
+      ))}
+
+      {TabSlots.map(
+        (slot) =>
+          slot === 0 && (
+            <sprite
+              x={slot * Tabs.PITCH + Tabs.ORIGIN_X + Tabs.ICON_DX}
+              y={Tabs.ICON_DY}
+              w={Tabs.ICON_W}
+              h={Tabs.ICON_H}
+              sprite={BankSprites.TAB_ICON_ALL}
+              transparency={Tabs.GLYPH_TRANSPARENCY}
+              options={['View all items', '', '', '', '', '', 'Remove placeholders']}
+              onOptionSelect={(event) => switchTab(event.option, 0, currentTab)}
+            />
+          ),
+      )}
+
+      {TabSlots.map(
+        (slot) =>
+          slot > 0 &&
+          counts[slot] > 0 &&
+          tabDisplay === 1 && (
+            <text
+              x={slot * Tabs.PITCH + Tabs.ORIGIN_X}
+              y={0}
+              w={Tabs.BACKING_W}
+              h={Tabs.BACKING_H}
+              text={`${slot}`}
+              font={BankFonts.TAB_NUMBER}
+              color={BankColors.TAB_LABEL}
+              shadow
+              align="center"
+              valign="middle"
+              options={['View tab', '', '', '', '', 'Collapse tab', 'Remove placeholders']}
+              optionSubject={`<col=ff9040>${slot}</col>`}
+              onOptionSelect={(event) => switchTab(event.option, slot, currentTab)}
+            />
+          ),
+      )}
+
+      {TabSlots.map(
+        (slot) =>
+          slot > 0 &&
+          counts[slot] > 0 &&
+          tabDisplay !== 1 && (
+            <sprite
+              x={slot * Tabs.PITCH + Tabs.ORIGIN_X + Tabs.ICON_DX + 1}
+              y={Tabs.ICON_DY}
+              w={Tabs.ICON_W}
+              h={Tabs.ICON_H}
+              item={bank[starts[slot]] === -1 ? 6512 : bank[starts[slot]]}
+              itemCount={bank[starts[slot]] === -1 ? 1 : bank.count(starts[slot])}
+              itemCountMode="never"
+              outline={1}
+              shadowColor={BankColors.SLOT_SHADOW}
+              transparency={bank[starts[slot]] !== -1 && isPlaceholder(bank[starts[slot]]) ? 120 : 0}
+              options={['View tab', '', '', '', '', 'Collapse tab', 'Remove placeholders']}
+              optionSubject={`<col=ff9040>${slot}</col>`}
+              onOptionSelect={(event) => switchTab(event.option, slot, currentTab)}
+            />
+          ),
+      )}
+
+      {TabSlots.map(
+        (slot) =>
+          slot > 0 &&
+          slot === newTab && (
+            <sprite
+              x={slot * Tabs.PITCH + Tabs.ORIGIN_X + Tabs.ICON_DX}
+              y={Tabs.ICON_DY}
+              w={Tabs.ICON_W}
+              h={Tabs.ICON_H}
+              sprite={BankSprites.TAB_ICON_NEW}
+              transparency={Tabs.GLYPH_TRANSPARENCY}
+              dragDeadZone={Tabs.NO_DRAG_ZONE}
+              dragDeadTime={Tabs.NO_DRAG_TIME}
+              options={['New tab']}
+              onOptionSelect={(event) => opsound(event.option, 1)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}

@@ -1,0 +1,61 @@
+import { useState, useUniverse } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import { geOfferShown, geOfferText } from '../0200_ge_viewonly/ge-viewonly.helpers';
+import { CollectColors, CollectFonts, Panel, Tooltip } from './ge-collect.constants';
+import { slotBoxX, slotBoxY } from './ge-collect.layout';
+import { panel } from './ge-collect.refs';
+
+function anchorX(slot: Int): Int {
+  return absoluteX(panel) + slotBoxX(slot);
+}
+
+function anchorY(slot: Int): Int {
+  return absoluteY(panel) + slotBoxY(slot);
+}
+
+export function GeCollectTooltip(): Component {
+  const [tip] = useState(tooltipBuilt);
+  if (tip < 1) {
+    return null;
+  }
+  const slot: Int = tip - 1;
+  if (!geOfferShown(slot)) {
+    return null;
+  }
+  const text: String = geOfferText(slot);
+  const parent = useUniverse();
+
+  const wrap: Int = Math.min(Tooltip.WRAP, parent.width) - Tooltip.PAD_X;
+  const boxW: Int = Tooltip.PAD_X + textWidth(text, wrap, CollectFonts.BODY);
+  const boxH: Int = Tooltip.PAD_Y + Tooltip.LINE * textLineCount(text, wrap, CollectFonts.BODY);
+
+  const ax: Int = anchorX(slot);
+  const ay: Int = anchorY(slot);
+  const below: Int = ay + Panel.SLOT_H + Tooltip.GAP;
+
+  return (
+    <layer
+      x={Math.min(ax + Tooltip.GAP, parent.width - boxW)}
+      y={below > parent.height - boxH ? ay - boxH - Tooltip.GAP : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={CollectColors.TIP_FILL} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={CollectColors.TIP_INK} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: Tooltip.PAD_X }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={CollectFonts.BODY}
+        color={CollectColors.TIP_INK}
+      />
+    </layer>
+  );
+}

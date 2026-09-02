@@ -1,0 +1,137 @@
+import { useInventory, useRef, useServerState, useSkillBase } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { membersWorld } from '../lib/lib.engine';
+import {
+  EquipSlot,
+  EquipmentInventories,
+  Fade,
+  OP_BASE_PREFIX,
+  OP_BASE_SUFFIX,
+  OP_EXAMINE,
+  OP_FILL,
+  OP_QUIVER_REMOVE,
+  OP_SWAP,
+  QUIVER_SUBJECT,
+  QuiverGate,
+  QuiverVarps,
+  Skills,
+  SlotColors,
+  SlotOutline,
+  SlotSprites,
+} from './equipment.constants';
+import { displayItemName, rentalWorld } from './equipment.helpers';
+import { SlotIcons, isQuiverObj } from './tables.data';
+
+export function QuiverSlot(): Component {
+  const worn = useInventory(EquipmentInventories.WORN);
+  const carried = useInventory(EquipmentInventories.CARRIED);
+  const ammo = useServerState(QuiverVarps.AMMO) as Item;
+  const amount: Int = useServerState(QuiverVarps.AMOUNT);
+  const questPoints: Int = useServerState(QuiverVarps.QUEST_POINTS);
+  const ranged: Int = useSkillBase(Skills.RANGED);
+  const icon = useRef();
+
+  const cape: Item = worn[EquipSlot.CAPE];
+  let equipped: Boolean = false;
+  if (cape !== -1) {
+    if (isQuiverObj(cape)) {
+      equipped = true;
+    }
+  }
+
+  let carrying: Boolean = false;
+  let scan: Int = 0;
+  while (scan < carried.size) {
+    if (carried[scan] !== -1) {
+      if (isQuiverObj(carried[scan])) {
+        carrying = true;
+      }
+    }
+    scan = scan + 1;
+  }
+
+  let draw: Boolean = true;
+  let lit: Int = 0;
+  let plateFade: Int = Fade.PLATE_DIM;
+  if (!membersWorld()) {
+    draw = false;
+  }
+  if (equipped) {
+    lit = 1;
+    plateFade = Fade.PLATE_LIT;
+  }
+  if (!equipped && !carrying) {
+    draw = false;
+  }
+  if (!equipped && questPoints === QuiverGate.RENTAL_QP && rentalWorld()) {
+    draw = false;
+  }
+  if (ranged < QuiverGate.RANGED_LEVEL) {
+    lit = 0;
+    plateFade = Fade.PLATE_DIM;
+  }
+
+  const ammoFade: Int = lit === 0 ? Fade.QUIVER_DIM : Fade.QUIVER_LIT;
+
+  if (!draw) {
+    return null;
+  }
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        <sprite x="center" y="center" w={36} h={36} sprite={SlotSprites.PLATE} transparency={plateFade} />
+      </layer>
+
+      {ammo === -1 ? (
+        <layer
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          optionSubject={QUIVER_SUBJECT}
+          options={['', OP_FILL]}
+          onOptionSelect={() => {
+            flashFor(icon, Fade.QUIVER_PRESSED_MAX, ammoFade);
+          }}
+        >
+          <sprite
+            ref={icon}
+            x="center"
+            y="center"
+            w={32}
+            h={32}
+            sprite={SlotIcons.get(EquipSlot.AMMO)}
+            transparency={ammoFade}
+          />
+        </layer>
+      ) : (
+        <layer
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          optionSubject={`${OP_BASE_PREFIX}${displayItemName(ammo)}${OP_BASE_SUFFIX}`}
+          options={[OP_QUIVER_REMOVE, OP_SWAP, '', '', '', '', '', '', '', OP_EXAMINE]}
+          onOptionSelect={() => {
+            flashFor(icon, Fade.QUIVER_PRESSED_MAX, ammoFade);
+          }}
+        >
+          <sprite
+            ref={icon}
+            x={2}
+            y={2}
+            w={36}
+            h={32}
+            item={ammo}
+            itemCount={amount}
+            outline={SlotOutline.ITEM}
+            shadowColor={SlotColors.ITEM_SHADOW}
+            transparency={ammoFade}
+          />
+        </layer>
+      )}
+    </>
+  );
+}

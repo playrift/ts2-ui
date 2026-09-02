@@ -1,0 +1,61 @@
+import { CS2, stopTimer, useRef } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { BankpinColor, BankpinFonts, Key, KeyRandom, Stage } from './bankpin-keypad.constants';
+import { pressBankpinDigit } from './bankpin-keypad.state';
+
+function revealBankpinDigit(label: Ref, digit: Int, deadline: Int): void {
+  if (clientClock() < deadline) {
+    return;
+  }
+  label.text = stringOf(digit);
+  stopTimer(label);
+}
+
+function bankpinKeyHover(wash: Ref, label: Ref, inside: Boolean): void {
+  if (inside) {
+    wash.transparency = Key.WASH_HOVER;
+    label.hide = true;
+  } else {
+    wash.transparency = Key.WASH_REST;
+    label.hide = false;
+  }
+}
+
+export function BankpinButton({ digit, stage, entry }: { digit: Int; stage: Stage; entry: Int }): Component {
+  const wash = useRef();
+  const label = useRef();
+  const deadline: Int = clientClock() + Key.REVEAL_CYCLES;
+
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        ref={wash}
+        x={0}
+        y={0}
+        w={Key.SIZE}
+        h={Key.SIZE}
+        color={BankpinColor.WASH}
+        fill
+        transparency={Key.WASH_REST}
+        options={['Select']}
+        onOptionSelect={() => pressBankpinDigit(digit, stage, entry)}
+        onMouseRepeat={() => bankpinKeyHover(wash, label, true)}
+        onMouseLeave={() => bankpinKeyHover(wash, label, false)}
+      />
+      <text
+        ref={label}
+        x={Key.MARGIN + CS2.randominc(KeyRandom.RANGE_X)}
+        y={Key.MARGIN + CS2.randominc(KeyRandom.RANGE_Y)}
+        w={Key.DIGIT_W}
+        h={Key.DIGIT_H}
+        text=""
+        font={BankpinFonts.MESSAGE}
+        color={BankpinColor.DIGIT}
+        align="center"
+        valign="middle"
+        onTimer={() => revealBankpinDigit(label, digit, deadline)}
+      />
+    </layer>
+  );
+}

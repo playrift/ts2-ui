@@ -1,0 +1,71 @@
+import { CS2, useState, useUniverse } from 'ts2';
+import { Letterbox, ObserverModel } from './peng-observer-eyes.constants';
+
+export function PengObserverEyes(): Component {
+  const universe = useUniverse();
+
+  const [seenWidth, setSeenWidth] = useState(0);
+  const [seenHeight, setSeenHeight] = useState(0);
+  universe.onResize = () => {
+    setSeenWidth(universe.width);
+    setSeenHeight(universe.height);
+  };
+
+  let width: Int = universe.width;
+  if (seenWidth !== 0) {
+    width = seenWidth;
+  }
+  let height: Int = universe.height;
+  if (seenHeight !== 0) {
+    height = seenHeight;
+  }
+
+  let clamped: Int = height;
+  if (clamped < Letterbox.BASE_H) {
+    clamped = Letterbox.BASE_H;
+  } else if (clamped > Letterbox.MAX_H) {
+    clamped = Letterbox.MAX_H;
+  }
+
+  const zoom: Int =
+    ObserverModel.ZOOM_NEAR -
+    CS2.interpolate(
+      0,
+      Math.sqrt(clamped - Letterbox.BASE_H),
+      0,
+      Math.sqrt(Letterbox.MAX_H - Letterbox.BASE_H),
+      Letterbox.ZOOM_SPAN,
+    );
+
+  let band: Int = Letterbox.BASE_H;
+  if (clamped > band) {
+    band = clamped;
+  }
+  const bandWidth: Int = CS2.interpolate(0, Letterbox.BASE_W, 0, Letterbox.BASE_H, band);
+
+  let barsTopBottom: Int = 0;
+  let barH: Int = 0;
+  if (height >= band) {
+    barsTopBottom = 1;
+    barH = (height - band) / 2;
+  }
+  let barsLeftRight: Int = 0;
+  let barW: Int = 0;
+  if (width >= bandWidth) {
+    barsLeftRight = 1;
+    barW = (width - bandWidth) / 2;
+  }
+
+  return (
+    <>
+      <model x="center" y="center" w="fill" h="fill" model={ObserverModel.MODEL} zoom={zoom} />
+
+      <layer x="center" y="center" w="fill" h="fill">
+        {barsTopBottom === 1 && <rect x="center" y={0} w="fill" h={barH} color={Letterbox.COLOR} fill />}
+        {barsTopBottom === 1 && <rect x="center" y={{ bottom: 0 }} w="fill" h={barH} color={Letterbox.COLOR} fill />}
+        {barsLeftRight === 1 && <rect x={0} y="center" w={barW} h="fill" color={Letterbox.COLOR} fill />}
+        {barsLeftRight === 1 && <rect x={{ right: 0 }} y="center" w={barW} h="fill" color={Letterbox.COLOR} fill />}
+      </layer>
+    </>
+  );
+}

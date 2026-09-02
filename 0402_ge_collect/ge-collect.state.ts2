@@ -1,0 +1,48 @@
+import { CS2, useState } from 'ts2';
+
+import { tooltipBuilt, tooltipTime } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { onEnhancedMobile } from '../0200_ge_viewonly/ge-viewonly.state';
+import { TIP_NONE, Tooltip } from './ge-collect.constants';
+import { tooltipHost } from './ge-collect.refs';
+
+function dwellElapsed(): Boolean {
+  const [until, setUntil] = useState(tooltipTime);
+  if (until < clientClock() + Tooltip.DWELL) {
+    if (until < clientClock()) {
+      setUntil(clientClock() + 2);
+    } else {
+      setUntil(until + 2);
+    }
+    return false;
+  }
+  setUntil(clientClock() + Tooltip.DWELL + 10);
+  return true;
+}
+
+function tooltipReady(): Boolean {
+  const [built] = useState(tooltipBuilt);
+  if (built === TIP_NONE && !hiddenComponent(tooltipHost)) {
+    return true;
+  }
+  return false;
+}
+
+function hiddenComponent(component: ComponentId): Boolean {
+  return CS2.if_hide_get(component);
+}
+
+export function showGeTooltip(slot: Int): void {
+  const [, setTip] = useState(tooltipBuilt);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (tooltipReady() && dwellElapsed()) {
+    setTip(slot + 1);
+  }
+}
+
+export function hideGeTooltip(): void {
+  const [, setTip] = useState(tooltipBuilt);
+  setTip(TIP_NONE);
+}

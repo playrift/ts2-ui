@@ -1,0 +1,298 @@
+import { CS2, predictServerState, stopTimer, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { clientClock, hasBit, playSound, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { ClanInterests } from './clan-interests.data';
+import {
+  FLASH_CYCLES,
+  InterestsColors,
+  InterestsFade,
+  InterestsFonts,
+  InterestsSounds,
+  InterestsSprites,
+  InterestsText,
+  InterestsVarps,
+  Layout,
+  STEEL_FLAGS,
+} from './clans-interests.constants';
+
+export function ClansInterests(): Component {
+  const universe = useUniverse();
+  const clampHeight: Int = universe.height - Layout.CLAMP_INSET_Y;
+
+  const mobile: Boolean = onMobile();
+  const rowHeight: Int = mobile ? Layout.ROW_H_MOBILE : Layout.ROW_H;
+
+  const [cancelPressed, setCancelPressed] = useState(0);
+  const [savePressed, setSavePressed] = useState(0);
+  const cancelSkin: Int = cancelPressed;
+  const saveSkin: Int = savePressed;
+
+  const leftText: Int = textWidth(columnParagraph(0), Layout.MEASURE_W, InterestsFonts.ROW) + Layout.COLUMN_PAD;
+  const rightText: Int = textWidth(columnParagraph(1), Layout.MEASURE_W, InterestsFonts.ROW) + Layout.COLUMN_PAD;
+
+  const leftStripe: Int = Layout.LABEL_INSET + leftText;
+  const rightStripe: Int = Layout.LABEL_INSET + rightText;
+  const rightColumnX: Int = leftStripe + Layout.COLUMN_GAP;
+
+  const rows: Int = (ClanInterests.length + 1) / 2;
+  const content: Int = rows * rowHeight;
+
+  const windowWidth: Int = Math.max(
+    Layout.MIN_WIDTH,
+    Layout.WIDTH_LEAD + rightColumnX + rightStripe + Layout.WIDTH_TAIL + Layout.BAR_W,
+  );
+  const windowHeight: Int = Math.min(clampHeight - Layout.SCREEN_MARGIN, content + Layout.WINDOW_CHROME);
+
+  const listHeight: Int = windowHeight - Layout.WINDOW_CHROME;
+
+  const list = useRef();
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        x="center"
+        y={{ bottom: Layout.CLAMP_BOTTOM }}
+        w={{ fill: Layout.CLAMP_INSET_X }}
+        h={{ fill: Layout.CLAMP_INSET_Y }}
+        noClickThrough
+        onClick={() => {
+          dismissInterests(0);
+        }}
+      >
+        <ModalFader />
+
+        <layer x="center" y="center" w={windowWidth} h={windowHeight} noClickThrough>
+          <SteelBorder title={InterestsText.TITLE} titleColor={SteelborderColor.TITLE} flags={STEEL_FLAGS} />
+
+          <layer x="center" y={Layout.PANE_Y} w={{ fill: Layout.PANE_INSET_X }} h={{ fill: Layout.PANE_INSET_Y }}>
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: Layout.BACKING_INSET }}
+              h={{ fill: Layout.BACKING_INSET }}
+              sprite={InterestsSprites.PANE_BACKING}
+              tiling
+              transparency={120}
+            />
+
+            <layer
+              ref={list}
+              x={Layout.LIST_X}
+              y="center"
+              w={{ fill: Layout.LIST_INSET_X }}
+              h={{ fill: Layout.LIST_INSET_Y }}
+              scrollHeight={content > listHeight ? content : 0}
+            >
+              {ClanInterests.map((name, index) => (
+                <InterestRow
+                  name={name}
+                  index={index}
+                  top={(index / 2) * rowHeight}
+                  rowHeight={rowHeight}
+                  left={index % 2 === 0 ? 0 : rightColumnX}
+                  stripeWidth={index % 2 === 0 ? leftStripe : rightStripe}
+                  labelWidth={index % 2 === 0 ? leftText : rightText}
+                  mobile={mobile}
+                />
+              ))}
+            </layer>
+
+            <layer x={{ right: Layout.BAR_INSET }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_INSET_Y }}>
+              <ScrollbarVertical
+                content={list}
+                track={InterestsSprites.BAR_TRACK}
+                capTopSprite={InterestsSprites.BAR_CAP_TOP}
+                thumbSprite={InterestsSprites.BAR_THUMB}
+                capBottomSprite={InterestsSprites.BAR_CAP_BOTTOM}
+                arrowUp={InterestsSprites.BAR_ARROW_UP}
+                arrowDown={InterestsSprites.BAR_ARROW_DOWN}
+              />
+            </layer>
+
+            <ThinBoxEntrypoint />
+          </layer>
+
+          <layer
+            x={{ center: -Layout.BUTTON_DX }}
+            y={{ bottom: Layout.BUTTON_BOTTOM }}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+            options={[CS2.tags_remove(InterestsText.CANCEL)]}
+            onOptionSelect={() => dismissInterests(0)}
+            onMouseRepeat={mobile ? undefined : () => setCancelPressed(1)}
+            onMouseLeave={() => setCancelPressed(0)}
+          >
+            <StoneButtonDraw label={InterestsText.CANCEL} font={InterestsFonts.ROW} pressed={cancelSkin} />
+          </layer>
+
+          <layer
+            x={{ center: Layout.BUTTON_DX }}
+            y={{ bottom: Layout.BUTTON_BOTTOM }}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+            options={[CS2.tags_remove(InterestsText.SAVE)]}
+            onOptionSelect={() => dismissInterests(1)}
+            onMouseRepeat={mobile ? undefined : () => setSavePressed(1)}
+            onMouseLeave={() => setSavePressed(0)}
+          >
+            <StoneButtonDraw label={InterestsText.SAVE} font={InterestsFonts.ROW} pressed={saveSkin} />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function columnParagraph(parity: Int): String {
+  let joined: String = '';
+  let at: Int = 0;
+  let visible: Int = 0;
+  const count: Int = ClanInterests.length;
+  while (at < count) {
+    const name: String = ClanInterests.at(at) ?? '';
+    if (name.length > 0) {
+      if (visible % 2 === parity) {
+        joined = joined.concat(`<br>${name}`);
+      }
+      visible = visible + 1;
+    }
+    at = at + 1;
+  }
+  return joined;
+}
+
+function InterestRow({
+  name,
+  index,
+  top,
+  rowHeight,
+  left,
+  stripeWidth,
+  labelWidth,
+  mobile,
+}: {
+  name: String;
+  index: Int;
+  top: Int;
+  rowHeight: Int;
+  left: Int;
+  stripeWidth: Int;
+  labelWidth: Int;
+  mobile: Boolean;
+}): Component {
+  const editing: Int = useServerState(InterestsVarps.CLAN_EDITING);
+  const chosen: Boolean = hasBit(editing, index);
+
+  const radioTop: Int = top + (rowHeight - Layout.RADIO) / 2;
+
+  return (
+    <>
+      <rect
+        x={left}
+        y={top}
+        w={stripeWidth}
+        h={rowHeight}
+        color={InterestsColors.STRIPE}
+        fill
+        transparency={InterestsFade.ROW_REST}
+        options={[InterestsText.OP_CHANGE]}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onMouseRepeat={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.transparency = InterestsFade.ROW_HOVER;
+              }
+        }
+        onMouseLeave={(event) => {
+          event.self.transparency = InterestsFade.ROW_REST;
+        }}
+        onOptionSelect={(event) => {
+          toggleInterest(event.self, index, editing);
+        }}
+      />
+
+      <sprite
+        x={left}
+        y={radioTop}
+        w={Layout.RADIO}
+        h={Layout.RADIO}
+        sprite={chosen ? InterestsSprites.RADIO_ON : InterestsSprites.RADIO_OFF}
+      />
+
+      <text
+        x={left + Layout.LABEL_INSET}
+        y={top}
+        w={labelWidth}
+        h={rowHeight}
+        text={name}
+        font={InterestsFonts.ROW}
+        color={chosen ? InterestsColors.LABEL_ON : InterestsColors.LABEL_OFF}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function toggleInterest(row: ComponentId, index: Int, editing: Int): void {
+  playSound(InterestsSounds.CLICK);
+
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  row.transparency = InterestsFade.ROW_PRESSED;
+  row.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    row.transparency = InterestsFade.ROW_REST;
+    stopTimer(row);
+  };
+
+  if (hasBit(editing, index)) {
+    predictServerState(InterestsVarps.CLAN_EDITING, CS2.bit_clear(editing, index));
+    return;
+  }
+  predictServerState(InterestsVarps.CLAN_EDITING, CS2.bit_set(editing, index));
+}
+
+function ModalFader(): Component {
+  const startedAt: Int = clientClock();
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      color={InterestsColors.FADER}
+      fill
+      transparency={InterestsFade.BACKDROP_CLEAR}
+      onTimer={(event) => {
+        fadeStep(event.self, startedAt);
+      }}
+    />
+  );
+}
+
+function fadeStep(target: ComponentId, startedAt: Int): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= InterestsFade.BACKDROP_CYCLES) {
+    target.transparency = InterestsFade.BACKDROP_DIM;
+    stopTimer(target);
+    return;
+  }
+  target.transparency =
+    InterestsFade.BACKDROP_CLEAR +
+    CS2.scale(elapsed, InterestsFade.BACKDROP_CYCLES, InterestsFade.BACKDROP_DIM - InterestsFade.BACKDROP_CLEAR);
+}
+
+function dismissInterests(answer: Int): void {
+  CS2.countdialog_resume(stringOf(answer));
+}

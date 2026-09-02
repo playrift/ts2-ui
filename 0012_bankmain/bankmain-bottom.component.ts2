@@ -1,0 +1,382 @@
+import { predictServerState, stopTimer, useRef, useServerState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { setTransparency } from '../lib/lib.components';
+import { groupDigits } from '../lib/lib.format';
+import { ButtonFace } from './bankmain-button-face.component';
+import { Bar, BankColors, BankFonts, BankSounds, BankSprites, BankVars } from './bankmain.constants';
+import { bankmainSearching } from './bankmain.helpers';
+
+const DEPOSIT_FLASH_CYCLES = 20;
+
+function depositFlash(target: ComponentId, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  const restoreAt: Int = clientClock() + DEPOSIT_FLASH_CYCLES;
+  target.sprite = BankSprites.BUTTON_ON;
+  playSound(BankSounds.SELECT);
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.sprite = BankSprites.BUTTON_OFF;
+    stopTimer(target);
+  };
+}
+
+export function BankBottomBar(): Component {
+  const insertGraphic = useRef();
+  const noteGraphic = useRef();
+  const placeholderGraphic = useRef();
+  const searchGraphic = useRef();
+  const containersGraphic = useRef();
+  const invGraphic = useRef();
+  const wornGraphic = useRef();
+
+  const insertMode: Int = useServerState(BankVars.INSERT_MODE);
+  const withdrawNotes: Int = useServerState(BankVars.WITHDRAW_NOTES);
+  const leavePlaceholders: Int = useServerState(BankVars.LEAVE_PLACEHOLDERS);
+  const quantityType: Int = useServerState(BankVars.QUANTITY_TYPE);
+  const requestedQuantity: Int = useServerState(BankVars.REQUESTED_QUANTITY);
+  const hideContainers: Int = useServerState(BankVars.HIDE_DEPOSIT_CONTAINERS);
+  const hideInv: Int = useServerState(BankVars.HIDE_DEPOSIT_INV);
+  const hideWorn: Int = useServerState(BankVars.HIDE_DEPOSIT_WORN);
+
+  const searching: Boolean = bankmainSearching();
+
+  const containersSlot: Int = 0;
+  const invSlot: Int = hideContainers === 0 ? 1 : 0;
+  const wornSlot: Int = invSlot + (hideInv === 0 ? 1 : 0);
+  const shownDeposits: Int = wornSlot + (hideWorn === 0 ? 1 : 0);
+
+  const containersX: Int = Bar.DEPOSIT_X + containersSlot * Bar.DEPOSIT_PITCH;
+  const invX: Int = Bar.DEPOSIT_X + invSlot * Bar.DEPOSIT_PITCH;
+  const wornX: Int = Bar.DEPOSIT_X + wornSlot * Bar.DEPOSIT_PITCH;
+
+  return (
+    <layer x="center" y={{ bottom: 1 }} w={{ fill: Bar.DEPOSIT_PITCH * (3 - shownDeposits) }} h={Bar.H}>
+      <sprite
+        x={2}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        sprite={BankSprites.BUTTON_OFF}
+        options={[insertMode === 1 ? 'Enable <col=ff9040>Swap' : 'Enable <col=ff9040>Insert']}
+        onMouseEnter={() => setTransparency(insertGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(insertGraphic, 0)}
+        onOptionSelect={(event) => {
+          if (event.option !== 1) {
+            return;
+          }
+          playSound(BankSounds.SELECT);
+          predictServerState(BankVars.INSERT_MODE, insertMode === 1 ? 0 : 1);
+        }}
+      />
+      <sprite
+        ref={insertGraphic}
+        x={5}
+        y={Bar.ICON_Y}
+        w={Bar.ICON_W}
+        h={Bar.ICON_H}
+        sprite={insertMode === 1 ? BankSprites.SWAP : BankSprites.INSERT}
+      />
+
+      <sprite
+        x={39}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        sprite={withdrawNotes === 1 ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[withdrawNotes === 1 ? 'Disable <col=ff9040>Notes' : 'Enable <col=ff9040>Notes']}
+        onMouseEnter={() => setTransparency(noteGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(noteGraphic, 0)}
+        onOptionSelect={(event) => {
+          if (event.option !== 1) {
+            return;
+          }
+          playSound(BankSounds.SELECT);
+          predictServerState(BankVars.WITHDRAW_NOTES, withdrawNotes === 1 ? 0 : 1);
+        }}
+      />
+      <sprite ref={noteGraphic} x={42} y={Bar.ICON_Y} w={28} h={Bar.ICON_H} sprite={BankSprites.NOTE} />
+
+      <line x={78} y={4} h={28} color={BankColors.RULE} lineWidth={1} />
+
+      <layer x={80} y={0} w={188} h="fill">
+        <QuantityButton
+          value={0}
+          label="1"
+          x={2}
+          captionX={8}
+          op="Default quantity: 1"
+          selected={quantityType === 0 ? true : false}
+        />
+        <QuantityButton
+          value={1}
+          label="5"
+          x={39}
+          captionX={45}
+          op="Default quantity: 5"
+          selected={quantityType === 1 ? true : false}
+        />
+        <QuantityButton
+          value={2}
+          label="10"
+          x={76}
+          captionX={82}
+          op="Default quantity: 10"
+          selected={quantityType === 2 ? true : false}
+        />
+        <CustomQuantityButton
+          value={3}
+          label="X"
+          x={113}
+          captionX={119}
+          op={requestedQuantity > 0 ? `Default quantity: ${groupDigits(requestedQuantity, ',')}` : ''}
+          extraOp="Set custom quantity"
+          selected={quantityType === 3 ? true : false}
+        />
+        <QuantityButton
+          value={4}
+          label="All"
+          x={150}
+          captionX={156}
+          op="Default quantity: All"
+          selected={quantityType === 4 ? true : false}
+        />
+      </layer>
+
+      <line x={269} y={4} h={28} color={BankColors.RULE} lineWidth={1} />
+
+      <sprite
+        x={323}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        sprite={leavePlaceholders === 1 ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        optionSubject="<col=ff9040>Always set placeholders</col>"
+        options={[leavePlaceholders === 1 ? 'Disable' : 'Enable']}
+        onMouseEnter={() => setTransparency(placeholderGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(placeholderGraphic, 0)}
+        onOptionSelect={(event) => {
+          if (event.option !== 1) {
+            return;
+          }
+          playSound(BankSounds.SELECT);
+          predictServerState(BankVars.LEAVE_PLACEHOLDERS, leavePlaceholders === 1 ? 0 : 1);
+        }}
+      />
+      <sprite
+        ref={placeholderGraphic}
+        x={326}
+        y={Bar.ICON_Y}
+        w={Bar.ICON_W}
+        h={Bar.ICON_H}
+        sprite={BankSprites.PLACEHOLDER}
+      />
+
+      <layer
+        x={273}
+        y={0}
+        w={46}
+        h={Bar.BUTTON}
+        options={['Search']}
+        onMouseEnter={() => setTransparency(searchGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(searchGraphic, 0)}
+      >
+        <ButtonFace pressed={searching} />
+      </layer>
+      <sprite ref={searchGraphic} x={282} y="center" w={Bar.ICON_W} h={Bar.ICON_H} sprite={BankSprites.SEARCH} />
+
+      <line x={362} y={4} h={28} color={BankColors.RULE} lineWidth={1} hide={shownDeposits === 0 ? true : false} />
+
+      <sprite
+        x={containersX}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        hide={hideContainers === 1 ? true : false}
+        sprite={BankSprites.BUTTON_OFF}
+        options={['Empty containers']}
+        onMouseEnter={() => setTransparency(containersGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(containersGraphic, 0)}
+        onOptionSelect={(event) => depositFlash(event.self, event.option)}
+      />
+      <sprite
+        ref={containersGraphic}
+        x={containersX + 3}
+        y={Bar.ICON_Y}
+        w={Bar.ICON_W}
+        h={Bar.ICON_H}
+        hide={hideContainers === 1 ? true : false}
+        sprite={BankSprites.DEPOSIT_CONTAINERS}
+      />
+      <sprite
+        x={invX}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        hide={hideInv === 1 ? true : false}
+        sprite={BankSprites.BUTTON_OFF}
+        options={['Deposit inventory']}
+        onMouseEnter={() => setTransparency(invGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(invGraphic, 0)}
+        onOptionSelect={(event) => depositFlash(event.self, event.option)}
+      />
+      <sprite
+        ref={invGraphic}
+        x={invX + 3}
+        y={Bar.ICON_Y}
+        w={Bar.ICON_W}
+        h={Bar.ICON_H}
+        hide={hideInv === 1 ? true : false}
+        sprite={BankSprites.DEPOSIT_INV}
+      />
+      <sprite
+        x={wornX}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        hide={hideWorn === 1 ? true : false}
+        sprite={BankSprites.BUTTON_OFF}
+        options={['Deposit worn items']}
+        onMouseEnter={() => setTransparency(wornGraphic, Bar.HOVER_TRANSPARENCY)}
+        onMouseLeave={() => setTransparency(wornGraphic, 0)}
+        onOptionSelect={(event) => depositFlash(event.self, event.option)}
+      />
+      <sprite
+        ref={wornGraphic}
+        x={wornX + 3}
+        y={Bar.ICON_Y}
+        w={Bar.ICON_W}
+        h={Bar.ICON_H}
+        hide={hideWorn === 1 ? true : false}
+        sprite={BankSprites.DEPOSIT_WORN}
+      />
+    </layer>
+  );
+}
+
+function QuantityButton({
+  value,
+  label,
+  x,
+  captionX,
+  op,
+  selected,
+}: {
+  value: Int;
+  label: String;
+  x: Int;
+  captionX: Int;
+  op: String;
+  selected: Boolean;
+}): Component {
+  const caption = useRef();
+
+  return (
+    <>
+      <sprite
+        x={x}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        sprite={selected ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[op]}
+        onMouseEnter={() => {
+          caption.color = BankColors.WHITE;
+        }}
+        onMouseLeave={() => {
+          caption.color = BankColors.LABEL;
+        }}
+        onOptionSelect={
+          selected
+            ? undefined
+            : (event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(BankSounds.SELECT);
+                predictServerState(BankVars.QUANTITY_TYPE, value);
+              }
+        }
+      />
+      <text
+        ref={caption}
+        x={captionX}
+        y={{ bottom: Bar.ICON_Y }}
+        w={25}
+        h={{ fill: 15 }}
+        text={label}
+        font={BankFonts.BODY}
+        color={BankColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function CustomQuantityButton({
+  value,
+  label,
+  x,
+  captionX,
+  op,
+  extraOp,
+  selected,
+}: {
+  value: Int;
+  label: String;
+  x: Int;
+  captionX: Int;
+  op: String;
+  extraOp: String;
+  selected: Boolean;
+}): Component {
+  const caption = useRef();
+
+  return (
+    <>
+      <sprite
+        x={x}
+        y={0}
+        w={Bar.BUTTON}
+        h={Bar.BUTTON}
+        sprite={selected ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[op, extraOp]}
+        onMouseEnter={() => {
+          caption.color = BankColors.WHITE;
+        }}
+        onMouseLeave={() => {
+          caption.color = BankColors.LABEL;
+        }}
+        onOptionSelect={
+          selected
+            ? undefined
+            : (event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(BankSounds.SELECT);
+                predictServerState(BankVars.QUANTITY_TYPE, value);
+              }
+        }
+      />
+      <text
+        ref={caption}
+        x={captionX}
+        y={{ bottom: Bar.ICON_Y }}
+        w={25}
+        h={{ fill: 15 }}
+        text={label}
+        font={BankFonts.BODY}
+        color={BankColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}

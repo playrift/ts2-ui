@@ -1,0 +1,82 @@
+import { CS2, useInventory } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { DRIFT_NET, DriftnetColor, DriftnetStore, Grid, Transparency } from './fossil-driftnet-sidestore.constants';
+
+function DriftnetSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={DriftnetColor.SLOT_SHADOW}
+      transparency={Transparency.NET}
+      options={['Store-1', 'Store-5', 'Store-X', 'Store-All', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Transparency.NET_FLASH, Transparency.NET);
+      }}
+    />
+  );
+}
+
+function RefusedSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={DriftnetColor.SLOT_SHADOW}
+      transparency={Transparency.OTHER}
+      options={['Store', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Transparency.OTHER_FLASH, Transparency.OTHER);
+      }}
+    />
+  );
+}
+
+function DriftnetBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      hide
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      outline={Grid.OUTLINE}
+      shadowColor={DriftnetColor.SLOT_SHADOW}
+    />
+  );
+}
+
+function DriftnetStoreSlot({ item, count, slot }: { item: Item; count: Int; slot: Int }): Component {
+  if (item === -1) {
+    return <DriftnetBlank slot={slot} />;
+  }
+  if (CS2.item_uncert(item) === DRIFT_NET) {
+    return <DriftnetSlot item={item} count={count} slot={slot} />;
+  }
+  return <RefusedSlot item={item} count={count} slot={slot} />;
+}
+
+export function FossilDriftnetSidestore(): Component {
+  const bag = useInventory(DriftnetStore.INV);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <DriftnetStoreSlot item={item} count={bag.count(slot)} slot={slot} />
+      ))}
+    </layer>
+  );
+}

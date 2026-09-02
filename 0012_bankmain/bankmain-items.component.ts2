@@ -1,0 +1,279 @@
+import { intArray, useInventory, useRef, useServerState, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { BankSlot } from './bankmain-slot.component';
+import { switchTab } from './bankmain-tab.helpers';
+import {
+  Bank,
+  BankColors,
+  BankFonts,
+  BankParams,
+  BankSprites,
+  BankVars,
+  Grid,
+  POTION_TAB,
+  Tabs,
+} from './bankmain.constants';
+import {
+  bankmainFilterItem,
+  bankmainFilterString,
+  bankmainSearching,
+  defaultQuantityLabel,
+  sectionHeight,
+} from './bankmain.helpers';
+
+const TabSections = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const AllSections = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+export function BankItems(): Component {
+  const bank = useInventory(Bank.INV);
+  const universe = useUniverse();
+  const pane = useRef();
+
+  const currentTab: Int = useServerState(BankVars.CURRENT_TAB);
+  const tabDisplay: Int = useServerState(BankVars.TAB_DISPLAY);
+  const quantityType: Int = useServerState(BankVars.QUANTITY_TYPE);
+  const requestedQuantity: Int = useServerState(BankVars.REQUESTED_QUANTITY);
+  const leavePlaceholders: Int = useServerState(BankVars.LEAVE_PLACEHOLDERS);
+  const bankops: Int = useServerState(BankVars.BANKOPS_TOGGLE);
+
+  const t1: Int = useServerState(BankVars.TAB_1);
+  const t2: Int = useServerState(BankVars.TAB_2);
+  const t3: Int = useServerState(BankVars.TAB_3);
+  const t4: Int = useServerState(BankVars.TAB_4);
+  const t5: Int = useServerState(BankVars.TAB_5);
+  const t6: Int = useServerState(BankVars.TAB_6);
+  const t7: Int = useServerState(BankVars.TAB_7);
+  const t8: Int = useServerState(BankVars.TAB_8);
+  const t9: Int = useServerState(BankVars.TAB_9);
+
+  const searching: Boolean = bankmainSearching();
+  const filter: String = searching ? bankmainFilterString() : '';
+
+  const primaryOp: String = `Withdraw-${defaultQuantityLabel(quantityType, requestedQuantity)}`;
+  const oneOp: String = quantityType !== 0 ? 'Withdraw-1' : '';
+  const requestedOp: String = requestedQuantity > 0 ? `Withdraw-${requestedQuantity}` : '';
+  const placeholderOp: String = leavePlaceholders === 0 ? 'Placeholder' : '';
+
+  const counts = intArray(Tabs.COUNT, [0, t1, t2, t3, t4, t5, t6, t7, t8, t9]);
+  const tabTotal: Int = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + t9;
+
+  const rangeView: Boolean = (currentTab >= 1 && currentTab <= 9) || currentTab === POTION_TAB ? true : false;
+
+  const tabStripHidden: Boolean = tabDisplay === 3 && tabTotal <= 0 ? true : false;
+  const paneInset: Int = tabStripHidden ? 39 : 81;
+  const paneHeight: Int = universe.height - paneInset;
+
+  const xs = intArray(Grid.SLOTS);
+  const ys = intArray(Grid.SLOTS);
+  const sectionY = intArray(Tabs.COUNT);
+  const rectColumn = intArray(Tabs.COUNT);
+  const rectY = intArray(Tabs.COUNT);
+
+  let lastOccupied: Int = -1;
+  let slot: Int = 0;
+  while (slot < Grid.SLOTS) {
+    xs[slot] = -1;
+    ys[slot] = 0;
+    if (bank[slot] !== -1) {
+      lastOccupied = slot;
+    }
+    slot = slot + 1;
+  }
+
+  let section: Int = 0;
+  while (section < Tabs.COUNT) {
+    sectionY[section] = -1;
+    rectColumn[section] = 0;
+    rectY[section] = 0;
+    section = section + 1;
+  }
+
+  let extent: Int = 0;
+
+  if (rangeView) {
+    let from: Int = tabTotal;
+    let to: Int = Grid.SLOTS;
+    if (currentTab >= 1 && currentTab <= 9) {
+      from = 0;
+      let earlier: Int = 1;
+      while (earlier < currentTab) {
+        from = from + counts[earlier];
+        earlier = earlier + 1;
+      }
+      to = from + counts[currentTab];
+    }
+
+    let column: Int = 0;
+    let rowY: Int = 0;
+    let index: Int = from;
+    while (index < to) {
+      xs[index] = Grid.ORIGIN_X + column * Grid.PITCH_X;
+      ys[index] = rowY;
+      if (column < Grid.COLUMNS - 1) {
+        column = column + 1;
+      } else {
+        column = 0;
+        rowY = rowY + Grid.PITCH_Y;
+      }
+      index = index + 1;
+    }
+    extent = rowY + Grid.H;
+  } else {
+    let mainLast: Int = lastOccupied;
+    if (tabTotal <= 0) {
+      mainLast = Grid.SLOTS - 1;
+    }
+
+    let y: Int = tabStripHidden ? 2 : 0;
+    let cursor: Int = 0;
+    let block: Int = 0;
+    while (block < Tabs.COUNT) {
+      let from: Int = cursor;
+      let to: Int = cursor;
+      if (block === 0) {
+        from = tabTotal;
+        to = mainLast + 1;
+      } else {
+        to = cursor + counts[block];
+        cursor = to;
+      }
+
+      if (to > from) {
+        let base: Int = y;
+        if (block > 0) {
+          base = y + Grid.SECTION_GAP;
+        }
+        sectionY[block] = base;
+
+        let content: Int = base;
+        if (!tabStripHidden && block > 0 && searching) {
+          content = base + Grid.SEARCH_LABEL_H;
+        }
+
+        let column: Int = 0;
+        let rowY: Int = content;
+        let placed: Int = 0;
+        let index: Int = from;
+        while (index < to) {
+          if (bankmainFilterItem(bank[index], searching, filter)) {
+            xs[index] = Grid.ORIGIN_X + column * Grid.PITCH_X;
+            ys[index] = rowY;
+            placed = placed + 1;
+            if (column < Grid.COLUMNS - 1) {
+              column = column + 1;
+            } else {
+              column = 0;
+              rowY = rowY + Grid.PITCH_Y;
+            }
+          }
+          index = index + 1;
+        }
+
+        const endY: Int = content + sectionHeight(placed);
+        if (endY > 0) {
+          y = endY;
+          if (!tabStripHidden && column > 0) {
+            rectColumn[block] = column;
+            rectY[block] = endY - Grid.H;
+          }
+        }
+      }
+      block = block + 1;
+    }
+    extent = y;
+  }
+
+  const scrollExtent: Int = extent > 0 ? extent + Grid.EXTENT_PAD : 0;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={1}
+        y={{ bottom: 39 }}
+        w={460}
+        h={{ fill: paneInset }}
+        scrollHeight={scrollExtent > paneHeight ? scrollExtent : 0}
+      >
+        {bank.map((item, index) => (
+          <BankSlot
+            item={item}
+            count={bank.count(index)}
+            charged={bankops === 1 ? (bank.param(index, BankParams.CHARGES) !== -1 ? true : false) : false}
+            x={xs[index] < 0 ? 0 : xs[index]}
+            y={ys[index]}
+            hidden={xs[index] < 0 ? true : false}
+            primary={primaryOp}
+            one={oneOp}
+            requested={requestedOp}
+            placeholder={placeholderOp}
+          />
+        ))}
+
+        {TabSections.map(
+          (tab) =>
+            sectionY[tab] >= 0 && (
+              <sprite
+                x={Grid.ORIGIN_X}
+                y={sectionY[tab] - Grid.SECTION_GAP + Grid.SECTION_RULE_Y}
+                w={Grid.USABLE_W}
+                h={Grid.SECTION_RULE_H}
+                sprite={BankSprites.SECTION_RULE}
+                tiling
+              />
+            ),
+        )}
+
+        {TabSections.map(
+          (tab) =>
+            searching &&
+            sectionY[tab] >= 0 && (
+              <text
+                x={Grid.ORIGIN_X}
+                y={sectionY[tab]}
+                w={Grid.USABLE_W}
+                h={Grid.SEARCH_LABEL_H}
+                text={`Tab ${tab}`}
+                font={BankFonts.SMALL}
+                color={BankColors.TAB_LABEL}
+                shadow
+                align="left"
+                valign="top"
+                hover={{ color: BankColors.WHITE }}
+                options={['View tab']}
+                optionSubject={`<col=ff9040>${tab}</col>`}
+                onOptionSelect={(event) => switchTab(event.option, tab, currentTab)}
+              />
+            ),
+        )}
+
+        {AllSections.map(
+          (tab) =>
+            rectColumn[tab] > 0 && (
+              <rect
+                x={Grid.ORIGIN_X + rectColumn[tab] * Grid.PITCH_X}
+                y={rectY[tab]}
+                w={(Grid.COLUMNS - rectColumn[tab]) * Grid.W + (Grid.COLUMNS - rectColumn[tab] - 1) * Grid.GAP_X}
+                h={Grid.H}
+                fill
+                transparency={255}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={{ right: 1 }} y={{ bottom: 39 }} w={16} h={{ fill: 81 }}>
+        <ScrollbarVertical
+          content={pane}
+          track={BankSprites.BAR_TRACK}
+          capTopSprite={BankSprites.BAR_CAP_TOP}
+          thumbSprite={BankSprites.BAR_THUMB}
+          capBottomSprite={BankSprites.BAR_CAP_BOTTOM}
+          arrowUp={BankSprites.BAR_ARROW_UP}
+          arrowDown={BankSprites.BAR_ARROW_DOWN}
+          rebuilt
+        />
+      </layer>
+    </>
+  );
+}

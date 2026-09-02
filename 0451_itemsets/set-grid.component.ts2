@@ -1,0 +1,132 @@
+import { CS2, intArray, useInventory, useRef, useServerState } from 'ts2';
+import { membersWorld } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SetCell } from './set-cell.component';
+import {
+  Grid,
+  ItemSets,
+  ItemsetBar,
+  ItemsetColor,
+  ItemsetFonts,
+  ItemsetLayout,
+  ItemsetText,
+  ItemsetInventories,
+  ItemsetVarbits,
+  SetMode,
+  Wash,
+} from './itemsets.constants';
+
+export function SetGrid(): Component {
+  const craftableOnly: Int = useServerState(ItemsetVarbits.SHOW_ONLY_CRAFTABLE);
+  const backpack = useInventory(ItemsetInventories.BACKPACK);
+  const members: Boolean = membersWorld();
+
+  const mode = intArray(Grid.SETS);
+  const slot = intArray(Grid.SETS);
+
+  let drawn: Int = 0;
+  let index: Int = 0;
+  while (index < ItemSets.length) {
+    let state: Int = SetMode.LOCKED;
+
+    const row = ItemSets.at(index);
+    if (row !== null) {
+      let locked: Int = 0;
+      if (!members) {
+        if (CS2.item_members(row.set as Item) === 1) {
+          locked = 1;
+        }
+      }
+
+      if (locked === 0) {
+        const parts: List<ItemName> = row.parts;
+        const pieces: Int = parts.length;
+        let missingPlain: Int = 0;
+        let missingNoted: Int = 0;
+        let piece: Int = 0;
+        while (piece < pieces && (missingPlain === 0 || missingNoted === 0)) {
+          const part: Item = (parts.at(piece) ?? -1) as Item;
+          if (backpack.total(part) <= 0) {
+            missingPlain = 1;
+          }
+          if (backpack.total(CS2.item_cert(part)) <= 0) {
+            missingNoted = 1;
+          }
+          piece = piece + 1;
+        }
+        if (missingPlain === 1 && missingNoted === 1) {
+          state = SetMode.CONTENTS;
+        } else {
+          state = SetMode.PACKABLE;
+        }
+      }
+    }
+
+    mode[index] = state;
+    if (craftableOnly === 0 || state === SetMode.PACKABLE) {
+      slot[index] = drawn;
+      drawn = drawn + 1;
+    } else {
+      slot[index] = -1;
+    }
+    index = index + 1;
+  }
+
+  const lastRowTop: Int = drawn > 0 ? ((drawn - 1) / Grid.COLUMNS) * Grid.ROW_STEP : 0;
+  const extent: Int = lastRowTop > 0 ? lastRowTop + Grid.TAIL : 0;
+
+  const pane = useRef();
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={ItemsetLayout.PANE_X}
+        y={ItemsetLayout.PANE_Y}
+        w={ItemsetLayout.PANE_W}
+        h={ItemsetLayout.PANE_H}
+        scrollHeight={extent > ItemsetLayout.PANE_H ? extent : 0}
+      >
+        {ItemSets.map(
+          (row, i) =>
+            slot[i] !== -1 && (
+              <SetCell
+                x={(slot[i] % Grid.COLUMNS) * Grid.STRIDE}
+                y={(slot[i] / Grid.COLUMNS) * Grid.ROW_STEP}
+                set={row.set}
+                mode={mode[i]}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={ItemsetLayout.BAR_X} y={ItemsetLayout.BAR_Y} w={ItemsetLayout.BAR_W} h={ItemsetLayout.BAR_H}>
+        <ScrollbarVertical
+          content={pane}
+          track={ItemsetBar.TRACK}
+          capTopSprite={ItemsetBar.CAP_TOP}
+          thumbSprite={ItemsetBar.THUMB}
+          capBottomSprite={ItemsetBar.CAP_BOTTOM}
+          arrowUp={ItemsetBar.ARROW_UP}
+          arrowDown={ItemsetBar.ARROW_DOWN}
+        />
+      </layer>
+
+      {drawn === 0 && (
+        <layer x={ItemsetLayout.PANE_X} y={ItemsetLayout.PANE_Y} w={ItemsetLayout.PANE_W} h={ItemsetLayout.PANE_H}>
+          <rect w="fill" h="fill" color={ItemsetColor.NOTICE_WASH} fill transparency={Wash.NOTICE} />
+          <text
+            w="fill"
+            h="fill"
+            text={ItemsetText.EMPTY}
+            font={ItemsetFonts.BODY}
+            color={ItemsetColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        </layer>
+      )}
+    </>
+  );
+}

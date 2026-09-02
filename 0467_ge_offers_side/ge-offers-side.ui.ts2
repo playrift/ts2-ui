@@ -1,0 +1,137 @@
+import { createRef, useInventory } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { flashFor } from '../lib/lib.components';
+import { clientClock, itemName } from '../lib/lib.engine';
+import { geOffersPulsate } from '../0464_ge_pricechecker/ge-pricechecker.helpers';
+import { BLANK_OBJECT, Flash, Glow, Grid, OfferOps, Side } from './ge-offers-side.constants';
+import { geOfferable } from './ge-offers-side.helpers';
+
+const geOffersSide = createRef('ge_offers_side');
+
+const glowHost = createRef('ge_offers_side_com_1');
+
+export function GeOffersSideGlow(): Component {
+  const live: Boolean = geOfferable();
+
+  if (!live) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <rect x={0} y={0} w={Side.W} h={Side.H} fill color={Glow.COLOR} hide />
+        <rect x={1} y={1} w={Side.W - 2} h={Side.H - 2} fill color={Glow.COLOR} hide />
+        <rect x={2} y={2} w={Side.W - 4} h={Side.H - 4} fill color={Glow.COLOR} hide />
+        <rect x={3} y={3} w={Side.W - 6} h={Side.H - 6} fill color={Glow.COLOR} hide />
+      </layer>
+    );
+  }
+
+  const epoch0: Int = clientClock() + Glow.EPOCH_BASE;
+  const epoch1: Int = clientClock() + Glow.EPOCH_BASE - Glow.EPOCH_STEP;
+  const epoch2: Int = clientClock() + Glow.EPOCH_BASE - Glow.EPOCH_STEP * 2;
+  const epoch3: Int = clientClock() + Glow.EPOCH_BASE - Glow.EPOCH_STEP * 3;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <rect
+        x={0}
+        y={0}
+        w={Side.W}
+        h={Side.H}
+        fill
+        color={Glow.COLOR}
+        transparency={Glow.FROM}
+        onTimer={(event) => geOffersPulsate(event.self, epoch0, Glow.FROM, Glow.TO)}
+      />
+      <rect
+        x={1}
+        y={1}
+        w={Side.W - 2}
+        h={Side.H - 2}
+        fill
+        color={Glow.COLOR}
+        transparency={Glow.FROM}
+        onTimer={(event) => geOffersPulsate(event.self, epoch1, Glow.FROM, Glow.TO)}
+      />
+      <rect
+        x={2}
+        y={2}
+        w={Side.W - 4}
+        h={Side.H - 4}
+        fill
+        color={Glow.COLOR}
+        transparency={Glow.FROM}
+        onTimer={(event) => geOffersPulsate(event.self, epoch2, Glow.FROM, Glow.TO)}
+      />
+      <rect
+        x={3}
+        y={3}
+        w={Side.W - 6}
+        h={Side.H - 6}
+        fill
+        color={Glow.COLOR}
+        transparency={Glow.FROM}
+        onTimer={(event) => geOffersPulsate(event.self, epoch3, Glow.FROM, Glow.TO)}
+      />
+    </layer>
+  );
+}
+
+export function GeOffersSideItems(): Component {
+  const inv = useInventory(Inventories.INV);
+  const live: Boolean = geOfferable();
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {inv.map((item, slot) =>
+        item === -1 ? (
+          <sprite
+            x={Grid.LEFT + (slot % Grid.COLUMNS) * Grid.PITCH_X}
+            y={Grid.TOP + (slot / Grid.COLUMNS) * Grid.PITCH_Y}
+            w={Grid.CELL_W}
+            h={Grid.CELL_H}
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+            dragDeadZone={Grid.DRAG_DEAD_ZONE}
+            dragDeadTime={Grid.DRAG_DEAD_TIME}
+            item={BLANK_OBJECT}
+            itemCount={1}
+            hide
+          />
+        ) : (
+          <sprite
+            x={Grid.LEFT + (slot % Grid.COLUMNS) * Grid.PITCH_X}
+            y={Grid.TOP + (slot / Grid.COLUMNS) * Grid.PITCH_Y}
+            w={Grid.CELL_W}
+            h={Grid.CELL_H}
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+            dragDeadZone={Grid.DRAG_DEAD_ZONE}
+            dragDeadTime={Grid.DRAG_DEAD_TIME}
+            item={item}
+            itemCount={inv.count(slot)}
+            options={[live ? OfferOps.OFFER : '', '', '', '', '', '', '', '', '', OfferOps.EXAMINE]}
+            optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+            onOptionSelect={live ? (event) => flashFor(event.self, Flash.PRESSED, Flash.REST) : undefined}
+          />
+        ),
+      )}
+    </layer>
+  );
+}
+
+export function GeOffersSide(): Component {
+  return (
+    <>
+      <layer static ref={glowHost} x={0} y={0} w={Side.W} h={Side.H}>
+        <GeOffersSideGlow />
+      </layer>
+      <GeOffersSideItems />
+    </>
+  );
+}
+
+export const geOffersSideUi = (): UI => (
+  <ui ref={geOffersSide} w={Side.W} h={Side.H}>
+    <GeOffersSide />
+  </ui>
+);

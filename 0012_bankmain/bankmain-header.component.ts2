@@ -1,0 +1,87 @@
+import { useInventory, useServerState, useState } from 'ts2';
+import { CS2 } from 'ts2';
+import { Bank, BankColors, BankFonts, BankVars, Grid, POTION_TAB } from './bankmain.constants';
+import { bankmainFilterString, bankmainSearching } from './bankmain.helpers';
+import { BankView, bankView } from './bankmain.state';
+
+export function BankHeader(): Component {
+  const bank = useInventory(Bank.INV);
+  const currentTab: Int = useServerState(BankVars.CURRENT_TAB);
+  const [view] = useState(bankView);
+
+  const searching: Boolean = bankmainSearching();
+  const filter: String = searching ? bankmainFilterString() : '';
+
+  let occupied: Int = 0;
+  let slot: Int = 0;
+  while (slot < Grid.SLOTS) {
+    if (bank[slot] !== -1) {
+      occupied = occupied + 1;
+    }
+    slot = slot + 1;
+  }
+
+  const rangeView: Boolean = (currentTab >= 1 && currentTab <= 9) || currentTab === POTION_TAB ? true : false;
+
+  let title: String = 'The Bank of Gielinor';
+  if (view === BankView.MENU) {
+    title = 'Bank settings menu';
+  } else if (view === BankView.WORN) {
+    title = 'Equip your character...';
+  } else if (currentTab === POTION_TAB) {
+    title = 'Potion storage';
+  } else if (rangeView) {
+    title = `Tab ${currentTab}`;
+  } else if (searching) {
+    title =
+      CS2.string_length(filter) > 0
+        ? `Showing items: <col=ff0000>${filter}</col>`
+        : 'Showing items: <col=ff0000>*</col>';
+  }
+
+  return (
+    <>
+      <text
+        x="center"
+        y={6}
+        w={476}
+        h={24}
+        text={title}
+        font={BankFonts.TITLE}
+        color={BankColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <layer x={58} y={7} w={21} h={21} />
+
+      <text
+        x={3}
+        y={6}
+        w={32}
+        h={24}
+        text={`${occupied}`}
+        font={BankFonts.SMALL}
+        color={BankColors.LABEL}
+        shadow
+        align="center"
+        valign="top"
+      />
+      <line x={13} y={17} w={12} color={BankColors.LABEL} lineWidth={1} />
+      <layer x={3} y={6} w={32} h={24} noClickThrough>
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={BankFonts.SMALL}
+          color={BankColors.LABEL}
+          shadow
+          align="center"
+          valign="bottom"
+        />
+      </layer>
+    </>
+  );
+}

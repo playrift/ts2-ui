@@ -1,0 +1,58 @@
+import { CS2, sessionState, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { BankpinSounds, Cancel, Stage } from './bankpin-keypad.constants';
+
+export const bankpinStage = sessionState(Stage.FIRST);
+
+export const bankpinEntry = sessionState(-1);
+
+export function pressBankpinDigit(digit: Int, stage: Stage, entry: Int): void {
+  const [, setStage] = useState(bankpinStage);
+  const [, setEntry] = useState(bankpinEntry);
+  if (digit < 0) {
+    return;
+  }
+  if (digit >= 10) {
+    return;
+  }
+  playSound(BankpinSounds.DIGIT);
+
+  if (stage === Stage.FOURTH) {
+    CS2.countdialog_resume(stringOf(entry + digit));
+    setStage(Stage.SUBMITTING);
+    setEntry(-1);
+    return;
+  }
+  if (stage === Stage.THIRD) {
+    setEntry(entry + 10 * digit);
+    setStage(Stage.FOURTH);
+    return;
+  }
+  if (stage === Stage.SECOND) {
+    setEntry(entry + 100 * digit);
+    setStage(Stage.THIRD);
+    return;
+  }
+  if (stage === Stage.FIRST) {
+    setEntry(1000 * digit);
+    setStage(Stage.SECOND);
+  }
+}
+
+export function cancelBankpin(code: Int): void {
+  const [, setStage] = useState(bankpinStage);
+  const [, setEntry] = useState(bankpinEntry);
+  playSound(BankpinSounds.CANCEL);
+  CS2.countdialog_resume(stringOf(code));
+  setStage(Stage.SUBMITTING);
+  setEntry(-1);
+}
+
+export function exitBankpin(): void {
+  cancelBankpin(Cancel.EXIT_CODE);
+}
+
+export function forgotBankpin(): void {
+  cancelBankpin(Cancel.UNKNOWN_CODE);
+}

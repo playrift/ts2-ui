@@ -1,0 +1,67 @@
+import { CS2, useServerState } from 'ts2';
+
+import { itemName, membersWorld } from '../lib/lib.engine';
+import { ClientVarbits, NamedItems, QuiverGate, QuiverVarps, SlotVars } from './equipment.constants';
+
+export function displayItemName(item: Item): String {
+  const base: String = itemName(item);
+  const afkMode: Int = useServerState(SlotVars.TELEPORT_CRYSTAL_AFK);
+  const protectedObj = useServerState(SlotVars.LEAGUE_PROTECTED_OBJ) as Item;
+
+  if (membersWorld() || CS2.item_members(item) === 0) {
+    if (item === NamedItems.TOB_TELEPORT) {
+      if (afkMode === 1) {
+        return `${base} (Active)`;
+      }
+      return `${base} (Inactive)`;
+    }
+    if (item === NamedItems.LEAGUE_BANKERS_NOTE) {
+      if (protectedObj !== -1) {
+        return itemName(protectedObj);
+      }
+    }
+  }
+  return base;
+}
+
+export function onEnhancedDesktop(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(ClientVarbits.SIMULATE_MOBILE) === 1) {
+    return false;
+  }
+  if (type === 4 || type === 5 || type === 10) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(ClientVarbits.SIMULATE_MOBILE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedAny(): Boolean {
+  if (onEnhancedDesktop()) {
+    return true;
+  }
+  if (onEnhancedMobile()) {
+    return true;
+  }
+  return false;
+}
+
+export function rentalWorld(): Boolean {
+  return CS2.testbit(useServerState(QuiverVarps.MAP_FLAGS), QuiverGate.RENTAL_FLAG_BIT);
+}
+
+export function runWeight(): Int {
+  return CS2.runweight_visible();
+}
