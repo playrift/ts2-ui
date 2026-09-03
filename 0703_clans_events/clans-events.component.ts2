@@ -1,0 +1,237 @@
+import { CS2, useRef, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { clanEventsHasPermission } from './clan-events-permission';
+import { EventStoneButton } from './event-stone-button.component';
+import {
+  AFFINITY_LIVE,
+  EventArt,
+  EventColor,
+  EventFonts,
+  EventLabels,
+  EventList,
+  EventVarbits,
+  Layout,
+  OP_SOUND_MASK,
+} from './clans-events.constants';
+
+const ROW_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+export function ClansEvents(): Component {
+  return (
+    <layer x="center" y="center" w={Layout.FRAME_W} h={Layout.FRAME_H}>
+      <EventFrame />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x="center" y="bottom" w="fill" h={Layout.BUTTON_ROW_H}>
+          <layer x="right" y="center" w={Layout.BUTTON_W} h="fill">
+            <CreateEventButton />
+          </layer>
+
+          <layer x={{ right: Layout.EDIT_RIGHT }} y="center" w={Layout.BUTTON_W} h="fill">
+            <EditModeButton />
+          </layer>
+
+          <layer x="left" y="center" w={Layout.BUTTON_W} h="fill">
+            <EventStoneButton label={EventLabels.BACK} />
+          </layer>
+        </layer>
+
+        <layer x="center" y="top" w="fill" h={{ fill: Layout.LIST_INSET_H }}>
+          <sprite
+            x="center"
+            y="center"
+            w={{ fill: Layout.BACKING_INSET }}
+            h={{ fill: Layout.BACKING_INSET }}
+            sprite={EventArt.LIST_BACKING}
+            tiling
+          />
+
+          <EventListPane />
+
+          <ThinBoxEntrypoint />
+        </layer>
+      </layer>
+
+      <layer x="left" y="top" w="fill" h="fill" />
+    </layer>
+  );
+}
+
+export function EventListPane(): Component {
+  const pane = useRef();
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y="center"
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+      >
+        <layer x="left" y="center" w="fill" h="fill" />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+        <EventRowTemplate />
+
+        <EventListRows />
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.BAR_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={EventArt.SCROLL_TRACK}
+          capTopSprite={EventArt.SCROLL_CAP_TOP}
+          thumbSprite={EventArt.SCROLL_THUMB}
+          capBottomSprite={EventArt.SCROLL_CAP_BOTTOM}
+          arrowUp={EventArt.SCROLL_ARROW_UP}
+          arrowDown={EventArt.SCROLL_ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function EventRowTemplate(): Component {
+  return <layer x={Layout.TEMPLATE_X} y="center" w="fill" h={{ fill: Layout.TEMPLATE_INSET_H }} />;
+}
+
+export function EventFrame(): Component {
+  const affinity: Int = useServerState(EventVarbits.AFFINITY);
+
+  let title: String = '';
+  if (affinity === AFFINITY_LIVE) {
+    if (CS2.activeclansettings_affined_find(0)) {
+      title = `${CS2.activeclansettings_clan_name_get()}: Events`;
+    }
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <SteelBorder title={title} titleColor={SteelborderColor.TITLE} flags={0} />
+    </layer>
+  );
+}
+
+export function EditModeButton(): Component {
+  const editing: Int = useServerState(EventVarbits.EDITING_PERMITTED);
+  const affinity: Int = useServerState(EventVarbits.AFFINITY);
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  let label: String = EventLabels.EDIT_MODE_DEAD;
+  if (editing === 1) {
+    label = EventLabels.FINISHED;
+  } else if (clanEventsHasPermission(CS2.chat_playername(), affinity) === 1) {
+    label = EventLabels.EDIT_MODE_LIVE;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={EventFonts.LABEL} pressed={skin} />
+    </layer>
+  );
+}
+
+export function CreateEventButton(): Component {
+  const editing: Int = useServerState(EventVarbits.EDITING_PERMITTED);
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  let label: String = EventLabels.CREATE_DEAD;
+  if (editing === 1) {
+    label = EventLabels.CREATE_LIVE;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+    >
+      <StoneButtonDraw label={label} font={EventFonts.LABEL} pressed={skin} />
+    </layer>
+  );
+}
+
+export function EventListRows(): Component {
+  const editing: Int = useServerState(EventVarbits.EDITING_PERMITTED);
+
+  let rowOp: String = '';
+  if (editing === 1) {
+    rowOp = EventLabels.ROW_OP;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {ROW_SLOTS.map(() => (
+        <rect x={0} y={0} w="100%" h={EventList.ROW_H} fill color={EventColor.ROW} hide options={[rowOp]} />
+      ))}
+
+      {ROW_SLOTS.map(() => (
+        <text
+          x={0}
+          y={0}
+          w="100%"
+          h={EventList.ROW_H}
+          text=""
+          font={EventFonts.LABEL}
+          color={EventColor.ROW_TEXT}
+          align="center"
+          valign="middle"
+          shadow
+          hide
+        />
+      ))}
+
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={EventLabels.EMPTY}
+        font={EventFonts.LABEL}
+        color={EventColor.EMPTY_TEXT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

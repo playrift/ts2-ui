@@ -1,0 +1,268 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import {
+  BreakpointGates,
+  Breakpoints,
+  DIFFICULTY_MAX,
+  FoundryHud,
+  FoundryVarbits,
+  ICON,
+  Layout,
+  METER_MAX,
+  QUALITY_MAX,
+  ROW_GAP,
+  SectionCounts,
+  SectionGates,
+} from './giants-foundry-hud.constants';
+
+const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+}
+
+export function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > BreakpointGates.W1 && height > BreakpointGates.H1) {
+    level = 1;
+  }
+  if (width > BreakpointGates.W2 && height > BreakpointGates.H2) {
+    level = 2;
+  }
+  if (width > BreakpointGates.W3 && height > BreakpointGates.H3) {
+    level = 3;
+  }
+  return level;
+}
+
+function rowHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.row;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.row;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.row;
+  }
+  return Breakpoints.BASE.row;
+}
+
+function tallRowHeight(breakpoint: Int): Int {
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.tallRow;
+  }
+  return Breakpoints.BASE.tallRow;
+}
+
+function halfInset(breakpoint: Int): Int {
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.halfInset;
+  }
+  return Breakpoints.BASE.halfInset;
+}
+
+function stripWidth(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Breakpoints.ONE.width;
+  }
+  if (breakpoint === 2) {
+    return Breakpoints.TWO.width;
+  }
+  if (breakpoint === 3) {
+    return Breakpoints.THREE.width;
+  }
+  return Breakpoints.BASE.width;
+}
+
+export function sectionCount(difficulty: Int): Int {
+  if (difficulty >= 0 && difficulty < SectionGates.G1) {
+    return SectionCounts.BASE;
+  }
+  if (difficulty >= SectionGates.G1 && difficulty < SectionGates.G2) {
+    return SectionCounts.ONE;
+  }
+  if (difficulty >= SectionGates.G2 && difficulty < SectionGates.G3) {
+    return SectionCounts.TWO;
+  }
+  if (difficulty >= SectionGates.G3 && difficulty < SectionGates.G4) {
+    return SectionCounts.THREE;
+  }
+  if (difficulty >= SectionGates.G4) {
+    return SectionCounts.FOUR;
+  }
+  return SectionCounts.BASE;
+}
+
+export function spotWidth(difficulty: Int): Int {
+  const third: Int = METER_MAX / 3;
+  const half: Int = third - third / 2;
+  return third - scaled(difficulty, DIFFICULTY_MAX, half);
+}
+
+export function spotStart(index: Int, difficulty: Int): Int {
+  const third: Int = METER_MAX / 3;
+  const width: Int = spotWidth(difficulty);
+  if (index === 0) {
+    return third / 2 + third * 2 - width / 2;
+  }
+  if (index === 1) {
+    return third / 2 + third - width / 2;
+  }
+  return third / 2 - width / 2;
+}
+
+export function foundryLayout(
+  dodger: ComponentId,
+  root: ComponentId,
+  strip: ComponentId,
+  qualityIcon: ComponentId,
+  temperatureIcon: ComponentId,
+  completionIcon: ComponentId,
+  qualityLayer: ComponentId,
+  temperatureLayer: ComponentId,
+  completionLayer: ComponentId,
+  qualityBar: ComponentId,
+  qualityFillBg: ComponentId,
+): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const breakpoint: Int = breakpointOf(CS2.if_width_get(root), CS2.if_height_get(root));
+  setBreakpoint(breakpoint);
+
+  overlayRelayout(dodger, strip, FoundryHud.DODGE, Anchor.CENTRE, Anchor.TOP, 0);
+  if (onMobile()) {
+    CS2.if_position_set(0, Layout.STRIP_Y, Anchor.CENTRE, Anchor.BOTTOM, strip);
+  } else {
+    CS2.if_position_set(0, Layout.STRIP_Y, Anchor.CENTRE, Anchor.TOP, strip);
+  }
+
+  const row: Int = rowHeight(breakpoint);
+  const tall: Int = tallRowHeight(breakpoint);
+  const inset: Int = halfInset(breakpoint);
+
+  CS2.if_size_set(stripWidth(breakpoint), row * 2 + tall + ROW_GAP * 4, SizeMode.ABS, SizeMode.ABS, strip);
+
+  CS2.if_position_set(Layout.ICON_X, ROW_GAP + (row - ICON) / 2, Anchor.LEFT, Anchor.TOP, qualityIcon);
+  CS2.if_position_set(Layout.ICON_X, ROW_GAP * 2 + row + (row - ICON) / 2, Anchor.LEFT, Anchor.TOP, temperatureIcon);
+  CS2.if_position_set(
+    Layout.ICON_X,
+    ROW_GAP * 3 + row * 2 + (tall - ICON) / 2,
+    Anchor.LEFT,
+    Anchor.TOP,
+    completionIcon,
+  );
+
+  CS2.if_position_set(0, ROW_GAP, Anchor.RIGHT, Anchor.TOP, qualityLayer);
+  CS2.if_position_set(0, ROW_GAP * 2 + row, Anchor.RIGHT, Anchor.TOP, temperatureLayer);
+  CS2.if_position_set(0, ROW_GAP * 3 + row * 2, Anchor.RIGHT, Anchor.TOP, completionLayer);
+
+  CS2.if_size_set(inset * 2, row, SizeMode.MINUS, SizeMode.ABS, qualityLayer);
+  CS2.if_size_set(inset * 2, row, SizeMode.MINUS, SizeMode.ABS, temperatureLayer);
+  CS2.if_size_set(inset * 2, tall, SizeMode.MINUS, SizeMode.ABS, completionLayer);
+
+  CS2.if_size_set(CS2.if_width_get(qualityBar) - 2, 0, SizeMode.ABS, SizeMode.MINUS, qualityFillBg);
+}
+
+export function foundrySweetSpots(
+  track: ComponentId,
+  polish: ComponentId,
+  grind: ComponentId,
+  hammer: ComponentId,
+): void {
+  const difficulty: Int = useServerState(FoundryVarbits.DIFFICULTY);
+  const width: Int = CS2.if_width_get(track);
+  const span: Int = scaled(width, METER_MAX, spotWidth(difficulty));
+
+  CS2.if_position_set(scaled(width, METER_MAX, spotStart(2, difficulty)), 0, Anchor.LEFT, Anchor.CENTRE, polish);
+  CS2.if_size_set(span, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, polish);
+
+  CS2.if_position_set(scaled(width, METER_MAX, spotStart(1, difficulty)), 0, Anchor.LEFT, Anchor.CENTRE, grind);
+  CS2.if_size_set(span, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, grind);
+
+  CS2.if_position_set(scaled(width, METER_MAX, spotStart(0, difficulty)), 0, Anchor.LEFT, Anchor.CENTRE, hammer);
+  CS2.if_size_set(span, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, hammer);
+}
+
+export function foundryPointers(
+  qualityTrack: ComponentId,
+  qualityPointer: ComponentId,
+  qualityFill: ComponentId,
+  qualityLost: ComponentId,
+  temperaturePointer: ComponentId,
+  completionPointer: ComponentId,
+  completionHighlight: ComponentId,
+  completionCover: ComponentId,
+  hammerHighlight: ComponentId,
+  grindHighlight: ComponentId,
+  polishHighlight: ComponentId,
+): void {
+  const difficulty: Int = useServerState(FoundryVarbits.DIFFICULTY);
+  const quality: Int = useServerState(FoundryVarbits.QUALITY);
+  const startQuality: Int = useServerState(FoundryVarbits.START_QUALITY);
+  const temperature: Int = useServerState(FoundryVarbits.TEMPERATURE);
+  const completion: Int = useServerState(FoundryVarbits.COMPLETION);
+
+  const span: Int = CS2.if_width_get(qualityTrack) - 2;
+
+  let at: Int = scaled(quality, QUALITY_MAX, span);
+  CS2.if_position_set(at, Layout.POINTER_Y, Anchor.LEFT, Anchor.BOTTOM, qualityPointer);
+  CS2.if_size_set(at + Layout.BAR_INSET, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, qualityFill);
+
+  at = scaled(startQuality, QUALITY_MAX, span);
+  CS2.if_size_set(at + Layout.BAR_INSET, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, qualityLost);
+
+  if (quality === 0) {
+    CS2.if_hide_set(true, qualityFill);
+  } else {
+    CS2.if_hide_set(false, qualityFill);
+  }
+
+  at = scaled(temperature, METER_MAX, span);
+  CS2.if_position_set(at, Layout.POINTER_Y, Anchor.LEFT, Anchor.BOTTOM, temperaturePointer);
+
+  at = scaled(completion, METER_MAX, span);
+  CS2.if_position_set(at, Layout.POINTER_Y, Anchor.LEFT, Anchor.BOTTOM, completionPointer);
+
+  const count: Int = sectionCount(difficulty);
+  const reached: Int = scaled(completion, METER_MAX, count);
+
+  if (completion >= METER_MAX) {
+    CS2.if_hide_set(true, completionHighlight);
+    CS2.if_hide_set(false, completionCover);
+  } else {
+    CS2.if_hide_set(false, completionHighlight);
+    CS2.if_hide_set(true, completionCover);
+  }
+
+  let cell: Int = span / count;
+  const remainder: Int = span % cell;
+  at = cell * reached + Layout.HIGHLIGHT_NUDGE + Math.min(remainder, reached);
+  if (reached < remainder) {
+    cell = cell + 1;
+  }
+  CS2.if_position_set(at, Layout.BAR_INSET, Anchor.LEFT, Anchor.TOP, completionHighlight);
+  CS2.if_size_set(cell, Layout.BAR_INSET_H, SizeMode.ABS, SizeMode.MINUS, completionHighlight);
+
+  const width: Int = spotWidth(difficulty);
+  let start: Int = spotStart(0, difficulty);
+  if (temperature >= start && temperature <= start + width) {
+    CS2.if_hide_set(false, hammerHighlight);
+  } else {
+    CS2.if_hide_set(true, hammerHighlight);
+  }
+  start = spotStart(1, difficulty);
+  if (temperature >= start && temperature <= start + width) {
+    CS2.if_hide_set(false, grindHighlight);
+  } else {
+    CS2.if_hide_set(true, grindHighlight);
+  }
+  start = spotStart(2, difficulty);
+  if (temperature >= start && temperature <= start + width) {
+    CS2.if_hide_set(false, polishHighlight);
+  } else {
+    CS2.if_hide_set(true, polishHighlight);
+  }
+}

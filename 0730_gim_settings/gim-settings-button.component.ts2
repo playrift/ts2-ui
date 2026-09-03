@@ -1,0 +1,79 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { gimSettingsArm } from './gim-settings-arm';
+import { GimArm, GimFonts, GimSlot, GimVarbits, OP_SOUND_MASK } from './gim-settings.constants';
+
+export function GimSettingsButton({ slot }: { slot: Int }): Component {
+  const asGuest: Int = useServerState(GimVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(GimVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(GimVarbits.AFFINITY);
+  const leaving: Int = useServerState(GimVarbits.PENDING_LEAVE);
+  const arm: Int = gimSettingsArm(asGuest, guestStatus, status);
+
+  const label: String = gimButtonLabel(slot, arm, leaving);
+  const option: String = gimButtonOption(arm, label);
+
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+    >
+      {arm !== GimArm.NONE && <StoneButtonDraw label={label} font={GimFonts.LABEL} pressed={skin} />}
+    </layer>
+  );
+}
+
+function gimButtonOption(arm: Int, label: String): String {
+  if (arm === GimArm.NONE) {
+    return '*';
+  }
+  return CS2.tags_remove(label);
+}
+
+function gimButtonLabel(slot: Int, arm: Int, leaving: Int): String {
+  if (arm === GimArm.GUEST) {
+    switch (slot) {
+      case GimSlot.HISCORES:
+        return '<col=0dc10d>Hiscores</col>';
+      case GimSlot.STORAGE:
+        return '<col=9f9f9f>Group Storage</col>';
+      case GimSlot.OPTIONS:
+        return '<col=9f9f9f>Options</col>';
+      case GimSlot.RAFFLE:
+        return '<col=9f9f9f>Raffle</col>';
+      case GimSlot.QUIT:
+        return '<col=9f9f9f>Leave Group</col>';
+    }
+    return '';
+  }
+
+  switch (slot) {
+    case GimSlot.HISCORES:
+      return '<col=0dc10d>Hiscores</col>';
+    case GimSlot.STORAGE:
+      return '<col=0dc10d>Group Storage</col>';
+    case GimSlot.OPTIONS:
+      return '<col=0dc10d>Options</col>';
+    case GimSlot.RAFFLE:
+      return '<col=0dc10d>Raffle</col>';
+    case GimSlot.QUIT:
+      if (leaving === 1) {
+        return '<col=ff0000>Cancel Leave</col>';
+      }
+      return '<col=ff0000>Leave Group</col>';
+  }
+  return '';
+}

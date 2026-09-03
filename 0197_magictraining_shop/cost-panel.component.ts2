@@ -1,0 +1,153 @@
+import { useInventory, useServerState, useUniverse } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import {
+  Costs,
+  Layout,
+  NO_SELECTION,
+  ShopColor,
+  ShopFonts,
+  ShopInventories,
+  ShopOutline,
+  ShopVarbits,
+  ShopVarps,
+} from './magictraining-shop.constants';
+import {
+  AlchemistCost,
+  EnchantmentCost,
+  GraveyardCost,
+  MagicTrainingRewards,
+  TelekineticCost,
+  TradeIn,
+} from './magictraining-shop.data';
+import { costColour, costLine } from './magictraining-shop.helpers';
+
+export function CostPanel(): Component {
+  const box = useUniverse();
+  const selected: Int = useServerState(ShopVarbits.SELECTED);
+  const quantity: Int = useServerState(ShopVarps.QUANTITY);
+
+  const rowH: Int = box.height / Costs.ROWS - Costs.ROW_SLACK;
+  const reward: ItemName = MagicTrainingRewards.at(selected) ?? -1;
+  const trade: ItemName = TradeIn.get(reward as Item) ?? -1;
+  const gutter: Int = trade === -1 ? 0 : Costs.GUTTER;
+  const halfW: Int = trade === -1 ? box.width / 2 : box.width / 2 - Costs.GUTTER_HALF;
+
+  const backpack = useInventory(ShopInventories.INV);
+  const held: Int = backpack.total(trade as Item);
+
+  const telekinetic: Int = (TelekineticCost.get(reward as Item) ?? -1) * quantity;
+  const graveyard: Int = (GraveyardCost.get(reward as Item) ?? -1) * quantity;
+  const enchantment: Int = (EnchantmentCost.get(reward as Item) ?? -1) * quantity;
+  const alchemist: Int = (AlchemistCost.get(reward as Item) ?? -1) * quantity;
+
+  const telekineticPool: Int = useServerState(ShopVarps.TELEKINETIC);
+  const graveyardPool: Int = useServerState(ShopVarps.GRAVEYARD);
+  const enchantmentPool: Int = useServerState(ShopVarps.ENCHANTMENT);
+  const alchemistPool: Int = useServerState(ShopVarps.ALCHEMIST);
+
+  return (
+    <layer w="fill" h="fill">
+      <rect x={0} y={0} w="fill" h="fill" fill color={ShopColor.BACKING} />
+
+      <ThinBoxEntrypoint />
+
+      {selected !== NO_SELECTION ? (
+        <>
+          <text
+            x={gutter}
+            y={Costs.HEADING_Y}
+            w={trade === -1 ? box.width : box.width - Costs.GUTTER}
+            h={rowH}
+            font={ShopFonts.BODY}
+            text="Cost to buy the item"
+            align="center"
+            valign="middle"
+            shadow
+            color={ShopColor.LABEL}
+          />
+
+          {trade !== -1 ? (
+            <>
+              <sprite
+                x={Costs.TRADE_ICON_X}
+                y={box.height / 2 - Costs.TRADE_ICON_DY}
+                w={Costs.TRADE_ICON}
+                h={Costs.TRADE_ICON}
+                item={trade}
+                itemCount={1}
+                outline={ShopOutline.REST}
+              />
+              <text
+                x={0}
+                y="bottom"
+                w={Costs.HELD_W}
+                h={Costs.HELD_H}
+                font={ShopFonts.BODY}
+                align="center"
+                valign="middle"
+                shadow
+                color={held >= quantity ? ShopColor.AFFORDABLE : ShopColor.SHORT}
+                text={
+                  quantity === 0
+                    ? `${groupDigits(held, Costs.SEPARATOR)}/?>`
+                    : `${groupDigits(held, Costs.SEPARATOR)}/${groupDigits(quantity, Costs.SEPARATOR)}`
+                }
+              />
+            </>
+          ) : null}
+
+          <text
+            x={gutter}
+            y={Costs.HEADING_Y + rowH}
+            w={halfW}
+            h={rowH}
+            font={ShopFonts.BODY}
+            align="center"
+            valign="middle"
+            shadow
+            color={costColour(telekineticPool, telekinetic, quantity)}
+            text={costLine('Telekinetic', telekineticPool, telekinetic, quantity)}
+          />
+          <text
+            x={halfW + gutter}
+            y={Costs.HEADING_Y + rowH}
+            w={halfW}
+            h={rowH}
+            font={ShopFonts.BODY}
+            align="center"
+            valign="middle"
+            shadow
+            color={costColour(graveyardPool, graveyard, quantity)}
+            text={costLine('Graveyard', graveyardPool, graveyard, quantity)}
+          />
+          <text
+            x={gutter}
+            y={Costs.HEADING_Y + rowH * 2}
+            w={halfW}
+            h={rowH}
+            font={ShopFonts.BODY}
+            align="center"
+            valign="middle"
+            shadow
+            color={costColour(enchantmentPool, enchantment, quantity)}
+            text={costLine('Enchantment', enchantmentPool, enchantment, quantity)}
+          />
+          <text
+            x={halfW + gutter}
+            y={Costs.HEADING_Y + rowH * 2}
+            w={halfW}
+            h={rowH}
+            font={ShopFonts.BODY}
+            align="center"
+            valign="middle"
+            shadow
+            color={costColour(alchemistPool, alchemist, quantity)}
+            text={costLine('Alchemist', alchemistPool, alchemist, quantity)}
+          />
+        </>
+      ) : null}
+    </layer>
+  );
+}

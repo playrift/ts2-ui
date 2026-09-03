@@ -1,0 +1,77 @@
+import { createRef, useInterval } from 'ts2';
+
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { Layout, RaidsColor, RaidsFonts, RaidsOverlayDodge, RaidsSprites } from './raids-overlay.constants';
+import {
+  raidsClockTick,
+  raidsLabelColumn,
+  raidsPlateBuilds,
+  raidsPlateWidth,
+  raidsValueColumn,
+} from './raids-overlay.helpers';
+
+const dodger = createRef('raids_overlay_dodger');
+const plate = createRef('raids_overlay_plate');
+
+export function RaidsOverlay(): Component {
+  useInterval(() => overlayRelayout(dodger, plate, RaidsOverlayDodge.DODGE, Anchor.LEFT, Anchor.TOP, 1), dodger);
+  useInterval(() => raidsClockTick(), plate);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <rect x="center" y="center" w="fill" h="fill" color={RaidsColor.FADER} fill hide />
+
+      <layer static ref={dodger} x={0} y={0} w="fill" h="fill">
+        <layer static ref={plate} x={Layout.PLATE_X} y={Layout.PLATE_Y} w={Layout.PLATE_W} h={Layout.PLATE_H}>
+          <RaidsPlateContent />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function RaidsPlateContent(): Component {
+  const builds: Boolean = raidsPlateBuilds();
+
+  plate.width = builds ? raidsPlateWidth() : Layout.PLATE_W;
+  plate.height = builds ? Layout.PLATE_BUILT_H : Layout.PLATE_H;
+
+  return (
+    <layer w="fill" h="fill">
+      {builds && (
+        <>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={RaidsSprites.BACKING} tiling />
+
+          <ThinStoneBox />
+
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.COLUMN_MARGIN }}
+            h="fill"
+            text={raidsLabelColumn()}
+            font={RaidsFonts.ROW}
+            color={RaidsColor.LABEL}
+            shadow
+            align="left"
+            valign="middle"
+          />
+
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.COLUMN_MARGIN }}
+            h="fill"
+            text={raidsValueColumn()}
+            font={RaidsFonts.ROW}
+            color={RaidsColor.VALUE}
+            shadow
+            align="right"
+            valign="middle"
+          />
+        </>
+      )}
+    </layer>
+  );
+}

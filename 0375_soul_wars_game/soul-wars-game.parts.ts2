@@ -1,0 +1,89 @@
+import { useDerived, useServerState, useState } from 'ts2';
+
+import { StonePanel } from '../0648_target_streaks/stone-panel.component';
+import { Varbits } from '../lib/game/varbits';
+import { scaled } from '../lib/lib.engine';
+import { Activity, Alignment, Layout, SoulWarsColor } from './soul-wars-game.constants';
+import { Site, holderColor, siteAlignment, siteContested, siteHolder, soulWarsFlash } from './soul-wars-game.state';
+import { StonePanelBlue, StonePanelRed } from './stone-panel-tinted.component';
+
+function minmax(low: Int, high: Int, value: Int): Int {
+  if (high <= low) {
+    return Math.max(high, Math.min(low, value));
+  }
+  return Math.max(low, Math.min(high, value));
+}
+
+export function ActivityBar(): Component {
+  const value: Int = useServerState(Varbits.SOUL_WARS_ACTIVITY_VALUE);
+  let filled: Int = 0;
+  if (value <= 0) {
+    filled = 0;
+  } else if (value >= Activity.MAX) {
+    filled = Layout.ACTIVITY_H;
+  } else {
+    filled = minmax(1, Layout.ACTIVITY_H, scaled(Layout.ACTIVITY_H, Activity.MAX, value));
+  }
+  return (
+    <rect
+      x="center"
+      y="bottom"
+      w="fill"
+      h={filled}
+      color={SoulWarsColor.ACTIVITY}
+      fill
+      transparency={Layout.ACTIVITY_ALPHA}
+    />
+  );
+}
+
+export function SiteWash({ site }: { site: Site }): Component {
+  const holder: Int = useDerived(() => siteHolder(site));
+  return (
+    <rect x="center" y="center" w="fill" h="fill" color={holderColor(holder)} fill transparency={Layout.WASH_ALPHA} />
+  );
+}
+
+export function SiteBar({ site }: { site: Site }): Component {
+  const value: Int = useDerived(() => siteAlignment(site));
+  let red: Int = 0;
+  if (value <= Alignment.MIN) {
+    red = 0;
+  } else if (value >= Alignment.MAX) {
+    red = Layout.BAR_W;
+  } else {
+    red = minmax(1, Layout.BAR_W - 1, scaled(Layout.BAR_W, Alignment.MAX - Alignment.MIN, value - Alignment.MIN));
+  }
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        x="left"
+        y="center"
+        w={Layout.BAR_W - red}
+        h="fill"
+        color={SoulWarsColor.TEAM_BLUE}
+        fill
+        transparency={Layout.BAR_ALPHA}
+      />
+      <rect x="right" y="center" w={red} h="fill" color={SoulWarsColor.TEAM_RED} fill transparency={Layout.BAR_ALPHA} />
+    </layer>
+  );
+}
+
+export function SiteFrame({ site }: { site: Site }): Component {
+  const contested: Int = useDerived(() => siteContested(site));
+  const [phase] = useState(soulWarsFlash);
+  let lit: Int = 0;
+  if (contested === 1 || contested === 2) {
+    if (phase === 1) {
+      lit = contested;
+    }
+  }
+  return (
+    <layer w="fill" h="fill">
+      {lit === 1 && <StonePanelBlue divider={Layout.SITE_DIVIDER} />}
+      {lit === 2 && <StonePanelRed divider={Layout.SITE_DIVIDER} />}
+      {lit === 0 && <StonePanel divider={Layout.SITE_DIVIDER} />}
+    </layer>
+  );
+}

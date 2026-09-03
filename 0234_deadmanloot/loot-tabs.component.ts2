@@ -1,0 +1,91 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { graphicSwapper } from '../lib/lib.helpers';
+import {
+  LootArt,
+  LootColor,
+  LootFonts,
+  LootInventories,
+  LootItemArt,
+  LootTabRows,
+  LootVarbits,
+  TabStrip,
+} from './deadmanloot.constants';
+import { chooseLootTab } from './deadmanloot.helpers';
+
+export function LootTabs(): Component {
+  const tab: Int = useServerState(LootVarbits.TAB);
+  const carried = useInventory(LootInventories.CARRIED);
+
+  return (
+    <>
+      {LootTabRows.map((row) =>
+        tab === row.page ? (
+          <sprite
+            x={row.page * TabStrip.PITCH}
+            y={0}
+            w={TabStrip.W}
+            h={TabStrip.H}
+            sprite={LootArt.TAB_SELECTED}
+            tiling={false}
+            optionSubject={stringOf(row.page)}
+            options={['View tab']}
+          />
+        ) : carried.total(row.key) <= 0 ? (
+          <sprite
+            x={row.page * TabStrip.PITCH}
+            y={0}
+            w={TabStrip.W}
+            h={TabStrip.H}
+            sprite={LootArt.TAB_DISABLED}
+            tiling={false}
+            optionSubject={stringOf(row.page)}
+          />
+        ) : (
+          <sprite
+            x={row.page * TabStrip.PITCH}
+            y={0}
+            w={TabStrip.W}
+            h={TabStrip.H}
+            sprite={LootArt.TAB_REST}
+            tiling={false}
+            optionSubject={stringOf(row.page)}
+            options={['View tab']}
+            onOptionSelect={() => chooseLootTab(row.page)}
+            onMouseRepeat={(event) => graphicSwapper(event.self, LootArt.TAB_LIT)}
+            onMouseLeave={(event) => graphicSwapper(event.self, LootArt.TAB_REST)}
+          />
+        ),
+      )}
+
+      {LootTabRows.map((row) => (
+        <sprite
+          x={row.page * TabStrip.PITCH + TabStrip.ICON_DX}
+          y={TabStrip.ICON_Y}
+          w={TabStrip.ICON_W}
+          h={TabStrip.ICON_H}
+          item={LootItemArt.TAB_ICON}
+          itemCount={1}
+          itemCountMode="never"
+          shadowColor={LootColor.ITEM_SHADOW}
+          outline={1}
+          hide={carried.total(row.key) <= 0 ? true : false}
+        />
+      ))}
+
+      {LootTabRows.map((row) => (
+        <text
+          x={row.page * TabStrip.PITCH}
+          y={0}
+          w={TabStrip.CAPTION_W}
+          h={TabStrip.CAPTION_H}
+          font={LootFonts.BODY}
+          color={LootColor.HOVER}
+          shadow
+          align="center"
+          valign="bottom"
+        />
+      ))}
+    </>
+  );
+}

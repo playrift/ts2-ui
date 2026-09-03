@@ -1,0 +1,143 @@
+import { CS2, onMounted, onUpdated, sessionState, useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import {
+  TooltipBox,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { Layout } from './toa-hud.constants';
+import { content, tooltipHost } from './toa-hud.refs';
+
+export const tipText = sessionState('');
+export const tipLeft = sessionState(-1);
+export const tipTop = sessionState(-1);
+export const tipHeight = sessionState(-1);
+
+const DWELL = 25;
+const WRAP = 256;
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+function widthOf(component: ComponentId): Int {
+  return CS2.if_width_get(component);
+}
+
+function parentOf(component: ComponentId): ComponentId {
+  return CS2.if_layer_get(component);
+}
+
+function placeTip(x: Int, y: Int, w: Int, h: Int): void {
+  moveBox(tooltipHost, x, y, w, h);
+}
+
+function moveBox(component: ComponentId, x: Int, y: Int, w: Int, h: Int): void {
+  component.x = x;
+  component.y = y;
+  component.width = w;
+  component.height = h;
+}
+
+export function showSlotTip(name: String, left: Int, top: Int): void {
+  const [, setText] = useState(tipText);
+  const [, setLeft] = useState(tipLeft);
+  const [, setTop] = useState(tipTop);
+  const [, setHeight] = useState(tipHeight);
+  if (onMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setText(name);
+  setLeft(absoluteX(content) - absoluteX(tooltipHost) + left);
+  setTop(absoluteY(content) - absoluteY(tooltipHost) + top);
+  setHeight(Layout.CELL);
+  tooltipRaise();
+}
+
+export function hideSlotTip(): void {
+  const [, setText] = useState(tipText);
+  tooltipHide();
+  setText('');
+}
+
+export function ToaHudTooltip(): Component {
+  const [text] = useState(tipText);
+  const [left] = useState(tipLeft);
+  const [top] = useState(tipTop);
+  const [anchorH] = useState(tipHeight);
+
+  let up: Int = 0;
+  if (tooltipUp()) {
+    up = 1;
+  }
+
+  let boxW: Int = Layout.TOOLTIP;
+  let boxH: Int = Layout.TOOLTIP;
+  let x: Int = 0;
+  let y: Int = 0;
+
+  if (up === 1) {
+    const host: ComponentId = parentOf(tooltipHost);
+    const hostW: Int = widthOf(host);
+    const hostH: Int = heightOf(host);
+
+    let measure: Int = WRAP;
+    if (measure > hostW) {
+      measure = hostW;
+    }
+    measure = measure - TooltipBox.padX;
+    boxW = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+    boxH = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+    x = left + TooltipBox.nudge;
+    if (x > hostW - boxW) {
+      x = hostW - boxW;
+    }
+    y = top + anchorH + TooltipBox.nudge;
+    if (y > hostH - boxH) {
+      y = top - boxH - TooltipBox.nudge;
+    }
+  }
+
+  onMounted(() => {
+    placeTip(x, y, boxW, boxH);
+  });
+  onUpdated(() => {
+    placeTip(x, y, boxW, boxH);
+  });
+
+  if (up === 0) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.fill} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        font={TooltipBox.font}
+        text={text}
+        lineHeight={TooltipBox.line}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,39 @@
+import { useServerState, useUniverse } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { itemName } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { CellWash, Layout, ShopOutline, ShopVarbits } from './magictraining-shop.constants';
+import { MagicTrainingRewards } from './magictraining-shop.data';
+import { selectReward } from './magictraining-shop.helpers';
+
+export function RewardShelf(): Component {
+  const shelf = useUniverse();
+  const cellW: Int = shelf.width / Layout.SHELF_COLUMNS;
+  const cellH: Int = shelf.height / Layout.SHELF_ROWS;
+  const selected: Int = useServerState(ShopVarbits.SELECTED);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer w="fill" h="fill">
+      {MagicTrainingRewards.map((reward, index) => (
+        <sprite
+          x={cellW / 2 - Layout.CELL_W / 2 + (index % Layout.SHELF_COLUMNS) * cellW}
+          y={cellH / 2 - Layout.CELL_H / 2 + (index / Layout.SHELF_COLUMNS) * cellH}
+          w={Layout.CELL_W}
+          h={Layout.CELL_H}
+          item={reward}
+          itemCount={1}
+          outline={index === selected ? ShopOutline.SELECTED : ShopOutline.REST}
+          options={[
+            `Select <col=ff981f>${itemName(reward as Item)}`,
+            `Examine <col=ff981f>${itemName(reward as Item)}`,
+          ]}
+          onOptionSelect={(event) => selectReward(event.option, index)}
+          onMouseRepeat={mobile ? undefined : (event) => ccSetTrans(event.self, CellWash.HOVER)}
+          onMouseLeave={mobile ? undefined : (event) => ccSetTrans(event.self, CellWash.REST)}
+        />
+      ))}
+    </layer>
+  );
+}

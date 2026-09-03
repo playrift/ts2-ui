@@ -1,0 +1,242 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Emote, EmoteVarbits, EmoteVarps, GloryTiers, RelicSprites, RelicType, RELIC_UNLOCK } from './emote.constants';
+import {
+  EmoteLockedSprites,
+  EmoteLoopFirst,
+  EmoteLoopable,
+  EmoteNames,
+  EmoteSprites,
+  SkillOrder,
+} from './emote-tables.data';
+
+function unlockedBit(value: Int): Int {
+  if (value >= 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function colosseumGloryTier(): Int {
+  const glory: Int = useServerState(EmoteVarps.COLOSSEUM_GLORY);
+  if (glory < GloryTiers.T1) {
+    return 0;
+  }
+  if (glory < GloryTiers.T2) {
+    return 1;
+  }
+  if (glory < GloryTiers.T3) {
+    return 2;
+  }
+  if (glory < GloryTiers.T4) {
+    return 3;
+  }
+  if (glory < GloryTiers.T5) {
+    return 4;
+  }
+  if (glory < GloryTiers.T6) {
+    return 5;
+  }
+  return 6;
+}
+
+export function emoteName(emote: Int): String {
+  if (emote === RELIC_UNLOCK) {
+    if (useServerState(EmoteVarbits.RELIC_TYPE) === RelicType.SHATTERED) {
+      return 'Fragment unlock';
+    }
+  }
+  return EmoteNames.at(emote) ?? 'Emote';
+}
+
+export function emoteUnlocked(emote: Int): Int {
+  switch (emote) {
+    case Emote.GOBLIN_BOW:
+    case Emote.GOBLIN_SALUTE:
+      if (useServerState(EmoteVarbits.LOST_TRIBE_QUEST) >= 7) {
+        return 1;
+      }
+      return 0;
+    case Emote.GLASS_BOX:
+      return unlockedBit(useServerState(EmoteVarbits.GLASSBOX));
+    case Emote.CLIMB_ROPE:
+      return unlockedBit(useServerState(EmoteVarbits.CLIMBROPE));
+    case Emote.LEAN:
+      return unlockedBit(useServerState(EmoteVarbits.LEAN));
+    case Emote.GLASS_WALL:
+      return unlockedBit(useServerState(EmoteVarbits.GLASSWALL));
+    case Emote.IDEA:
+      return unlockedBit(useServerState(EmoteVarbits.SOS_IDEA));
+    case Emote.STAMP:
+      return unlockedBit(useServerState(EmoteVarbits.SOS_STAMP));
+    case Emote.FLAP:
+      return unlockedBit(useServerState(EmoteVarbits.SOS_FLAP));
+    case Emote.SLAP_HEAD:
+      return unlockedBit(useServerState(EmoteVarbits.SOS_DOH));
+    case Emote.ZOMBIE_WALK:
+      return unlockedBit(useServerState(EmoteVarbits.ZOMBIE_WALK));
+    case Emote.ZOMBIE_DANCE:
+      return unlockedBit(useServerState(EmoteVarbits.ZOMBIE_DANCE));
+    case Emote.SCARED:
+      return unlockedBit(useServerState(EmoteVarbits.TERRIFIED));
+    case Emote.RABBIT_HOP:
+      return unlockedBit(useServerState(EmoteVarbits.BUNNY_HOP));
+    case Emote.SKILL_CAPE:
+      return skillCapeUnlocked();
+    case Emote.ZOMBIE_HAND:
+      return unlockedBit(useServerState(EmoteVarbits.ZOMBIE_HAND));
+    case Emote.AIR_GUITAR:
+      if (useServerState(EmoteVarbits.MUSICCAPE) === 1) {
+        return 1;
+      }
+      return 0;
+    case Emote.SIT_UP:
+      return unlockedBit(useServerState(EmoteVarbits.DRILLDEMON));
+    case Emote.PUSH_UP:
+      return unlockedBit(useServerState(EmoteVarbits.DRILLDEMON));
+    case Emote.STAR_JUMP:
+      return unlockedBit(useServerState(EmoteVarbits.DRILLDEMON));
+    case Emote.JOG:
+      return unlockedBit(useServerState(EmoteVarbits.DRILLDEMON));
+    case Emote.FLEX:
+      return unlockedBit(useServerState(EmoteVarbits.FLEX));
+    case Emote.HYPERMOBILE_DRINKER:
+      return unlockedBit(useServerState(EmoteVarbits.ASH));
+    case Emote.URI_TRANSFORM:
+      return unlockedBit(useServerState(EmoteVarbits.URI_TRANSFORM));
+    case Emote.SMOOTH_DANCE:
+      return unlockedBit(useServerState(EmoteVarbits.HOTLINE_BLING));
+    case Emote.CRAZY_DANCE:
+      return unlockedBit(useServerState(EmoteVarbits.GANGNAM));
+    case Emote.PREMIER_SHIELD:
+      return unlockedBit(useServerState(EmoteVarbits.PREMIER_CLUB_2018));
+    case Emote.EXPLORE:
+      return unlockedBit(useServerState(EmoteVarbits.EXPLORE));
+    case Emote.RELIC_UNLOCK:
+      return relicUnlocked();
+    case Emote.PARTY:
+      return unlockedBit(useServerState(EmoteVarbits.PARTY));
+    case Emote.TRICK:
+      return unlockedBit(useServerState(EmoteVarbits.TRICK));
+    case Emote.FORTIS_SALUTE:
+      if (colosseumGloryTier() < GloryTiers.FORTIS_SALUTE) {
+        return 0;
+      }
+    case Emote.CRAB_DANCE:
+      return unlockedBit(useServerState(EmoteVarbits.CRAB));
+  }
+  return 1;
+}
+
+function skillCapeUnlocked(): Int {
+  const earned: Int = useServerState(EmoteVarps.QP);
+  const needed: Int = useServerState(EmoteVarbits.QP_MAX);
+  if (earned >= needed && needed > 0) {
+    return 1;
+  }
+  if (useServerState(EmoteVarbits.MAXCAPE) === 1) {
+    return 1;
+  }
+  if (useServerState(EmoteVarbits.EVENT_SKILLCAPES) === 1) {
+    return 1;
+  }
+
+  let key: Int = 1;
+  let skill: Skill = SkillOrder.get(key) ?? -1;
+  while (skill !== -1) {
+    if (CS2.stat_base(skill) >= 99) {
+      return 1;
+    }
+    key = key + 1;
+    skill = SkillOrder.get(key) ?? -1;
+  }
+  return 0;
+}
+
+function relicUnlocked(): Int {
+  switch (useServerState(EmoteVarbits.RELIC_TYPE)) {
+    case RelicType.SHATTERED_RELICS:
+      return 1;
+    case RelicType.TRAILBLAZER:
+      return 1;
+    case RelicType.SHATTERED:
+      return 1;
+    case RelicType.TRAILBLAZER_RELOADED:
+      return 1;
+    case RelicType.RAGING_ECHOES:
+      return 1;
+  }
+  return 0;
+}
+
+export function emoteIcon(emote: Int): Sprite {
+  if (emote !== RELIC_UNLOCK) {
+    return EmoteSprites.at(emote) ?? -1;
+  }
+  switch (useServerState(EmoteVarbits.RELIC_TYPE)) {
+    case RelicType.SHATTERED_RELICS:
+      return RelicSprites.TYPE_3;
+    case RelicType.TRAILBLAZER:
+      return RelicSprites.TYPE_6;
+    case RelicType.SHATTERED:
+      return RelicSprites.TYPE_9;
+    case RelicType.TRAILBLAZER_RELOADED:
+      return RelicSprites.TYPE_12;
+    case RelicType.RAGING_ECHOES:
+      return RelicSprites.TYPE_15;
+  }
+  return RelicSprites.FALLBACK;
+}
+
+export function emoteSlotIcon(emote: Int, unlocked: Int): Sprite {
+  if (unlocked === 1) {
+    return emoteIcon(emote);
+  }
+  return EmoteLockedSprites.get(emote) ?? -1;
+}
+
+export function emoteOpBase(emote: Int): String {
+  if (emote === RELIC_UNLOCK) {
+    return '';
+  }
+  return `<col=ff9040>${emoteName(emote)}</col>`;
+}
+
+export function emoteOp1(emote: Int): String {
+  let verb: String = 'Perform';
+  if ((EmoteLoopFirst.at(emote) ?? false) === true && (EmoteLoopable.at(emote) ?? false) === true) {
+    verb = 'Loop';
+  }
+  if (emote === RELIC_UNLOCK) {
+    return `${verb} <col=ff9040>${emoteName(emote)}</col>`;
+  }
+  return verb;
+}
+
+export function emoteOp2(emote: Int): String {
+  let verb: String = 'Loop';
+  if ((EmoteLoopable.at(emote) ?? false) === false) {
+    verb = '';
+  }
+  if ((EmoteLoopFirst.at(emote) ?? false) === true) {
+    verb = 'Perform';
+  }
+  return verb;
+}
+
+export function emoteOp3(emote: Int): String {
+  if (emote !== RELIC_UNLOCK) {
+    return '';
+  }
+  switch (useServerState(EmoteVarbits.RELIC_TYPE)) {
+    case RelicType.TRAILBLAZER:
+      return 'Perform <col=ff9040>Area unlock</col>';
+    case RelicType.TRAILBLAZER_RELOADED:
+      return 'Perform <col=ff9040>Area unlock</col>';
+    case RelicType.RAGING_ECHOES:
+      return 'Perform <col=ff9040>Area unlock</col>';
+    case RelicType.SHATTERED:
+      return 'Perform <col=ff9040>Shattered unlock</col>';
+  }
+  return '';
+}

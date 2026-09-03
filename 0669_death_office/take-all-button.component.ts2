@@ -1,8 +1,10 @@
-import { useState } from 'ts2';
+import { createRef, useInterval, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { StoneButtonFilled } from '../lib/stone-button-filled.component';
 import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
 import { Fade, OfficeArt, OfficeSounds, PRESS_CYCLES } from './death-office.constants';
+
+const timerHost = createRef('0669_death_office_timer_host');
 
 export function TakeAllButton(): Component {
   const [hovered, setHovered] = useState(0);
@@ -10,6 +12,17 @@ export function TakeAllButton(): Component {
 
   const pressed: Int = pressedUntil > clientClock() ? 1 : 0;
   const lit: Int = pressed === 1 || hovered === 1 ? 1 : 0;
+
+  useInterval(
+    pressed === 1
+      ? () => {
+          if (clientClock() >= pressedUntil) {
+            setPressedUntil(0);
+          }
+        }
+      : undefined,
+    timerHost,
+  );
 
   return (
     <layer
@@ -22,15 +35,7 @@ export function TakeAllButton(): Component {
         playSound(OfficeSounds.PRESS);
         setPressedUntil(clientClock() + PRESS_CYCLES);
       }}
-      onTimer={
-        pressed === 1
-          ? () => {
-              if (clientClock() >= pressedUntil) {
-                setPressedUntil(0);
-              }
-            }
-          : undefined
-      }
+      ref={timerHost}
     >
       {lit === 1 ? (
         <StoneButtonPressedFilled>

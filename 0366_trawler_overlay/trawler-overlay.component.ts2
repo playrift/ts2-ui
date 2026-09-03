@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval } from 'ts2';
 
 import { opsound } from '../lib/lib.helpers';
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
@@ -9,6 +9,14 @@ import {
   trawlerInfoUpdate,
   trawlerWaterUpdate,
 } from './trawler-overlay.helpers';
+
+const timerHost1 = createRef('0366_trawler_overlay_timer_host1');
+
+const timerHost3 = createRef('0366_trawler_overlay_timer_host3');
+
+const timerHost4 = createRef('0366_trawler_overlay_timer_host4');
+
+const timerHost5 = createRef('0366_trawler_overlay_timer_host5');
 
 const content = createRef('trawler_overlay_content1');
 
@@ -27,13 +35,15 @@ const catchLine = createRef('trawler_overlay_catch2');
 const timeLine = createRef('trawler_overlay_time3');
 
 export function TrawlerOverlay(): Component {
+  useInterval(() => overlayRelayout(timerHost1, content, TrawlerDodge.DODGE, Anchor.CENTRE, Anchor.TOP, 0), timerHost1);
+  useInterval(() => trawlerCameraRefresh(cameraButton, cameraBackdrop), cameraButton);
+  useInterval(() => trawlerInfoUpdate(netLine, catchLine, timeLine), timerHost3);
+  useInterval(() => trawlerWaterUpdate(timerHost4, waterFilled, waterEmpty), timerHost4);
+  useInterval(() => trawlerActivityUpdate(timerHost5, activityFilled, activityEmpty), timerHost5);
+
   return (
     <layer x="center" y="center" w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) => overlayRelayout(event.component, content, TrawlerDodge.DODGE, Anchor.CENTRE, Anchor.TOP, 0)}
-      >
+      <layer w="fill" h="fill" ref={timerHost1}>
         <layer ref={content} x="center" y={0} w={Layout.CONTENT_W} h={Layout.CONTENT_H}>
           <sprite
             ref={cameraBackdrop}
@@ -56,16 +66,9 @@ export function TrawlerOverlay(): Component {
             sprite={TrawlerSprite.CAMERA_BUTTON}
             optionSubject="<col=ff8040>Camera motion</col>"
             options={['*']}
-            onTimer={() => trawlerCameraRefresh(cameraButton, cameraBackdrop)}
           />
 
-          <layer
-            x={0}
-            y={0}
-            w={{ fill: Layout.LAYER_INSET }}
-            h={Layout.LAYER_H}
-            onTimer={() => trawlerInfoUpdate(netLine, catchLine, timeLine)}
-          >
+          <layer x={0} y={0} w={{ fill: Layout.LAYER_INSET }} h={Layout.LAYER_H} ref={timerHost3}>
             <text
               x={Layout.CAPTION_X}
               y={Layout.WATER_CAPTION_Y}
@@ -83,7 +86,7 @@ export function TrawlerOverlay(): Component {
               y={Layout.WATER_GAUGE_Y}
               w={{ fill: Layout.GAUGE_INSET }}
               h={Layout.GAUGE_H}
-              onTimer={(event) => trawlerWaterUpdate(event.component, waterFilled, waterEmpty)}
+              ref={timerHost4}
             >
               <rect
                 ref={waterFilled}
@@ -133,7 +136,7 @@ export function TrawlerOverlay(): Component {
               y={{ bottom: Layout.ACTIVITY_GAUGE_Y }}
               w={{ fill: Layout.GAUGE_INSET }}
               h={Layout.GAUGE_H}
-              onTimer={(event) => trawlerActivityUpdate(event.component, activityFilled, activityEmpty)}
+              ref={timerHost5}
             >
               <rect
                 ref={activityFilled}

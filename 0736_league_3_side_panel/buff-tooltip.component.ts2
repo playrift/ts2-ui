@@ -1,0 +1,48 @@
+import { useUniverse } from 'ts2';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { buffTooltipText } from './relic-buff-toggle.component';
+import { SidePanelFonts, SidePanelLayout, SidePanelText } from './league-3-side-panel.constants';
+
+export function BuffTooltip(): Component {
+  if (!tooltipUp()) {
+    return null;
+  }
+  const host = useUniverse();
+  const text: String = buffTooltipText();
+
+  const measure: Int = Math.min(SidePanelLayout.TOOLTIP_WRAP, host.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  const barW: Int =
+    textWidth(SidePanelText.TOGGLE, SidePanelLayout.TOGGLE_MEASURE, SidePanelFonts.BODY) + SidePanelLayout.TOGGLE_PAD;
+  const anchorX: Int = (host.width - barW) / 2;
+  const anchorY: Int = host.height - SidePanelLayout.TOGGLE_H + SidePanelLayout.TOGGLE_LABEL_Y;
+  const anchorH: Int = SidePanelLayout.TOGGLE_H;
+
+  const below: Int = anchorY + anchorH + TooltipBox.nudge;
+
+  return (
+    <layer
+      x={Math.min(anchorX + TooltipBox.nudge, host.width - boxW)}
+      y={below > host.height - boxH ? anchorY - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.fill} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

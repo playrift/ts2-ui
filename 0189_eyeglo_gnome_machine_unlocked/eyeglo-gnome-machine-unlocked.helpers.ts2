@@ -1,50 +1,9 @@
-import { useServerState } from 'ts2';
+import { CS2, useServerState } from 'ts2';
 
-import { DialModel, Row, Slot } from './eyeglo-gnome-machine-unlocked.constants';
+import { EYEGLO_DIGIT_ZERO, EyegloDigitModels } from '../0145_eyeglo_gnome_machine_locked/eyeglo-digit-models.data';
+import { DialModel } from './eyeglo-gnome-machine-unlocked.constants';
 import { Varbits } from '../lib/game/varbits';
 import { Varps } from '../lib/game/varps';
-
-export function machineValue(row: Row): Int {
-  switch (row) {
-    case Row.ONE:
-      return useServerState(Varbits.EYEGLO_COIN_VALUE_2);
-    case Row.TWO:
-      return useServerState(Varbits.EYEGLO_COIN_VALUE_3);
-    case Row.THREE:
-      return useServerState(Varbits.EYEGLO_COIN_VALUE_4);
-  }
-  return 0;
-}
-
-export function machineTarget(row: Row): Int {
-  switch (row) {
-    case Row.ONE:
-      return useServerState(Varbits.EYEGLO_OPERATE1_VAL);
-    case Row.TWO:
-      return useServerState(Varbits.EYEGLO_OPERATE2_VAL);
-    case Row.THREE:
-      return useServerState(Varbits.EYEGLO_OPERATE3_VAL);
-  }
-  return 0;
-}
-
-export function machineSlotItem(slot: Slot): Int {
-  switch (slot) {
-    case Slot.ONE:
-      return useServerState(Varps.EYEGLO_OPERATE1_A);
-    case Slot.TWO:
-      return useServerState(Varps.EYEGLO_OPERATE2_A);
-    case Slot.THREE:
-      return useServerState(Varps.EYEGLO_OPERATE2_B);
-    case Slot.FOUR:
-      return useServerState(Varps.EYEGLO_OPERATE3_A);
-    case Slot.FIVE:
-      return useServerState(Varps.EYEGLO_OPERATE3_B);
-    case Slot.SIX:
-      return useServerState(Varps.EYEGLO_OPERATE3_C);
-  }
-  return -1;
-}
 
 export function dialMarkers(value: Int, target: Int): [Model, Model, Model] {
   if (target === 0) {
@@ -57,4 +16,64 @@ export function dialMarkers(value: Int, target: Int): [Model, Model, Model] {
     return [DialModel.TOP_LOWER, DialModel.NEEDLE, DialModel.BOTTOM_LOWER];
   }
   return [DialModel.NONE, DialModel.NEEDLE_MATCH, DialModel.NONE];
+}
+
+function writeDigits(value: Int, tens: ComponentId, units: ComponentId): void {
+  tens.model = EyegloDigitModels.get(value / 10) ?? EYEGLO_DIGIT_ZERO;
+  units.model = EyegloDigitModels.get(value % 10) ?? EYEGLO_DIGIT_ZERO;
+}
+
+function writeMarkers(value: Int, target: Int, top: ComponentId, middle: ComponentId, bottom: ComponentId): void {
+  const [topModel, middleModel, bottomModel] = dialMarkers(value, target);
+  top.model = topModel;
+  middle.model = middleModel;
+  bottom.model = bottomModel;
+}
+
+export function machineRowOne(
+  tens: ComponentId,
+  units: ComponentId,
+  top: ComponentId,
+  middle: ComponentId,
+  bottom: ComponentId,
+  slot: ComponentId,
+): void {
+  const value: Int = useServerState(Varbits.EYEGLO_COIN_VALUE_2);
+  writeDigits(value, tens, units);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE1_A) as Item, 1, slot);
+  writeMarkers(value, useServerState(Varbits.EYEGLO_OPERATE1_VAL), top, middle, bottom);
+}
+
+export function machineRowTwo(
+  tens: ComponentId,
+  units: ComponentId,
+  top: ComponentId,
+  middle: ComponentId,
+  bottom: ComponentId,
+  slotA: ComponentId,
+  slotB: ComponentId,
+): void {
+  const value: Int = useServerState(Varbits.EYEGLO_COIN_VALUE_3);
+  writeDigits(value, tens, units);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE2_A) as Item, 1, slotA);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE2_B) as Item, 1, slotB);
+  writeMarkers(value, useServerState(Varbits.EYEGLO_OPERATE2_VAL), top, middle, bottom);
+}
+
+export function machineRowThree(
+  tens: ComponentId,
+  units: ComponentId,
+  top: ComponentId,
+  middle: ComponentId,
+  bottom: ComponentId,
+  slotA: ComponentId,
+  slotB: ComponentId,
+  slotC: ComponentId,
+): void {
+  const value: Int = useServerState(Varbits.EYEGLO_COIN_VALUE_4);
+  writeDigits(value, tens, units);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE3_A) as Item, 1, slotA);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE3_B) as Item, 1, slotB);
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_OPERATE3_C) as Item, 1, slotC);
+  writeMarkers(value, useServerState(Varbits.EYEGLO_OPERATE3_VAL), top, middle, bottom);
 }

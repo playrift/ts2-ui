@@ -1,4 +1,4 @@
-import { CS2, useRef, useState, useUniverse } from 'ts2';
+import { CS2, createRef, useInterval, useRef, useState, useUniverse } from 'ts2';
 
 import { oculusHidehint } from '../lib/game/varcs';
 import { SteelborderColor } from '../lib/lib.constants';
@@ -19,6 +19,8 @@ import {
   SteelBorderFlags,
 } from './oculus.constants';
 
+const timerHost = createRef('0016_oculus_timer_host');
+
 export function OculusControls(): Component {
   const [parked, setParked] = useState(oculusHidehint);
   const [slideFrom, setSlideFrom] = useState(0);
@@ -34,6 +36,40 @@ export function OculusControls(): Component {
   const step: Int =
     slideFrom === 0 ? 0 : parked === 1 ? Slide.CYCLES - (clientClock() - slideFrom) : clientClock() - slideFrom + 1;
 
+  useInterval(() => {
+    if (slideFrom !== 0) {
+      const elapsed: Int = clientClock() - slideFrom;
+      const stageH: Int = stage.height;
+      const panelH: Int = panel.height;
+      const reach: Int = (stageH + panelH) / 2;
+      const centreY: Int = (stageH - panelH) / 2;
+      if (parked === 1) {
+        const left: Int = Slide.CYCLES - elapsed;
+        if (left <= 0) {
+          setParked(0);
+          setSlideFrom(0);
+          return;
+        }
+        panel.hide = false;
+        panel.y = centreY - scaled(CS2.pow(left, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
+      } else {
+        if (elapsed >= Slide.CYCLES) {
+          setParked(1);
+          setSlideFrom(0);
+          return;
+        }
+        panel.y = centreY - scaled(CS2.pow(elapsed + 1, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
+      }
+    } else if (parked === 1) {
+      return;
+    }
+
+    const tint: Int = oculusFlashColour();
+    toggleHint.color = tint;
+    exitHint.color = tint;
+    resetHint.color = tint;
+  }, timerHost);
+
   return (
     <layer
       w="fill"
@@ -47,39 +83,7 @@ export function OculusControls(): Component {
         }
         setSlideFrom(clientClock());
       }}
-      onTimer={() => {
-        if (slideFrom !== 0) {
-          const elapsed: Int = clientClock() - slideFrom;
-          const stageH: Int = stage.height;
-          const panelH: Int = panel.height;
-          const reach: Int = (stageH + panelH) / 2;
-          const centreY: Int = (stageH - panelH) / 2;
-          if (parked === 1) {
-            const left: Int = Slide.CYCLES - elapsed;
-            if (left <= 0) {
-              setParked(0);
-              setSlideFrom(0);
-              return;
-            }
-            panel.hide = false;
-            panel.y = centreY - scaled(CS2.pow(left, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
-          } else {
-            if (elapsed >= Slide.CYCLES) {
-              setParked(1);
-              setSlideFrom(0);
-              return;
-            }
-            panel.y = centreY - scaled(CS2.pow(elapsed + 1, 2), CS2.pow(Slide.EASE_SPAN, 2), reach);
-          }
-        } else if (parked === 1) {
-          return;
-        }
-
-        const tint: Int = oculusFlashColour();
-        toggleHint.color = tint;
-        exitHint.color = tint;
-        resetHint.color = tint;
-      }}
+      ref={timerHost}
     >
       <layer
         ref={panel}

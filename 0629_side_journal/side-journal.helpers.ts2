@@ -1,0 +1,86 @@
+import { useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import {
+  DeadmanWorld,
+  FifthTab,
+  JournalVarbits,
+  JournalVarps,
+  LEAGUE_TUTORIAL_DONE,
+  WorldFlag,
+} from './side-journal.constants';
+
+function privateEventWorld(): Int {
+  const flags: Int = useServerState(JournalVarps.MAP_FLAGS);
+  if (
+    hasBit(flags, WorldFlag.PRIVATE_EVENT) &&
+    !hasBit(flags, WorldFlag.NOT_PRIVATE_EVENT) &&
+    hasBit(flags, WorldFlag.EVENT_MEMBER)
+  ) {
+    return 4;
+  }
+  return 0;
+}
+
+export function deadmanWorld(): Int {
+  const priv: Int = privateEventWorld();
+  if (priv === 1 || priv === 4) {
+    return DeadmanWorld.EVENT_CARRIED_ONLY;
+  }
+  const flags: Int = useServerState(JournalVarps.MAP_FLAGS);
+  if (hasBit(flags, WorldFlag.DEADMAN)) {
+    if (hasBit(flags, WorldFlag.DEADMAN_CARRIED_ONLY) || hasBit(flags, WorldFlag.DEADMAN_TOURNAMENT)) {
+      return DeadmanWorld.EVENT_CARRIED_ONLY;
+    }
+    return DeadmanWorld.EVENT_HALF_BANK;
+  }
+  return DeadmanWorld.NONE;
+}
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(JournalVarps.MAP_FLAGS);
+  if (hasBit(flags, WorldFlag.LEAGUE_NOT)) {
+    return false;
+  }
+  return hasBit(flags, WorldFlag.LEAGUE);
+}
+
+export function freshStartWorld(): Int {
+  if (useServerState(JournalVarbits.FSW_ACTIVE) === 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function fifthTab(): Int {
+  if (freshStartWorld() === 1) {
+    return FifthTab.FSW;
+  }
+  if (leagueWorld() && useServerState(JournalVarbits.LEAGUE_TUTORIAL) >= LEAGUE_TUTORIAL_DONE) {
+    return FifthTab.LEAGUES;
+  }
+  if (deadmanWorld() === DeadmanWorld.EVENT_CARRIED_ONLY) {
+    return FifthTab.DEADMAN;
+  }
+  if (useServerState(JournalVarbits.PATHS_ACTIVE) === 1 && leagueWorld() === false) {
+    return FifthTab.PATHS;
+  }
+  return FifthTab.NONE;
+}
+
+export function pathsTabPainted(): Boolean {
+  if (useServerState(JournalVarbits.PATHS_ACTIVE) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function fifthTabPainted(): Boolean {
+  if (deadmanWorld() === DeadmanWorld.EVENT_CARRIED_ONLY) {
+    return true;
+  }
+  if (leagueWorld() && useServerState(JournalVarbits.LEAGUE_TUTORIAL) >= LEAGUE_TUTORIAL_DONE) {
+    return true;
+  }
+  return false;
+}

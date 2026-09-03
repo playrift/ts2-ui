@@ -1,4 +1,4 @@
-import { useRef, useState } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 
 import { clientClock, playSound } from '../lib/lib.engine';
 import { onMobile } from '../lib/lib.helpers';
@@ -7,6 +7,18 @@ import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.com
 import { ClanCofferColor, ClanCofferFonts, ClanCofferSounds, PRESS_CYCLES } from './clans-storage-main.constants';
 
 export function WithdrawButton({ label }: { label: String }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (pressedUntil === 0) {
+      return;
+    }
+    if (clientClock() < pressedUntil) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
   const [pressedUntil, setPressedUntil] = useState(0);
   const caption = useRef();
 
@@ -23,15 +35,7 @@ export function WithdrawButton({ label }: { label: String }): Component {
         playSound(ClanCofferSounds.CLICK);
         setPressedUntil(clientClock() + PRESS_CYCLES);
       }}
-      onTimer={() => {
-        if (pressedUntil === 0) {
-          return;
-        }
-        if (clientClock() < pressedUntil) {
-          return;
-        }
-        setPressedUntil(0);
-      }}
+      ref={timerHost}
       onMouseRepeat={() => {
         if (!onMobile()) {
           caption.color = ClanCofferColor.HOVER;

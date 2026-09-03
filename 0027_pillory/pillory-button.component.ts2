@@ -1,13 +1,22 @@
-import { useRef, useState } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 
 import { ccSetTrans } from '../0332_thormac/cc-settrans';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { HIGHLIGHT_COLOR, Highlight, PRESS_CYCLES, PillorySounds, SELECT_OP } from './pillory.constants';
 
 export function PilloryButton(): Component {
+  const timerHost = useRef();
+
   const highlight = useRef();
 
   const [pressedUntil, setPressedUntil] = useState(0);
+
+  useInterval(() => {
+    if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+      highlight.transparency = Highlight.IDLE;
+      setPressedUntil(0);
+    }
+  }, timerHost);
 
   return (
     <layer
@@ -32,12 +41,7 @@ export function PilloryButton(): Component {
         highlight.transparency = Highlight.PRESSED;
         setPressedUntil(clientClock() + PRESS_CYCLES);
       }}
-      onTimer={() => {
-        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
-          highlight.transparency = Highlight.IDLE;
-          setPressedUntil(0);
-        }
-      }}
+      ref={timerHost}
     >
       <rect
         ref={highlight}

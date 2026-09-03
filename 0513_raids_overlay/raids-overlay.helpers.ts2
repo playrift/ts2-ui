@@ -1,0 +1,120 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { clientClock, scaled, textWidth } from '../lib/lib.engine';
+import { Layout, RaidsFonts, RaidsLimits, RaidsText, RaidsVars } from './raids-overlay.constants';
+
+function onEnhancedDesktop(): Boolean {
+  const client: Int = CS2.clienttype();
+  if (useServerState(RaidsVars.SIMULATE_MOBILE) === 1) {
+    return false;
+  }
+  if (client === 4 || client === 5 || client === 10) {
+    return true;
+  }
+  return false;
+}
+
+function onEnhancedMobile(): Boolean {
+  const client: Int = CS2.clienttype();
+  if (useServerState(RaidsVars.SIMULATE_MOBILE) === 1) {
+    if (client === 4 || client === 5 || client === 10) {
+      return true;
+    }
+  }
+  if (client === 7 || client === 8) {
+    return true;
+  }
+  return false;
+}
+
+function enhancedAny(): Boolean {
+  if (onEnhancedDesktop()) {
+    return true;
+  }
+  return onEnhancedMobile();
+}
+
+export function raidsPlateBuilds(): Boolean {
+  if (enhancedAny() === false) {
+    return true;
+  }
+  if (useServerState(RaidsVars.HELPER_DISABLED) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function raidsClockText(ticks: Int): String {
+  let seconds: Int = scaled(RaidsLimits.TICK_NUMERATOR, RaidsLimits.TICK_DENOMINATOR, Math.max(ticks, 0));
+  let minutes: Int = seconds / RaidsLimits.SECONDS_PER_MINUTE;
+  seconds = seconds % RaidsLimits.SECONDS_PER_MINUTE;
+  const hours: Int = minutes / RaidsLimits.SECONDS_PER_MINUTE;
+  minutes = minutes % RaidsLimits.SECONDS_PER_MINUTE;
+
+  let out: String = stringOf(seconds);
+  if (seconds < 10) {
+    out = `0${out}`;
+  }
+  out = `${stringOf(minutes)}:${out}`;
+  if (hours > 0) {
+    if (minutes < 10) {
+      out = `0${out}`;
+    }
+    out = `${stringOf(hours)}:${out}`;
+  }
+  return out;
+}
+
+export function raidsPlayerScoreText(): String {
+  const score: Int = useServerState(RaidsVars.PLAYER_SCORE);
+  if (score < RaidsLimits.SCORE_CAP) {
+    return groupDigits(score, ',');
+  }
+  return RaidsText.LOTS;
+}
+
+export function raidsPartyScoreText(): String {
+  return groupDigits(useServerState(RaidsVars.PARTY_SCORE), ',');
+}
+
+export function raidsClockValue(): String {
+  return raidsClockText(useServerState(RaidsVars.TIMER));
+}
+
+export function raidsLabelColumn(): String {
+  return `${RaidsText.TOTAL}<br>${CS2.chat_playername()}:<br>${RaidsText.TIME}`;
+}
+
+export function raidsValueColumn(): String {
+  return `${raidsPartyScoreText()}<br>${raidsPlayerScoreText()}<br>${raidsClockValue()}`;
+}
+
+function raidsRowWidth(label: String, value: String): Int {
+  return (
+    textWidth(label, Layout.MEASURE_WIDTH, RaidsFonts.ROW) +
+    Layout.COLUMN_GUTTER +
+    textWidth(value, Layout.MEASURE_WIDTH, RaidsFonts.ROW)
+  );
+}
+
+export function raidsPlateWidth(): Int {
+  const total: Int = raidsRowWidth(RaidsText.TOTAL, raidsPartyScoreText());
+  const player: Int = raidsRowWidth(`${CS2.chat_playername()}:`, raidsPlayerScoreText());
+  const time: Int = raidsRowWidth(RaidsText.TIME, raidsClockValue());
+  return Math.max(Math.max(total, player), time) + Layout.PLATE_PADDING;
+}
+
+export function raidsClockTick(): void {
+  if (useServerState(RaidsVars.PROGRESS) >= RaidsLimits.PROGRESS_DONE) {
+    return;
+  }
+  const elapsed: Int = useServerState(RaidsVars.TIMER);
+  if (elapsed === 0) {
+    return;
+  }
+  if (clientClock() % RaidsLimits.TICK_CYCLES !== 0) {
+    return;
+  }
+  predictServerState(RaidsVars.TIMER, elapsed + 1);
+}

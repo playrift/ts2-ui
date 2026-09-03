@@ -1,0 +1,174 @@
+import { onMounted, useOnResize, useServerState, useState, useUniverse } from 'ts2';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { textLineCount } from '../lib/lib.engine';
+import { pollScroll, raidsCount, raidsScroll } from '../lib/game/varcs';
+import { BondBigButton } from './bond-big-button.component';
+import { BondParagraph, paragraphHeight } from './bond-paragraph.component';
+import { BondStoneButton } from './bond-stone-button.component';
+import { bondSummary, bondTotal } from './bond-main.helpers';
+import {
+  BIG_BUTTON_LABEL,
+  BondColors,
+  BondFonts,
+  BondItems,
+  BondSprites,
+  BondVarps,
+  ButtonLabels,
+  InfoCopy,
+  Layout,
+  OptionSlots,
+  PARA_LINE_HEIGHT,
+} from './bond-main.constants';
+
+export function BondMain(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  const stageHeight: Int = universe.height;
+
+  const tradeableHeld: Int = useServerState(BondVarps.TRADEABLE);
+  const untradeableHeld: Int = useServerState(BondVarps.UNTRADEABLE);
+
+  const [scrollExtent, setScrollExtent] = useState(raidsScroll);
+  const [, setRedeemCount] = useState(raidsCount);
+  const [, setScrollPos] = useState(pollScroll);
+  onMounted(() => {
+    setScrollExtent(0);
+    setRedeemCount(0);
+    setScrollPos(0);
+  });
+
+  const introHeight: Int = paragraphHeight(InfoCopy.INTRO, Layout.INFO_W);
+  const tradeTop: Int = introHeight + Layout.BUTTON_H + Layout.BUTTON_GAP;
+  const tradeHeight: Int = paragraphHeight(InfoCopy.TRADE, Layout.INFO_W);
+  const membershipTop: Int = tradeTop + tradeHeight + Layout.BUTTON_H + Layout.BUTTON_GAP;
+  const membershipHeight: Int = paragraphHeight(InfoCopy.MEMBERSHIP, Layout.INFO_W);
+  const infoHeight: Int = membershipTop + membershipHeight + Layout.BUTTON_H;
+
+  const tradeable: Int = Math.max(tradeableHeld, 0);
+  const untradeable: Int = Math.max(untradeableHeld, 0);
+  const summary: String = bondSummary(bondTotal(tradeable, untradeable));
+
+  const summaryWidth: Int = Layout.PANEL_W - Layout.BODY_W_INSET - Layout.INFO_W - Layout.QTY_TEXT_GUTTER;
+  const quantityHeight: Int =
+    textLineCount(summary, summaryWidth, BondFonts.BODY) * PARA_LINE_HEIGHT + Layout.QTY_PADDING;
+
+  const floor: Int = Layout.MIN_CHROME + infoHeight;
+  const wanted: Int = Layout.MIN_CHROME + (quantityHeight - Layout.REDEEM_H_OVERLAP) + Layout.QTY_CHROME + scrollExtent;
+  const ceiling: Int = Math.max(stageHeight - Layout.STAGE_INSET, Layout.STAGE_MIN);
+  const panelHeight: Int = Math.max(floor, Math.min(wanted, ceiling));
+  const overflow: Int = Math.max(0, wanted - panelHeight);
+  const listScroll: Int = overflow > 0 ? scrollExtent : 0;
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={panelHeight}>
+      <SteelBorderEntrypoint title="Old School Bonds" />
+
+      <BondBigButton
+        x={Layout.BIG_BUTTON_X}
+        y={Layout.BIG_BUTTON_Y}
+        w={Layout.BIG_BUTTON_W}
+        h={Layout.BIG_BUTTON_H}
+        label={BIG_BUTTON_LABEL}
+      />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.BODY_BOTTOM }}
+        w={{ fill: Layout.BODY_W_INSET }}
+        h={{ fill: Layout.BODY_H_INSET }}
+      >
+        <layer x={0} y="center" w={Layout.INFO_W} h="fill">
+          <BondParagraph text={InfoCopy.INTRO} width={Layout.INFO_W} top={0} />
+          <BondStoneButton
+            x="center"
+            y={introHeight}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+            label={ButtonLabels.BUY_BONDS}
+          />
+          <BondParagraph text={InfoCopy.TRADE} width={Layout.INFO_W} top={tradeTop} />
+          <BondStoneButton
+            x="center"
+            y={tradeTop + tradeHeight}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+            label={ButtonLabels.VIEW_BONDS}
+          />
+          <BondParagraph text={InfoCopy.MEMBERSHIP} width={Layout.INFO_W} top={membershipTop} />
+          <BondStoneButton
+            x="center"
+            y={membershipTop + membershipHeight}
+            w={Layout.BUTTON_W}
+            h={Layout.BUTTON_H}
+            label={ButtonLabels.BUY_MEMBERSHIP}
+          />
+        </layer>
+
+        <layer x="right" y={0} w={{ fill: Layout.QTY_W_INSET }} h={quantityHeight}>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={BondSprites.BACKING} tiling />
+          <ThinBox />
+          <sprite
+            x={Layout.SLOT_X}
+            y={Layout.SLOT_Y}
+            w={Layout.SLOT_W}
+            h={Layout.SLOT_H}
+            item={BondItems.TRADEABLE}
+            itemCount={tradeableHeld}
+            itemCountMode="always"
+            shadowColor={BondColors.ITEM_SHADOW}
+            outline={1}
+          />
+          <sprite
+            x={Layout.SLOT2_X}
+            y={{ bottom: Layout.SLOT_Y }}
+            w={Layout.SLOT_W}
+            h={Layout.SLOT_H}
+            item={BondItems.UNTRADEABLE}
+            itemCount={untradeableHeld}
+            itemCountMode="always"
+            shadowColor={BondColors.ITEM_SHADOW}
+            outline={1}
+          />
+          <text
+            x={{ right: Layout.QTY_TEXT_INSET }}
+            y="center"
+            w={summaryWidth}
+            h="fill"
+            text={summary}
+            font={BondFonts.BODY}
+            color={BondColors.LABEL}
+            align="center"
+            valign="middle"
+            lineHeight={PARA_LINE_HEIGHT}
+            shadow
+          />
+        </layer>
+
+        <layer
+          x="right"
+          y="bottom"
+          w={{ fill: Layout.QTY_W_INSET }}
+          h={{ fill: quantityHeight - Layout.REDEEM_H_OVERLAP }}
+        >
+          <layer
+            x={Layout.LIST_X}
+            y="center"
+            w={{ fill: Layout.LIST_W_INSET }}
+            h={{ fill: Layout.LIST_H_INSET }}
+            scrollHeight={listScroll}
+          >
+            {OptionSlots.map((slot) => (
+              <layer x="center" y={0} w="fill" h={Layout.OPTION_H} hide options={['*']} />
+            ))}
+          </layer>
+          <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_H_INSET }} />
+          <ThinBoxEntrypoint />
+        </layer>
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}

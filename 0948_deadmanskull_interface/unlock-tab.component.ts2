@@ -1,0 +1,105 @@
+import { useRef, useServerState, useUniverse } from 'ts2';
+
+import { SkullArt, SkullColor, SkullFonts, SkullVarbits, TabPlate } from './deadmanskull.constants';
+import { minmax } from './deadmanskull.helpers';
+
+export function UnlockTabs(): Component {
+  const mode: Int = useServerState(SkullVarbits.TAB);
+  const strip = useUniverse();
+
+  const width: Int = minmax(TabPlate.MIN_W, TabPlate.MAX_W, strip.width / 4 - TabPlate.QUARTER_INSET);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <TabPlateView title="Permanent" left={0} width={width} selected={mode === 0 ? true : false} />
+      <TabPlateView title="Toggle" left={width + TabPlate.GAP} width={width} selected={mode === 1 ? true : false} />
+      <TabPlateView
+        title="Attune"
+        left={TabPlate.GAP * 2 + width * 2}
+        width={width}
+        selected={mode === 2 ? true : false}
+      />
+    </layer>
+  );
+}
+
+function TabPlateView({
+  title,
+  left,
+  width,
+  selected,
+}: {
+  title: String;
+  left: Int;
+  width: Int;
+  selected: Boolean;
+}): Component {
+  const capLeft = useRef();
+  const middle = useRef();
+  const capRight = useRef();
+
+  const cap: Sprite = selected ? SkullArt.TAB_ON_CAP : SkullArt.TAB_OFF_CAP;
+  const band: Sprite = selected ? SkullArt.TAB_ON_MIDDLE : SkullArt.TAB_OFF_MIDDLE;
+  const ink: Int = selected ? SkullColor.LABEL_SELECTED : SkullColor.LABEL;
+
+  const light = () => {
+    capLeft.sprite = SkullArt.TAB_ON_CAP;
+    middle.sprite = SkullArt.TAB_ON_MIDDLE;
+    capRight.sprite = SkullArt.TAB_ON_CAP;
+  };
+  const dim = () => {
+    capLeft.sprite = SkullArt.TAB_OFF_CAP;
+    middle.sprite = SkullArt.TAB_OFF_MIDDLE;
+    capRight.sprite = SkullArt.TAB_OFF_CAP;
+  };
+
+  if (selected) {
+    return (
+      <layer x={left} y={0} w={width} h="fill" options={['View']}>
+        <sprite x={0} y="center" w={TabPlate.CAP} h={TabPlate.CAP} sprite={cap} />
+        <sprite x="center" y="center" w={{ fill: TabPlate.MIDDLE_W_INSET }} h={TabPlate.CAP} sprite={band} tiling />
+        <sprite x="right" y="center" w={TabPlate.CAP} h={TabPlate.CAP} sprite={cap} hflip />
+        <text
+          x="center"
+          y="center"
+          w={{ fill: TabPlate.LABEL_W_INSET }}
+          h="fill"
+          text={title}
+          font={SkullFonts.LABEL}
+          color={ink}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer x={left} y={0} w={width} h="fill" options={['View']} onMouseEnter={light} onMouseLeave={dim}>
+      <sprite ref={capLeft} x={0} y="center" w={TabPlate.CAP} h={TabPlate.CAP} sprite={cap} />
+      <sprite
+        ref={middle}
+        x="center"
+        y="center"
+        w={{ fill: TabPlate.MIDDLE_W_INSET }}
+        h={TabPlate.CAP}
+        sprite={band}
+        tiling
+      />
+      <sprite ref={capRight} x="right" y="center" w={TabPlate.CAP} h={TabPlate.CAP} sprite={cap} hflip />
+      <text
+        x="center"
+        y="center"
+        w={{ fill: TabPlate.LABEL_W_INSET }}
+        h="fill"
+        text={title}
+        font={SkullFonts.LABEL}
+        color={ink}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

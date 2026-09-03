@@ -1,0 +1,114 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import {
+  BreakpointGates,
+  HEALTHY_TEXT,
+  Infection,
+  InfectionColor,
+  INFECTION_MAX,
+  InfectionVarbits,
+  Layout,
+  OverlayWidths,
+  STRANGLED_TEXT,
+} from './dt2-infection.constants';
+
+const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+}
+
+export function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > BreakpointGates.W1 && height > BreakpointGates.H1) {
+    level = 1;
+  }
+  if (width > BreakpointGates.W2 && height > BreakpointGates.H2) {
+    level = 2;
+  }
+  if (width > BreakpointGates.W3 && height > BreakpointGates.H3) {
+    level = 3;
+  }
+  return level;
+}
+
+export function overlayWidth(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OverlayWidths.ONE;
+  }
+  if (breakpoint === 2) {
+    return OverlayWidths.TWO;
+  }
+  if (breakpoint === 3) {
+    return OverlayWidths.THREE;
+  }
+  return OverlayWidths.BASE;
+}
+
+export function infectionRelayout(dodger: ComponentId, root: ComponentId, card: ComponentId): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const breakpoint: Int = breakpointOf(CS2.if_width_get(root), CS2.if_height_get(root));
+  setBreakpoint(breakpoint);
+
+  CS2.if_size_set(overlayWidth(breakpoint), Layout.CARD_H, SizeMode.ABS, SizeMode.ABS, card);
+  overlayRelayout(dodger, card, Infection.DODGE, Anchor.LEFT, Anchor.TOP, 1);
+}
+
+export function infectionBar(track: ComponentId, percent: ComponentId, bar: ComponentId, icon: ComponentId): void {
+  const infection: Int = useServerState(InfectionVarbits.INFECTION);
+  const trackW: Int = CS2.if_width_get(track);
+
+  if (infection === 0) {
+    percent.text = HEALTHY_TEXT;
+    percent.color = InfectionColor.HEALTHY;
+    CS2.if_size_set(0, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+    return;
+  }
+
+  if (infection === INFECTION_MAX) {
+    percent.text = STRANGLED_TEXT;
+    percent.color = InfectionColor.STRANGLED;
+    CS2.if_size_set(trackW, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+    return;
+  }
+
+  percent.color = InfectionColor.TEXT;
+
+  let target: Int = scaled(infection, INFECTION_MAX, trackW);
+  if (target < 1) {
+    target = 1;
+  }
+  const shown: Int = CS2.if_width_get(bar);
+
+  if (shown <= 0) {
+    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  }
+
+  let pct: Int = scaled(infection, INFECTION_MAX, 100);
+  if (pct < 1) {
+    pct = 1;
+  }
+  percent.text = `Infection: ${stringOf(pct)}%`;
+
+  if (shown <= 0) {
+    return;
+  }
+
+  let next: Int = shown;
+  if (shown === 0) {
+    next = target;
+  } else if (shown < target) {
+    next = shown + 1;
+  } else if (shown > target) {
+    next = shown - 1;
+  }
+
+  if (next === trackW) {
+    CS2.if_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS, bar);
+  } else {
+    CS2.if_size_set(next, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  }
+  icon.transparency = scaled(next, trackW, 255);
+}

@@ -1,4 +1,4 @@
-import { CS2, intArray, stopTimer, useInventory } from 'ts2';
+import { CS2, intArray, stopTimer, useInterval, useInventory, useRef } from 'ts2';
 import { clientClock } from '../lib/lib.engine';
 import { Blink, FLASH_MS, Offer, OtherInventory, TradeColors, TradeInventories } from './trade-confirm.constants';
 import { splitsIntoColumns, tradeSlotChangedAt } from './trade-confirm.helpers';
@@ -46,28 +46,12 @@ export function OtherFlashers(): Component {
         (offered, index) =>
           offered !== -1 &&
           changed[index] > flashingSince && (
-            <>
-              <rect
-                x={twoColumns && rank[index] % 2 === 1 ? Offer.HALF : 0}
-                y={twoColumns ? (rank[index] / 2) * Offer.ROW_STEP : rank[index] * Offer.ROW_STEP}
-                w={barWidth}
-                h={Offer.FLASH_HEIGHT}
-                fill
-                color={TradeColors.FLASH_FILL}
-                transparency={255}
-                onTimer={(event) => fade(event.self, changed[index])}
-              />
-              <rect
-                x={twoColumns && rank[index] % 2 === 1 ? Offer.HALF : 0}
-                y={twoColumns ? (rank[index] / 2) * Offer.ROW_STEP : rank[index] * Offer.ROW_STEP}
-                w={barWidth}
-                h={Offer.FLASH_HEIGHT}
-                fill={false}
-                color={TradeColors.FLASH_EDGE}
-                transparency={255}
-                onTimer={(event) => fade(event.self, changed[index])}
-              />
-            </>
+            <FlashPair
+              x={twoColumns && rank[index] % 2 === 1 ? Offer.HALF : 0}
+              y={twoColumns ? (rank[index] / 2) * Offer.ROW_STEP : rank[index] * Offer.ROW_STEP}
+              w={barWidth}
+              changedAt={changed[index]}
+            />
           ),
       )}
 
@@ -75,39 +59,50 @@ export function OtherFlashers(): Component {
         (offered, index) =>
           offered === -1 &&
           changed[index] > flashingSince && (
-            <>
-              <rect
-                x={twoColumns ? ((placed + pending[index]) % 2 === 0 ? Offer.HALF : Offer.WIDTH) : 0}
-                y={
-                  twoColumns
-                    ? ((placed + pending[index]) / 2) * Offer.ROW_STEP
-                    : (placed + pending[index]) * Offer.ROW_STEP
-                }
-                w={barWidth}
-                h={Offer.FLASH_HEIGHT}
-                fill
-                color={TradeColors.FLASH_FILL}
-                transparency={255}
-                onTimer={(event) => fade(event.self, newest)}
-              />
-              <rect
-                x={twoColumns ? ((placed + pending[index]) % 2 === 0 ? Offer.HALF : Offer.WIDTH) : 0}
-                y={
-                  twoColumns
-                    ? ((placed + pending[index]) / 2) * Offer.ROW_STEP
-                    : (placed + pending[index]) * Offer.ROW_STEP
-                }
-                w={barWidth}
-                h={Offer.FLASH_HEIGHT}
-                fill={false}
-                color={TradeColors.FLASH_EDGE}
-                transparency={255}
-                onTimer={(event) => fade(event.self, newest)}
-              />
-            </>
+            <FlashPair
+              x={twoColumns ? ((placed + pending[index]) % 2 === 0 ? Offer.HALF : Offer.WIDTH) : 0}
+              y={
+                twoColumns
+                  ? ((placed + pending[index]) / 2) * Offer.ROW_STEP
+                  : (placed + pending[index]) * Offer.ROW_STEP
+              }
+              w={barWidth}
+              changedAt={newest}
+            />
           ),
       )}
     </layer>
+  );
+}
+
+function FlashPair({ x, y, w, changedAt }: { x: Int; y: Int; w: Int; changedAt: Int }): Component {
+  const fillBar = useRef();
+  const edgeBar = useRef();
+  useInterval(() => fade(fillBar, changedAt), fillBar);
+  useInterval(() => fade(edgeBar, changedAt), edgeBar);
+  return (
+    <>
+      <rect
+        ref={fillBar}
+        x={x}
+        y={y}
+        w={w}
+        h={Offer.FLASH_HEIGHT}
+        fill
+        color={TradeColors.FLASH_FILL}
+        transparency={255}
+      />
+      <rect
+        ref={edgeBar}
+        x={x}
+        y={y}
+        w={w}
+        h={Offer.FLASH_HEIGHT}
+        fill={false}
+        color={TradeColors.FLASH_EDGE}
+        transparency={255}
+      />
+    </>
   );
 }
 

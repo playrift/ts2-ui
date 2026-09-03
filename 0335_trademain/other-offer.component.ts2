@@ -1,0 +1,60 @@
+import { CS2, intArray, useInventory, useUniverse } from 'ts2';
+
+import { itemName } from '../lib/lib.engine';
+import { Grid, OtherInventory, TradeColors, TradeInventories, TradeSprites } from './trademain.constants';
+import { cellX, cellY, gridColumnGap, gridRowGap, gridRows } from './trade-grid';
+import { hideTradeTip, showTradeTip } from './trade-tooltip.component';
+
+export function OtherOffer(): Component {
+  const trade = useInventory(TradeInventories.OFFER);
+  const universe = useUniverse();
+
+  const slots: Int = trade.size;
+  const rows: Int = gridRows(slots);
+  const rowGap: Int = gridRowGap(universe.height, rows);
+  const columnGap: Int = gridColumnGap(universe.width);
+
+  const held = intArray<Item>(28);
+  let slot: Int = 0;
+  while (slot < slots) {
+    held[slot] = CS2.invother_item_get(OtherInventory.OFFER, slot);
+    slot = slot + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {held.map(
+        (item, index) =>
+          item !== -1 && (
+            <sprite
+              x={cellX(index, columnGap)}
+              y={cellY(index, rowGap)}
+              w={Grid.CELL_W}
+              h={Grid.CELL_H}
+              item={item}
+              itemCount={CS2.invother_num_get(OtherInventory.OFFER, index)}
+              shadowColor={TradeColors.CELL_SHADOW}
+              outline={Grid.CELL_OUTLINE}
+              options={['', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+              onMouseRepeat={() =>
+                showTradeTip(index, 1, Grid.OTHER_X + cellX(index, columnGap), Grid.TOP + cellY(index, rowGap))
+              }
+              onMouseLeave={() => hideTradeTip()}
+            />
+          ),
+      )}
+
+      {held.map((item, index) => (
+        <sprite
+          x={cellX(index, columnGap) + Grid.MARK_INSET}
+          y={cellY(index, rowGap)}
+          w={Grid.MARK_W}
+          h={Grid.CELL_H}
+          sprite={TradeSprites.CHANGED}
+          transparency={Grid.MARK_TRANSPARENCY}
+        />
+      ))}
+    </layer>
+  );
+}

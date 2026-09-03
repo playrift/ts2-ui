@@ -1,0 +1,168 @@
+import { useState } from 'ts2';
+import { SteelBorder } from '../lib/steel-border.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { groupDigits } from '../lib/lib.format';
+import { rewardCost, rewardDescription, rewardName, rewardShopIsInfoOnly } from './league-rewards.helpers';
+import { buyReward, closeRewardConfirm } from './league-rewards.state';
+import {
+  ConfirmOpen,
+  RewardBuying,
+  RewardColor,
+  RewardFonts,
+  RewardLayout,
+  RewardText,
+  SelectedReward,
+} from './league-rewards.constants';
+
+function OverlayButton({ label, confirms }: { label: String; confirms: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[label]}
+        optionSubject={RewardText.OP_SUBJECT}
+        onOptionSelect={() => buyOrBack(confirms)}
+      >
+        <StoneButton />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={label}
+          font={RewardFonts.BODY}
+          color={RewardColor.BUTTON}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      optionSubject={RewardText.OP_SUBJECT}
+      onMouseEnter={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => buyOrBack(confirms)}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={RewardFonts.BODY}
+        color={hovered === 1 ? RewardColor.BUTTON_HOVER : RewardColor.BUTTON}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function buyOrBack(confirms: Int): void {
+  if (confirms === 1) {
+    buyReward();
+    return;
+  }
+  closeRewardConfirm();
+}
+
+export function RewardOverlay(): Component {
+  const [open] = useState(ConfirmOpen);
+  if (open === 0) {
+    return null;
+  }
+  const [buying] = useState(RewardBuying);
+  const [selected] = useState(SelectedReward);
+  const infoOnly: Int = rewardShopIsInfoOnly() ? 1 : 0;
+
+  const name: String = rewardName(selected);
+  const description: String = rewardDescription(selected);
+  const cost: String = groupDigits(rewardCost(selected), RewardText.SEPARATOR);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" noClickThrough>
+      <rect x={0} y={0} w="fill" h="fill" fill color={0x000000} transparency={RewardLayout.DIM_TRANSPARENCY} />
+
+      <layer x="center" y="center" w={RewardLayout.DIALOG_W} h={RewardLayout.DIALOG_H}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <SteelBorder title={name} titleColor={SteelborderColor.TITLE} flags={1} />
+        </layer>
+
+        <text
+          x={{ center: RewardLayout.DESCRIPTION_DX }}
+          y={RewardLayout.DESCRIPTION_Y}
+          w={{ fill: RewardLayout.DESCRIPTION_W_INSET }}
+          h={RewardLayout.DESCRIPTION_H}
+          text={
+            infoOnly === 1
+              ? `<br><col=ffffff>${name}</col><br>${description}<br>It will cost <col=ffffff>${cost}</col> points.`
+              : `<col=ffffff>${name}</col><br><br>${description}<br>Are you sure that you wish to buy this item for <col=ffffff>${cost}</col> points?<br><col=ffffff>You cannot sell this item back</col> if you change your mind.`
+          }
+          font={RewardFonts.BODY}
+          color={RewardColor.DESCRIPTION}
+          shadow
+          align="left"
+          valign="top"
+          lineHeight={RewardLayout.DESCRIPTION_LINE}
+        />
+
+        {infoOnly === 0 ? (
+          <layer
+            x={{ right: RewardLayout.DIALOG_BUTTON_X }}
+            y={{ bottom: RewardLayout.DIALOG_BUTTON_BOTTOM }}
+            w={RewardLayout.DIALOG_BUTTON_W}
+            h={RewardLayout.DIALOG_BUTTON_H}
+          >
+            <OverlayButton label={RewardText.CONFIRM} confirms={1} />
+          </layer>
+        ) : null}
+
+        <layer
+          x={infoOnly === 1 ? 'center' : RewardLayout.DIALOG_BUTTON_X}
+          y={{ bottom: infoOnly === 1 ? RewardLayout.DIALOG_BUTTON_INFO_BOTTOM : RewardLayout.DIALOG_BUTTON_BOTTOM }}
+          w={RewardLayout.DIALOG_BUTTON_W}
+          h={RewardLayout.DIALOG_BUTTON_H}
+        >
+          <OverlayButton label={infoOnly === 1 ? RewardText.BACK : RewardText.CANCEL} confirms={0} />
+        </layer>
+
+        {buying === 1 ? (
+          <layer x={0} y={0} w="fill" h="fill" noClickThrough>
+            <rect x={0} y={0} w="fill" h="fill" fill color={0x000000} transparency={RewardLayout.DIM_TRANSPARENCY} />
+          </layer>
+        ) : null}
+      </layer>
+
+      <layer x="center" y={{ bottom: RewardLayout.STATUS_BOTTOM }} w={RewardLayout.STATUS_W} h={RewardLayout.STATUS_H}>
+        <layer x="center" y="center" w="fill" h="fill" />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text=""
+          font={RewardFonts.BODY}
+          color={RewardColor.STATUS}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    </layer>
+  );
+}

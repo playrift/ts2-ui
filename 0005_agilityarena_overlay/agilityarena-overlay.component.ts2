@@ -1,8 +1,11 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import { AgilityArenaOverlay, LampColor, Layout, OUTLINE, WASH } from './agilityarena-overlay.constants';
+import { Varbits } from '../lib/game/varbits';
 import { agilityArenaOverlay } from './agilityarena-overlay.helpers';
+
+const timerHost = createRef('0005_agilityarena_overlay_timer_host');
 
 const content = createRef('agilityarena_overlay_content1');
 
@@ -10,16 +13,19 @@ const redLamp = createRef('agilityarena_overlay_red0');
 
 const greenLamp = createRef('agilityarena_overlay_green1');
 
+const upperRing = createRef('agilityarena_overlay_upper_ring');
+
 export function AgilityArenaOverlay_(): Component {
+  useInterval(
+    () => overlayRelayout(timerHost, content, AgilityArenaOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0),
+    timerHost,
+  );
+
+  useWatch(Varbits.AGILITYARENA_TAGGEDLASTPILLAR, () => agilityArenaOverlay(redLamp, greenLamp), upperRing);
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, content, AgilityArenaOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <layer ref={content} x="right" y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <rect
             ref={redLamp}
@@ -50,7 +56,8 @@ export function AgilityArenaOverlay_(): Component {
             h={Layout.RING_H}
             color={OUTLINE}
             transparency={WASH}
-            onTimer={() => agilityArenaOverlay(redLamp, greenLamp)}
+            ref={upperRing}
+            onLoad={() => agilityArenaOverlay(redLamp, greenLamp)}
           />
 
           <rect

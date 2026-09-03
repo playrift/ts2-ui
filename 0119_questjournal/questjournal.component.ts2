@@ -1,0 +1,153 @@
+import { intArray, useRef, useServerState, useUniverse, useOnResize } from 'ts2';
+
+import { graphicSwapper, onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { speedrunningWorld } from '../0134_settings/settings.helpers';
+import {
+  Corner,
+  Frame,
+  JournalBar,
+  JournalColor,
+  JournalFonts,
+  JournalModel,
+  JournalSprites,
+  JournalVarps,
+  Large,
+  List,
+  Page,
+  Small,
+} from './questjournal.constants';
+import {
+  largeParchment,
+  listExtent,
+  mobileFrameCentred,
+  mobileFrameX,
+  mobileFrameY,
+  rowLeft,
+  rowTop,
+} from './questjournal.layout';
+
+export function QuestJournal(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+
+  const mobile: Boolean = onMobile();
+  const large: Boolean = largeParchment(universe.height);
+  const speedrun: Boolean = speedrunningWorld();
+
+  const frameH: Int = large ? Large.FRAME_H : Small.FRAME_H;
+  const pageH: Int = large ? Large.PAGE_H : Small.PAGE_H;
+  const parchment: Model = large ? JournalModel.LARGE : JournalModel.SMALL;
+  const modelDy: Int = large ? Large.MODEL_DY : Small.MODEL_DY;
+
+  const mobileH: Int = Frame.MOBILE_H;
+  const mobileFrameLeft: Int = mobileFrameX(Frame.W, universe.width, universe.height, mobileH);
+  const centred: Boolean = mobileFrameCentred(Frame.W, universe.width, universe.height, mobileH);
+
+  const rows = intArray(List.ROWS);
+
+  const lines: Int = useServerState(JournalVarps.LINES);
+
+  const list = useRef();
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        x={mobile ? (centred ? { center: mobileFrameLeft } : mobileFrameLeft) : 'center'}
+        y={mobile ? { center: mobileFrameY(universe.height, mobileH) } : 'center'}
+        w={Frame.W}
+        h={mobile ? mobileH : 'fill'}
+      >
+        <layer x="center" y="center" w="fill" h={frameH}>
+          <model
+            x={{ center: Small.MODEL_DX }}
+            y={{ center: modelDy }}
+            w={Page.MODEL_W}
+            h={Page.MODEL_H}
+            model={parchment}
+            zoom={JournalModel.ZOOM}
+            pitch={JournalModel.PITCH}
+          />
+
+          <layer x={{ center: Small.PAGE_DX }} y={{ center: Small.PAGE_DY }} w={Page.W} h={pageH} noClickThrough>
+            <text
+              x={speedrun ? Page.TITLE_X_BOTH : Page.TITLE_X_ONE}
+              y={Page.TITLE_Y}
+              w={{ fill: Page.TITLE_W_INSET }}
+              h={Page.TITLE_H}
+              font={JournalFonts.TITLE}
+              color={JournalColor.INK}
+            />
+
+            <layer
+              ref={list}
+              x={0}
+              y="bottom"
+              w={{ fill: Page.LIST_W_INSET }}
+              h={{ fill: Page.PANE_H_INSET }}
+              scrollHeight={listExtent(lines, pageH - Page.PANE_H_INSET)}
+            >
+              {rows.map((_, row) => (
+                <text
+                  x={{ center: rowLeft(row) }}
+                  y={rowTop(row)}
+                  w="fill"
+                  h={List.ROW_H}
+                  font={JournalFonts.ROW}
+                  color={JournalColor.INK}
+                  align="center"
+                />
+              ))}
+            </layer>
+
+            <layer x="right" y="bottom" w={Page.BAR_W} h={{ fill: Page.PANE_H_INSET }}>
+              <ScrollbarVertical
+                content={list}
+                track={JournalBar.TRACK}
+                capTopSprite={JournalBar.CAP_TOP}
+                thumbSprite={JournalBar.THUMB}
+                capBottomSprite={JournalBar.CAP_BOTTOM}
+                arrowUp={JournalBar.ARROW_UP}
+                arrowDown={JournalBar.ARROW_DOWN}
+              />
+            </layer>
+
+            <sprite
+              x={{ right: Corner.CLOSE_RIGHT }}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={JournalSprites.CLOSE}
+              options={['Close']}
+              onMouseEnter={(event) => graphicSwapper(event.component, JournalSprites.CLOSE_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.component, JournalSprites.CLOSE)}
+            />
+
+            <sprite
+              x={speedrun ? Corner.SWITCH_X_WITH_BACK : Corner.SWITCH_X_ALONE}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={JournalSprites.SWITCH}
+              options={['Switch View']}
+              onMouseEnter={(event) => graphicSwapper(event.component, JournalSprites.SWITCH_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.component, JournalSprites.SWITCH)}
+            />
+
+            <sprite
+              x={Corner.BACK_X}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={JournalSprites.BACK}
+              hide={speedrun ? false : true}
+              options={['Back']}
+              onMouseEnter={(event) => graphicSwapper(event.component, JournalSprites.BACK_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.component, JournalSprites.BACK)}
+            />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}

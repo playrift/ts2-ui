@@ -1,8 +1,10 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import { Layout, SailingColor, SailingFonts, SailingOverlay, WASH } from './fossilquest-sailing-overlay.constants';
 import { fossilquestProgress } from './fossilquest-sailing-overlay.helpers';
+
+const timerHost1 = createRef('0603_fossilquest_sailing_overlay_timer_host1');
 
 const voyageProgress = createRef('fossilquest_sailing_overlay_voyage_progress');
 
@@ -13,15 +15,15 @@ const progressFilled = createRef('fossilquest_sailing_overlay_progress_filled');
 const progressEmpty = createRef('fossilquest_sailing_overlay_progress_empty');
 
 export function FossilquestSailingOverlay_(): Component {
+  useInterval(
+    () => overlayRelayout(timerHost1, voyageProgress, SailingOverlay.DODGE, Anchor.CENTRE, Anchor.TOP, 0),
+    timerHost1,
+  );
+  useInterval(() => fossilquestProgress(progressFilled, progressEmpty, progressBar), progressBar);
+
   return (
     <layer x="center" y="center" w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, voyageProgress, SailingOverlay.DODGE, Anchor.CENTRE, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost1}>
         <layer ref={voyageProgress} x={Layout.PLATE_X} y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <text
             x={0}
@@ -36,14 +38,7 @@ export function FossilquestSailingOverlay_(): Component {
             color={SailingColor.LABEL}
           />
 
-          <layer
-            ref={progressBar}
-            x="right"
-            y={Layout.BAR_Y}
-            w={{ fill: Layout.BAR_INSET }}
-            h={Layout.BAR_H}
-            onTimer={() => fossilquestProgress(progressFilled, progressEmpty, progressBar)}
-          >
+          <layer ref={progressBar} x="right" y={Layout.BAR_Y} w={{ fill: Layout.BAR_INSET }} h={Layout.BAR_H}>
             <rect
               ref={progressFilled}
               x={0}

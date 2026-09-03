@@ -1,0 +1,158 @@
+import { useInventory, useRef, useUniverse } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Sprites } from '../lib/game/sprites';
+import { Layout, ShopArt, ShopInventories, ShopTransparency, STOCK_INVENTORY } from './shopmain.constants';
+import { shopQuantity, shopStackFlat } from './shopmain.helpers';
+import { ShopSlot } from './shop-slot.component';
+
+export function ShopStock({
+  selected = -1,
+  customQuantity = 0,
+  fiftyOption = true,
+}: {
+  selected?: Item;
+  customQuantity?: Int;
+  fiftyOption?: Boolean;
+}): Component {
+  const universe = useUniverse();
+  const stock = useInventory(ShopInventories.STOCK);
+  const items = useRef();
+
+  const quantity: Int = shopQuantity();
+  const flat: Boolean = shopStackFlat(STOCK_INVENTORY);
+
+  const paneWidth: Int = universe.width - Layout.ITEMS_W_INSET;
+  const stride: Int = (paneWidth - Layout.COLUMNS * Layout.SLOT_W) / (Layout.COLUMNS - 1) + Layout.SLOT_W;
+
+  let rows: Int = 0;
+  if (
+    stock[0] !== -1 ||
+    stock[1] !== -1 ||
+    stock[2] !== -1 ||
+    stock[3] !== -1 ||
+    stock[4] !== -1 ||
+    stock[5] !== -1 ||
+    stock[6] !== -1 ||
+    stock[7] !== -1
+  ) {
+    rows = 1;
+  }
+  if (
+    stock[8] !== -1 ||
+    stock[9] !== -1 ||
+    stock[10] !== -1 ||
+    stock[11] !== -1 ||
+    stock[12] !== -1 ||
+    stock[13] !== -1 ||
+    stock[14] !== -1 ||
+    stock[15] !== -1
+  ) {
+    rows = 2;
+  }
+  if (
+    stock[16] !== -1 ||
+    stock[17] !== -1 ||
+    stock[18] !== -1 ||
+    stock[19] !== -1 ||
+    stock[20] !== -1 ||
+    stock[21] !== -1 ||
+    stock[22] !== -1 ||
+    stock[23] !== -1
+  ) {
+    rows = 3;
+  }
+  if (
+    stock[24] !== -1 ||
+    stock[25] !== -1 ||
+    stock[26] !== -1 ||
+    stock[27] !== -1 ||
+    stock[28] !== -1 ||
+    stock[29] !== -1 ||
+    stock[30] !== -1 ||
+    stock[31] !== -1
+  ) {
+    rows = 4;
+  }
+  if (
+    stock[32] !== -1 ||
+    stock[33] !== -1 ||
+    stock[34] !== -1 ||
+    stock[35] !== -1 ||
+    stock[36] !== -1 ||
+    stock[37] !== -1 ||
+    stock[38] !== -1 ||
+    stock[39] !== -1
+  ) {
+    rows = 5;
+  }
+  const extent: Int = rows === 0 ? 0 : (rows - 1) * stride + Layout.SLOT_H;
+
+  return (
+    <>
+      <layer
+        ref={items}
+        x="center"
+        y={Layout.ITEMS_Y}
+        w={{ fill: Layout.ITEMS_W_INSET }}
+        h={Layout.ITEMS_H}
+        scrollHeight={extent > Layout.ITEMS_H ? extent : 0}
+      >
+        {stock.map(
+          (item, slot) =>
+            item === selected && (
+              <sprite
+                x={(slot % Layout.COLUMNS) * stride}
+                y={(slot / Layout.COLUMNS) * stride}
+                w={Layout.SELECTED_BOX}
+                h={Layout.SELECTED_BOX}
+                sprite={ShopArt.SELECTED}
+                transparency={ShopTransparency.SELECTED}
+              />
+            ),
+        )}
+
+        {stock.map((item, slot) => (
+          <ShopSlot
+            item={item}
+            count={stock.count(slot)}
+            slot={slot}
+            stride={stride}
+            quantity={quantity}
+            flat={flat}
+            selected={selected}
+            customQuantity={customQuantity}
+            fiftyOption={fiftyOption}
+          />
+        ))}
+      </layer>
+
+      <layer x={Layout.NOTE_X} y={Layout.NOTE_Y} w={Layout.BUTTON} h={Layout.BUTTON} />
+
+      <layer
+        x={{ right: Layout.BAR_RIGHT }}
+        y={Layout.BAR_Y}
+        w={Layout.BAR_W}
+        h={Layout.BAR_H}
+        hide={barHidden(extent, Layout.ITEMS_H)}
+      >
+        <ScrollbarVertical
+          content={items}
+          track={Sprites.SCROLLBAR_DRAGGER_V2_3}
+          capTopSprite={Sprites.SCROLLBAR_DRAGGER_V2_0}
+          thumbSprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+          capBottomSprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+          arrowUp={Sprites.SCROLLBAR_V2_0}
+          arrowDown={Sprites.SCROLLBAR_V2_1}
+          rebuilt
+        />
+      </layer>
+    </>
+  );
+}
+
+function barHidden(extent: Int, height: Int): Boolean {
+  if (extent <= height) {
+    return true;
+  }
+  return false;
+}

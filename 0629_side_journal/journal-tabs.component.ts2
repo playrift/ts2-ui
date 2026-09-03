@@ -1,0 +1,143 @@
+import { useDerived, useServerState, useUniverse } from 'ts2';
+
+import { JournalTab } from './journal-tab.component';
+import { LeagueTabIcons } from './league-tab-icons.data';
+import {
+  DeadmanWorld,
+  FifthTab,
+  JournalColors,
+  JournalLayout,
+  JournalSprites,
+  JournalTab as Tab,
+  JournalText,
+  JournalVarbits,
+} from './side-journal.constants';
+import {
+  deadmanWorld,
+  fifthTab,
+  fifthTabPainted,
+  freshStartWorld,
+  leagueWorld,
+  pathsTabPainted,
+} from './side-journal.helpers';
+import { tabOffset, tabWidth, visibleTab } from './side-journal.state';
+
+export function JournalTabs(): Component {
+  const selected: Int = useServerState(JournalVarbits.TAB);
+  const transparent: Int = useServerState(JournalVarbits.TRANSPARENCY) === 0 ? 1 : 0;
+
+  const fifth: Int = useDerived(() => fifthTab());
+
+  const pathsPainted: Int = pathsTabPainted() ? 1 : 0;
+  const fifthPainted: Int = fifthTabPainted() ? 1 : 0;
+
+  const open: Int = visibleTab(selected, fifth);
+  const width: Int = tabWidth(fifth);
+
+  const universe = useUniverse();
+  const openX: Int = (universe.width - width) / 2 + tabOffset(open, fifth);
+  const rule: Int = transparent === 1 ? JournalColors.RULE_TRANSPARENT : JournalColors.RULE_LEGACY;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer x={{ center: tabOffset(Tab.SUMMARY, fifth) }} y={0} w={width} h="fill">
+        <JournalTab
+          index={Tab.SUMMARY}
+          icon={JournalSprites.ICON_SUMMARY}
+          label={JournalText.SUMMARY}
+          selected={open === Tab.SUMMARY ? 1 : 0}
+          transparent={transparent}
+          painted={1}
+        />
+      </layer>
+
+      <layer x={{ center: tabOffset(Tab.QUESTS, fifth) }} y={0} w={width} h="fill">
+        <JournalTab
+          index={Tab.QUESTS}
+          icon={JournalSprites.ICON_QUESTS}
+          label={JournalText.QUESTS}
+          selected={open === Tab.QUESTS ? 1 : 0}
+          transparent={transparent}
+          painted={1}
+        />
+      </layer>
+
+      <layer x={{ center: tabOffset(Tab.DIARIES, fifth) }} y={0} w={width} h="fill">
+        <JournalTab
+          index={Tab.DIARIES}
+          icon={JournalSprites.ICON_DIARIES}
+          label={JournalText.DIARIES}
+          selected={open === Tab.DIARIES ? 1 : 0}
+          transparent={transparent}
+          painted={1}
+        />
+      </layer>
+
+      {fifth === FifthTab.PATHS ? (
+        <layer x={{ center: tabOffset(Tab.PATHS, fifth) }} y={0} w={width} h="fill">
+          <JournalTab
+            index={Tab.PATHS}
+            icon={JournalSprites.ICON_PATHS}
+            label={JournalText.PATHS}
+            label2={JournalText.PATHS_DISABLE}
+            selected={open === Tab.PATHS ? 1 : 0}
+            transparent={transparent}
+            painted={pathsPainted === 1 || open === Tab.PATHS ? 1 : 0}
+          />
+        </layer>
+      ) : null}
+
+      {fifth !== FifthTab.PATHS && fifth !== FifthTab.NONE ? (
+        <layer x={{ center: tabOffset(Tab.LEAGUES, fifth) }} y={0} w={width} h="fill">
+          <JournalTab
+            index={Tab.LEAGUES}
+            icon={fifthTabIcon(fifth)}
+            label={fifthTabLabel(fifth)}
+            selected={open === Tab.LEAGUES ? 1 : 0}
+            transparent={transparent}
+            painted={fifthPainted === 1 || open === Tab.LEAGUES ? 1 : 0}
+          />
+        </layer>
+      ) : null}
+
+      <layer x="center" y="bottom" w="fill" h={JournalLayout.RULE_H}>
+        <line x={0} y={0} w={openX * 2} h={JournalLayout.RULE_H} color={rule} lineWidth={1} />
+        <line
+          x={openX + width}
+          y={0}
+          w={JournalLayout.RULE_TAIL_W}
+          h={JournalLayout.RULE_H}
+          color={rule}
+          lineWidth={1}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function fifthTabLabel(fifth: Int): String {
+  if (fifth === FifthTab.FSW) {
+    return JournalText.FSW;
+  }
+  if (fifth === FifthTab.DEADMAN) {
+    return JournalText.DEADMAN;
+  }
+  return JournalText.LEAGUES;
+}
+
+function fifthTabIcon(fifth: Int): Sprite {
+  if (freshStartWorld() === 1) {
+    return JournalSprites.ICON_FSW;
+  }
+  if (leagueWorld()) {
+    const row = LeagueTabIcons.get(useServerState(JournalVarbits.LEAGUE_TYPE));
+    if (row === null) {
+      return JournalSprites.ICON_LEAGUE_DEFAULT;
+    }
+    return row.tabIcon;
+  }
+  if (deadmanWorld() === DeadmanWorld.EVENT_HALF_BANK) {
+    return JournalSprites.ICON_DEADMAN;
+  }
+  return JournalSprites.ICON_DEADMAN;
+}

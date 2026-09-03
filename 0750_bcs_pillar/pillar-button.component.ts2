@@ -1,4 +1,4 @@
-import { useState } from 'ts2';
+import { createRef, useInterval, useState } from 'ts2';
 
 import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
 import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
@@ -6,6 +6,8 @@ import { clientClock, playSound } from '../lib/lib.engine';
 import { onMobile } from '../lib/lib.helpers';
 import { rotateEmblem } from './bcs-pillar.state';
 import { Layout, PillarColor, PillarFonts, PillarLabels, PillarSounds, PRESS_CYCLES } from './bcs-pillar.constants';
+
+const timerHost = createRef('0750_bcs_pillar_timer_host');
 
 export function ButtonFace({
   sprite = -1,
@@ -76,22 +78,20 @@ export function RotateButton({ sprite, label, delta }: { sprite: Sprite; label: 
 }
 
 export function ConfirmButton(): Component {
+  useInterval(() => {
+    if (clientClock() < deadline) {
+      return;
+    }
+    setDeadline(0);
+    setPressed(0);
+  }, timerHost);
+
   const [pressed, setPressed] = useState(0);
   const [deadline, setDeadline] = useState(0);
 
   if (deadline !== 0) {
     return (
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={() => {
-          if (clientClock() < deadline) {
-            return;
-          }
-          setDeadline(0);
-          setPressed(0);
-        }}
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <ButtonFace label={PillarLabels.CONFIRM} pressed={1} dimmed={1} />
       </layer>
     );

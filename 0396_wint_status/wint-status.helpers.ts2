@@ -1,0 +1,40 @@
+import { sessionState, useServerState, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { WintTimer, WintVarbits } from './wint-status.constants';
+
+const respawnDeadline = sessionState(0);
+
+const seenDelay = sessionState(-1);
+
+export function wintTimerCountdown(target: ComponentId): void {
+  const delay: Int = useServerState(WintVarbits.RESPAWN_DELAY);
+  const [seen, setSeen] = useState(seenDelay);
+  const [stored, setDeadline] = useState(respawnDeadline);
+
+  let deadline: Int = stored;
+  if (delay !== seen) {
+    setSeen(delay);
+    deadline = clientClock() + delay * WintTimer.CYCLES_PER_UNIT;
+    setDeadline(deadline);
+  }
+
+  if (delay <= 0) {
+    return;
+  }
+
+  const left: Int = deadline - clientClock();
+  if (left <= 0) {
+    return;
+  }
+
+  const seconds: Int = left / WintTimer.CYCLES_PER_SECOND;
+  const minutes: Int = seconds / WintTimer.SECONDS_PER_MINUTE;
+  const rest: Int = seconds % WintTimer.SECONDS_PER_MINUTE;
+
+  if (rest >= WintTimer.TWO_DIGITS) {
+    target.text = `The Wintertodt returns in: ${stringOf(minutes)}:${stringOf(rest)}`;
+  } else {
+    target.text = `The Wintertodt returns in: ${stringOf(minutes)}:0${stringOf(rest)}`;
+  }
+}

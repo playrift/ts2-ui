@@ -1,0 +1,109 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { clanInfoArm } from './clan-info-arm';
+import { ClanInfoArm, ClanInfoFonts, ClanInfoSlot, ClanInfoVarbits, OP_SOUND_MASK } from './clans-info.constants';
+
+export function ClanInfoButton({ slot }: { slot: Int }): Component {
+  const asGuest: Int = useServerState(ClanInfoVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanInfoVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(ClanInfoVarbits.AFFINITY);
+  const applying: Int = useServerState(ClanInfoVarbits.GUEST_IS_APPLYING);
+  const arm: Int = clanInfoArm(asGuest, guestStatus, status);
+
+  const label: String = clanInfoButtonLabel(slot, arm, applying);
+  const option: String = clanInfoButtonOption(arm, label);
+
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[option]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+    >
+      {arm !== ClanInfoArm.NONE && <StoneButtonDraw label={label} font={ClanInfoFonts.LABEL} pressed={skin} />}
+    </layer>
+  );
+}
+
+function clanInfoButtonOption(arm: Int, label: String): String {
+  if (arm === ClanInfoArm.NONE) {
+    return '*';
+  }
+  return CS2.tags_remove(label);
+}
+
+function clanInfoButtonLabel(slot: Int, arm: Int, applying: Int): String {
+  if (arm === ClanInfoArm.GUEST) {
+    switch (slot) {
+      case ClanInfoSlot.EVENTS:
+        return '<col=9f9f9f>Events</col>';
+      case ClanInfoSlot.MEMBERS:
+        return '<col=9f9f9f>Members</col>';
+      case ClanInfoSlot.APPLICATIONS:
+        if (applying === 1) {
+          return '<col=ff0000>Withdraw</col>';
+        }
+        return '<col=0dc10d>Apply</col>';
+      case ClanInfoSlot.HALL:
+        return '<col=9f9f9f>Hall</col>';
+      case ClanInfoSlot.PERMISSIONS:
+        return '<col=9f9f9f>Permissions</col>';
+      case ClanInfoSlot.BANNED:
+        return '<col=9f9f9f>Bans</col>';
+      case ClanInfoSlot.QUIT:
+        return '<col=9f9f9f>Leave Clan</col>';
+    }
+    return '';
+  }
+
+  switch (slot) {
+    case ClanInfoSlot.EVENTS:
+      return '<col=0dc10d>Events</col>';
+    case ClanInfoSlot.MEMBERS:
+      return '<col=0dc10d>Members</col>';
+    case ClanInfoSlot.APPLICATIONS:
+      return 'Applicants';
+    case ClanInfoSlot.HALL:
+      return 'Hall';
+    case ClanInfoSlot.PERMISSIONS:
+      return 'Permissions';
+    case ClanInfoSlot.BANNED:
+      return 'Bans';
+    case ClanInfoSlot.QUIT:
+      return '<col=ff0000>Leave Clan</col>';
+  }
+  return '';
+}
+
+export function ClanTitlesButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Titles']}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => opsound(event.option, OP_SOUND_MASK)}
+    >
+      <StoneButtonDraw label="Titles" font={ClanInfoFonts.LABEL} pressed={skin} />
+    </layer>
+  );
+}

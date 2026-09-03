@@ -1,0 +1,103 @@
+import { useServerState, useUniverse } from 'ts2';
+import { ThinBox } from '../lib/thin-box.component';
+import { textLineCount } from '../lib/lib.engine';
+import { BondParagraph, paragraphHeight } from '../0861_bond_main/bond-paragraph.component';
+import { BondStoneButton } from '../0861_bond_main/bond-stone-button.component';
+import { PARA_LINE_HEIGHT } from '../0861_bond_main/bond-main.constants';
+import { convertFeeText } from './bond-management.helpers';
+import {
+  BondItems,
+  Copy,
+  Layout,
+  ManagementColors,
+  ManagementFonts,
+  ManagementSprites,
+  ManagementVarbits,
+  ManagementVarps,
+} from './bond-management.constants';
+
+export function ConvertBox(): Component {
+  const box = useUniverse();
+  const boxWidth: Int = box.width;
+  const boxHeight: Int = box.height;
+
+  const fee: Int = useServerState(ManagementVarps.CONVERT_FEE);
+  const ironman: Int = useServerState(ManagementVarbits.IRONMAN);
+
+  const innerWidth: Int = boxWidth - Layout.CONVERT_INSET;
+  const blurbTop: Int = Layout.CONVERT_TOP + Layout.CONVERT_HEADING_H;
+  const slotsTop: Int = blurbTop + paragraphHeight(Copy.CONVERT_BLURB, innerWidth);
+  const feeTop: Int = slotsTop + Layout.CONVERT_SLOT_GAP;
+
+  const feeArea: Int = boxHeight - feeTop;
+  const feeText: String = convertFeeText(fee, ironman);
+  const feeHeight: Int =
+    textLineCount(feeText, innerWidth, ManagementFonts.BODY) * PARA_LINE_HEIGHT + Layout.FEE_PADDING;
+  const buttonBottom: Int =
+    Layout.BUTTON_MARGIN + (feeArea - (feeHeight + Layout.CONVERT_BUTTON_H + Layout.BUTTON_MARGIN)) / 2;
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={ManagementSprites.CONVERT_BACKING} tiling />
+
+      <layer x="center" y={{ bottom: buttonBottom }} w={Layout.CONVERT_BUTTON_W} h={Layout.CONVERT_BUTTON_H}>
+        <BondStoneButton label={Copy.CONVERT_LABEL} />
+      </layer>
+
+      <ThinBox />
+
+      <text
+        x="center"
+        y={Layout.CONVERT_TOP}
+        w={{ fill: Layout.CONVERT_INSET }}
+        h={Layout.CONVERT_HEADING_H}
+        text={Copy.CONVERT_HEADING}
+        font={ManagementFonts.HEADING}
+        color={ManagementColors.LABEL}
+        align="left"
+        valign="middle"
+        lineHeight={PARA_LINE_HEIGHT}
+        shadow
+      />
+
+      <BondParagraph text={Copy.CONVERT_BLURB} width={innerWidth} top={blurbTop} />
+
+      <sprite
+        x={{ center: -Layout.CONVERT_SLOT_DX }}
+        y={slotsTop}
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={BondItems.TRADEABLE}
+        itemCount={1}
+        itemCountMode="never"
+        shadowColor={ManagementColors.ITEM_SHADOW}
+        outline={1}
+      />
+      <sprite
+        x={{ center: Layout.CONVERT_SLOT_DX }}
+        y={slotsTop}
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={BondItems.UNTRADEABLE}
+        itemCount={1}
+        itemCountMode="never"
+        shadowColor={ManagementColors.ITEM_SHADOW}
+        outline={1}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={innerWidth}
+        h={{ fill: feeTop }}
+        text={feeText}
+        font={ManagementFonts.BODY}
+        color={ManagementColors.LABEL}
+        align="left"
+        valign="top"
+        lineHeight={PARA_LINE_HEIGHT}
+        shadow
+      />
+    </layer>
+  );
+}

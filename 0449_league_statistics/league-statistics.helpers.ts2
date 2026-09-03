@@ -1,0 +1,124 @@
+import { useState } from 'ts2';
+import { debugMessageAlias } from '../lib/lib.debug';
+import {
+  league3PointsVarc,
+  league5PointsVarc,
+  league6PointsVarc,
+  leagueTrailblazerPointsVarc,
+  leagueTrailblazerReloadedPointsVarc,
+  leagueTwistedPointsVarc,
+} from '../lib/game/varcs';
+import { League, LeagueRow, Leagues, TrophyNames } from './leagues.data';
+
+export function leaguePoints(league: League): Int {
+  const [twisted] = useState(leagueTwistedPointsVarc);
+  const [trailblazer] = useState(leagueTrailblazerPointsVarc);
+  const [shattered] = useState(league3PointsVarc);
+  const [reloaded] = useState(leagueTrailblazerReloadedPointsVarc);
+  const [echoes] = useState(league5PointsVarc);
+  const [pacts] = useState(league6PointsVarc);
+  switch (league) {
+    case League.TWISTED:
+      return twisted;
+    case League.TRAILBLAZER:
+      return trailblazer;
+    case League.SHATTERED_RELICS:
+      return shattered;
+    case League.TRAILBLAZER_RELOADED:
+      return reloaded;
+    case League.RAGING_ECHOES:
+      return echoes;
+    case League.DEMONIC_PACTS:
+      return pacts;
+  }
+  return 0;
+}
+
+export function trophyTier(league: League): Int {
+  const row: LeagueRow | null = Leagues.get(league);
+  if (row === null) {
+    debugMessageAlias('Inavlid league or missing plugin.');
+    return 0;
+  }
+  const points: Int = leaguePoints(league);
+  if (points >= row.dragon) {
+    return 7;
+  }
+  if (points >= row.rune) {
+    return 6;
+  }
+  if (points >= row.adamant) {
+    return 5;
+  }
+  if (points >= row.mithril) {
+    return 4;
+  }
+  if (points >= row.steel) {
+    return 3;
+  }
+  if (points >= row.iron) {
+    return 2;
+  }
+  if (points >= row.bronze) {
+    return 1;
+  }
+  return 0;
+}
+
+export function trophyLabel(league: League): String {
+  const tier: Int = trophyTier(league);
+  if (tier === 0) {
+    if (league === League.TWISTED) {
+      return 'No rank';
+    }
+    return '-';
+  }
+  return TrophyNames.get(tier) ?? '';
+}
+
+export function leaguesEntered(): Int {
+  let entered: Int = 0;
+  if (leaguePoints(League.TWISTED) > 0) {
+    entered = entered + 1;
+  }
+  if (leaguePoints(League.TRAILBLAZER) > 0) {
+    entered = entered + 1;
+  }
+  if (leaguePoints(League.SHATTERED_RELICS) > 0) {
+    entered = entered + 1;
+  }
+  if (leaguePoints(League.TRAILBLAZER_RELOADED) > 0) {
+    entered = entered + 1;
+  }
+  if (leaguePoints(League.RAGING_ECHOES) > 0) {
+    entered = entered + 1;
+  }
+  if (leaguePoints(League.DEMONIC_PACTS) > 0) {
+    entered = entered + 1;
+  }
+  return entered;
+}
+
+export function totalLeaguePoints(): Int {
+  return (
+    Math.min(0, leaguePoints(League.TWISTED)) +
+    Math.min(0, leaguePoints(League.TRAILBLAZER)) +
+    Math.min(0, leaguePoints(League.SHATTERED_RELICS)) +
+    Math.min(0, leaguePoints(League.TRAILBLAZER_RELOADED)) +
+    Math.min(0, leaguePoints(League.RAGING_ECHOES)) +
+    Math.min(0, leaguePoints(League.DEMONIC_PACTS))
+  );
+}
+
+export function bestTrophyLabel(): String {
+  let best: Int = trophyTier(League.TWISTED);
+  best = Math.max(best, trophyTier(League.TRAILBLAZER));
+  best = Math.max(best, trophyTier(League.SHATTERED_RELICS));
+  best = Math.max(best, trophyTier(League.TRAILBLAZER_RELOADED));
+  best = Math.max(best, trophyTier(League.RAGING_ECHOES));
+  best = Math.max(best, trophyTier(League.DEMONIC_PACTS));
+  if (best === 0) {
+    return '-';
+  }
+  return TrophyNames.get(best) ?? '';
+}

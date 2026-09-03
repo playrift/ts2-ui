@@ -1,4 +1,4 @@
-import { CS2, useState } from 'ts2';
+import { CS2, useInterval, useRef, useState } from 'ts2';
 
 import { Frame } from '../lib/frame.component';
 import { clientClock } from '../lib/lib.engine';
@@ -75,6 +75,19 @@ export function MirrorButton({
   offsetY: Int;
   primary?: Boolean;
 }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (deadline === 0) {
+      return;
+    }
+    if (clientClock() < deadline) {
+      return;
+    }
+    setDeadline(0);
+    setPressed(0);
+  }, timerHost);
+
   const [pressed, setPressed] = useState(0);
   const [deadline, setDeadline] = useState(0);
 
@@ -120,16 +133,7 @@ export function MirrorButton({
           CS2.if_resume_pausebutton(event.component);
         }
       }}
-      onTimer={() => {
-        if (deadline === 0) {
-          return;
-        }
-        if (clientClock() < deadline) {
-          return;
-        }
-        setDeadline(0);
-        setPressed(0);
-      }}
+      ref={timerHost}
     >
       <ButtonFace label={label} pressed={face} />
     </layer>

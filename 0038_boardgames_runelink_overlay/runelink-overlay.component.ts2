@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
@@ -8,21 +8,24 @@ import {
   RunelinkOverlay,
   RunelinkOverlayFonts,
   RunelinkOverlayModel,
+  RunelinkOverlayVarps,
 } from './runelink-overlay.constants';
 import { runelinkRank } from './runelink-overlay.helpers';
 
+const timerHost = createRef('0038_boardgames_runelink_overlay_timer_host');
+
 const content = createRef('boardgames_runelink_overlay_content');
 
+const rank = createRef('boardgames_runelink_overlay_rank');
+
 export function RunelinkOverlay_(): Component {
+  useInterval(() => overlayRelayout(timerHost, content, RunelinkOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0), timerHost);
+
+  useWatch(RunelinkOverlayVarps.RANK, (event) => runelinkRank(event.component), rank);
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, content, RunelinkOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <layer ref={content} x="right" y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <model
             x={{ right: Layout.MODEL_RIGHT }}
@@ -55,7 +58,8 @@ export function RunelinkOverlay_(): Component {
             align="center"
             shadow
             color={LABEL}
-            onTimer={(event) => runelinkRank(event.component)}
+            ref={rank}
+            onLoad={(event) => runelinkRank(event.component)}
           />
         </layer>
       </layer>

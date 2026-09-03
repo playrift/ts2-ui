@@ -1,0 +1,109 @@
+import { sessionState, useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import {
+  TooltipBox,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { Grid, Panel, Tooltip } from './trademain.constants';
+import { tradeSidePrice, tradeSlotCount, tradeTipText } from './trademain.helpers';
+
+export const tipSlot = sessionState(-1);
+export const tipSide = sessionState(0);
+export const tipLeft = sessionState(-1);
+export const tipTop = sessionState(-1);
+
+export function showTradeTip(slot: Int, other: Int, left: Int, top: Int): void {
+  const [, setSlot] = useState(tipSlot);
+  const [, setSide] = useState(tipSide);
+  const [, setLeft] = useState(tipLeft);
+  const [, setTop] = useState(tipTop);
+  if (tradeSidePrice(slot, other) < 0) {
+    return;
+  }
+  if (tradeSlotCount(slot, other) <= 0) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Tooltip.DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setSlot(slot);
+  setSide(other);
+  setLeft(left);
+  setTop(top);
+  tooltipRaise();
+}
+
+export function hideTradeTip(): void {
+  const [, setSlot] = useState(tipSlot);
+  tooltipHide();
+  setSlot(-1);
+}
+
+export function TradeTooltip(): Component {
+  const [slot] = useState(tipSlot);
+  const [side] = useState(tipSide);
+  const [left] = useState(tipLeft);
+  const [top] = useState(tipTop);
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+
+  let text: String = '';
+  if (tooltipUp() && slot >= 0) {
+    text = tradeTipText(tradeSlotCount(slot, side), tradeSidePrice(slot, side));
+  }
+
+  const anchorX: Int = (hostW - Panel.WIDTH) / 2 + left;
+  const anchorY: Int = (hostH - Panel.HEIGHT) / 2 + top;
+
+  let measure: Int = Tooltip.WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + Grid.CELL_H + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer w={Tooltip.W} h={Tooltip.H} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

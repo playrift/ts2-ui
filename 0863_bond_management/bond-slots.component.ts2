@@ -1,0 +1,74 @@
+import { useInventory, useServerState } from 'ts2';
+import { chatMessage, itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import {
+  BondItems,
+  BondKind,
+  Layout,
+  ManagementColors,
+  ManagementInventories,
+  ManagementVarps,
+} from './bond-management.constants';
+
+export function BondSlots({ kind }: { kind: Int }): Component {
+  const tradeableHeld: Int = useServerState(ManagementVarps.TRADEABLE);
+  const untradeableHeld: Int = useServerState(ManagementVarps.UNTRADEABLE);
+  const pouch = useInventory(ManagementInventories.POUCH);
+  const backpack = useInventory(ManagementInventories.BACKPACK);
+
+  const item: Item = kind === BondKind.UNTRADEABLE ? BondItems.UNTRADEABLE : BondItems.TRADEABLE;
+  const held: Int = kind === BondKind.UNTRADEABLE ? untradeableHeld : tradeableHeld;
+
+  const inPouch: Int = pouch.total(item);
+  const inBackpack: Int = backpack.total(item);
+  const inBank: Int = Math.max(0, held - (inPouch + inBackpack));
+
+  const name: String = itemName(item);
+  const pouchLine: String = `Bond pouch: ${groupDigits(inPouch, ',')} x ${name}`;
+  const backpackLine: String = `Inventory: ${groupDigits(inBackpack, ',')} x ${name}`;
+  const bankLine: String = `Bank: ${groupDigits(inBank, ',')} x ${name}`;
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x={Layout.POUCH_SLOT_X}
+        y="center"
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={item}
+        itemCount={inPouch}
+        itemCountMode="always"
+        shadowColor={ManagementColors.ITEM_SHADOW}
+        outline={1}
+        transparency={inPouch > 0 ? 0 : 120}
+        onClick={() => chatMessage(pouchLine)}
+      />
+      <sprite
+        x={{ right: Layout.INVENTORY_SLOT_RIGHT }}
+        y="center"
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={item}
+        itemCount={inBackpack}
+        itemCountMode="always"
+        shadowColor={ManagementColors.ITEM_SHADOW}
+        outline={1}
+        transparency={inBackpack > 0 ? 0 : 100}
+        onClick={() => chatMessage(backpackLine)}
+      />
+      <sprite
+        x={{ right: Layout.BANK_SLOT_RIGHT }}
+        y="center"
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        item={item}
+        itemCount={inBank}
+        itemCountMode="always"
+        shadowColor={ManagementColors.ITEM_SHADOW}
+        outline={1}
+        transparency={inBank > 0 ? 0 : 120}
+        onClick={() => chatMessage(bankLine)}
+      />
+    </layer>
+  );
+}

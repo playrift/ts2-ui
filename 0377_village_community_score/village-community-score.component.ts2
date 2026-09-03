@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
@@ -9,21 +9,27 @@ import {
   VillageFonts,
   VillageModels,
   VillageOverlay,
+  VillageVarbits,
 } from './village-community-score.constants';
 import { showFavourPercent } from './village-community-score.helpers';
 
+const timerHost = createRef('0377_village_community_score_timer_host');
+
 const villComLayer = createRef('village_community_score_vill_com_layer1');
 
+const favour = createRef('village_community_score_favour');
+
 export function VillageCommunityScore(): Component {
+  useInterval(
+    () => overlayRelayout(timerHost, villComLayer, VillageOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0),
+    timerHost,
+  );
+
+  useWatch(VillageVarbits.FAVOUR_PERCENTAGE, (event) => showFavourPercent(event.component), favour);
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, villComLayer, VillageOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <layer
           ref={villComLayer}
           x={{ right: Layout.PLATE_RIGHT }}
@@ -75,7 +81,8 @@ export function VillageCommunityScore(): Component {
             font={VillageFonts.LABEL}
             shadow
             color={VillageColors.LABEL}
-            onTimer={(event) => showFavourPercent(event.component)}
+            ref={favour}
+            onLoad={(event) => showFavourPercent(event.component)}
           />
         </layer>
       </layer>

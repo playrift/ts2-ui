@@ -1,4 +1,4 @@
-import { CS2, useState } from 'ts2';
+import { CS2, useInterval, useRef, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { meslayermode } from '../lib/game/varcs';
 import { Sounds } from '../lib/lib.constants';
@@ -7,6 +7,15 @@ import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.com
 import { DisplayNameColour, DisplayNameFonts, MESLAYER_MODAL, PRESS_CYCLES } from './displayname.constants';
 
 export function DisplayNameButton({ label, enabled = false }: { label: String; enabled?: Boolean }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (clientClock() < pressedUntil || layerMode === MESLAYER_MODAL) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
   const [pressedUntil, setPressedUntil] = useState(0);
   const [hovered, setHovered] = useState(0);
   const [layerMode] = useState(meslayermode);
@@ -22,17 +31,7 @@ export function DisplayNameButton({ label, enabled = false }: { label: String; e
 
   if (pressedUntil !== 0) {
     return (
-      <layer
-        w="fill"
-        h="fill"
-        options={[CS2.tags_remove(label)]}
-        onTimer={() => {
-          if (clientClock() < pressedUntil || layerMode === MESLAYER_MODAL) {
-            return;
-          }
-          setPressedUntil(0);
-        }}
-      >
+      <layer w="fill" h="fill" options={[CS2.tags_remove(label)]} ref={timerHost}>
         <StoneButtonPressedFilled />
         <ButtonCaption text={label} colour={DisplayNameColour.AMBER} />
       </layer>

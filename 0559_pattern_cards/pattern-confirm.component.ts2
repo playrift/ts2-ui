@@ -1,4 +1,4 @@
-import { CS2, useServerState, useState } from 'ts2';
+import { CS2, createRef, useInterval, useServerState, useState } from 'ts2';
 
 import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
 import { clientClock, playSound } from '../lib/lib.engine';
@@ -6,7 +6,15 @@ import { onMobile } from '../lib/lib.helpers';
 import { PatternCards, PatternFonts, PatternSounds, PatternTiming, PatternVarbits } from './pattern-cards.constants';
 import { confirmPrompt, selectedCardCount } from './pattern-cards.helpers';
 
+const timerHost = createRef('0559_pattern_cards_timer_host');
+
 export function PatternConfirmButton(): Component {
+  useInterval(() => {
+    if (clientClock() >= flashUntil) {
+      setFlashUntil(0);
+    }
+  }, timerHost);
+
   const selected: Int = useServerState(PatternVarbits.CARD_OVERVIEW);
   const chosen: Int = selectedCardCount(selected);
   const [pressed, setPressed] = useState(0);
@@ -53,11 +61,7 @@ export function PatternConfirmButton(): Component {
           setFlashUntil(clientClock() + PatternTiming.FLASH_CYCLES);
         }
       }}
-      onTimer={() => {
-        if (clientClock() >= flashUntil) {
-          setFlashUntil(0);
-        }
-      }}
+      ref={timerHost}
     >
       <StoneButtonDraw label={label} font={PatternFonts.LIVE} pressed={skin} />
     </layer>

@@ -1,0 +1,58 @@
+import { onMounted, useInventory, useUniverse } from 'ts2';
+
+import { itemName } from '../lib/lib.engine';
+import { Grid, TradeColors, TradeInventories, TradeSprites } from './trademain.constants';
+import { resetTradeChangedFlags } from './trademain.helpers';
+import { cellX, cellY, gridColumnGap, gridRowGap, gridRows } from './trade-grid';
+import { hideTradeTip, showTradeTip } from './trade-tooltip.component';
+
+export function YourOffer(): Component {
+  const trade = useInventory(TradeInventories.OFFER);
+  const universe = useUniverse();
+
+  onMounted(() => {
+    resetTradeChangedFlags();
+  });
+
+  const slots: Int = trade.size;
+  const rows: Int = gridRows(slots);
+  const rowGap: Int = gridRowGap(universe.height, rows);
+  const columnGap: Int = gridColumnGap(universe.width);
+
+  return (
+    <layer w="fill" h="fill">
+      {trade.map(
+        (item, slot) =>
+          item !== -1 && (
+            <sprite
+              x={cellX(slot, columnGap)}
+              y={cellY(slot, rowGap)}
+              w={Grid.CELL_W}
+              h={Grid.CELL_H}
+              item={item}
+              itemCount={trade.count(slot)}
+              shadowColor={TradeColors.CELL_SHADOW}
+              outline={Grid.CELL_OUTLINE}
+              options={['Remove', 'Remove-5', 'Remove-10', 'Remove-All', 'Remove-X', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+              onMouseRepeat={() =>
+                showTradeTip(slot, 0, Grid.YOUR_X + cellX(slot, columnGap), Grid.TOP + cellY(slot, rowGap))
+              }
+              onMouseLeave={() => hideTradeTip()}
+            />
+          ),
+      )}
+
+      {trade.map((item, slot) => (
+        <sprite
+          x={cellX(slot, columnGap) + Grid.MARK_INSET}
+          y={cellY(slot, rowGap)}
+          w={Grid.MARK_W}
+          h={Grid.CELL_H}
+          sprite={TradeSprites.CHANGED}
+          transparency={Grid.MARK_TRANSPARENCY}
+        />
+      ))}
+    </layer>
+  );
+}

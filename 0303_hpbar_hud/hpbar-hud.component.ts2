@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import { HpBarColor, HpBarDodge, HpBarFont, HpBarSprite, Layout, REST_TRANSPARENCY } from './hpbar-hud.constants';
@@ -25,53 +25,56 @@ const upperThreshold = createRef('hpbar_hud_health_bar_upper_threshold15');
 const hpBarText = createRef('hpbar_hud_hp_bar_text6');
 
 export function HpBarHud(): Component {
+  useInterval(
+    () =>
+      hpHudPos(
+        universe,
+        hp,
+        nameArea,
+        creatureName,
+        hpBarText,
+        healthBarBack,
+        healthBarSliding,
+        healthBarRemaining,
+        lowerThreshold,
+        upperThreshold,
+        hpBarMark1,
+        hpBarMark2,
+        dodger,
+        contentSide,
+      ),
+    universe,
+  );
+  useInterval(() => overlayRelayout(dodgerSide, contentSide, HpBarDodge.SIDE, Anchor.LEFT, Anchor.TOP, 1), dodgerSide);
+  useInterval(() => hpDodgerRelayout(dodger, hp), dodger);
+  useInterval(
+    () =>
+      hpHudUpdate(
+        hp,
+        hpBarText,
+        healthBarBack,
+        healthBarSliding,
+        healthBarRemaining,
+        nameArea,
+        creatureName,
+        lowerThreshold,
+        upperThreshold,
+        hpBarMark1,
+        hpBarMark2,
+        0,
+      ),
+    hpBarText,
+  );
+
   return (
-    <layer
-      ref={universe}
-      x="center"
-      y="center"
-      w="fill"
-      h="fill"
-      onTimer={(event) =>
-        hpHudPos(
-          event.component,
-          hp,
-          nameArea,
-          creatureName,
-          hpBarText,
-          healthBarBack,
-          healthBarSliding,
-          healthBarRemaining,
-          lowerThreshold,
-          upperThreshold,
-          hpBarMark1,
-          hpBarMark2,
-          dodger,
-          contentSide,
-        )
-      }
-    >
+    <layer ref={universe} x="center" y="center" w="fill" h="fill">
       <layer x="center" y="center" w="fill" h="fill" />
 
-      <layer
-        ref={dodgerSide}
-        x="center"
-        y="center"
-        w="fill"
-        h="fill"
-        onTimer={(event) => overlayRelayout(event.component, contentSide, HpBarDodge.SIDE, Anchor.LEFT, Anchor.TOP, 1)}
-      >
+      <layer ref={dodgerSide} x="center" y="center" w="fill" h="fill">
         <layer ref={contentSide} x={0} y={0} w={Layout.SIDE_W} h={Layout.SIDE_H} />
       </layer>
 
-      <layer
-        ref={dodger}
-        x="center"
-        y="center"
-        w="fill"
-        h="fill"
-        onTimer={(event) => hpDodgerRelayout(event.component, hp)}
-      >
+      <layer ref={dodger} x="center" y="center" w="fill" h="fill">
         <layer ref={hp} x="center" y={Layout.PLATE_Y} w={Layout.PLATE_W} h={Layout.PLATE_H} hide>
           <rect
             ref={outerBorder}
@@ -220,22 +223,6 @@ export function HpBarHud(): Component {
               valign="middle"
               shadow
               color={HpBarColor.LABEL}
-              onTimer={() =>
-                hpHudUpdate(
-                  hp,
-                  hpBarText,
-                  healthBarBack,
-                  healthBarSliding,
-                  healthBarRemaining,
-                  nameArea,
-                  creatureName,
-                  lowerThreshold,
-                  upperThreshold,
-                  hpBarMark1,
-                  hpBarMark2,
-                  0,
-                )
-              }
             />
           </layer>
         </layer>

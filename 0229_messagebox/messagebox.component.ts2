@@ -1,0 +1,130 @@
+import { CS2, createRef, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { Fonts } from '../lib/game/fonts';
+import { onMobile } from '../lib/lib.helpers';
+
+const LABEL = Fonts.Q8_FULL;
+
+enum MessageBoxColor {
+  CONTINUE = 0x0000ff,
+  CONTINUE_HOVER = 0xffffff,
+  BODY = 0x000000,
+}
+
+enum AdvanceKey {
+  SPACE = 83,
+}
+
+const ADVANCE_DEBOUNCE = 20;
+
+enum DialogueGate {
+  NO_TOPLEVEL = -1,
+  CHATBOX = 162,
+}
+
+const continueLine = createRef('messagebox_continue');
+
+function textColourSwapper(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}
+
+function advanceFeedback(line: ComponentId): void {
+  if (CS2.if_text_get(line).length === 0) {
+    return;
+  }
+  CS2.if_resume_pausebutton(line);
+  line.text = 'Please wait...';
+  line.color = MessageBoxColor.CONTINUE;
+}
+
+export function MessageBox(): Component {
+  return (
+    <layer x={{ center: 1 }} y="center" w={506} h={129}>
+      <layer x={{ center: -1 }} y={{ center: 1 }} w={481} h={110}>
+        <layer x="center" y="center" w={479} h={96}>
+          <text
+            x="center"
+            y={0}
+            w="fill"
+            h={80}
+            font={LABEL}
+            color={MessageBoxColor.BODY}
+            align="center"
+            lineHeight={16}
+          />
+
+          <text
+            ref={continueLine}
+            x="center"
+            y={80}
+            w="fill"
+            h={17}
+            font={LABEL}
+            color={MessageBoxColor.CONTINUE}
+            align="center"
+            continueOp
+            onMouseEnter={(event) => textColourSwapper(event.component, MessageBoxColor.CONTINUE_HOVER)}
+            onMouseLeave={(event) => textColourSwapper(event.component, MessageBoxColor.CONTINUE)}
+          />
+        </layer>
+      </layer>
+
+      <MessageBoxAdvance />
+    </layer>
+  );
+}
+
+export function MessageBoxAdvance(): Component {
+  const [deadline, setDeadline] = useState(0);
+
+  if (onMobile()) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        onKey={(event) => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyCode !== AdvanceKey.SPACE) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+        onClick={() => {
+          if (clientClock() < deadline) {
+            return;
+          }
+          advanceFeedback(continueLine);
+          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onKey={(event) => {
+        if (clientClock() < deadline) {
+          return;
+        }
+        if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+          return;
+        }
+        if (event.keyCode !== AdvanceKey.SPACE) {
+          return;
+        }
+        advanceFeedback(continueLine);
+        setDeadline(clientClock() + ADVANCE_DEBOUNCE);
+      }}
+    />
+  );
+}

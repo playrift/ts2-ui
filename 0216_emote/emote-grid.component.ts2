@@ -1,0 +1,56 @@
+import { useDerived, useUniverse } from 'ts2';
+
+import { Layout, SlotSkin } from './emote.constants';
+import { EmoteSprites } from './emote-tables.data';
+import { emoteOp1, emoteOp2, emoteOp3, emoteOpBase, emoteSlotIcon, emoteUnlocked } from './emote.helpers';
+import { hideEmoteTooltip, showEmoteTooltip } from './emote.state';
+
+function slotX(visible: Int, column: Int): Int {
+  return (visible % Layout.COLUMNS) * column;
+}
+
+function slotY(visible: Int): Int {
+  return (visible / Layout.COLUMNS) * Layout.ROW_PITCH + Layout.ROW_TOP;
+}
+
+export function EmoteGrid({ pane }: { pane: Ref }): Component {
+  const grid = useUniverse();
+  const column: Int = grid.width / Layout.COLUMNS;
+
+  return (
+    <layer w="fill" h="fill">
+      {EmoteSprites.scan(
+        (icon, emote, visible) => (
+          <>
+            <rect
+              x={slotX(visible, column)}
+              y={slotY(visible)}
+              w={column}
+              h={Layout.ICON}
+              hide={icon === -1 ? true : false}
+              color={SlotSkin.INK}
+              transparency={SlotSkin.WASH}
+              options={[emoteOp1(emote), emoteOp2(emote), emoteOp3(emote)]}
+              optionSubject={emoteOpBase(emote)}
+              onMouseRepeat={() => showEmoteTooltip(emote, slotX(visible, column), slotY(visible), pane)}
+              onMouseLeave={() => hideEmoteTooltip()}
+            />
+            <sprite
+              x={slotX(visible, column)}
+              y={slotY(visible)}
+              w={Layout.ICON}
+              h={Layout.ICON}
+              hide={icon === -1 ? true : false}
+              sprite={emoteSlotIcon(
+                emote,
+                useDerived(() => emoteUnlocked(emote)),
+              )}
+            />
+          </>
+        ),
+        (icon) => (icon === -1 ? 0 : 1),
+        0,
+      )}
+    </layer>
+  );
+}

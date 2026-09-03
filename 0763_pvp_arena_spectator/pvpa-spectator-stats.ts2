@@ -1,0 +1,174 @@
+import { createRef, useState, CS2 } from 'ts2';
+
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { clientClock } from '../lib/lib.engine';
+import {
+  pvpaSpectatorLeftCombo,
+  pvpaSpectatorLeftHitTime,
+  pvpaSpectatorLeftLastHp,
+  pvpaSpectatorRightCombo,
+  pvpaSpectatorRightHitTime,
+  pvpaSpectatorRightLastHp,
+} from '../lib/game/varcs';
+import { Bar, Combo } from './pvp-arena-spectator.constants';
+
+export const leftName = createRef('pvpa_spectator_left_name');
+export const leftHealthText = createRef('pvpa_spectator_left_health_text');
+export const leftHealthRemaining = createRef('pvpa_spectator_left_health_remaining');
+export const leftHealthCombo = createRef('pvpa_spectator_left_health_combo');
+export const leftPrayerText = createRef('pvpa_spectator_left_prayer_text');
+export const leftPrayerRemaining = createRef('pvpa_spectator_left_prayer_remaining');
+export const leftSpecialText = createRef('pvpa_spectator_left_special_text');
+export const leftSpecialRemaining = createRef('pvpa_spectator_left_special_remaining');
+
+export const rightName = createRef('pvpa_spectator_right_name');
+export const rightHealthText = createRef('pvpa_spectator_right_health_text');
+export const rightHealthRemaining = createRef('pvpa_spectator_right_health_remaining');
+export const rightHealthCombo = createRef('pvpa_spectator_right_health_combo');
+export const rightPrayerText = createRef('pvpa_spectator_right_prayer_text');
+export const rightPrayerRemaining = createRef('pvpa_spectator_right_prayer_remaining');
+export const rightSpecialText = createRef('pvpa_spectator_right_special_text');
+export const rightSpecialRemaining = createRef('pvpa_spectator_right_special_remaining');
+
+enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+  PROPORTION = 2,
+}
+
+export function pvpaSpectatorCombo(side: Int, target: Int, hp: Int, bar: ComponentId): void {
+  if (side === 0) {
+    const [stored, setTrail] = useState(pvpaSpectatorLeftCombo);
+    const [lastHp, setLastHp] = useState(pvpaSpectatorLeftLastHp);
+    const [hitTime, setHitTime] = useState(pvpaSpectatorLeftHitTime);
+    let trail: Int = stored;
+    if (trail > target) {
+      if (lastHp <= hp) {
+        if (hitTime + Combo.HOLD_CYCLES <= clientClock()) {
+          trail = Math.max(target, trail - Combo.STEP);
+          setTrail(trail);
+          CS2.if_size_set(trail, 0, SizeMode.PROPORTION, SizeMode.MINUS, bar);
+        }
+      } else {
+        setHitTime(clientClock());
+      }
+    } else {
+      trail = target;
+      setTrail(trail);
+      CS2.if_size_set(trail, 0, SizeMode.PROPORTION, SizeMode.MINUS, bar);
+    }
+    setLastHp(hp);
+    if (trail === target) {
+      CS2.if_on_timer_set(null, bar);
+    }
+    return;
+  }
+
+  if (side === 1) {
+    const [stored, setTrail] = useState(pvpaSpectatorRightCombo);
+    const [lastHp, setLastHp] = useState(pvpaSpectatorRightLastHp);
+    const [hitTime, setHitTime] = useState(pvpaSpectatorRightHitTime);
+    let trail: Int = stored;
+    if (trail > target) {
+      if (lastHp <= hp) {
+        if (hitTime + Combo.HOLD_CYCLES <= clientClock()) {
+          trail = Math.max(target, trail - Combo.STEP);
+          setTrail(trail);
+          CS2.if_size_set(trail, 0, SizeMode.PROPORTION, SizeMode.MINUS, bar);
+        }
+      } else {
+        setHitTime(clientClock());
+      }
+    } else {
+      trail = target;
+      setTrail(trail);
+      CS2.if_size_set(trail, 0, SizeMode.PROPORTION, SizeMode.MINUS, bar);
+    }
+    setLastHp(hp);
+    if (trail === target) {
+      CS2.if_on_timer_set(null, bar);
+    }
+  }
+}
+
+function pvpaSpectatorStatsInto(
+  name: String,
+  hp: Int,
+  maxHp: Int,
+  prayer: Int,
+  maxPrayer: Int,
+  special: Int,
+  side: Int,
+  nameSlot: ComponentId,
+  healthText: ComponentId,
+  healthRemaining: ComponentId,
+  healthCombo: ComponentId,
+  prayerText: ComponentId,
+  prayerRemaining: ComponentId,
+  specialText: ComponentId,
+  specialRemaining: ComponentId,
+): void {
+  CS2.if_text_set(name, nameSlot);
+  CS2.if_text_set(stringOf(hp), healthText);
+
+  let bar: Int = minmax(Bar.MIN, Bar.FULL, CS2.scale(hp, maxHp, Bar.FULL));
+  CS2.if_size_set(bar, 0, SizeMode.PROPORTION, SizeMode.MINUS, healthRemaining);
+  CS2.if_on_timer_set(() => pvpaSpectatorCombo(side, bar, hp, healthCombo), healthCombo);
+
+  CS2.if_text_set(`${stringOf(prayer)} / ${stringOf(maxPrayer)}`, prayerText);
+  bar = minmax(Bar.MIN, Bar.FULL, CS2.scale(prayer, maxPrayer, Bar.FULL));
+  CS2.if_size_set(bar, 0, SizeMode.PROPORTION, SizeMode.MINUS, prayerRemaining);
+
+  bar = special / Bar.SPECIAL_SCALE;
+  CS2.if_text_set(`${stringOf(bar)}%`, specialText);
+  bar = minmax(Bar.MIN, Bar.FULL, CS2.scale(special, Bar.SPECIAL_FULL, Bar.FULL));
+  CS2.if_size_set(bar, 0, SizeMode.PROPORTION, SizeMode.MINUS, specialRemaining);
+}
+
+export function pvpaSpectatorStats(
+  name: String,
+  hp: Int,
+  maxHp: Int,
+  prayer: Int,
+  maxPrayer: Int,
+  special: Int,
+  side: Int,
+): void {
+  if (side === 1) {
+    pvpaSpectatorStatsInto(
+      name,
+      hp,
+      maxHp,
+      prayer,
+      maxPrayer,
+      special,
+      side,
+      rightName,
+      rightHealthText,
+      rightHealthRemaining,
+      rightHealthCombo,
+      rightPrayerText,
+      rightPrayerRemaining,
+      rightSpecialText,
+      rightSpecialRemaining,
+    );
+    return;
+  }
+  pvpaSpectatorStatsInto(
+    name,
+    hp,
+    maxHp,
+    prayer,
+    maxPrayer,
+    special,
+    side,
+    leftName,
+    leftHealthText,
+    leftHealthRemaining,
+    leftHealthCombo,
+    leftPrayerText,
+    leftPrayerRemaining,
+    leftSpecialText,
+    leftSpecialRemaining,
+  );
+}

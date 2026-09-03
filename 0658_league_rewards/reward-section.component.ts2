@@ -1,0 +1,144 @@
+import type { LeagueRewardRow } from './rewards.data';
+import { CS2 } from 'ts2';
+import { membersWorld } from '../lib/lib.engine';
+import { PestRewardsDivider } from '../0645_br_reward_shop/pest-rewards.shared';
+import { rewardPriceLine } from './league-rewards.helpers';
+import { selectReward } from './league-rewards.state';
+import { RewardColor, RewardFonts, RewardLayout } from './league-rewards.constants';
+
+function cellX(index: Int, half: Int): Int {
+  if (index % 2 === 0) {
+    return RewardLayout.ROW_X;
+  }
+  return half - 1 + RewardLayout.ROW_X;
+}
+
+function cellY(index: Int, rowTop: Int): Int {
+  return rowTop + (index / 2) * RewardLayout.ROW_PITCH;
+}
+
+function cellColour(row: LeagueRewardRow, index: Int, selected: Int, points: Int, infoOnly: Int): Int {
+  if (selected === index) return RewardColor.SELECTED;
+  if (CS2.item_members(row.item as Item) === 1 && !membersWorld()) return RewardColor.BLOCKED;
+  if (points < row.cost && infoOnly === 0) return RewardColor.BLOCKED;
+  if (infoOnly === 1) return RewardColor.BLOCKED;
+  return RewardColor.AVAILABLE;
+}
+
+function cellPricePrefix(row: LeagueRewardRow, index: Int, selected: Int, points: Int, infoOnly: Int): String {
+  if (selected === index) return '<col=ffffff>';
+  if (CS2.item_members(row.item as Item) === 1 && !membersWorld()) return '<col=9f9f9f>';
+  if (points < row.cost && infoOnly === 0) return '<col=9f9f9f>';
+  if (infoOnly === 1) return '<col=9f9f9f>';
+  return '<col=ff891f>';
+}
+
+export function RewardCellHit({
+  row,
+  index,
+  first,
+  rowTop,
+  half,
+}: {
+  row: LeagueRewardRow;
+  index: Int;
+  first: Int;
+  rowTop: Int;
+  half: Int;
+}): Component {
+  return (
+    <rect
+      x={cellX(index, half)}
+      y={cellY(index, rowTop)}
+      w={half}
+      h={RewardLayout.ROW_H}
+      color={RewardColor.HIT}
+      fill
+      transparency={RewardLayout.HIT_TRANSPARENCY}
+      options={[`Select <col=ff891f>${row.name}`]}
+      onOptionSelect={() => selectReward(first + index)}
+    />
+  );
+}
+
+export function RewardCell({
+  row,
+  index,
+  first,
+  rowTop,
+  half,
+  selected,
+  points,
+  infoOnly,
+}: {
+  row: LeagueRewardRow;
+  index: Int;
+  first: Int;
+  rowTop: Int;
+  half: Int;
+  selected: Int;
+  points: Int;
+  infoOnly: Int;
+}): Component {
+  return (
+    <>
+      <sprite
+        x={cellX(index, half) + RewardLayout.ICON_X}
+        y={cellY(index, rowTop)}
+        w={RewardLayout.ICON_W}
+        h={RewardLayout.ICON_H}
+        item={row.item}
+        itemCount={1}
+        itemCountMode="never"
+        outline={1}
+        shadowColor={RewardColor.ICON_SHADOW}
+      />
+      <text
+        x={cellX(index, half) + RewardLayout.TEXT_X}
+        y={cellY(index, rowTop)}
+        w={half - RewardLayout.TEXT_X}
+        h={RewardLayout.ROW_H}
+        text={rewardPriceLine(row.name, row.cost, cellPricePrefix(row, first + index, selected, points, infoOnly))}
+        font={RewardFonts.BODY}
+        color={cellColour(row, first + index, selected, points, infoOnly)}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={RewardLayout.TEXT_LINE}
+      />
+    </>
+  );
+}
+
+export function RewardSectionHeader({
+  title,
+  headerY,
+  ruleBefore,
+  ruleAfter,
+  paneW,
+}: {
+  title: String;
+  headerY: Int;
+  ruleBefore: Int;
+  ruleAfter: Int;
+  paneW: Int;
+}): Component {
+  return (
+    <>
+      {ruleBefore !== -1 ? <PestRewardsDivider y={ruleBefore} /> : null}
+      <text
+        x={0}
+        y={headerY}
+        w={paneW}
+        h={RewardLayout.HEADER_H}
+        text={title}
+        font={RewardFonts.HEADER}
+        color={RewardColor.HEADER}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <PestRewardsDivider y={ruleAfter} />
+    </>
+  );
+}

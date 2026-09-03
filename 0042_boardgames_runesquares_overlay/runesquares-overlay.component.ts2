@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
@@ -8,21 +8,27 @@ import {
   RunesquaresOverlay,
   RunesquaresOverlayFonts,
   RunesquaresOverlayModel,
+  RunesquaresOverlayVarps,
 } from './runesquares-overlay.constants';
 import { runesquaresRank } from './runesquares-overlay.helpers';
 
+const timerHost = createRef('0042_boardgames_runesquares_overlay_timer_host');
+
 const content = createRef('boardgames_runesquares_overlay_content');
 
+const rank = createRef('boardgames_runesquares_overlay_rank');
+
 export function RunesquaresOverlay_(): Component {
+  useInterval(
+    () => overlayRelayout(timerHost, content, RunesquaresOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0),
+    timerHost,
+  );
+
+  useWatch(RunesquaresOverlayVarps.RANK, (event) => runesquaresRank(event.component), rank);
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, content, RunesquaresOverlay.DODGE, Anchor.RIGHT, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <layer ref={content} x="right" y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <model
             x={{ right: Layout.MODEL_RIGHT }}
@@ -56,7 +62,8 @@ export function RunesquaresOverlay_(): Component {
             align="center"
             shadow
             color={LABEL}
-            onTimer={(event) => runesquaresRank(event.component)}
+            ref={rank}
+            onLoad={(event) => runesquaresRank(event.component)}
           />
         </layer>
       </layer>

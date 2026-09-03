@@ -1,27 +1,30 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
   CHAMPION_PLACEHOLDER,
   FightpitColor,
   FightpitFonts,
+  FightpitVarps,
   Layout,
   TzhaarFightpit,
 } from './tzhaar-fightpit.constants';
 import { foesRemaining } from './tzhaar-fightpit.helpers';
 
+const timerHost = createRef('0373_tzhaar_fightpit_timer_host');
+
 const content = createRef('tzhaar_fightpit_content');
 
+const foes = createRef('tzhaar_fightpit_foes');
+
 export function TzhaarFightpit_(): Component {
+  useInterval(() => overlayRelayout(timerHost, content, TzhaarFightpit.DODGE, Anchor.CENTRE, Anchor.TOP, 0), timerHost);
+
+  useWatch(FightpitVarps.FOES_REMAINING, (event) => foesRemaining(event.component), foes);
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, content, TzhaarFightpit.DODGE, Anchor.CENTRE, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <layer ref={content} x="center" y={Layout.PLATE_Y} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <text
             x="center"
@@ -46,7 +49,8 @@ export function TzhaarFightpit_(): Component {
               align="center"
               shadow
               color={FightpitColor.FOES}
-              onTimer={(event) => foesRemaining(event.component)}
+              ref={foes}
+              onLoad={(event) => foesRemaining(event.component)}
             />
           </layer>
         </layer>

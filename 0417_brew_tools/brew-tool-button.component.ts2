@@ -1,4 +1,4 @@
-import { useRef, useState } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { onMobile } from '../lib/lib.helpers';
 import { setTransparency } from '../lib/lib.components';
@@ -34,9 +34,18 @@ export function BrewToolButton({
   offsetY: Int;
   counts?: Item;
 }): Component {
+  const timerHost = useRef();
+
   const highlight = useRef();
 
   const [pressedUntil, setPressedUntil] = useState(0);
+
+  useInterval(() => {
+    if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+      highlight.transparency = Highlight.IDLE;
+      setPressedUntil(0);
+    }
+  }, timerHost);
 
   return (
     <layer
@@ -64,12 +73,7 @@ export function BrewToolButton({
         highlight.transparency = Highlight.PRESSED;
         setPressedUntil(clientClock() + PRESS_CYCLES);
       }}
-      onTimer={() => {
-        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
-          highlight.transparency = Highlight.IDLE;
-          setPressedUntil(0);
-        }
-      }}
+      ref={timerHost}
     >
       <rect
         ref={highlight}

@@ -1,4 +1,4 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
@@ -12,6 +12,12 @@ import {
 } from './pest-status-overlay.constants';
 import { pestActivityUpdate } from './pest-status-overlay.helpers';
 
+const timerHost1 = createRef('0408_pest_status_overlay_timer_host1');
+
+const timerHost2 = createRef('0408_pest_status_overlay_timer_host2');
+
+const timerHost3 = createRef('0408_pest_status_overlay_timer_host3');
+
 const contentLeft = createRef('pest_status_overlay_content_left2');
 
 const contentRight = createRef('pest_status_overlay_content_right3');
@@ -21,15 +27,19 @@ const activityOutline = createRef('pest_status_overlay_activity_outline');
 const activityBar = createRef('pest_status_overlay_activity_fill');
 
 export function PestStatusOverlay(): Component {
+  useInterval(
+    () => overlayRelayout(timerHost1, contentLeft, PestStatusDodge.LEFT, Anchor.LEFT, Anchor.TOP, 1),
+    timerHost1,
+  );
+  useInterval(
+    () => overlayRelayout(timerHost2, contentRight, PestStatusDodge.RIGHT, Anchor.RIGHT, Anchor.TOP, 0),
+    timerHost2,
+  );
+  useInterval(() => pestActivityUpdate(activityOutline, activityBar), timerHost3);
+
   return (
     <layer x="center" y="center" w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, contentLeft, PestStatusDodge.LEFT, Anchor.LEFT, Anchor.TOP, 1)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost1}>
         <layer ref={contentLeft} x={Layout.LEFT_X} y={0} w={Layout.LEFT_W} h={Layout.LEFT_H}>
           <model
             x={0}
@@ -79,13 +89,7 @@ export function PestStatusOverlay(): Component {
         </layer>
       </layer>
 
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, contentRight, PestStatusDodge.RIGHT, Anchor.RIGHT, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost2}>
         <layer
           ref={contentRight}
           x={{ right: Layout.RIGHT_X }}
@@ -93,13 +97,7 @@ export function PestStatusOverlay(): Component {
           w={Layout.RIGHT_W}
           h={Layout.RIGHT_H}
         >
-          <layer
-            x={{ right: Layout.BAR_RIGHT }}
-            y="bottom"
-            w={Layout.BAR_W}
-            h={Layout.BAR_H}
-            onTimer={() => pestActivityUpdate(activityOutline, activityBar)}
-          >
+          <layer x={{ right: Layout.BAR_RIGHT }} y="bottom" w={Layout.BAR_W} h={Layout.BAR_H} ref={timerHost3}>
             <rect
               x="center"
               y="center"

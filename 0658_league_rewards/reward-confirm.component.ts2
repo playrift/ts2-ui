@@ -1,0 +1,159 @@
+import { useServerState, useState } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { onMobile } from '../lib/lib.helpers';
+import { rewardName, rewardShopIsInfoOnly } from './league-rewards.helpers';
+import { openRewardConfirm, pressRewardConfirm, releaseRewardConfirm } from './league-rewards.state';
+import {
+  ConfirmPressed,
+  RewardColor,
+  RewardFonts,
+  RewardLayout,
+  RewardText,
+  RewardVarps,
+  SelectedReward,
+} from './league-rewards.constants';
+
+export function RewardPoints(): Component {
+  const points: Int = useServerState(RewardVarps.POINTS);
+  const infoOnly = rewardShopIsInfoOnly();
+
+  return (
+    <text
+      x={RewardLayout.POINTS_X}
+      y={{ bottom: RewardLayout.POINTS_BOTTOM }}
+      w={infoOnly ? RewardLayout.POINTS_W_INFO : RewardLayout.POINTS_W}
+      h={RewardLayout.POINTS_H}
+      text={
+        infoOnly ? RewardText.POINTS_INFO : `League Points: <col=ffffff>${groupDigits(points, RewardText.SEPARATOR)}`
+      }
+      font={RewardFonts.BODY}
+      color={RewardColor.POINTS}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+function RewardConfirmSkin({ label, infoOnly }: { label: String; infoOnly: Int }): Component {
+  const [pressed] = useState(ConfirmPressed);
+
+  return (
+    <layer w="fill" h="fill">
+      {pressed === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <text
+        x="center"
+        y={{ center: -1 }}
+        w="fill"
+        h={{ fill: 8 }}
+        text={infoOnly === 1 ? RewardText.INFO : RewardText.CONFIRM}
+        font={RewardFonts.BODY}
+        color={RewardColor.DESCRIPTION}
+        shadow
+        align="center"
+        valign="top"
+      />
+      <text
+        x="center"
+        y={{ center: -1 }}
+        w="fill"
+        h={{ fill: 8 }}
+        text={label}
+        font={RewardFonts.SUB}
+        color={RewardColor.DESCRIPTION}
+        shadow
+        align="center"
+        valign="bottom"
+      />
+    </layer>
+  );
+}
+
+function RewardConfirmDisabled({ infoOnly }: { infoOnly: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <StoneButtonPressedFilled />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={infoOnly === 1 ? RewardText.INFO : RewardText.CONFIRM}
+        font={RewardFonts.BODY}
+        color={RewardColor.BLOCKED}
+        shadow={false}
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function RewardConfirm(): Component {
+  const [selected] = useState(SelectedReward);
+  const infoOnly: Int = rewardShopIsInfoOnly() ? 1 : 0;
+  const label: String = rewardName(selected);
+  const mobile = onMobile();
+
+  if (selected === -1) {
+    return (
+      <layer
+        x={{ right: RewardLayout.CONFIRM_X }}
+        y={{ bottom: RewardLayout.CONFIRM_BOTTOM }}
+        w={RewardLayout.CONFIRM_W}
+        h={RewardLayout.CONFIRM_H}
+      >
+        <RewardConfirmDisabled infoOnly={infoOnly} />
+      </layer>
+    );
+  }
+
+  if (mobile) {
+    return (
+      <layer
+        x={{ right: RewardLayout.CONFIRM_X }}
+        y={{ bottom: RewardLayout.CONFIRM_BOTTOM }}
+        w={RewardLayout.CONFIRM_W}
+        h={RewardLayout.CONFIRM_H}
+      >
+        <RewardConfirmSkin label={label} infoOnly={infoOnly} />
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          color={RewardColor.HIT}
+          options={[infoOnly === 1 ? RewardText.INFO : RewardText.CONFIRM]}
+          optionSubject={`<col=ff981f>${label}</col>`}
+          onOptionSelect={() => openRewardConfirm()}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={{ right: RewardLayout.CONFIRM_X }}
+      y={{ bottom: RewardLayout.CONFIRM_BOTTOM }}
+      w={RewardLayout.CONFIRM_W}
+      h={RewardLayout.CONFIRM_H}
+    >
+      <RewardConfirmSkin label={label} infoOnly={infoOnly} />
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={RewardColor.HIT}
+        options={[infoOnly === 1 ? RewardText.INFO : RewardText.CONFIRM]}
+        optionSubject={`<col=ff981f>${label}</col>`}
+        onMouseRepeat={() => pressRewardConfirm()}
+        onMouseLeave={() => releaseRewardConfirm()}
+        onOptionSelect={() => openRewardConfirm()}
+      />
+    </layer>
+  );
+}

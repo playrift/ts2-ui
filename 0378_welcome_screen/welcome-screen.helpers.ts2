@@ -1,0 +1,146 @@
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+
+export function minutesAsText(minutes: Int, stopAtHours: Int): String {
+  if (minutes < 2) {
+    return 'a minute';
+  }
+  const hoursTotal: Int = minutes / 60;
+  const mins: Int = minutes % 60;
+  const days: Int = hoursTotal / 24;
+
+  if (days < 1) {
+    if (hoursTotal < 1) {
+      return `${stringOf(mins)} minutes`;
+    }
+    if (hoursTotal === 1) {
+      if (mins === 1) {
+        return '1 hour, 1 minute';
+      }
+      return `1 hour, ${stringOf(mins)} minutes`;
+    }
+    if (mins === 1) {
+      return `${stringOf(hoursTotal)} hours, 1 minute`;
+    }
+    return `${stringOf(hoursTotal)} hours, ${stringOf(mins)} minutes`;
+  }
+
+  const hours: Int = hoursTotal % 24;
+
+  if (days === 1) {
+    if (hours < 1) {
+      if (mins === 1) {
+        return '1 day, 1 minute';
+      }
+      return `1 day, ${stringOf(mins)} minutes`;
+    }
+    if (hours === 1) {
+      if (stopAtHours === 1) {
+        return '1 day, 1 hour';
+      }
+      if (mins === 1) {
+        return '1 day, 1 hour, 1 minute';
+      }
+      return `1 day, 1 hour, ${stringOf(mins)} minutes`;
+    }
+    if (stopAtHours === 1) {
+      return `1 day, ${stringOf(hours)} hours`;
+    }
+    if (mins === 1) {
+      return `1 day, ${stringOf(hours)} hours, 1 minute`;
+    }
+    return `1 day, ${stringOf(hours)} hours, ${stringOf(mins)} minutes`;
+  }
+
+  if (hours < 1) {
+    if (stopAtHours === 1) {
+      if (mins === 1) {
+        return `${stringOf(days)} days, 1 minute`;
+      }
+      return `${stringOf(days)} days, ${stringOf(mins)} minutes`;
+    }
+    if (mins === 1) {
+      return `${stringOf(days)} days, 0 hours, 1 minute`;
+    }
+    return `${stringOf(days)} days, 0 hours, ${stringOf(mins)} minutes`;
+  }
+
+  if (hours === 1) {
+    if (stopAtHours === 1) {
+      return `${stringOf(days)} days, 1 hour`;
+    }
+    if (mins === 1) {
+      return `${stringOf(days)} days, 1 hour, 1 minute`;
+    }
+    return `${stringOf(days)} days, 1 hour, ${stringOf(mins)} minutes`;
+  }
+
+  if (stopAtHours === 1) {
+    return `${stringOf(days)} days, ${stringOf(hours)} hours`;
+  }
+  if (mins === 1) {
+    return `${stringOf(days)} days, ${stringOf(hours)} hours, 1 minute`;
+  }
+  return `${stringOf(days)} days, ${stringOf(hours)} hours, ${stringOf(mins)} minutes`;
+}
+
+export function lastLoginText(lastLogin: Int): String {
+  if (lastLogin < 0) {
+    const days: Int = 0 - (lastLogin + 1);
+    if (days <= 0) {
+      return 'You last logged in <col=ff0000>earlier today</col>.';
+    }
+    if (days === 1) {
+      return 'You last logged in <col=ff0000>yesterday</col>.';
+    }
+    return `You last logged in <col=ff0000>${groupDigits(days, ',')} days ago</col>.`;
+  }
+  return `You last logged in ${minutesAsText(lastLogin, 0)} ago.`;
+}
+
+export function inboxText(unread: Int): String {
+  if (unread === 1) {
+    return 'You have<br><col=00ff00>1</col> unread<br>message in<br>your inbox.';
+  }
+  if (unread > 0) {
+    return `You have<br><col=00ff00>${groupDigits(unread, ',')}</col> unread<br>messages in<br>your inbox.`;
+  }
+  return 'You have<br>0 unread<br>messages in<br>your inbox.';
+}
+
+export function membershipText(days: Int, member: Int, recurring: Int): String {
+  let body: String = '';
+  if (days > 1) {
+    body = `You have <col=00ff00>${groupDigits(days, ',')}</col> days of membership left.`;
+  } else if (days === 1) {
+    body = `You have <col=00ff00>${groupDigits(days, ',')}</col> day of membership left.`;
+  } else if (member === 1) {
+    body = 'You have no membership credit left.<br><br><col=ff9040>Subscribe to retain your membership status!</col>';
+  } else if (member === 0) {
+    body = 'You are not a member.<br>Subscribe to access extra skills, areas,<br>quests, and more.';
+  }
+  if (recurring === 0 && days <= 3 && member === 1) {
+    return `${body}<br><col=ff9040>Renew now to avoid losing your</col><br><col=ff9040>membership status!</col>`;
+  }
+  return body;
+}
+
+export function membershipPending(days: Int, member: Int): Boolean {
+  if (days >= 1) {
+    return false;
+  }
+  if (member === 1 || member === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function hideUnlessMobile(hide: Int, component: ComponentId): void {
+  if (!onMobile()) {
+    if (hide === 1) {
+      component.hide = true;
+    } else {
+      component.hide = false;
+    }
+  }
+}

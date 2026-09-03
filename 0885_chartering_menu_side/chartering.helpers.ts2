@@ -1,0 +1,276 @@
+import { useServerState } from 'ts2';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { errorMessage } from '../lib/lib.debug';
+import { playerCoord } from '../lib/lib.engine';
+import { coordInBox } from '../lib/lib.helpers';
+import { CharterVarbits, CharterVarps, Layout } from './chartering-menu-side.constants';
+import { Charter, Destination, Destinations, RowLetters } from './chartering-destinations.data';
+
+export function charterRestricted(index: Charter): Boolean {
+  if (index === Charter.NOWHERE) {
+    errorMessage(
+      'Content not properly configured to be restricted, missing dbtable inside [proc,restrict_content_dbrow].',
+    );
+    return false;
+  }
+  const row: Destination | null = Destinations.at(index);
+  if (row === null) {
+    errorMessage(
+      'Content not properly configured to be restricted, missing dbtable inside [proc,restrict_content_dbrow].',
+    );
+    return false;
+  }
+  if (row.restricted === 0) {
+    return false;
+  }
+  return sailingRestricted();
+}
+
+export function charterAvailable(here: Charter, to: Charter): Boolean {
+  if (charterRestricted(here)) {
+    return false;
+  }
+  if (charterRestricted(to)) {
+    return false;
+  }
+
+  switch (to) {
+    case Charter.PORT_SARIM:
+      if (here === Charter.MUSA_POINT) {
+        return false;
+      }
+      if (here === Charter.THE_PANDEMONIUM) {
+        return false;
+      }
+      if (here === Charter.PORT_PISCARILIUS) {
+        return false;
+      }
+      if (here === Charter.LANDS_END) {
+        return false;
+      }
+      return true;
+    case Charter.MOS_LE_HARMLESS:
+      if (useServerState(CharterVarps.FEVER_QUEST) < 140) {
+        return false;
+      }
+      if (useServerState(CharterVarps.PRIESTPERIL) < 61) {
+        return false;
+      }
+      if (here === Charter.PORT_PHASMATYS) {
+        return false;
+      }
+      return true;
+    case Charter.MUSA_POINT:
+      if (here === Charter.PORT_SARIM) {
+        return false;
+      }
+      if (here === Charter.THE_PANDEMONIUM) {
+        return false;
+      }
+      return true;
+    case Charter.PORT_PHASMATYS:
+      if (useServerState(CharterVarps.PRIESTPERIL) < 61) {
+        return false;
+      }
+      if (here === Charter.MOS_LE_HARMLESS) {
+        return false;
+      }
+      return true;
+    case Charter.KARAMJA_SHIPYARD:
+      if (useServerState(CharterVarps.MM_MAIN) < 2) {
+        return false;
+      }
+      if (useServerState(CharterVarps.GRANDTREE) < 160) {
+        return false;
+      }
+      return true;
+    case Charter.PORT_TYRAS:
+      if (useServerState(CharterVarps.REGICIDE_QUEST) < 15) {
+        return false;
+      }
+      return true;
+    case Charter.PRIFDDINAS:
+      if (useServerState(CharterVarbits.SOTE) < 200) {
+        return false;
+      }
+      return true;
+    case Charter.PORT_PISCARILIUS:
+      if (useServerState(CharterVarbits.ZEAH_VISITED) === 0) {
+        return false;
+      }
+      if (here === Charter.PORT_SARIM) {
+        return false;
+      }
+      if (here === Charter.LANDS_END) {
+        return false;
+      }
+      return true;
+    case Charter.LANDS_END:
+      if (useServerState(CharterVarbits.ZEAH_VISITED) === 0) {
+        return false;
+      }
+      if (here === Charter.PORT_SARIM) {
+        return false;
+      }
+      if (here === Charter.PORT_PISCARILIUS) {
+        return false;
+      }
+      return true;
+    case Charter.CIVITAS_ILLA_FORTIS:
+      if (useServerState(CharterVarbits.VARLAMORE_VISITED) === 0) {
+        return false;
+      }
+      return true;
+    case Charter.ALDARIN:
+      if (useServerState(CharterVarbits.VARLAMORE_VISITED) === 0) {
+        return false;
+      }
+      if (here === Charter.SUNSET_COAST) {
+        return false;
+      }
+      return true;
+    case Charter.SUNSET_COAST:
+      if (useServerState(CharterVarbits.VARLAMORE_VISITED) === 0) {
+        return false;
+      }
+      if (here === Charter.ALDARIN) {
+        return false;
+      }
+      return true;
+    case Charter.TEMPESTUS:
+      return false;
+    case Charter.CRANDOR:
+      if (useServerState(CharterVarps.DRAGONQUEST) < 2) {
+        return false;
+      }
+      if (useServerState(CharterVarps.DRAGONQUEST) > 9) {
+        return false;
+      }
+      return true;
+    case Charter.THE_PANDEMONIUM:
+      if (useServerState(CharterVarbits.SAILING_INTRO) < 16) {
+        return false;
+      }
+      if (here === Charter.PORT_SARIM) {
+        return false;
+      }
+      if (here === Charter.MUSA_POINT) {
+        return false;
+      }
+      return true;
+    case Charter.THE_SUMMER_SHORE:
+      if (useServerState(CharterVarbits.TT) < 12) {
+        return false;
+      }
+      return true;
+    case Charter.RED_ROCK:
+      if (useServerState(CharterVarbits.TRR) < 12) {
+        return false;
+      }
+      return true;
+    case Charter.BARRACUDA_HQ:
+      return false;
+    case Charter.DEEPFIN_POINT:
+      if (useServerState(CharterVarbits.DEEPFIN_POINT_VISITED) === 0) {
+        return false;
+      }
+      return true;
+    case Charter.PORT_ROBERTS:
+      if (useServerState(CharterVarbits.PORT_ROBERTS_VISITED) === 0) {
+        return false;
+      }
+      return true;
+  }
+  return true;
+}
+
+export function currentCharter(): Charter {
+  const at: Coord = playerCoord();
+  if (coordInBox(Destinations.at(0).zoneMin, Destinations.at(0).zoneMax, at)) {
+    return Charter.PORT_SARIM;
+  }
+  if (coordInBox(Destinations.at(1).zoneMin, Destinations.at(1).zoneMax, at)) {
+    return Charter.BRIMHAVEN;
+  }
+  if (coordInBox(Destinations.at(2).zoneMin, Destinations.at(2).zoneMax, at)) {
+    return Charter.CATHERBY;
+  }
+  if (coordInBox(Destinations.at(3).zoneMin, Destinations.at(3).zoneMax, at)) {
+    return Charter.MOS_LE_HARMLESS;
+  }
+  if (coordInBox(Destinations.at(4).zoneMin, Destinations.at(4).zoneMax, at)) {
+    return Charter.MUSA_POINT;
+  }
+  if (coordInBox(Destinations.at(5).zoneMin, Destinations.at(5).zoneMax, at)) {
+    return Charter.PORT_KHAZARD;
+  }
+  if (coordInBox(Destinations.at(6).zoneMin, Destinations.at(6).zoneMax, at)) {
+    return Charter.PORT_PHASMATYS;
+  }
+  if (coordInBox(Destinations.at(7).zoneMin, Destinations.at(7).zoneMax, at)) {
+    return Charter.KARAMJA_SHIPYARD;
+  }
+  if (coordInBox(Destinations.at(8).zoneMin, Destinations.at(8).zoneMax, at)) {
+    return Charter.PORT_TYRAS;
+  }
+  if (coordInBox(Destinations.at(9).zoneMin, Destinations.at(9).zoneMax, at)) {
+    return Charter.CORSAIR_COVE;
+  }
+  if (coordInBox(Destinations.at(10).zoneMin, Destinations.at(10).zoneMax, at)) {
+    return Charter.PRIFDDINAS;
+  }
+  if (coordInBox(Destinations.at(11).zoneMin, Destinations.at(11).zoneMax, at)) {
+    return Charter.PORT_PISCARILIUS;
+  }
+  if (coordInBox(Destinations.at(12).zoneMin, Destinations.at(12).zoneMax, at)) {
+    return Charter.LANDS_END;
+  }
+  if (coordInBox(Destinations.at(13).zoneMin, Destinations.at(13).zoneMax, at)) {
+    return Charter.CIVITAS_ILLA_FORTIS;
+  }
+  if (coordInBox(Destinations.at(14).zoneMin, Destinations.at(14).zoneMax, at)) {
+    return Charter.ALDARIN;
+  }
+  if (coordInBox(Destinations.at(15).zoneMin, Destinations.at(15).zoneMax, at)) {
+    return Charter.SUNSET_COAST;
+  }
+  if (coordInBox(Destinations.at(16).zoneMin, Destinations.at(16).zoneMax, at)) {
+    return Charter.TEMPESTUS;
+  }
+  if (coordInBox(Destinations.at(18).zoneMin, Destinations.at(18).zoneMax, at)) {
+    return Charter.THE_PANDEMONIUM;
+  }
+  if (coordInBox(Destinations.at(19).zoneMin, Destinations.at(19).zoneMax, at)) {
+    return Charter.THE_SUMMER_SHORE;
+  }
+  if (coordInBox(Destinations.at(20).zoneMin, Destinations.at(20).zoneMax, at)) {
+    return Charter.RED_ROCK;
+  }
+  if (coordInBox(Destinations.at(21).zoneMin, Destinations.at(21).zoneMax, at)) {
+    return Charter.BARRACUDA_HQ;
+  }
+  if (coordInBox(Destinations.at(22).zoneMin, Destinations.at(22).zoneMax, at)) {
+    return Charter.DEEPFIN_POINT;
+  }
+  if (coordInBox(Destinations.at(23).zoneMin, Destinations.at(23).zoneMax, at)) {
+    return Charter.PORT_ROBERTS;
+  }
+  return Charter.NOWHERE;
+}
+
+export function charterListed(here: Charter, index: Charter): Boolean {
+  if (here === index) {
+    return false;
+  }
+  return charterAvailable(here, index);
+}
+
+export function charterRowText(index: Charter, name: String): String {
+  if (index >= Layout.PREFIX_LIMIT) {
+    return name;
+  }
+  if (index < Layout.PREFIX_DIGITS) {
+    return `<col=ffffff>${stringOf(index)}</col> :  ${name}`;
+  }
+  return `<col=ffffff>${RowLetters.get(index - Layout.PREFIX_LETTER_BASE) ?? ''}</col> :  ${name}`;
+}

@@ -1,0 +1,62 @@
+import { useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { EmoteTip, Layout } from './emote.constants';
+import { emoteName } from './emote.helpers';
+import { tipEmote, tipHeight, tipLeft, tipTop } from './emote.state';
+
+export function EmoteTooltip(): Component {
+  const [emote] = useState(tipEmote);
+  const [left] = useState(tipLeft);
+  const [top] = useState(tipTop);
+  const [box] = useState(tipHeight);
+
+  let text: String = '';
+  if (tooltipUp() && emote >= 0) {
+    text = emoteName(emote);
+  }
+
+  const hostW: Int = Layout.ROOT_W;
+  const hostH: Int = Layout.ROOT_H;
+
+  let measure: Int = EmoteTip.WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = left + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = top + box + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = top - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer w={Layout.TIP_BOX} h={Layout.TIP_BOX} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

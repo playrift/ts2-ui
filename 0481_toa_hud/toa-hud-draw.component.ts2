@@ -1,0 +1,252 @@
+import { onMounted, onUpdated, useDerived, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Difficulty, Layout, Path, ToaHudColor, ToaHudFonts, ToaHudSprites } from './toa-hud.constants';
+import { content } from './toa-hud.refs';
+import { activeSlots, nameRows, namesHeight } from './toa-hud.state';
+import {
+  ToaStatusCell0,
+  ToaStatusCell1,
+  ToaStatusCell2,
+  ToaStatusCell3,
+  ToaStatusCell4,
+  ToaStatusCell5,
+  ToaStatusCell6,
+  ToaStatusCell7,
+} from './toa-hud-status.component';
+
+function sizeContent(namesW: Int, namesH: Int, detailsH: Int): void {
+  setBox(content, Math.max(namesW, Layout.DETAILS_W) + Layout.CONTENT_PAD_W, namesH + detailsH + Layout.CONTENT_PAD_H);
+}
+
+function setBox(component: ComponentId, width: Int, height: Int): void {
+  component.width = width;
+  component.height = height;
+}
+
+export function ToaHudDraw(): Component {
+  const path: Int = useServerState(Varbits.TOA_CLIENT_CURRENT_PATH);
+  const raidLevel: Int = useServerState(Varbits.TOA_CLIENT_RAID_LEVEL);
+  const scabaras: Int = useServerState(Varbits.TOA_CLIENT_SCABARAS_LEVEL);
+  const het: Int = useServerState(Varbits.TOA_CLIENT_HET_LEVEL);
+  const apmeken: Int = useServerState(Varbits.TOA_CLIENT_APMEKEN_LEVEL);
+  const crondis: Int = useServerState(Varbits.TOA_CLIENT_CRONDIS_LEVEL);
+  const hidePlayers: Int = useServerState(Varbits.TOA_CLIENT_HIDEPLAYERS);
+  const active: Int = useDerived(() => activeSlots());
+
+  let namesW: Int = Layout.NAMES_W;
+  let namesH: Int = namesHeight(nameRows(active));
+  if (hidePlayers === 1) {
+    namesW = 0;
+    namesH = 0;
+  }
+
+  let nexus: Int = 1;
+  let single: Int = 0;
+  if (path >= Path.SCABARAS && path <= Path.CRONDIS) {
+    nexus = 0;
+    single = 1;
+  } else if (path === Path.NONE_A || path === Path.NONE_B) {
+    nexus = 0;
+  }
+  let detailsH: Int = Layout.DETAILS_H_PATH;
+  if (path === Path.NONE_A || path === Path.NONE_B) {
+    detailsH = Layout.DETAILS_H_NONE;
+  } else if (path === Path.NEXUS) {
+    detailsH = Layout.DETAILS_H_NEXUS;
+  }
+
+  let pathIcon: Sprite = ToaHudSprites.PATH_SCABARAS;
+  let pathLevel: Int = scabaras;
+  if (path === Path.HET) {
+    pathIcon = ToaHudSprites.PATH_HET;
+    pathLevel = het;
+  } else if (path === Path.APMEKEN) {
+    pathIcon = ToaHudSprites.PATH_APMEKEN;
+    pathLevel = apmeken;
+  } else if (path === Path.CRONDIS) {
+    pathIcon = ToaHudSprites.PATH_CRONDIS;
+    pathLevel = crondis;
+  }
+
+  let badge: Sprite = ToaHudSprites.DIFFICULTY_LOW;
+  if (raidLevel >= Difficulty.HIGH) {
+    badge = ToaHudSprites.DIFFICULTY_HIGH;
+  } else if (raidLevel >= Difficulty.MID) {
+    badge = ToaHudSprites.DIFFICULTY_MID;
+  }
+
+  onMounted(() => {
+    sizeContent(namesW, namesH, detailsH);
+  });
+  onUpdated(() => {
+    sizeContent(namesW, namesH, detailsH);
+  });
+
+  const listTop: Int = Layout.NAMES_GAP + detailsH;
+
+  return (
+    <layer w="fill" h="fill">
+      {hidePlayers !== 1 && (
+        <layer x={Layout.NAMES_X} y={listTop} w={namesW} h={namesH}>
+          <layer x={0} y={0} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell0 left={Layout.CELL_X_LEFT} top={listTop} />
+          </layer>
+          <layer x="right" y={0} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell1 left={Layout.CELL_X_RIGHT} top={listTop} />
+          </layer>
+          <layer x={0} y={Layout.ROW_Y_1} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell2 left={Layout.CELL_X_LEFT} top={listTop + Layout.ROW_Y_1} />
+          </layer>
+          <layer x="right" y={Layout.ROW_Y_1} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell3 left={Layout.CELL_X_RIGHT} top={listTop + Layout.ROW_Y_1} />
+          </layer>
+          <layer x={0} y={Layout.ROW_Y_2} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell4 left={Layout.CELL_X_LEFT} top={listTop + Layout.ROW_Y_2} />
+          </layer>
+          <layer x="right" y={Layout.ROW_Y_2} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell5 left={Layout.CELL_X_RIGHT} top={listTop + Layout.ROW_Y_2} />
+          </layer>
+          <layer x={0} y={Layout.ROW_Y_3} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell6 left={Layout.CELL_X_LEFT} top={listTop + Layout.ROW_Y_3} />
+          </layer>
+          <layer x="right" y={Layout.ROW_Y_3} w={Layout.CELL} h={Layout.CELL}>
+            <ToaStatusCell7 left={Layout.CELL_X_RIGHT} top={listTop + Layout.ROW_Y_3} />
+          </layer>
+        </layer>
+      )}
+      <layer x={0} y={0} w={Layout.DETAILS_W} h={detailsH}>
+        <layer x="center" y="center" w={{ fill: Layout.PLATE_INSET }} h={{ fill: Layout.PLATE_INSET }}>
+          <layer x="center" y={0} w="fill" h="fill">
+            <sprite x={Layout.DIFFICULTY_X} y={0} w={Layout.DIFFICULTY} h={Layout.DIFFICULTY} sprite={badge} />
+            <text
+              x={Layout.LEVEL_X}
+              y={Layout.LEVEL_Y}
+              w={{ fill: Layout.LEVEL_INSET_W }}
+              h={Layout.LEVEL_H}
+              font={ToaHudFonts.LABEL}
+              text={`Level: ${stringOf(raidLevel)}`}
+              valign="middle"
+              shadow
+              color={ToaHudColor.TEXT}
+            />
+            {single === 1 && (
+              <layer x={Layout.PATHS_X} y={Layout.PATHS_Y} w={Layout.PATHS_W} h={Layout.PATHS_H}>
+                <sprite
+                  x={Layout.PATHS_ICON_X}
+                  y={Layout.PATHS_ICON_Y}
+                  w={Layout.PATHS_ICON}
+                  h={Layout.PATHS_ICON}
+                  sprite={pathIcon}
+                />
+                <text
+                  x={Layout.PATHS_LEVEL_X}
+                  y={Layout.PATHS_LEVEL_Y}
+                  w={Layout.PATHS_LEVEL_W}
+                  h={Layout.PATHS_LEVEL_H}
+                  font={ToaHudFonts.LABEL}
+                  text={stringOf(pathLevel)}
+                  align="center"
+                  valign="middle"
+                  shadow
+                  color={ToaHudColor.TEXT}
+                />
+              </layer>
+            )}
+            <text
+              x={Layout.LEVEL_X}
+              y={Layout.TIMER_Y}
+              w={{ fill: Layout.LEVEL_INSET_W }}
+              h={Layout.LEVEL_H}
+              font={ToaHudFonts.LABEL}
+              text="00:00"
+              valign="middle"
+              shadow
+              color={ToaHudColor.TEXT}
+            />
+            {nexus === 1 && (
+              <layer x={0} y={Layout.NEXUS_Y} w={Layout.NEXUS_W} h={Layout.NEXUS_H}>
+                <sprite
+                  x={Layout.NEXUS_ICON_LEFT}
+                  y={0}
+                  w={Layout.NEXUS_ICON}
+                  h={Layout.NEXUS_ICON}
+                  sprite={ToaHudSprites.PATH_SCABARAS}
+                />
+                <text
+                  x={Layout.NEXUS_LEVEL_LEFT}
+                  y={0}
+                  w={Layout.NEXUS_LEVEL_W}
+                  h={Layout.NEXUS_LEVEL_H}
+                  font={ToaHudFonts.LABEL}
+                  text={stringOf(scabaras)}
+                  align="center"
+                  valign="middle"
+                  shadow
+                  color={ToaHudColor.TEXT}
+                />
+                <sprite
+                  x={Layout.NEXUS_ICON_RIGHT}
+                  y={0}
+                  w={Layout.NEXUS_ICON}
+                  h={Layout.NEXUS_ICON}
+                  sprite={ToaHudSprites.PATH_HET}
+                />
+                <text
+                  x={Layout.NEXUS_LEVEL_RIGHT}
+                  y={0}
+                  w={Layout.NEXUS_LEVEL_W}
+                  h={Layout.NEXUS_LEVEL_H}
+                  font={ToaHudFonts.LABEL}
+                  text={stringOf(het)}
+                  align="center"
+                  valign="middle"
+                  shadow
+                  color={ToaHudColor.TEXT}
+                />
+                <sprite
+                  x={Layout.NEXUS_ICON_LEFT}
+                  y="bottom"
+                  w={Layout.NEXUS_ICON}
+                  h={Layout.NEXUS_ICON}
+                  sprite={ToaHudSprites.PATH_APMEKEN}
+                />
+                <text
+                  x={Layout.NEXUS_LEVEL_LEFT}
+                  y="bottom"
+                  w={Layout.NEXUS_LEVEL_W}
+                  h={Layout.NEXUS_LEVEL_H}
+                  font={ToaHudFonts.LABEL}
+                  text={stringOf(apmeken)}
+                  align="center"
+                  valign="middle"
+                  shadow
+                  color={ToaHudColor.TEXT}
+                />
+                <sprite
+                  x={Layout.NEXUS_ICON_RIGHT}
+                  y="bottom"
+                  w={Layout.NEXUS_ICON}
+                  h={Layout.NEXUS_ICON}
+                  sprite={ToaHudSprites.PATH_CRONDIS}
+                />
+                <text
+                  x={Layout.NEXUS_LEVEL_RIGHT}
+                  y="bottom"
+                  w={Layout.NEXUS_LEVEL_W}
+                  h={Layout.NEXUS_LEVEL_H}
+                  font={ToaHudFonts.LABEL}
+                  text={stringOf(crondis)}
+                  align="center"
+                  valign="middle"
+                  shadow
+                  color={ToaHudColor.TEXT}
+                />
+              </layer>
+            )}
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}

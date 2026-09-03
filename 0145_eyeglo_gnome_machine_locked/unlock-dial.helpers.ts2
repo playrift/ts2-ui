@@ -1,0 +1,40 @@
+import { CS2, useServerState } from 'ts2';
+
+import { EYEGLO_DIGIT_ZERO, EyegloDigitModels } from './eyeglo-digit-models.data';
+import { DialModel } from './eyeglo-gnome-machine-locked.constants';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+
+export function dialMarkers(value: Int, target: Int): [Model, Model, Model] {
+  if (target === 0) {
+    return [DialModel.NONE, DialModel.NEEDLE, DialModel.NONE];
+  }
+  if (target > value) {
+    return [DialModel.TOP_HIGHER, DialModel.NEEDLE, DialModel.BOTTOM_HIGHER];
+  }
+  if (target < value) {
+    return [DialModel.TOP_LOWER, DialModel.NEEDLE, DialModel.BOTTOM_LOWER];
+  }
+  return [DialModel.NONE, DialModel.NEEDLE_MATCH, DialModel.NONE];
+}
+
+export function unlockDial(
+  tens: ComponentId,
+  units: ComponentId,
+  top: ComponentId,
+  middle: ComponentId,
+  bottom: ComponentId,
+  slot: ComponentId,
+): void {
+  const value: Int = useServerState(Varbits.EYEGLO_COIN_VALUE_1);
+
+  tens.model = EyegloDigitModels.get(value / 10) ?? EYEGLO_DIGIT_ZERO;
+  units.model = EyegloDigitModels.get(value % 10) ?? EYEGLO_DIGIT_ZERO;
+
+  CS2.if_item_nonum_set(useServerState(Varps.EYEGLO_UNLOCK_A) as Item, 1, slot);
+
+  const [topModel, middleModel, bottomModel] = dialMarkers(value, useServerState(Varbits.EYEGLO_UNLOCK_VAL));
+  top.model = topModel;
+  middle.model = middleModel;
+  bottom.model = bottomModel;
+}

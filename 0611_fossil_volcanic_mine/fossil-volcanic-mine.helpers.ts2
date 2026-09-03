@@ -1,0 +1,100 @@
+import { useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import { MineRules, MineVarbits } from './fossil-volcanic-mine.constants';
+import {
+  chamberA,
+  chamberB,
+  chamberC,
+  players,
+  points,
+  stability,
+  ventA,
+  ventB,
+  ventC,
+} from './fossil-volcanic-mine.refs';
+
+export function volcanicMineVentColour(status: Int): String {
+  let distance: Int = status - MineRules.VENT_IDEAL;
+  if (distance < 0) {
+    distance = 0 - distance;
+  }
+  if (distance <= MineRules.VENT_GREEN) {
+    return `<col=00ff00>${stringOf(status)}%</col>`;
+  }
+  if (distance <= MineRules.VENT_AMBER) {
+    return `<col=ffff00>${stringOf(status)}%</col>`;
+  }
+  return `<col=ff0000>${stringOf(status)}%</col>`;
+}
+
+export function volcanicMineChamberColour(blocked: Boolean): String {
+  if (blocked === true) {
+    return '<col=ff0000>Blocked</col>';
+  }
+  return '<col=00ff00>Unblocked</col>';
+}
+
+export function volcanicMineSetVentText(): void {
+  let a: String = 'A: -%';
+  let b: String = 'B: -%';
+  let c: String = 'C: -%';
+
+  if (useServerState(MineVarbits.PROGRESS_STATUS) >= MineRules.RUN_STARTED) {
+    const readingA: Int = useServerState(MineVarbits.VENTA_STATUS);
+    if (readingA !== MineRules.VENT_UNKNOWN) {
+      a = `A: ${volcanicMineVentColour(readingA)}`;
+    }
+    const readingB: Int = useServerState(MineVarbits.VENTB_STATUS);
+    if (readingB !== MineRules.VENT_UNKNOWN) {
+      b = `B: ${volcanicMineVentColour(readingB)}`;
+    }
+    const readingC: Int = useServerState(MineVarbits.VENTC_STATUS);
+    if (readingC !== MineRules.VENT_UNKNOWN) {
+      c = `C: ${volcanicMineVentColour(readingC)}`;
+    }
+  }
+
+  ventA.text = a;
+  ventB.text = b;
+  ventC.text = c;
+}
+
+export function volcanicMineSetChamberText(): void {
+  if (useServerState(MineVarbits.PROGRESS_STATUS) < MineRules.RUN_STARTED) {
+    chamberA.text = 'A: -';
+    chamberB.text = 'B: -';
+    chamberC.text = 'C: -';
+    return;
+  }
+  const bits: Int = useServerState(MineVarbits.CHAMBER_STATUS);
+  chamberA.text = `A: ${volcanicMineChamberColour(hasBit(bits, 0))}`;
+  chamberB.text = `B: ${volcanicMineChamberColour(hasBit(bits, 1))}`;
+  chamberC.text = `C: ${volcanicMineChamberColour(hasBit(bits, 2))}`;
+}
+
+export function volcanicMineSetOtherInfo(): void {
+  const earned: Int = useServerState(MineVarbits.TEMP_PTS);
+  if (useServerState(MineVarbits.STARTED_LATE) === 0) {
+    points.text = stringOf(earned);
+  } else {
+    points.text = `<col=ff0000>${stringOf(earned)}</col>`;
+  }
+
+  const stable: Int = useServerState(MineVarbits.CURRENT_STABILITY);
+  if (stable < MineRules.STABILITY_RED) {
+    stability.text = `<col=ff0000>${stringOf(stable)}%</col>`;
+  } else if (stable < MineRules.STABILITY_AMBER) {
+    stability.text = `<col=ffff00>${stringOf(stable)}%</col>`;
+  } else {
+    stability.text = `<col=00ff00>${stringOf(stable)}%</col>`;
+  }
+
+  players.text = stringOf(useServerState(MineVarbits.NUMBERPLAYERS));
+}
+
+export function volcanicMineUpdateHud(): void {
+  volcanicMineSetVentText();
+  volcanicMineSetChamberText();
+  volcanicMineSetOtherInfo();
+}

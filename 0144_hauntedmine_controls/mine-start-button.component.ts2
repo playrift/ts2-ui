@@ -1,4 +1,4 @@
-import { useDerived, useState } from 'ts2';
+import { createRef, useDerived, useInterval, useState } from 'ts2';
 
 import { ButtonBackground } from '../0370_poh_options/button-background.component';
 import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
@@ -6,7 +6,15 @@ import { clientClock, playSound } from '../lib/lib.engine';
 import { anyCartMoving } from './hauntedmine-controls.helpers';
 import { Layout, MineColors, MineFonts, MineSounds } from './hauntedmine-controls.constants';
 
+const timerHost = createRef('0144_hauntedmine_controls_timer_host');
+
 export function MineStartButton(): Component {
+  useInterval(() => {
+    if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
+      setPressedUntil(0);
+    }
+  }, timerHost);
+
   const moving: Int = useDerived(() => anyCartMoving());
   const [pressedUntil, setPressedUntil] = useState(0);
   const [hovered, setHovered] = useState(0);
@@ -36,11 +44,7 @@ export function MineStartButton(): Component {
       }}
       onMouseRepeat={() => setHovered(1)}
       onMouseLeave={() => setHovered(0)}
-      onTimer={() => {
-        if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
-          setPressedUntil(0);
-        }
-      }}
+      ref={timerHost}
     >
       {lit === 1 ? <ButtonBackgroundPressed /> : <ButtonBackground />}
 

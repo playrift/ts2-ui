@@ -1,0 +1,48 @@
+import { predictServerState, sessionState, stopTimer, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { FLASH_CYCLES, LootSounds, LootSprites, LootVarbits } from './wildy-loot-chest.constants';
+
+export const destroyPromptOpen = sessionState(0);
+
+export function openDestroyPrompt(): void {
+  const [, setOpen] = useState(destroyPromptOpen);
+  setOpen(1);
+}
+
+export function closeDestroyPrompt(): void {
+  const [, setOpen] = useState(destroyPromptOpen);
+  setOpen(0);
+}
+
+export function selectTab(want: Int, current: Int): void {
+  if (current === want) {
+    return;
+  }
+  predictServerState(LootVarbits.TAB, want);
+  playSound(LootSounds.SELECT);
+}
+
+export function selectWithdrawMode(want: Int, current: Int): void {
+  if (current === want) {
+    return;
+  }
+  predictServerState(LootVarbits.WITHDRAW_NOTES, want);
+  playSound(LootSounds.SELECT);
+}
+
+export function flashActionButton(target: ComponentId, op: Int): void {
+  if (op !== 1) {
+    return;
+  }
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  target.sprite = LootSprites.BUTTON_PRESSED;
+  playSound(LootSounds.SELECT);
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.sprite = LootSprites.BUTTON;
+    stopTimer(target);
+  };
+}

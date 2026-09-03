@@ -1,0 +1,113 @@
+import { useServerState } from 'ts2';
+import { hasBit, scaled } from '../lib/lib.engine';
+import {
+  League,
+  LeagueThemes,
+  RelicChoiceVarbits,
+  SHATTERED_TIER_COUNT,
+  ShatteredTiers,
+  SidePanelLayout,
+  SidePanelVarbits,
+  SidePanelVarps,
+} from './league-3-side-panel.constants';
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(SidePanelVarps.MAP_FLAGS);
+  if (hasBit(flags, 29)) {
+    return false;
+  }
+  return hasBit(flags, 30);
+}
+
+export function unlockedTier(): Int {
+  if (leagueWorld() === false) return 0;
+  if (useServerState(SidePanelVarbits.LEAGUE) !== League.THREE) return 0;
+  const earned: Int = useServerState(SidePanelVarps.POINTS_EARNED);
+  if (earned < 10) return 1;
+  if (earned < 300) return 2;
+  if (earned < 1500) return 3;
+  if (earned < 3000) return 4;
+  if (earned < 7500) return 5;
+  if (earned < 15000) return 6;
+  return 7;
+}
+
+function relicChosen(tier: Int): Int {
+  if (tier === 0) return useServerState(RelicChoiceVarbits.TIER_0);
+  if (tier === 1) return useServerState(RelicChoiceVarbits.TIER_1);
+  if (tier === 2) return useServerState(RelicChoiceVarbits.TIER_2);
+  if (tier === 3) return useServerState(RelicChoiceVarbits.TIER_3);
+  if (tier === 4) return useServerState(RelicChoiceVarbits.TIER_4);
+  if (tier === 5) return useServerState(RelicChoiceVarbits.TIER_5);
+  if (tier === 6) return useServerState(RelicChoiceVarbits.TIER_6);
+  if (tier === 7) return useServerState(RelicChoiceVarbits.TIER_7);
+  return 0;
+}
+
+export function relicTierThreshold(wantLast: Boolean, wantPrevious: Boolean): Int {
+  const theme = LeagueThemes.get(useServerState(SidePanelVarbits.LEAGUE) as League);
+  if (theme === null) {
+    return -1;
+  }
+  const relics = theme.relics;
+  if (relics.length === 0) {
+    return -1;
+  }
+  if (wantLast) {
+    return relics.at(relics.length - 1) ?? -1;
+  }
+
+  const points: Int = useServerState(SidePanelVarps.POINTS);
+  let previous: Int = -1;
+  let tier: Int = 0;
+  while (tier < relics.length) {
+    const threshold: Int = relics.at(tier) ?? -1;
+    if (points < threshold) {
+      if (wantPrevious) {
+        return previous;
+      }
+      return threshold;
+    }
+    previous = threshold;
+    if (relicChosen(tier) === 0) {
+      return threshold;
+    }
+    tier = tier + 1;
+  }
+  return -1;
+}
+
+export function tierThreshold(wantLast: Boolean, wantPrevious: Boolean): Int {
+  if (useServerState(SidePanelVarbits.LEAGUE) === League.THREE) {
+    const count: Int = SHATTERED_TIER_COUNT;
+    if (wantLast) {
+      return ShatteredTiers.get(count) ?? 0;
+    }
+    const points: Int = useServerState(SidePanelVarps.POINTS);
+    let previous: Int = 0;
+    let key: Int = 1;
+    while (key <= count) {
+      const threshold: Int = ShatteredTiers.get(key) ?? 0;
+      if (threshold > points) {
+        if (wantPrevious) {
+          return previous;
+        }
+        return threshold;
+      }
+      previous = threshold;
+      key = key + 1;
+    }
+    return -1;
+  }
+  return relicTierThreshold(wantLast, wantPrevious);
+}
+
+export function relicBarWidth(): Int {
+  const next: Int = tierThreshold(false, false);
+  const from: Int = tierThreshold(false, true);
+  if (next !== -1 && from !== -1 && next > 0 && from !== next) {
+    const points: Int = useServerState(SidePanelVarps.POINTS);
+    return scaled(points - from, next - from, SidePanelLayout.BAR_SPAN);
+  }
+  return SidePanelLayout.BAR_SPAN;
+}

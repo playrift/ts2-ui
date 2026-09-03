@@ -1,8 +1,10 @@
-import { createRef, useState } from 'ts2';
+import { createRef, useInterval, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { Sounds } from '../lib/lib.constants';
 import { PrayerGrid } from './prayer-grid.component';
 import { CLOSE_CYCLES, DONE, Layout, PrayerArt, PrayerColour, PrayerFonts } from './quickprayer.constants';
+
+const timerHost = createRef('0077_quickprayer_timer_host');
 
 const doneLabel = createRef('quickprayer_done_label');
 
@@ -59,6 +61,13 @@ export function QuickPrayer(): Component {
 }
 
 function DoneButton(): Component {
+  useInterval(() => {
+    if (clientClock() < pressedUntil) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
   const [pressedUntil, setPressedUntil] = useState(0);
 
   if (pressedUntil !== 0) {
@@ -70,12 +79,7 @@ function DoneButton(): Component {
         options={[DONE]}
         onMouseEnter={() => textColourSwapper(doneLabel, PrayerColour.LABEL_LIT)}
         onMouseLeave={() => textColourSwapper(doneLabel, PrayerColour.LABEL)}
-        onTimer={() => {
-          if (clientClock() < pressedUntil) {
-            return;
-          }
-          setPressedUntil(0);
-        }}
+        ref={timerHost}
       />
     );
   }

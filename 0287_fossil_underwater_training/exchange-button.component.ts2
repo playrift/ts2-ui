@@ -1,4 +1,4 @@
-import { useState, useServerState } from 'ts2';
+import { useInterval, useRef, useServerState, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { groupDigits } from '../lib/lib.format';
 import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
@@ -26,6 +26,15 @@ function exchangeDetail(kind: Int, agility: Int, thieving: Int, bothAgility: Int
 }
 
 export function ExchangeButton({ kind, title }: { kind: Int; title: String }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (clientClock() < waitUntil) {
+      return;
+    }
+    setWaitUntil(0);
+  }, timerHost);
+
   const agility: Int = useServerState(TrainingVarps.AGILITY_XP);
   const thieving: Int = useServerState(TrainingVarps.THIEVING_XP);
   const bothAgility: Int = useServerState(TrainingVarps.BOTH_AGILITY_XP);
@@ -44,12 +53,7 @@ export function ExchangeButton({ kind, title }: { kind: Int; title: String }): C
         h="fill"
         options={['Exchange-1', 'Exchange-5', 'Exchange-X', 'Exchange-All']}
         optionSubject={subject}
-        onTimer={() => {
-          if (clientClock() < waitUntil) {
-            return;
-          }
-          setWaitUntil(0);
-        }}
+        ref={timerHost}
       >
         <StoneButtonPressedFilled />
         <text

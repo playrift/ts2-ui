@@ -1,4 +1,4 @@
-import { CS2, useUniverse } from 'ts2';
+import { useInterval, useRef, useUniverse } from 'ts2';
 import { scaled } from '../lib/lib.engine';
 import { CosineDegrees, LoadingIcon, LoadingRingItems, SineDegrees } from './membership-benefits-prompt.constants';
 
@@ -34,8 +34,23 @@ function LoadingRingItem({
 
   const zoom: Int = Math.max(LoadingIcon.ZOOM_MAX - index * LoadingIcon.ZOOM_STEP, LoadingIcon.ZOOM_MIN);
 
+  const me = useRef();
+
+  useInterval(() => {
+    const next: Int = me.zoom + LoadingIcon.ZOOM_PER_CYCLE;
+    me.props = {
+      offsetX: 0,
+      offsetY: 0,
+      pitch: LoadingIcon.PITCH,
+      yaw: LoadingIcon.YAW,
+      roll: LoadingIcon.ROLL,
+      zoom: next > LoadingIcon.ZOOM_MAX ? LoadingIcon.ZOOM_MIN : next,
+    };
+  }, me);
+
   return (
     <model
+      ref={me}
       x={centerX + scaled(cosDegrees(angle), LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
       y={centerY + scaled(sinDegrees(angle), LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
       w={size}
@@ -46,19 +61,6 @@ function LoadingRingItem({
       yaw={LoadingIcon.YAW}
       roll={LoadingIcon.ROLL}
       zoom={zoom}
-      onTimer={(event) => {
-        if (CS2.cc_find(event.component, event.subId)) {
-          const next: Int = CS2.cc_model_zoom_get() + LoadingIcon.ZOOM_PER_CYCLE;
-          CS2.cc_model_angle_set(
-            0,
-            0,
-            LoadingIcon.PITCH,
-            LoadingIcon.YAW,
-            LoadingIcon.ROLL,
-            next > LoadingIcon.ZOOM_MAX ? LoadingIcon.ZOOM_MIN : next,
-          );
-        }
-      }}
     />
   );
 }

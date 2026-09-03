@@ -1,46 +1,46 @@
-import { eygloHandModel, eygloSelectedCoin } from '../0111_eyeglo_change_machine/eyeglo-machine.helpers';
-import { UnlockDigits, UnlockItem, UnlockMarkers } from './unlock-dial.component';
+import { createRef, useWatch } from 'ts2';
+
+import { setEygloHandModel, setEygloSelectedCoin } from '../0111_eyeglo_change_machine/eyeglo-machine.helpers';
+import { EYEGLO_DIGIT_ZERO } from './eyeglo-digit-models.data';
+import { unlockDial } from './unlock-dial.helpers';
 import { closeInterface, graphicSwapper } from '../lib/lib.helpers';
-import { CloseSprites, Layout, MachineColor, MachineModel } from './eyeglo-gnome-machine-locked.constants';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { CloseSprites, DialModel, Layout, MachineColor, MachineModel } from './eyeglo-gnome-machine-locked.constants';
 
-export function MachineHand(): Component {
-  return (
-    <layer w="fill" h="fill">
-      <model
-        x={Layout.HAND_X}
-        y={Layout.HAND_Y}
-        w={Layout.MODEL_W}
-        h={Layout.MODEL_H}
-        model={eygloHandModel()}
-        zoom={Layout.HAND_ZOOM}
-        pitch={Layout.HAND_PITCH}
-        yaw={Layout.HAND_YAW}
-        roll={Layout.HAND_ROLL}
-      />
-    </layer>
-  );
-}
-
-export function MachineSelectedCoin(): Component {
-  return (
-    <layer w="fill" h="fill">
-      <model
-        x={Layout.COIN_X}
-        y={Layout.COIN_Y}
-        w={Layout.COIN_W}
-        h={Layout.COIN_H}
-        item={eygloSelectedCoin()}
-        itemCount={1}
-        deferred
-      />
-    </layer>
-  );
-}
+const backdrop = createRef();
+const digitTens = createRef();
+const digitUnits = createRef();
+const markerTop = createRef();
+const markerMiddle = createRef();
+const markerBottom = createRef();
+const hand = createRef();
+const selectedCoin = createRef();
+const unlockItem = createRef();
 
 export function EygloGnomeMachineLocked(): Component {
+  useWatch(
+    [Varbits.EYEGLO_COIN_VALUE_1, Varbits.EYEGLO_UNLOCK_VAL, Varps.EYEGLO_UNLOCK_A],
+    () => unlockDial(digitTens, digitUnits, markerTop, markerMiddle, markerBottom, unlockItem),
+    backdrop,
+  );
+
+  useWatch(Varbits.EYEGLO_HAND, (event) => setEygloHandModel(event.component), hand);
+
+  useWatch(Varps.EYEGLO_COIN_SELECTED, (event) => setEygloSelectedCoin(event.component), selectedCoin);
+
   return (
     <>
-      <rect x={0} y={0} w={Layout.BACKDROP_W} h={Layout.BACKDROP_H} fill color={MachineColor.BACKDROP} />
+      <rect
+        ref={backdrop}
+        x={0}
+        y={0}
+        w={Layout.BACKDROP_W}
+        h={Layout.BACKDROP_H}
+        fill
+        color={MachineColor.BACKDROP}
+        onLoad={() => unlockDial(digitTens, digitUnits, markerTop, markerMiddle, markerBottom, unlockItem)}
+      />
 
       <model
         x={Layout.HEAD_X}
@@ -59,9 +59,55 @@ export function EygloGnomeMachineLocked(): Component {
         zoom={Layout.HEAD_ZOOM}
       />
 
-      <UnlockDigits w="fill" h="fill" />
+      <model
+        ref={digitTens}
+        x={Layout.DIGIT_TENS_X}
+        y={Layout.DIGIT_Y}
+        w={Layout.DIGIT_W}
+        h={Layout.DIGIT_H}
+        model={EYEGLO_DIGIT_ZERO}
+        zoom={Layout.DIGIT_ZOOM}
+        offsetY={Layout.DIGIT_OFFSET_Y}
+      />
+      <model
+        ref={digitUnits}
+        x={Layout.DIGIT_UNITS_X}
+        y={Layout.DIGIT_Y}
+        w={Layout.DIGIT_W}
+        h={Layout.DIGIT_H}
+        model={EYEGLO_DIGIT_ZERO}
+        zoom={Layout.DIGIT_ZOOM}
+        offsetY={Layout.DIGIT_OFFSET_Y}
+      />
 
-      <UnlockMarkers w="fill" h="fill" />
+      <model
+        ref={markerTop}
+        x={Layout.MARKER_X}
+        y={Layout.MARKER_TOP_Y}
+        w={Layout.MARKER_W}
+        h={Layout.MARKER_H}
+        model={DialModel.TOP_HIGHER}
+        zoom={Layout.MARKER_ZOOM}
+      />
+      <model
+        ref={markerMiddle}
+        x={Layout.MARKER_X}
+        y={Layout.MARKER_MID_Y}
+        w={Layout.MARKER_W}
+        h={Layout.MARKER_H}
+        model={DialModel.NEEDLE}
+        zoom={Layout.MARKER_ZOOM}
+      />
+      <model
+        ref={markerBottom}
+        x={Layout.MARKER_X}
+        y={Layout.MARKER_BOTTOM_Y}
+        w={Layout.MARKER_W}
+        h={Layout.MARKER_H}
+        model={DialModel.BOTTOM_LOWER}
+        zoom={Layout.MARKER_ZOOM}
+        offsetY={Layout.MARKER_BOTTOM_OFFSET_Y}
+      />
 
       <rect
         x={Layout.INSERT_X}
@@ -73,8 +119,29 @@ export function EygloGnomeMachineLocked(): Component {
         options={['Insert coin']}
       />
 
-      <MachineHand w="fill" h="fill" />
-      <MachineSelectedCoin w="fill" h="fill" />
+      <model
+        ref={hand}
+        x={Layout.HAND_X}
+        y={Layout.HAND_Y}
+        w={Layout.MODEL_W}
+        h={Layout.MODEL_H}
+        model={MachineModel.HAND}
+        zoom={Layout.HAND_ZOOM}
+        pitch={Layout.HAND_PITCH}
+        yaw={Layout.HAND_YAW}
+        roll={Layout.HAND_ROLL}
+        onLoad={(event) => setEygloHandModel(event.component)}
+      />
+      <model
+        ref={selectedCoin}
+        x={Layout.COIN_X}
+        y={Layout.COIN_Y}
+        w={Layout.COIN_W}
+        h={Layout.COIN_H}
+        zoom={Layout.COIN_ZOOM}
+        pitch={Layout.COIN_PITCH}
+        yaw={Layout.COIN_YAW}
+      />
 
       <model
         x={Layout.HOPPER_X}
@@ -115,7 +182,14 @@ export function EygloGnomeMachineLocked(): Component {
         zoom={Layout.UNLOCK_PLATE_ZOOM}
       />
 
-      <UnlockItem w="fill" h="fill" />
+      <model
+        ref={unlockItem}
+        x={Layout.UNLOCK_X}
+        y={Layout.UNLOCK_Y}
+        w={Layout.MODEL_W}
+        h={Layout.MODEL_H}
+        zoom={Layout.UNLOCK_ITEM_ZOOM}
+      />
     </>
   );
 }

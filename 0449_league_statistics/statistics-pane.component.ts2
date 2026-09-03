@@ -1,0 +1,62 @@
+import { useRef, useUniverse } from 'ts2';
+import { groupDigits } from '../lib/lib.format';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { LeagueBlock } from './league-block.component';
+import { Layout, Rows, StatBar } from './league-statistics.constants';
+import { bestTrophyLabel, leaguePoints, leaguesEntered, totalLeaguePoints } from './league-statistics.helpers';
+import { Leagues } from './leagues.data';
+import { StatDivider } from './stat-divider.component';
+import { StatLine } from './stat-line.component';
+
+export function StatisticsPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const width: Int = universe.width - Layout.LIST_W_INSET;
+  const height: Int = universe.height - Layout.LIST_H_INSET;
+  const half: Int = width / 2;
+
+  const extent: Int = Rows.GENERAL_H + leaguesEntered() * Rows.LEAGUE_H + Rows.TAIL;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y={Layout.LIST_Y}
+        w={{ fill: Layout.LIST_W_INSET }}
+        h={{ fill: Layout.LIST_H_INSET }}
+        scrollHeight={extent > height ? extent : 0}
+      >
+        <StatDivider top={0} />
+        <StatLine text="General League Statistics" top={16} left={0} width={width} heading />
+        <StatDivider top={31} />
+        <StatLine text="Leagues participations" top={47} left={0} width={half} />
+        <StatLine text={stringOf(leaguesEntered())} top={62} left={0} width={half} />
+        <StatLine text="Total League Points" top={47} left={half} width={half} />
+        <StatLine text={groupDigits(totalLeaguePoints(), ',')} top={62} left={half} width={half} />
+        <StatLine text="Best trophy" top={77} left={0} width={half} />
+        <StatLine text={bestTrophyLabel()} top={92} left={0} width={half} />
+
+        {Leagues.scan(
+          (row, league, index, top) =>
+            leaguePoints(league) > 0 ? <LeagueBlock row={row} league={league} top={top} width={width} /> : null,
+          (row, league) => (leaguePoints(league) > 0 ? Rows.LEAGUE_H : 0),
+          Rows.GENERAL_H,
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y={Layout.BAR_Y} w={Layout.BAR_W} h={{ fill: Layout.BAR_H_INSET }}>
+        <ScrollbarVertical
+          content={list}
+          track={StatBar.TRACK}
+          capTopSprite={StatBar.CAP_TOP}
+          thumbSprite={StatBar.THUMB}
+          capBottomSprite={StatBar.CAP_BOTTOM}
+          arrowUp={StatBar.ARROW_UP}
+          arrowDown={StatBar.ARROW_DOWN}
+        />
+      </layer>
+    </layer>
+  );
+}

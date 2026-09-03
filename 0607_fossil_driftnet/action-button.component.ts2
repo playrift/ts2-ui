@@ -1,4 +1,4 @@
-import { useRef, useState } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { ButtonBackground } from '../0370_poh_options/button-background.component';
 import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
@@ -7,25 +7,25 @@ import { Confirm, Content, DriftnetSound, Fade, PRESS_CYCLES } from './fossil-dr
 import { DriftnetConfirm } from './fossil-driftnet.state';
 
 export function ActionButton({ label, icon, opens = 0 }: { label: String; icon: Sprite; opens?: Int }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (clientClock() < pressedUntil) {
+      return;
+    }
+    if (opens !== Confirm.NONE && raised !== Confirm.NONE) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
   const [pressedUntil, setPressedUntil] = useState(0);
   const [raised, setRaised] = useState(DriftnetConfirm);
   const iconCell = useRef();
 
   if (pressedUntil !== 0) {
     return (
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={() => {
-          if (clientClock() < pressedUntil) {
-            return;
-          }
-          if (opens !== Confirm.NONE && raised !== Confirm.NONE) {
-            return;
-          }
-          setPressedUntil(0);
-        }}
-      >
+      <layer w="fill" h="fill" ref={timerHost}>
         <ButtonBackgroundPressed />
         <sprite
           x="center"

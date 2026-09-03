@@ -1,0 +1,54 @@
+import { CS2, createRef, stopTimer } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { ArenaColor, ArenaFlash, ArenaSounds } from './1v1arena-hud.constants';
+
+export const showSlot = createRef('1v1arena_hud_show');
+export const displaySlot = createRef('1v1arena_hud_display');
+export const hideSlot = createRef('1v1arena_hud_hide');
+
+export const showLabel = createRef('1v1arena_hud_show_label');
+export const hideLabel = createRef('1v1arena_hud_hide_label');
+export const spectatorLabel = createRef('1v1arena_hud_spectator_label');
+export const startAllLabel = createRef('1v1arena_hud_startall_label');
+
+export function swapLabelColor(label: ComponentId, colour: Int): void {
+  label.color = colour;
+}
+
+export function collapseArenaHud(): void {
+  playSound(ArenaSounds.CLICK);
+  displaySlot.hide = true;
+  hideSlot.hide = true;
+  showSlot.hide = false;
+}
+
+export function expandArenaHud(): void {
+  playSound(ArenaSounds.CLICK);
+  displaySlot.hide = false;
+  showSlot.hide = true;
+  hideSlot.hide = false;
+}
+
+export function pressArenaButton(button: ComponentId, label: ComponentId): void {
+  playSound(ArenaSounds.CLICK);
+  const restoreAt: Int = clientClock() + ArenaFlash.CYCLES;
+  label.color = ArenaColor.PRESSED;
+  CS2.if_on_mouserepeat_set(null, button);
+  CS2.if_on_mouseleave_set(null, button);
+  CS2.if_onop_set(null, button);
+  button.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    resetArenaButton(button, label);
+  };
+}
+
+export function resetArenaButton(button: ComponentId, label: ComponentId): void {
+  label.color = ArenaColor.LABEL;
+  CS2.if_on_mouserepeat_set(() => swapLabelColor(label, ArenaColor.HOVER), button);
+  CS2.if_on_mouseleave_set(() => swapLabelColor(label, ArenaColor.LABEL), button);
+  CS2.if_onop_set(() => pressArenaButton(button, label), button);
+  CS2.if_on_timer_set(null, button);
+}

@@ -1,0 +1,93 @@
+import { useServerState } from 'ts2';
+
+import { ThinBox } from '../lib/thin-box.component';
+import {
+  clanSettingFilled,
+  clanSettingRosterSize,
+  clanSettingVacancies,
+  ironmanIsGrouped,
+} from '../0701_clans_sidepanel/clan-settings';
+import { gimSettingsArm } from './gim-settings-arm';
+import { GimArm, GimArt, GimIconColor, GimIconPlate, GimRosterSize, GimVarbits } from './gim-settings.constants';
+
+export function GimIcon(): Component {
+  const asGuest: Int = useServerState(GimVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(GimVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(GimVarbits.AFFINITY);
+  const arm: Int = gimSettingsArm(asGuest, guestStatus, status);
+
+  if (arm === GimArm.NONE) {
+    return null;
+  }
+
+  const badge: Sprite = gimBadgeSprite();
+  const border: Int = gimBorderColour();
+  const numeral: Sprite = gimNumeralSprite();
+
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: GimIconPlate.BORDER_INSET }}
+        h={{ fill: GimIconPlate.BORDER_INSET }}
+        fill
+        color={border}
+      />
+
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: GimIconPlate.FIELD_INSET }}
+        h={{ fill: GimIconPlate.FIELD_INSET }}
+        fill
+        color={GimIconColor.FIELD}
+      />
+
+      <ThinBox />
+
+      <sprite x="center" y={GimIconPlate.ICON_TOP_Y} w={GimIconPlate.ICON} h={GimIconPlate.ICON} sprite={badge} />
+      <sprite x="center" y={GimIconPlate.ICON_BOTTOM_Y} w={GimIconPlate.ICON} h={GimIconPlate.ICON} sprite={numeral} />
+    </layer>
+  );
+}
+
+function gimBadgeSprite(): Sprite {
+  let badge: Sprite = GimArt.IRON_ICON;
+  if (clanSettingVacancies() > 0) {
+    if (clanSettingFilled() <= 0) {
+      badge = GimArt.IRON_ICON_OPEN;
+    }
+  }
+  if (ironmanIsGrouped()) {
+    badge = GimArt.IRON_ICON_GROUPED;
+  }
+  return badge;
+}
+
+function gimBorderColour(): Int {
+  let border: Int = GimIconColor.BORDER;
+  if (clanSettingVacancies() > 0) {
+    if (clanSettingFilled() <= 0) {
+      border = GimIconColor.BORDER_OPEN;
+    }
+  }
+  if (ironmanIsGrouped()) {
+    border = GimIconColor.BORDER_GROUPED;
+  }
+  return border;
+}
+
+function gimNumeralSprite(): Sprite {
+  const roster: Int = clanSettingRosterSize();
+  if (roster === GimRosterSize.THREE) {
+    return GimArt.NUMERAL_3;
+  }
+  if (roster === GimRosterSize.FOUR) {
+    return GimArt.NUMERAL_4;
+  }
+  if (roster === GimRosterSize.FIVE) {
+    return GimArt.NUMERAL_5;
+  }
+  return GimArt.NUMERAL_DEFAULT;
+}

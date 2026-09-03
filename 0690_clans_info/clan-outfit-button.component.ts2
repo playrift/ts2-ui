@@ -1,0 +1,118 @@
+import { useServerState } from 'ts2';
+
+import { StoneButton } from '../lib/stone-button.component';
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { clanInfoArm } from './clan-info-arm';
+import {
+  ClanInfoArm,
+  ClanInfoSounds,
+  ClanInfoVarbits,
+  OUTFIT_OP,
+  OutfitHover,
+  OutfitPlate,
+} from './clans-info.constants';
+import type { ClanOutfitColourRow } from './clan-outfit.data';
+import {
+  ClanOutfitColours,
+  ClanOutfitIcons,
+  OUTFIT_DEFAULT_BORDER,
+  OUTFIT_DEFAULT_FIELD,
+  OUTFIT_DEFAULT_ICON,
+} from './clan-outfit.data';
+
+export function ClanOutfitButton(): Component {
+  const asGuest: Int = useServerState(ClanInfoVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanInfoVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(ClanInfoVarbits.AFFINITY);
+  const arm: Int = clanInfoArm(asGuest, guestStatus, status);
+
+  if (arm === ClanInfoArm.NONE) {
+    return null;
+  }
+
+  const iconTop: Sprite = ClanOutfitIcons.at(clanOutfitIconKey()) ?? OUTFIT_DEFAULT_ICON;
+  const iconBottom: Sprite = ClanOutfitIcons.at(clanOutfitIconKey()) ?? OUTFIT_DEFAULT_ICON;
+
+  const field: Int = outfitFieldColour(clanOutfitColourKey());
+  const border: Int = outfitBorderColour(clanOutfitColourKey());
+
+  const washed: Int = outfitIsWashed(arm);
+
+  return (
+    <layer w="fill" h="fill" options={[OUTFIT_OP]} onOptionSelect={() => playSound(ClanInfoSounds.SELECT)}>
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: OutfitPlate.BORDER_INSET }}
+        h={{ fill: OutfitPlate.BORDER_INSET }}
+        fill
+        color={border}
+      />
+
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: OutfitPlate.FIELD_INSET }}
+        h={{ fill: OutfitPlate.FIELD_INSET }}
+        fill
+        color={field}
+      />
+
+      {washed === 1 && (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={OutfitHover.COLOR}
+          transparency={OutfitHover.REST}
+          onMouseRepeat={(event) => ccSetTrans(event.self, OutfitHover.HOVERED)}
+          onMouseLeave={(event) => ccSetTrans(event.self, OutfitHover.REST)}
+        />
+      )}
+
+      <StoneButton />
+
+      <sprite x="center" y={OutfitPlate.ICON_TOP_Y} w={OutfitPlate.ICON} h={OutfitPlate.ICON} sprite={iconTop} />
+      <sprite x="center" y={OutfitPlate.ICON_BOTTOM_Y} w={OutfitPlate.ICON} h={OutfitPlate.ICON} sprite={iconBottom} />
+    </layer>
+  );
+}
+
+function outfitFieldColour(key: Int): Int {
+  const scheme: ClanOutfitColourRow | null = ClanOutfitColours.at(key);
+  if (scheme === null) {
+    return OUTFIT_DEFAULT_FIELD;
+  }
+  return scheme.colour;
+}
+
+function outfitBorderColour(key: Int): Int {
+  const scheme: ClanOutfitColourRow | null = ClanOutfitColours.at(key);
+  if (scheme === null) {
+    return OUTFIT_DEFAULT_BORDER;
+  }
+  return scheme.highlight;
+}
+
+function outfitIsWashed(arm: Int): Int {
+  if (arm === ClanInfoArm.MEMBER) {
+    if (!onMobile()) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+function clanOutfitIconKey(): Int {
+  return CLAN_SETTING_UNAVAILABLE - 1;
+}
+
+function clanOutfitColourKey(): Int {
+  return CLAN_SETTING_UNAVAILABLE - 1;
+}
+
+const CLAN_SETTING_UNAVAILABLE = 0;

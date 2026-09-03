@@ -1,0 +1,56 @@
+import { sessionState, useState } from 'ts2';
+
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { onMobile } from '../lib/lib.helpers';
+import { EmoteTip, Layout } from './emote.constants';
+
+export const tipEmote = sessionState(-1);
+export const tipLeft = sessionState(-1);
+export const tipTop = sessionState(-1);
+export const tipHeight = sessionState(-1);
+
+export function showEmoteTooltip(emote: Int, slotX: Int, slotY: Int, pane: Ref): void {
+  const [, setEmote] = useState(tipEmote);
+  const [, setLeft] = useState(tipLeft);
+  const [, setTop] = useState(tipTop);
+  const [, setHeight] = useState(tipHeight);
+
+  if (onMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(EmoteTip.DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+
+  const scrolled: Int = pane.scrollY;
+  const paneH: Int = pane.height;
+  const top: Int = clipIntoPane(slotY, scrolled, paneH);
+  const bottom: Int = clipIntoPane(slotY + Layout.ICON, scrolled, paneH);
+
+  setEmote(emote);
+  setLeft(Layout.PANE_X + slotX);
+  setTop(top);
+  setHeight(bottom - top);
+  tooltipRaise();
+}
+
+export function hideEmoteTooltip(): void {
+  const [, setEmote] = useState(tipEmote);
+  tooltipHide();
+  setEmote(-1);
+}
+
+function clipIntoPane(y: Int, scrolled: Int, height: Int): Int {
+  const inside: Int = y - scrolled;
+  if (inside < 0) {
+    return 0;
+  }
+  if (inside > height) {
+    return height;
+  }
+  return inside;
+}

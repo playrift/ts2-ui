@@ -1,0 +1,113 @@
+import { useRef, useServerState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { textWidth } from '../lib/lib.engine';
+import { hideBuffTooltip, showBuffTooltip, toggleRelicBuff } from './league-3-side-panel.state';
+import {
+  League,
+  LeagueThemes,
+  SidePanelColor,
+  SidePanelFonts,
+  SidePanelLayout,
+  SidePanelSprites,
+  SidePanelText,
+  SidePanelVarbits,
+} from './league-3-side-panel.constants';
+
+function toggleTip(league: Int, hidden: Int): String {
+  const noun: String = league === League.THREE ? 'Fragments' : 'Relics';
+  if (hidden === 1) {
+    return `Enable showing your ${noun} in the buff bar.`;
+  }
+  return `Disable showing your ${noun} in the buff bar.`;
+}
+
+export function RelicBuffToggle(): Component {
+  const label = useRef();
+  const league: Int = useServerState(SidePanelVarbits.LEAGUE);
+  const hidden: Int = useServerState(SidePanelVarbits.BUFF_HIDDEN);
+  const theme = LeagueThemes.get(league as League);
+  const accent: Int = theme === null ? SidePanelColor.ACCENT_DEFAULT : theme.accent;
+  const mobile = onMobile();
+
+  const width: Int =
+    textWidth(SidePanelText.TOGGLE, SidePanelLayout.TOGGLE_MEASURE, SidePanelFonts.BODY) + SidePanelLayout.TOGGLE_PAD;
+
+  if (mobile) {
+    return (
+      <layer
+        x="center"
+        y="bottom"
+        w={width}
+        h={SidePanelLayout.TOGGLE_H}
+        options={[hidden === 1 ? 'Enable' : 'Disable']}
+        optionSubject={`<col=ff9040>${SidePanelText.TOGGLE}</col>`}
+        onOptionSelect={() => toggleRelicBuff()}
+      >
+        <sprite
+          x={0}
+          y={SidePanelLayout.RADIO_Y}
+          w={SidePanelLayout.RADIO}
+          h={SidePanelLayout.RADIO}
+          sprite={hidden === 1 ? SidePanelSprites.RADIO_OFF : SidePanelSprites.RADIO_ON}
+        />
+        <text
+          x="center"
+          y={SidePanelLayout.TOGGLE_LABEL_Y}
+          w="fill"
+          h="fill"
+          text={SidePanelText.TOGGLE}
+          font={SidePanelFonts.BODY}
+          color={accent}
+          shadow
+          align="right"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x="center"
+      y="bottom"
+      w={width}
+      h={SidePanelLayout.TOGGLE_H}
+      options={[hidden === 1 ? 'Enable' : 'Disable']}
+      optionSubject={`<col=ff9040>${SidePanelText.TOGGLE}</col>`}
+      onMouseEnter={() => {
+        label.color = SidePanelColor.TOGGLE_HOVER;
+      }}
+      onMouseLeave={() => {
+        label.color = accent;
+      }}
+      onOptionSelect={() => toggleRelicBuff()}
+    >
+      <sprite
+        x={0}
+        y={SidePanelLayout.RADIO_Y}
+        w={SidePanelLayout.RADIO}
+        h={SidePanelLayout.RADIO}
+        sprite={hidden === 1 ? SidePanelSprites.RADIO_OFF : SidePanelSprites.RADIO_ON}
+      />
+      <text
+        ref={label}
+        x="center"
+        y={SidePanelLayout.TOGGLE_LABEL_Y}
+        w="fill"
+        h="fill"
+        text={SidePanelText.TOGGLE}
+        font={SidePanelFonts.BODY}
+        color={accent}
+        shadow
+        align="right"
+        valign="middle"
+        onMouseRepeat={() => showBuffTooltip()}
+        onMouseLeave={() => hideBuffTooltip()}
+      />
+    </layer>
+  );
+}
+
+export function buffTooltipText(): String {
+  return toggleTip(useServerState(SidePanelVarbits.LEAGUE), useServerState(SidePanelVarbits.BUFF_HIDDEN));
+}

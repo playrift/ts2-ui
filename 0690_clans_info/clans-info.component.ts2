@@ -1,0 +1,194 @@
+import { CS2, createRef, useServerState } from 'ts2';
+
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { clanStatusText } from '../0696_clans_storage_main/clan-interface-title';
+import { ClanInfoButton, ClanTitlesButton } from './clan-info-button.component';
+import { ClanOutfitButton } from './clan-outfit-button.component';
+import { clanInfoArm } from './clan-info-arm';
+import {
+  ClanInfoArm,
+  ClanInfoArt,
+  ClanInfoFonts,
+  ClanInfoSlot,
+  ClanInfoVarbits,
+  Layout,
+  LOADING_COLOR,
+  LOADING_TEXT,
+  STEELBORDER_FLAGS,
+} from './clans-info.constants';
+
+const infoContainer = createRef('clans_info_info_container');
+const buttonContainer = createRef('clans_info_button_container');
+
+export function ClansInfo(): Component {
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h="fill">
+      <ClansInfoFrame />
+
+      <sprite x={{ right: Layout.CLOSE_RIGHT }} y="top" w={Layout.CLOSE_SIZE} h={Layout.CLOSE_SIZE} options={['*']} />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x="right" y="center" w={Layout.OUTFIT_W} h={Layout.OUTFIT_H} options={['*']}>
+          <ClanOutfitButton />
+        </layer>
+
+        <layer
+          static
+          ref={infoContainer}
+          x={{ right: Layout.INFO_RIGHT }}
+          y="center"
+          w={{ fill: Layout.INFO_INSET_W }}
+          h="fill"
+          hide
+        >
+          <layer x="center" y="top" w="fill" h="fill">
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: Layout.BACKING_INSET }}
+              h={{ fill: Layout.BACKING_INSET }}
+              sprite={ClanInfoArt.INFO_BACKING}
+              tiling
+            />
+          </layer>
+
+          <layer x="center" y="bottom" w="fill" h="fill">
+            <layer
+              x={Layout.EDITABLE_X}
+              y="center"
+              w={{ fill: Layout.EDITABLE_INSET_W }}
+              h={{ fill: Layout.EDITABLE_INSET_H }}
+            >
+              <ClanSettingRow />
+              <ClanSettingRow />
+              <ClanSettingRow />
+              <ClanSettingRow />
+              <ClanSettingRow />
+              <ClanSettingRow />
+            </layer>
+
+            <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.BAR_INSET_H }} />
+
+            <ThinBoxEntrypoint />
+          </layer>
+        </layer>
+
+        <layer static ref={buttonContainer} x="left" y="center" w={Layout.BUTTON_COLUMN_W} h="fill" hide>
+          <ClanInfoButton slot={ClanInfoSlot.EVENTS} x="center" y="top" w="fill" h={Layout.BUTTON_H} />
+          <ClanInfoButton
+            slot={ClanInfoSlot.MEMBERS}
+            x="center"
+            y={Layout.BUTTON_STRIDE}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+          <ClanInfoButton
+            slot={ClanInfoSlot.APPLICATIONS}
+            x="center"
+            y={Layout.BUTTON_STRIDE * 2}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+          <ClanInfoButton
+            slot={ClanInfoSlot.HALL}
+            x="center"
+            y={Layout.BUTTON_STRIDE * 3}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+          <ClanInfoButton
+            slot={ClanInfoSlot.PERMISSIONS}
+            x="center"
+            y={Layout.BUTTON_STRIDE * 4}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+          <ClanTitlesButton x="center" y={Layout.BUTTON_STRIDE * 5} w="fill" h={Layout.BUTTON_H} />
+          <ClanInfoButton
+            slot={ClanInfoSlot.BANNED}
+            x="center"
+            y={Layout.BUTTON_STRIDE * 6}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+          <ClanInfoButton
+            slot={ClanInfoSlot.QUIT}
+            x="center"
+            y={Layout.BUTTON_STRIDE * 7}
+            w="fill"
+            h={Layout.BUTTON_H}
+          />
+        </layer>
+
+        <ClansInfoLoading />
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}
+
+function setContainerHidden(target: ComponentId, hidden: Boolean): void {
+  target.hide = hidden;
+}
+
+function ClanSettingRow(): Component {
+  return <layer x="center" y="top" w="fill" h={0} options={['*']} />;
+}
+
+export function ClansInfoFrame(): Component {
+  const asGuest: Int = useServerState(ClanInfoVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanInfoVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(ClanInfoVarbits.AFFINITY);
+
+  let title: String = clanStatusText(asGuest, guestStatus, status);
+  if (clanInfoArm(asGuest, guestStatus, status) !== ClanInfoArm.NONE) {
+    title = CS2.activeclansettings_clan_name_get();
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      <SteelBorder title={title} titleColor={SteelborderColor.TITLE} flags={STEELBORDER_FLAGS} />
+    </layer>
+  );
+}
+
+export function ClansInfoLoading(): Component {
+  const asGuest: Int = useServerState(ClanInfoVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanInfoVarbits.GUEST_AFFINITY);
+  const status: Int = useServerState(ClanInfoVarbits.AFFINITY);
+  const arm: Int = clanInfoArm(asGuest, guestStatus, status);
+
+  let containersHidden: Boolean = true;
+  let loadingHidden: Boolean = false;
+  if (arm !== ClanInfoArm.NONE) {
+    containersHidden = false;
+    loadingHidden = true;
+  }
+
+  setContainerHidden(infoContainer, containersHidden);
+  setContainerHidden(buttonContainer, containersHidden);
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={LOADING_TEXT}
+      font={ClanInfoFonts.LABEL}
+      color={LOADING_COLOR}
+      align="center"
+      valign="middle"
+      shadow
+      hide={loadingHidden}
+    />
+  );
+}

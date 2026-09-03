@@ -1,0 +1,77 @@
+import type { LeagueRewardRow } from './rewards.data';
+import { useServerState } from 'ts2';
+import { hasBit } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import {
+  CURRENT_LEAGUE_INFO_ONLY,
+  DemonicPactsRewards,
+  RagingEchoesRewards,
+  RewardSections,
+  RewardText,
+  RewardVarps,
+  ShatteredRelicsRewards,
+  TrailblazerReloadedRewards,
+  TrailblazerRewards,
+  TwistedRewards,
+} from './league-rewards.constants';
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(RewardVarps.MAP_FLAGS);
+  if (hasBit(flags, 29)) {
+    return false;
+  }
+  return hasBit(flags, 30);
+}
+
+export function rewardShopIsInfoOnly(): Boolean {
+  if (leagueWorld() === false) {
+    return false;
+  }
+  return CURRENT_LEAGUE_INFO_ONLY;
+}
+
+function rewardTable(index: Int): List<LeagueRewardRow> {
+  if (index < RewardSections.TRAILBLAZER.first) return TwistedRewards;
+  if (index < RewardSections.SHATTERED.first) return TrailblazerRewards;
+  if (index < RewardSections.RELOADED.first) return ShatteredRelicsRewards;
+  if (index < RewardSections.ECHOES.first) return TrailblazerReloadedRewards;
+  if (index < RewardSections.DEMONIC.first) return RagingEchoesRewards;
+  return DemonicPactsRewards;
+}
+
+function rewardOffset(index: Int): Int {
+  if (index < RewardSections.TRAILBLAZER.first) return RewardSections.TWISTED.first;
+  if (index < RewardSections.SHATTERED.first) return RewardSections.TRAILBLAZER.first;
+  if (index < RewardSections.RELOADED.first) return RewardSections.SHATTERED.first;
+  if (index < RewardSections.ECHOES.first) return RewardSections.RELOADED.first;
+  if (index < RewardSections.DEMONIC.first) return RewardSections.ECHOES.first;
+  return RewardSections.DEMONIC.first;
+}
+
+export function rewardName(index: Int): String {
+  if (index < 0) return '';
+  const row = rewardTable(index).at(index - rewardOffset(index));
+  if (row === null) return '';
+  return row.name;
+}
+
+export function rewardDescription(index: Int): String {
+  if (index < 0) return '';
+  const row = rewardTable(index).at(index - rewardOffset(index));
+  if (row === null) return '';
+  return row.description;
+}
+
+export function rewardCost(index: Int): Int {
+  if (index < 0) return -1;
+  const row = rewardTable(index).at(index - rewardOffset(index));
+  if (row === null) return -1;
+  return row.cost;
+}
+
+export function rewardPriceLine(name: String, cost: Int, prefix: String): String {
+  if (cost === 1) {
+    return `${name}<br>  ${prefix}${groupDigits(cost, RewardText.SEPARATOR)} point</col>`;
+  }
+  return `${name}<br>  ${prefix}${groupDigits(cost, RewardText.SEPARATOR)} points</col>`;
+}

@@ -1,4 +1,14 @@
-import { onMounted, onUpdated, useOnResize, useRef, useServerState, useState, useUniverse } from 'ts2';
+import {
+  createRef,
+  onMounted,
+  onUpdated,
+  useInterval,
+  useOnResize,
+  useRef,
+  useServerState,
+  useState,
+  useUniverse,
+} from 'ts2';
 
 import {
   MakeoverMenuButton,
@@ -39,6 +49,8 @@ import {
   styleSubject,
   wideGrid,
 } from './makeover.constants';
+
+const timerHost = createRef('0516_makeover_timer_host');
 
 function cellOffsetX(category: Int): Int {
   return category === 6 ? 4 : 0;
@@ -245,6 +257,13 @@ export function MakeoverStage(): Component {
 }
 
 function MakeoverContent({ category, stageHeight }: { category: Int; stageHeight: Int }): Component {
+  useInterval(() => {
+    if (paused === 0) {
+      setSpin(spinNext(spin, direction));
+      setDirection(spinTurn(spin, direction));
+    }
+  }, timerHost);
+
   const list = useRef();
   const alt: Int = useServerState(Varbits.MAKEOVER_BODYTYPE);
   const chosenColour: Int = useServerState(Varps.MAKEOVER_COLOUR);
@@ -406,12 +425,7 @@ function MakeoverContent({ category, stageHeight }: { category: Int; stageHeight
               options={[Labels.TOGGLE]}
               optionSubject={Labels.SPIN}
               onOptionSelect={() => setPaused(1 - paused)}
-              onTimer={() => {
-                if (paused === 0) {
-                  setSpin(spinNext(spin, direction));
-                  setDirection(spinTurn(spin, direction));
-                }
-              }}
+              ref={timerHost}
             />
           </>
         ) : (

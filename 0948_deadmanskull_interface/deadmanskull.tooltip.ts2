@@ -1,0 +1,136 @@
+import { sessionState, useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  TooltipBox,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { DeadmanUnlocks } from './deadmanskull.data';
+
+export const tipSigil = sessionState(-1);
+export const tipActive = sessionState(0);
+export const tipLeft = sessionState(-1);
+export const tipTop = sessionState(-1);
+export const tipHeight = sessionState(-1);
+
+export const LIST_ORIGIN_X = 12;
+export const LIST_ORIGIN_Y = 58;
+export const TIP_DWELL = 25;
+export const TIP_WRAP = 256;
+export const TIP_RESTING = 1;
+
+export function showTileTooltip(sigil: Int, active: Int, localX: Int, localY: Int, height: Int, list: Ref): void {
+  const [, setSigil] = useState(tipSigil);
+  const [, setActive] = useState(tipActive);
+  const [, setLeft] = useState(tipLeft);
+  const [, setTop] = useState(tipTop);
+  const [, setHeight] = useState(tipHeight);
+  if (onMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(TIP_DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const scrolled: Int = list.scrollY;
+  const pane: Int = list.height;
+  const top: Int = clipIntoList(localY, scrolled, pane);
+  const bottom: Int = clipIntoList(localY + height, scrolled, pane);
+  setSigil(sigil);
+  setActive(active);
+  setLeft(LIST_ORIGIN_X + localX);
+  setTop(LIST_ORIGIN_Y + top);
+  setHeight(bottom - top);
+  tooltipRaise();
+}
+
+export function hideTileTooltip(): void {
+  const [, setSigil] = useState(tipSigil);
+  tooltipHide();
+  setSigil(-1);
+}
+
+function clipIntoList(y: Int, scrolled: Int, height: Int): Int {
+  const inside: Int = y - scrolled;
+  if (inside < 0) {
+    return 0;
+  }
+  if (inside > height) {
+    return height;
+  }
+  return inside;
+}
+
+export function tipText(name: String, description: String, active: Int): String {
+  if (active === 0) {
+    return `${name} (Inactive): ${description}`;
+  }
+  return `${name} (Active): ${description}`;
+}
+
+export function UnlockTooltip(): Component {
+  const [sigil] = useState(tipSigil);
+  const [active] = useState(tipActive);
+  const [left] = useState(tipLeft);
+  const [top] = useState(tipTop);
+  const [height] = useState(tipHeight);
+  const host = useUniverse();
+
+  const row = DeadmanUnlocks.get(sigil);
+  let text: String = '';
+  if (tooltipUp() && sigil >= 0 && row !== null) {
+    text = tipText(row.name, row.description, active);
+  }
+
+  const hostW: Int = host.width;
+  const hostH: Int = host.height;
+
+  let measure: Int = TIP_WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let boxX: Int = left + TooltipBox.nudge;
+  if (boxX > hostW - boxW) {
+    boxX = hostW - boxW;
+  }
+  let boxY: Int = top + height + TooltipBox.nudge;
+  if (boxY > hostH - boxH) {
+    boxY = top - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer w={TIP_RESTING} h={TIP_RESTING} />;
+  }
+
+  return (
+    <layer x={boxX} y={boxY} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

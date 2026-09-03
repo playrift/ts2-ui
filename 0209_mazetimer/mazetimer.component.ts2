@@ -1,23 +1,41 @@
-import { createRef } from 'ts2';
+import { createRef, useInterval, useWatch } from 'ts2';
 
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
-import { Layout, MazeTimerColors, MazeTimerCopy, MazeTimerFonts, MazeTimerOverlay } from './mazetimer.constants';
+import {
+  Layout,
+  MazeTimerColors,
+  MazeTimerCopy,
+  MazeTimerFonts,
+  MazeTimerOverlay,
+  MazeTimerVarps,
+} from './mazetimer.constants';
 import { macroMazeTimer } from './mazetimer.helpers';
+
+const timerHost1 = createRef('0209_mazetimer_timer_host1');
+
+const timerHost2 = createRef('0209_mazetimer_timer_host2');
 
 const contentTop = createRef('mazetimer_content_top2');
 
 const contentRight = createRef('mazetimer_content_right3');
 
+const percentage = createRef('mazetimer_percentage');
+
 export function MazeTimer(): Component {
+  useWatch(MazeTimerVarps.MACRO_TRANSMIT, (event) => macroMazeTimer(event.component), percentage);
+
+  useInterval(
+    () => overlayRelayout(timerHost1, contentTop, MazeTimerOverlay.DODGE_TOP, Anchor.CENTRE, Anchor.TOP, 0),
+    timerHost1,
+  );
+  useInterval(
+    () => overlayRelayout(timerHost2, contentRight, MazeTimerOverlay.DODGE_RIGHT, Anchor.RIGHT, Anchor.BOTTOM, 0),
+    timerHost2,
+  );
+
   return (
     <layer w="fill" h="fill">
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, contentTop, MazeTimerOverlay.DODGE_TOP, Anchor.CENTRE, Anchor.TOP, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost1}>
         <layer ref={contentTop} x="center" y={0} w={Layout.BANNER_W} h={Layout.BANNER_H}>
           <text
             x="center"
@@ -33,13 +51,7 @@ export function MazeTimer(): Component {
         </layer>
       </layer>
 
-      <layer
-        w="fill"
-        h="fill"
-        onTimer={(event) =>
-          overlayRelayout(event.component, contentRight, MazeTimerOverlay.DODGE_RIGHT, Anchor.RIGHT, Anchor.BOTTOM, 0)
-        }
-      >
+      <layer w="fill" h="fill" ref={timerHost2}>
         <layer ref={contentRight} x="right" y="bottom" w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <layer
             x={{ right: Layout.INNER_RIGHT }}
@@ -60,6 +72,7 @@ export function MazeTimer(): Component {
             />
 
             <text
+              ref={percentage}
               x={Layout.VALUE_X}
               y={Layout.VALUE_Y}
               w={Layout.VALUE_W}
@@ -69,7 +82,7 @@ export function MazeTimer(): Component {
               align="center"
               shadow
               color={MazeTimerColors.VALUE}
-              onTimer={(event) => macroMazeTimer(event.component)}
+              onLoad={(event) => macroMazeTimer(event.component)}
             />
 
             <text

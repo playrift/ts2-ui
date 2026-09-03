@@ -1,0 +1,92 @@
+import { CS2, useState } from 'ts2';
+
+import { directionalLockInput, directionalLockLength } from '../lib/game/varcs';
+import { playSound } from '../lib/lib.engine';
+import { LockSounds, LockSprites, MAX_LENGTH, VARC_UNSET } from './directional-lock.constants';
+
+export function minmax(low: Int, high: Int, value: Int): Int {
+  if (high <= low) {
+    return Math.max(high, Math.min(low, value));
+  }
+  return Math.max(low, Math.min(high, value));
+}
+
+export function packDirections(
+  d9: Int,
+  d8: Int,
+  d7: Int,
+  d6: Int,
+  d5: Int,
+  d4: Int,
+  d3: Int,
+  d2: Int,
+  d1: Int,
+  d0: Int,
+): Int {
+  return (
+    minmax(0, 3, d9) * CS2.pow(4, 9) +
+    minmax(0, 3, d8) * CS2.pow(4, 8) +
+    minmax(0, 3, d7) * CS2.pow(4, 7) +
+    minmax(0, 3, d6) * CS2.pow(4, 6) +
+    minmax(0, 3, d5) * CS2.pow(4, 5) +
+    minmax(0, 3, d4) * CS2.pow(4, 4) +
+    minmax(0, 3, d3) * CS2.pow(4, 3) +
+    minmax(0, 3, d2) * CS2.pow(4, 2) +
+    minmax(0, 3, d1) * 4 +
+    minmax(0, 3, d0)
+  );
+}
+
+export function placeValue(slot: Int): Int {
+  return CS2.pow(4, slot);
+}
+
+export function zeroed(value: Int): Int {
+  if (value === VARC_UNSET) {
+    return 0;
+  }
+  return value;
+}
+
+export function pressDirection(direction: Int): void {
+  const [rawLength, setLength] = useState(directionalLockLength);
+  const [rawInput, setInput] = useState(directionalLockInput);
+  const length: Int = zeroed(rawLength);
+
+  if (length >= MAX_LENGTH) {
+    playSound(LockSounds.WRONG);
+    return;
+  }
+
+  playSound(LockSounds.PRESS);
+  setLength(length + 1);
+  setInput(zeroed(rawInput) + minmax(0, 3, direction) * placeValue(length));
+}
+
+export function resetCode(): void {
+  const [rawLength, setLength] = useState(directionalLockLength);
+  const [, setInput] = useState(directionalLockInput);
+
+  if (zeroed(rawLength) <= 0) {
+    playSound(LockSounds.WRONG);
+    return;
+  }
+
+  playSound(LockSounds.ATTEMPT);
+  setInput(0);
+  setLength(0);
+}
+
+export function arrowFor(input: Int, slot: Int): Sprite {
+  const digit: Int = (zeroed(input) / placeValue(slot)) % 4;
+  if (digit === 1) {
+    return LockSprites.ARROW_RIGHT;
+  }
+  if (digit === 2) {
+    return LockSprites.ARROW_DOWN;
+  }
+  if (digit === 3) {
+    return LockSprites.ARROW_LEFT;
+  }
+  return LockSprites.ARROW_UP;
+}

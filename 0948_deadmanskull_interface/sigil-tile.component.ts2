@@ -1,0 +1,150 @@
+import { useDerived, useRef } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Grid, SkullColor, SkullFonts } from './deadmanskull.constants';
+import { DeadmanUnlocks } from './deadmanskull.data';
+import { hideTileTooltip, showTileTooltip } from './deadmanskull.tooltip';
+import { unlockActive, unlockOwned } from './deadmanskull.state';
+import { Sounds } from '../lib/game/sounds';
+
+export function SigilTile({
+  sigil,
+  x,
+  y,
+  mode,
+  list,
+}: {
+  sigil: Int;
+  x: Int;
+  y: Int;
+  mode: Int;
+  list: Ref;
+}): Component {
+  const row = DeadmanUnlocks.get(sigil);
+  if (row === null) {
+    return null;
+  }
+
+  const active: Int = useDerived(() => unlockActive(sigil, mode));
+  const owned: Int = useDerived(() => unlockOwned(sigil, mode));
+  const builtAt: Int = clientClock();
+
+  const icon = useRef();
+  const caption = useRef();
+
+  const label: String = owned === 0 ? `${row.name}<br>${row.points} points` : row.name;
+
+  const lit: Sprite = row.iconActive;
+  const dim: Sprite = row.iconInactive;
+  const restColor: Int = active === 1 ? SkullColor.TILE_ACTIVE : SkullColor.TILE_INACTIVE;
+
+  const enter = () => {
+    if (clientClock() === builtAt) {
+      return;
+    }
+    icon.transparency = Grid.ICON_LIT_TRANSPARENCY;
+    icon.sprite = lit;
+    caption.color = SkullColor.TILE_HOVER;
+    showTileTooltip(sigil, active, x + Grid.CAPTION_DX, y + Grid.CAPTION_DY, Grid.CAPTION_H, list);
+  };
+
+  const leave = () => {
+    if (clientClock() === builtAt) {
+      return;
+    }
+    icon.sprite = active === 1 ? lit : dim;
+    caption.color = restColor;
+    hideTileTooltip();
+  };
+
+  const claim = (event: Event) => {
+    if (event.option !== 1) {
+      return;
+    }
+    playSound(Sounds.INTERFACE_SELECT1);
+    icon.transparency = Grid.ICON_LIT_TRANSPARENCY;
+    caption.color = SkullColor.TILE_HOVER;
+    hideTileTooltip();
+  };
+
+  const touch: Boolean = onMobile();
+
+  return (
+    <>
+      {mode === 1 && touch ? (
+        <rect
+          x={x + Grid.PLATE_DX}
+          y={y + Grid.PLATE_DY}
+          w={Grid.PLATE_W}
+          h={Grid.PLATE_H}
+          fill
+          color={SkullColor.PLATE}
+          transparency={Grid.PLATE_TRANSPARENCY}
+          optionSubject={`<col=ff9040>${row.name}</col>`}
+          options={[active === 1 ? 'Deactivate' : 'Activate']}
+          onOptionSelect={claim}
+        />
+      ) : mode === 1 ? (
+        <rect
+          x={x + Grid.PLATE_DX}
+          y={y + Grid.PLATE_DY}
+          w={Grid.PLATE_W}
+          h={Grid.PLATE_H}
+          fill
+          color={SkullColor.PLATE}
+          transparency={Grid.PLATE_TRANSPARENCY}
+          optionSubject={`<col=ff9040>${row.name}</col>`}
+          options={[active === 1 ? 'Deactivate' : 'Activate']}
+          onMouseRepeat={enter}
+          onMouseLeave={leave}
+          onOptionSelect={claim}
+        />
+      ) : touch ? (
+        <rect
+          x={x + Grid.PLATE_DX}
+          y={y + Grid.PLATE_DY}
+          w={Grid.PLATE_W}
+          h={Grid.PLATE_H}
+          fill
+          color={SkullColor.PLATE}
+          transparency={Grid.PLATE_TRANSPARENCY}
+        />
+      ) : (
+        <rect
+          x={x + Grid.PLATE_DX}
+          y={y + Grid.PLATE_DY}
+          w={Grid.PLATE_W}
+          h={Grid.PLATE_H}
+          fill
+          color={SkullColor.PLATE}
+          transparency={Grid.PLATE_TRANSPARENCY}
+          onMouseRepeat={enter}
+          onMouseLeave={leave}
+        />
+      )}
+      <sprite
+        ref={icon}
+        x={x + Grid.ICON_DX}
+        y={y + Grid.ICON_DY}
+        w={Grid.ICON}
+        h={Grid.ICON}
+        sprite={active === 1 ? lit : dim}
+        transparency={Grid.ICON_TRANSPARENCY}
+      />
+      <text
+        ref={caption}
+        x={x + Grid.CAPTION_DX}
+        y={y + Grid.CAPTION_DY}
+        w={Grid.CAPTION_W}
+        h={Grid.CAPTION_H}
+        text={label}
+        font={SkullFonts.TILE}
+        color={restColor}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}

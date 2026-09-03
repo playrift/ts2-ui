@@ -1,4 +1,4 @@
-import { useInventory, useState } from 'ts2';
+import { createRef, useInterval, useInventory, useState } from 'ts2';
 import { clientClock, playSound } from '../lib/lib.engine';
 import { onMobile, opsound } from '../lib/lib.helpers';
 import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
@@ -12,7 +12,16 @@ import {
   PartyDropSounds,
 } from './partydrop-main.constants';
 
+const timerHost = createRef('0265_partydrop_main_timer_host');
+
 export function ConfirmButton(): Component {
+  useInterval(() => {
+    if (clientClock() < confirmedUntil) {
+      return;
+    }
+    setConfirmedUntil(0);
+  }, timerHost);
+
   const offer = useInventory(PartyDropInventories.OFFER);
   const [hovered, setHovered] = useState(0);
   const [confirmedUntil, setConfirmedUntil] = useState(0);
@@ -49,12 +58,7 @@ export function ConfirmButton(): Component {
         y={{ center: Layout.CONFIRM_DY }}
         w={Layout.CONFIRM_W}
         h={Layout.CONFIRM_H}
-        onTimer={() => {
-          if (clientClock() < confirmedUntil) {
-            return;
-          }
-          setConfirmedUntil(0);
-        }}
+        ref={timerHost}
       >
         <StoneButtonDraw label="<col=ffffff>Confirm</col>" font={PartyDropFonts.BUTTON} pressed={1} />
       </layer>

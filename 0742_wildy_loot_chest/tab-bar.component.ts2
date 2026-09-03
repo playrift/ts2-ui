@@ -1,0 +1,130 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+
+import { graphicSwapper } from '../lib/lib.helpers';
+import {
+  LootColors,
+  LootFonts,
+  LootInventories,
+  LootItems,
+  LootLayout,
+  LootSprites,
+  LootText,
+  LootVarbits,
+  Tabs,
+} from './wildy-loot-chest.constants';
+import { LootKeyItems } from './loot-key-items.data';
+import { selectTab } from './wildy-loot-chest.state';
+
+export function TabBar(): Component {
+  const tab: Int = useServerState(LootVarbits.TAB);
+  const carried = useInventory(LootInventories.CARRIED);
+
+  return (
+    <layer w="fill" h="fill">
+      {Tabs.map((index) => (
+        <TabPlate
+          index={index}
+          selected={tab === index ? 1 : 0}
+          held={carried.total(LootKeyItems.at(index) ?? -1)}
+          current={tab}
+        />
+      ))}
+
+      {Tabs.map((index) =>
+        carried.total(LootKeyItems.at(index) ?? -1) > 0 ? (
+          <sprite
+            x={index * LootLayout.TAB_PITCH + LootLayout.TAB_ICON_X}
+            y={LootLayout.TAB_ICON_Y}
+            w={LootLayout.TAB_ICON_W}
+            h={LootLayout.TAB_ICON_H}
+            item={LootItems.KEY0}
+            itemCount={1}
+            itemCountMode="never"
+            outline={LootLayout.CELL_OUTLINE}
+            shadowColor={LootLayout.CELL_SHADOW}
+          />
+        ) : null,
+      )}
+
+      {Tabs.map((index) => (
+        <text
+          x={index * LootLayout.TAB_PITCH}
+          y={0}
+          w={LootLayout.TAB_LABEL_W}
+          h={LootLayout.TAB_LABEL_H}
+          font={LootFonts.SMALL}
+          color={LootColors.LABEL_HOVER}
+          shadow
+          align="center"
+          valign="bottom"
+        />
+      ))}
+    </layer>
+  );
+}
+
+function TabPlate({
+  index,
+  selected,
+  held,
+  current,
+}: {
+  index: Int;
+  selected: Int;
+  held: Int;
+  current: Int;
+}): Component {
+  const x: Int = index * LootLayout.TAB_PITCH;
+
+  if (selected === 1) {
+    return (
+      <sprite
+        x={x}
+        y={0}
+        w={LootLayout.TAB_W}
+        h={LootLayout.TAB_H}
+        sprite={LootSprites.TAB_SELECTED}
+        tiling={false}
+        options={[LootText.VIEW_TAB]}
+        optionSubject={CS2.tostring(index)}
+      />
+    );
+  }
+
+  if (held <= 0) {
+    return (
+      <sprite
+        x={x}
+        y={0}
+        w={LootLayout.TAB_W}
+        h={LootLayout.TAB_H}
+        sprite={LootSprites.TAB_EMPTY}
+        tiling={false}
+        options={[LootText.NO_OP]}
+        optionSubject={CS2.tostring(index)}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={0}
+      w={LootLayout.TAB_W}
+      h={LootLayout.TAB_H}
+      sprite={LootSprites.TAB_REST}
+      tiling={false}
+      options={[LootText.VIEW_TAB]}
+      optionSubject={CS2.tostring(index)}
+      onMouseRepeat={(event) => {
+        graphicSwapper(event.self, LootSprites.TAB_HOVER);
+      }}
+      onMouseLeave={(event) => {
+        graphicSwapper(event.self, LootSprites.TAB_REST);
+      }}
+      onOptionSelect={() => {
+        selectTab(index, current);
+      }}
+    />
+  );
+}

@@ -1,0 +1,137 @@
+import { useOnResize, useServerState, useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+
+import { CompletionBoxes, type CompletionBoxRow } from './completion-boxes.data';
+import { FoundryColor, FoundrySprites, FoundryVarbits, Layout } from './giants-foundry-hud.constants';
+import { sectionCount } from './giants-foundry-hud.helpers';
+
+function CompletionBox({ x, y, w, h, style }: { x: Int; y: Int; w: Int; h: Int; style: CompletionBoxRow }): Component {
+  const border: Int = style.border;
+  const fill: Sprite = style.fill;
+  let blank: Boolean = false;
+  if (fill === -1) {
+    blank = true;
+  }
+
+  return (
+    <>
+      <rect x={x + 1} y={y + 1} w={w - 2} h={h - 2} fill color={FoundryColor.SECTION_FILL} />
+
+      <sprite x={x + 4} y={y + 4} w={w - 8} h={h - 8} sprite={fill} tiling hide={blank} />
+
+      <sprite x={x + border} y={y} w={w - 2 * border} h={border} sprite={style.edgeTop} tiling />
+      <sprite x={x + border} y={y + h - border} w={w - 2 * border} h={border} sprite={style.edgeBottom} tiling />
+      <sprite x={x} y={y + border} w={border} h={h - 2 * border} sprite={style.edgeLeft} tiling />
+      <sprite x={x + w - border} y={y + border} w={border} h={h - 2 * border} sprite={style.edgeRight} tiling />
+
+      <sprite x={x} y={y} w={border} h={border} sprite={style.cornerTl} tiling />
+      <sprite x={x + w - border} y={y} w={border} h={border} sprite={style.cornerTr} tiling />
+      <sprite x={x} y={y + h - border} w={border} h={border} sprite={style.cornerBl} tiling />
+      <sprite x={x + w - border} y={y + h - border} w={border} h={border} sprite={style.cornerBr} tiling />
+    </>
+  );
+}
+
+function sectionSeed(index: Int, s1: Int, s2: Int, s3: Int, s4: Int, s5: Int, s6: Int): Int {
+  if (index === 1) {
+    return s1;
+  }
+  if (index === 2) {
+    return s2;
+  }
+  if (index === 3) {
+    return s3;
+  }
+  if (index === 4) {
+    return s4;
+  }
+  if (index === 5) {
+    return s5;
+  }
+  if (index === 6) {
+    return s6;
+  }
+  return 0;
+}
+
+function sectionStyle(seed: Int): CompletionBoxRow {
+  if (seed === 1) {
+    return CompletionBoxes.at(1);
+  }
+  if (seed === 2) {
+    return CompletionBoxes.at(2);
+  }
+  return CompletionBoxes.at(0);
+}
+
+function sectionTool(seed: Int): Sprite {
+  if (seed === 1) {
+    return FoundrySprites.TOOL_GRIND;
+  }
+  if (seed === 2) {
+    return FoundrySprites.TOOL_POLISH;
+  }
+  return FoundrySprites.TOOL_HAMMER;
+}
+
+function sectionX(cell: Int, index: Int, remainder: Int): Int {
+  return cell * index + Layout.SECTION_INSET + Math.min(remainder, index);
+}
+
+function sectionW(cell: Int, index: Int, remainder: Int): Int {
+  if (index < remainder) {
+    return cell + 1;
+  }
+  return cell;
+}
+
+const SECTION_SLOTS = [0, 1, 2, 3, 4, 5, 6];
+
+export function CompletionSections(): Component {
+  const box = useUniverse();
+
+  useOnResize(box);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+
+  const difficulty: Int = useServerState(FoundryVarbits.DIFFICULTY);
+  const seed1: Int = useServerState(FoundryVarbits.SEED_1);
+  const seed2: Int = useServerState(FoundryVarbits.SEED_2);
+  const seed3: Int = useServerState(FoundryVarbits.SEED_3);
+  const seed4: Int = useServerState(FoundryVarbits.SEED_4);
+  const seed5: Int = useServerState(FoundryVarbits.SEED_5);
+  const seed6: Int = useServerState(FoundryVarbits.SEED_6);
+
+  const count: Int = sectionCount(difficulty);
+  const span: Int = breakpoint < 0 ? 0 : box.width - 2;
+  const height: Int = box.height - 2;
+  const cell: Int = span / count;
+  const remainder: Int = span % cell;
+
+  return (
+    <>
+      {SECTION_SLOTS.map(
+        (index) =>
+          index < count && (
+            <layer w="fill" h="fill">
+              <CompletionBox
+                x={sectionX(cell, index, remainder)}
+                y={Layout.SECTION_INSET}
+                w={sectionW(cell, index, remainder)}
+                h={height}
+                style={sectionStyle(sectionSeed(index, seed1, seed2, seed3, seed4, seed5, seed6))}
+              />
+              <sprite
+                x={sectionX(cell, index, remainder) + sectionW(cell, index, remainder) / 2 - Layout.SECTION_ICON_HALF}
+                y="center"
+                w={Layout.SECTION_ICON}
+                h={Layout.SECTION_ICON}
+                tiling
+                sprite={sectionTool(sectionSeed(index, seed1, seed2, seed3, seed4, seed5, seed6))}
+              />
+            </layer>
+          ),
+      )}
+    </>
+  );
+}

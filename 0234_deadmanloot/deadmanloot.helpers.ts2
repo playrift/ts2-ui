@@ -1,0 +1,63 @@
+import { predictServerState, stopTimer, useServerState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { FLASH_CYCLES, LootArt, LootSounds, LootVarbits } from './deadmanloot.constants';
+import { confirmButtons, confirmLayer, itemsPane } from './deadmanloot.refs';
+
+export function recolour(target: ComponentId, colour: Int): void {
+  target.color = colour;
+}
+
+export function openDestroyConfirm(): void {
+  confirmLayer.hide = false;
+  confirmButtons.hide = false;
+  itemsPane.hide = true;
+}
+
+export function closeDestroyConfirm(): void {
+  confirmLayer.hide = true;
+  confirmButtons.hide = true;
+  itemsPane.hide = false;
+}
+
+export function chooseWithdrawItem(): void {
+  setWithdrawMode(0);
+}
+
+export function chooseWithdrawNote(): void {
+  setWithdrawMode(1);
+}
+
+function setWithdrawMode(mode: Int): void {
+  const current: Int = useServerState(LootVarbits.WITHDRAW_NOTES);
+  if (current === mode) {
+    return;
+  }
+  predictServerState(LootVarbits.WITHDRAW_NOTES, mode);
+  playSound(LootSounds.SELECT);
+}
+
+export function chooseLootTab(tab: Int): void {
+  const current: Int = useServerState(LootVarbits.TAB);
+  if (current === tab) {
+    return;
+  }
+  predictServerState(LootVarbits.TAB, tab);
+  playSound(LootSounds.SELECT);
+}
+
+export function flashControl(target: ComponentId, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  target.sprite = LootArt.BUTTON_FLASH;
+  playSound(LootSounds.SELECT);
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.sprite = LootArt.BUTTON;
+    stopTimer(target);
+  };
+}
