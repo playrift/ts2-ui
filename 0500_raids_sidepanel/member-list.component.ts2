@@ -1,0 +1,177 @@
+import { CS2, intArray } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import {
+  Copy,
+  Layout,
+  RaidParty,
+  SidepanelColor,
+  SidepanelFonts,
+  SidepanelSort,
+  SortColumn,
+  Stripe,
+} from './raids-sidepanel.constants';
+import { memberList, sortCombat, sortName } from './raids-sidepanel.refs';
+import { canKick, currentSort, fitToColumn, kickMember, memberKey } from './raids-sidepanel.state';
+
+export function MemberRows(): Component {
+  const sort: Int = currentSort();
+  const count: Int = RaidParty.length;
+  const nameWidth: Int = sortName.width;
+  const combatWidth: Int = sortCombat.width;
+  const listHeight: Int = memberList.height;
+
+  let column: Int = SortColumn.NAME;
+  if (sort === SidepanelSort.COMBAT_ASC || sort === SidepanelSort.COMBAT_DESC) {
+    column = SortColumn.COMBAT;
+  } else if (sort === SidepanelSort.TOTAL_ASC || sort === SidepanelSort.TOTAL_DESC) {
+    column = SortColumn.TOTAL;
+  }
+  let descending: Int = 0;
+  if (sort === SidepanelSort.NAME_DESC || sort === SidepanelSort.COMBAT_DESC || sort === SidepanelSort.TOTAL_DESC) {
+    descending = 1;
+  }
+
+  const order = intArray(Layout.MAX_PARTY);
+  let filled: Int = 0;
+  while (filled < count && filled < Layout.MAX_PARTY) {
+    order[filled] = filled;
+    filled = filled + 1;
+  }
+
+  let at: Int = 1;
+  let moving: Int = 0;
+  let back: Int = 0;
+  while (at < filled) {
+    moving = order[at];
+    back = at;
+    while (back > 0 && CS2.compare(memberKey(order[back - 1], column), memberKey(moving, column)) > 0) {
+      order[back] = order[back - 1];
+      back = back - 1;
+    }
+    order[back] = moving;
+    at = at + 1;
+  }
+
+  const extent: Int = filled * Layout.ROW_H;
+  memberList.scrollHeight = extent > listHeight ? extent : 0;
+
+  return (
+    <layer w="fill" h={Layout.MAX_PARTY * Layout.ROW_H}>
+      {order.map(
+        (row, position) =>
+          position < filled && (
+            <MemberRow
+              row={descending === 1 ? order[filled - 1 - position] : row}
+              position={position}
+              count={filled}
+              descending={descending}
+              nameWidth={nameWidth}
+              combatWidth={combatWidth}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function MemberRow({
+  row,
+  position,
+  count,
+  descending,
+  nameWidth,
+  combatWidth,
+}: {
+  row: Int;
+  position: Int;
+  count: Int;
+  descending: Int;
+  nameWidth: Int;
+  combatWidth: Int;
+}): Component {
+  const member = RaidParty.at(row);
+  if (member === null) {
+    return null;
+  }
+
+  const top: Int = position * Layout.ROW_H;
+
+  const stripeIndex: Int = descending === 1 ? count - 1 - position : position;
+  const stripe: Int = stripeIndex % 2 === 0 ? Stripe.EVEN : Stripe.ODD;
+
+  const cleanName: String = CS2.tags_remove(member.name);
+  const subject: String = `<col=ff9040>${cleanName}</col>`;
+  const shownName: String = fitToColumn(member.name, nameWidth);
+
+  const kick: Int = canKick() ? 1 : 0;
+
+  return (
+    <>
+      {kick === 1 ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={SidepanelColor.WHITE}
+          transparency={stripe}
+          optionSubject={subject}
+          options={['', '', '', '', '', Copy.KICK]}
+          onOptionSelect={() => kickMember(cleanName)}
+          onMouseRepeat={(event) => ccSetTrans(event.self, Stripe.HOVER)}
+          onMouseLeave={(event) => ccSetTrans(event.self, stripe)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={SidepanelColor.WHITE}
+          transparency={stripe}
+          optionSubject={subject}
+        />
+      )}
+
+      <text
+        x={0}
+        y={top}
+        w={nameWidth}
+        h={Layout.ROW_H}
+        text={shownName}
+        font={SidepanelFonts.SMALL}
+        color={SidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={nameWidth}
+        y={top}
+        w={combatWidth}
+        h={Layout.ROW_H}
+        text={member.combat}
+        font={SidepanelFonts.SMALL}
+        color={SidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: nameWidth + combatWidth }}
+        h={Layout.ROW_H}
+        text={member.total}
+        font={SidepanelFonts.SMALL}
+        color={SidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}

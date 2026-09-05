@@ -1,0 +1,222 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { prayerPanelMode } from './prayerbook.state';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { clientClock, playSound, textLineCount } from '../lib/lib.engine';
+import { FilterPanelFrame } from './filter-panel-frame.component';
+import {
+  FilterText,
+  Layout,
+  MENU_TITLE,
+  OP_CHANGE,
+  PanelMode,
+  PrayerbookColour,
+  PrayerbookFonts,
+  PrayerbookSounds,
+  PrayerbookSprites,
+  PrayerbookVarbits,
+  ROW_PRESS_CYCLES,
+  RowFade,
+} from './prayerbook.constants';
+
+function filterRowHeight(text: String): Int {
+  const lines: Int = textLineCount(text, Layout.MENU_W - Layout.ROW_TEXT_INSET, PrayerbookFonts.SMALL);
+  let height: Int = lines * Layout.ROW_LINE_H + Layout.ROW_LINE_PAD;
+  if (height < Layout.ROW_MIN_H) {
+    height = Layout.ROW_MIN_H;
+  }
+  return height;
+}
+
+function combinedTierSprite(blockLowTier: Int, allowCombined: Int): Sprite {
+  if (blockLowTier === 0) {
+    return PrayerbookSprites.DISABLED;
+  }
+  if (allowCombined === 1) {
+    return PrayerbookSprites.CHECKED;
+  }
+  return PrayerbookSprites.UNCHECKED;
+}
+
+function checkboxSprite(on: Int): Sprite {
+  if (on === 1) {
+    return PrayerbookSprites.CHECKED;
+  }
+  return PrayerbookSprites.UNCHECKED;
+}
+
+export function FilterMenu(): Component {
+  const [mode] = useState(prayerPanelMode);
+  const blockLowTier: Int = useServerState(PrayerbookVarbits.BLOCK_LOW_TIER);
+  const allowCombined: Int = useServerState(PrayerbookVarbits.ALLOW_COMBINED_TIER);
+  const blockHealing: Int = useServerState(PrayerbookVarbits.BLOCK_HEALING);
+  const blockLackLevel: Int = useServerState(PrayerbookVarbits.BLOCK_LACK_LEVEL);
+  const blockLocked: Int = useServerState(PrayerbookVarbits.BLOCK_LOCKED);
+
+  if (mode !== PanelMode.FILTERS) {
+    return (
+      <layer x="center" y="center" w={Layout.MENU_W} h={Layout.MENU_H} hide>
+        <sprite w="fill" h="fill" sprite={PrayerbookSprites.MENU_BACKDROP} tiling />
+        <text
+          x="center"
+          w="fill"
+          h={Layout.MENU_TITLE_H}
+          text={MENU_TITLE}
+          font={PrayerbookFonts.TITLE}
+          color={PrayerbookColour.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x="center" y={{ bottom: Layout.MENU_LIST_Y }} w="fill" h={{ fill: Layout.MENU_TITLE_H }} />
+        <FilterPanelFrame />
+      </layer>
+    );
+  }
+
+  const h0: Int = filterRowHeight(FilterText.LOW_TIER);
+  const h1: Int = filterRowHeight(FilterText.COMBINED_TIER);
+  const h2: Int = filterRowHeight(FilterText.HEALING);
+  const h3: Int = filterRowHeight(FilterText.LACK_LEVEL);
+  const h4: Int = filterRowHeight(FilterText.LOCKED);
+  const y1: Int = h0;
+  const y2: Int = y1 + h1;
+  const y3: Int = y2 + h2;
+  const y4: Int = y3 + h3;
+  const total: Int = y4 + h4;
+
+  const combinedSprite: Sprite = combinedTierSprite(blockLowTier, allowCombined);
+  const combinedColour: Int = blockLowTier === 0 ? PrayerbookColour.DISABLED : PrayerbookColour.LABEL;
+
+  return (
+    <layer x="center" y="center" w={Layout.MENU_W} h={Layout.MENU_TITLE_H + total}>
+      <sprite w="fill" h="fill" sprite={PrayerbookSprites.MENU_BACKDROP} tiling />
+      <text
+        x="center"
+        w="fill"
+        h={Layout.MENU_TITLE_H}
+        text={MENU_TITLE}
+        font={PrayerbookFonts.TITLE}
+        color={PrayerbookColour.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <layer x="center" y={{ bottom: Layout.MENU_LIST_Y }} w="fill" h={{ fill: Layout.MENU_TITLE_H }}>
+        <FilterPlate y={0} h={h0} />
+        <FilterPlate y={y1} h={h1} />
+        <FilterPlate y={y2} h={h2} />
+        <FilterPlate y={y3} h={h3} />
+        <FilterPlate y={y4} h={h4} />
+        <FilterRow
+          y={0}
+          h={h0}
+          text={FilterText.LOW_TIER}
+          sprite={checkboxSprite(blockLowTier)}
+          colour={PrayerbookColour.LABEL}
+        />
+        <FilterRow y={y1} h={h1} text={FilterText.COMBINED_TIER} sprite={combinedSprite} colour={combinedColour} />
+        <FilterRow
+          y={y2}
+          h={h2}
+          text={FilterText.HEALING}
+          sprite={checkboxSprite(blockHealing)}
+          colour={PrayerbookColour.LABEL}
+        />
+        <FilterRow
+          y={y3}
+          h={h3}
+          text={FilterText.LACK_LEVEL}
+          sprite={checkboxSprite(blockLackLevel)}
+          colour={PrayerbookColour.LABEL}
+        />
+        <FilterRow
+          y={y4}
+          h={h4}
+          text={FilterText.LOCKED}
+          sprite={checkboxSprite(blockLocked)}
+          colour={PrayerbookColour.LABEL}
+        />
+      </layer>
+      <FilterPanelFrame />
+    </layer>
+  );
+}
+
+function FilterRow({
+  y,
+  h,
+  text,
+  sprite,
+  colour,
+}: {
+  y: Int;
+  h: Int;
+  text: String;
+  sprite: Sprite;
+  colour: Int;
+}): Component {
+  return (
+    <>
+      <sprite
+        x={Layout.CHECKBOX_X}
+        y={y + h / 2 - Layout.CHECKBOX_HALF}
+        w={Layout.CHECKBOX}
+        h={Layout.CHECKBOX}
+        sprite={sprite}
+      />
+      <text
+        x={{ right: Layout.ROW_TEXT_RIGHT }}
+        y={y}
+        w={{ fill: Layout.ROW_TEXT_INSET }}
+        h={h}
+        text={text}
+        font={PrayerbookFonts.SMALL}
+        color={colour}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function FilterPlate({ y, h }: { y: Int; h: Int }): Component {
+  const me = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }
+      : undefined,
+    me,
+  );
+
+  return (
+    <rect
+      ref={me}
+      x="center"
+      y={y}
+      w="fill"
+      h={h}
+      fill
+      color={PrayerbookColour.WHITE}
+      transparency={pressedUntil !== 0 ? RowFade.PRESSED : RowFade.REST}
+      options={[OP_CHANGE]}
+      onMouseRepeat={pressedUntil !== 0 ? undefined : (event) => ccSetTrans(event.self, RowFade.HOVER)}
+      onMouseLeave={pressedUntil !== 0 ? undefined : (event) => ccSetTrans(event.self, RowFade.REST)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(PrayerbookSounds.CLICK);
+        setPressedUntil(clientClock() + ROW_PRESS_CYCLES);
+      }}
+    />
+  );
+}

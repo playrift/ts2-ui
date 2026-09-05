@@ -1,0 +1,108 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import {
+  Copy,
+  DepositBoxSounds,
+  DepositBoxSprites,
+  DepositBoxVarbits,
+  LOCK_PRESSED_SOUND_MASK,
+  LOCK_PRESS_CYCLES,
+  Layout,
+  Wash,
+} from './bank-depositbox.constants';
+
+export function LockSettingsButton(): Component {
+  const ignoreLocks: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_IGNOREINVLOCKS);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const timerHost = useRef();
+  const padlock = useRef();
+
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }
+      : undefined,
+    timerHost,
+  );
+
+  let lockOp: String = Copy.DISABLE_LOCKS;
+  if (ignoreLocks === 1) {
+    lockOp = Copy.ENABLE_LOCKS;
+  }
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer
+        ref={timerHost}
+        w="fill"
+        h="fill"
+        options={[Copy.LOCK_SETTINGS, lockOp]}
+        onOptionSelect={(event) => opsound(event.option, LOCK_PRESSED_SOUND_MASK)}
+      >
+        <ButtonBackgroundPressed />
+        <sprite
+          x={{ center: Layout.lockButton.padlockDx }}
+          y="center"
+          w={Layout.lockButton.padlockW}
+          h={Layout.lockButton.padlockH}
+          sprite={DepositBoxSprites.ICON_LOCK}
+          transparency={Wash.CLEAR}
+        />
+        <sprite
+          x={{ center: Layout.lockButton.cogDx }}
+          y={{ center: Layout.lockButton.cogDy }}
+          w={Layout.lockButton.cogSize}
+          h={Layout.lockButton.cogSize}
+          sprite={DepositBoxSprites.ICON_LOCK_SETTINGS}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[Copy.LOCK_SETTINGS, lockOp]}
+      onMouseRepeat={() => {
+        ccSetTrans(padlock, Wash.ICON_HOVER);
+      }}
+      onMouseLeave={() => {
+        ccSetTrans(padlock, Wash.CLEAR);
+      }}
+      onOptionSelect={(event) => {
+        playSound(DepositBoxSounds.SELECT);
+        if (event.option === 1) {
+          setPressedUntil(clientClock() + LOCK_PRESS_CYCLES);
+        }
+      }}
+    >
+      <ButtonBackground />
+      <sprite
+        ref={padlock}
+        x={{ center: Layout.lockButton.padlockDx }}
+        y="center"
+        w={Layout.lockButton.padlockW}
+        h={Layout.lockButton.padlockH}
+        sprite={DepositBoxSprites.ICON_LOCK}
+        transparency={Wash.CLEAR}
+      />
+      <sprite
+        x={{ center: Layout.lockButton.cogDx }}
+        y={{ center: Layout.lockButton.cogDy }}
+        w={Layout.lockButton.cogSize}
+        h={Layout.lockButton.cogSize}
+        sprite={DepositBoxSprites.ICON_LOCK_SETTINGS}
+      />
+    </layer>
+  );
+}

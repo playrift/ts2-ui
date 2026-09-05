@@ -1,0 +1,84 @@
+import { CS2, useInterval, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import { ACCEPT_CYCLES, Copy, DuelFonts, DuelSounds, DuelVarbits } from './pvp-arena-legacyduel-options.constants';
+
+export function DuelAcceptButton(): Component {
+  const accepted: Int = useServerState(DuelVarbits.I_ACCEPT);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hover, setHover] = useState(0);
+
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() >= pressedUntil) {
+            setPressedUntil(0);
+            setHover(0);
+          }
+        }
+      : undefined,
+  );
+
+  const skin: Int = hover;
+
+  if (accepted === 1) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonDraw label={Copy.ACCEPTED} font={DuelFonts.LABEL} pressed={1} />
+      </layer>
+    );
+  }
+  if (pressedUntil !== 0) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonDraw label={Copy.PRESSED} font={DuelFonts.LABEL} pressed={1} />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(Copy.ACCEPT)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHover(1);
+        }
+      }}
+      onMouseLeave={() => setHover(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(DuelSounds.SELECT);
+        setPressedUntil(clientClock() + ACCEPT_CYCLES);
+      }}
+    >
+      <StoneButtonDraw label={Copy.ACCEPT} font={DuelFonts.LABEL} pressed={skin} />
+    </layer>
+  );
+}
+
+export function DuelDeclineButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(Copy.DECLINE)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={() => closeInterface()}
+    >
+      <StoneButtonDraw label={Copy.DECLINE} font={DuelFonts.LABEL} pressed={skin} />
+    </layer>
+  );
+}

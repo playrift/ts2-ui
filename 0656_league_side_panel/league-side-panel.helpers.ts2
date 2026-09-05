@@ -1,0 +1,251 @@
+import { useServerState } from 'ts2';
+import { debugMessageAlias } from '../lib/lib.debug';
+import { scaled } from '../lib/lib.engine';
+import { leagueName } from '../0654_league_info/league-info.helpers';
+import {
+  AreaChoiceVarbits,
+  AreaTier,
+  AreaTiers,
+  League,
+  LeagueThemes,
+  RankLadders,
+  RankSprites,
+  Region,
+  RegionNames,
+  RelicChoiceVarbits,
+  SidePanelColor,
+  SidePanelLayout,
+  SidePanelSprites,
+  SidePanelText,
+  SidePanelVarbits,
+  SidePanelVarps,
+} from './league-side-panel.constants';
+
+export function currentLeague(): Int {
+  return League.SIX;
+}
+
+export function leagueType(): Int {
+  const raw: Int = useServerState(SidePanelVarbits.LEAGUE);
+  if (raw === 0) {
+    return League.SIX;
+  }
+  if (raw > League.SIX) {
+    return League.SIX;
+  }
+  return raw;
+}
+
+export function panelAccent(): Int {
+  const theme = LeagueThemes.get(leagueType() as League);
+  if (theme === null) {
+    return SidePanelColor.ACCENT_DEFAULT;
+  }
+  return theme.accent;
+}
+
+export function panelTitle(): String {
+  const league: Int = leagueType();
+  const theme = LeagueThemes.get(league as League);
+  if (theme === null) {
+    return leagueName(league);
+  }
+  const title: String = theme.title;
+  if (title.length > 0) {
+    return title;
+  }
+  return leagueName(league);
+}
+
+function relicChosen(tier: Int): Int {
+  if (tier === 0) return useServerState(RelicChoiceVarbits.TIER_0);
+  if (tier === 1) return useServerState(RelicChoiceVarbits.TIER_1);
+  if (tier === 2) return useServerState(RelicChoiceVarbits.TIER_2);
+  if (tier === 3) return useServerState(RelicChoiceVarbits.TIER_3);
+  if (tier === 4) return useServerState(RelicChoiceVarbits.TIER_4);
+  if (tier === 5) return useServerState(RelicChoiceVarbits.TIER_5);
+  if (tier === 6) return useServerState(RelicChoiceVarbits.TIER_6);
+  if (tier === 7) return useServerState(RelicChoiceVarbits.TIER_7);
+  return 0;
+}
+
+export function relicTierThreshold(wantLast: Boolean, wantPrevious: Boolean): Int {
+  const theme = LeagueThemes.get(leagueType() as League);
+  if (theme === null) {
+    return -1;
+  }
+  const relics = theme.relics;
+  if (relics.length === 0) {
+    return -1;
+  }
+  if (wantLast) {
+    return relics.at(relics.length - 1) ?? -1;
+  }
+  const points: Int = useServerState(SidePanelVarps.POINTS);
+  let previous: Int = -1;
+  let tier: Int = 0;
+  while (tier < relics.length) {
+    const threshold: Int = relics.at(tier) ?? -1;
+    if (points < threshold) {
+      if (wantPrevious) {
+        return previous;
+      }
+      return threshold;
+    }
+    previous = threshold;
+    if (relicChosen(tier) === 0) {
+      return threshold;
+    }
+    tier = tier + 1;
+  }
+  return -1;
+}
+
+export function relicTarget(): Int {
+  const threshold: Int = relicTierThreshold(false, false);
+  if (threshold === -1) {
+    return 600;
+  }
+  return threshold;
+}
+
+export function relicFrom(): Int {
+  const threshold: Int = relicTierThreshold(false, true);
+  if (threshold === -1) {
+    return 600;
+  }
+  return threshold;
+}
+
+export function relicBarWidth(points: Int, target: Int, from: Int): Int {
+  if (target !== -1 && from !== -1 && target > 0 && from !== target) {
+    return scaled(points - from, target - from, SidePanelLayout.BAR_SPAN);
+  }
+  return SidePanelLayout.BAR_SPAN;
+}
+
+export function unlockedRelicTier(): Int {
+  const earned: Int = useServerState(SidePanelVarps.POINTS_EARNED);
+  if (earned >= 28000) return 8;
+  if (earned >= 16500) return 7;
+  if (earned >= 8500) return 6;
+  if (earned >= 5200) return 5;
+  if (earned >= 2600) return 4;
+  if (earned >= 1200) return 3;
+  if (earned >= 600) return 2;
+  if (earned >= 0) return 1;
+  return 0;
+}
+
+function currentLeagueRelicCount(): Int {
+  const theme = LeagueThemes.get(currentLeague() as League);
+  if (theme === null) {
+    return 0;
+  }
+  return theme.relics.length;
+}
+
+export function relicMessage(points: Int, target: Int): String {
+  let remaining: Int = -1;
+  if (target !== -1 && points !== -1) {
+    remaining = target - points;
+  }
+  if (remaining <= 0) {
+    if (unlockedRelicTier() < currentLeagueRelicCount()) {
+      return SidePanelText.NEW_RELIC;
+    }
+    return SidePanelText.ALL_RELICS;
+  }
+  return `<col=ffffff>${stringOf(remaining)}</col> points until next Relic.`;
+}
+
+function areaChosen(tier: Int): Int {
+  if (tier === 0) return useServerState(AreaChoiceVarbits.AREA_0);
+  if (tier === 1) return useServerState(AreaChoiceVarbits.AREA_1);
+  if (tier === 2) return useServerState(AreaChoiceVarbits.AREA_2);
+  if (tier === 3) return useServerState(AreaChoiceVarbits.AREA_3);
+  if (tier === 4) return useServerState(AreaChoiceVarbits.AREA_4);
+  return 0;
+}
+
+export function nextAreaTier(): Int {
+  const theme = LeagueThemes.get(leagueType() as League);
+  if (theme === null) {
+    return -1;
+  }
+  const tasks: Int = useServerState(SidePanelVarbits.TASKS);
+  let tier: Int = 0;
+  while (tier < AreaTiers.length) {
+    const threshold: Int = AreaTiers.at(tier) ?? -1;
+    if (tasks < threshold) {
+      return tier;
+    }
+    if (areaChosen(tier) === 0) {
+      return tier;
+    }
+    tier = tier + 1;
+  }
+  return -1;
+}
+
+export function areaRegion(tier: Int): Int {
+  if (leagueType() === League.SIX) {
+    if (tier === AreaTier.FIRST) return Region.VARLAMORE;
+    if (tier === AreaTier.SECOND) return Region.KARAMJA;
+    return -1;
+  }
+  if (tier === AreaTier.FIRST) return Region.MISTHALIN;
+  return -1;
+}
+
+export function regionName(region: Int): String {
+  return RegionNames.get(region) ?? SidePanelText.UNDEFINED_REGION;
+}
+
+export function areaMessage(tasks: Int): String {
+  const tier: Int = nextAreaTier();
+  let target: Int = 80;
+  if (tier !== -1) {
+    target = AreaTiers.at(tier) ?? 80;
+  }
+  const remaining: Int = target - tasks;
+  let newArea: String = SidePanelText.A_NEW_AREA;
+  let nextArea: String = SidePanelText.NEXT_AREA;
+  const region: Int = areaRegion(tier);
+  if (region !== -1) {
+    const name: String = regionName(region);
+    newArea = name;
+    nextArea = name;
+  }
+  if (remaining <= 0) {
+    if (useServerState(AreaChoiceVarbits.AREA_4) === 0) {
+      return `<col=ffffff>You can unlock ${newArea}!</col>`;
+    }
+    return SidePanelText.ALL_AREAS;
+  }
+  return `<col=ffffff>${stringOf(remaining)}</col> tasks until ${nextArea}.`;
+}
+
+export function rankTier(points: Int, league: League): Int {
+  const ladder = RankLadders.get(league);
+  if (ladder === null) {
+    debugMessageAlias('Inavlid league or missing plugin.');
+    return 0;
+  }
+  if (points >= ladder.dragon) return 7;
+  if (points >= ladder.rune) return 6;
+  if (points >= ladder.adamant) return 5;
+  if (points >= ladder.mithril) return 4;
+  if (points >= ladder.steel) return 3;
+  if (points >= ladder.iron) return 2;
+  if (points >= ladder.bronze) return 1;
+  return 0;
+}
+
+export function currentRank(): Int {
+  return rankTier(useServerState(SidePanelVarps.POINTS_EARNED), League.SIX);
+}
+
+export function currentRankSprite(): Sprite {
+  return RankSprites.get(currentRank()) ?? SidePanelSprites.NO_RANK;
+}

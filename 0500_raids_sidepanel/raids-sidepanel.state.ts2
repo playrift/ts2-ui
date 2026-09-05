@@ -1,0 +1,106 @@
+import { CS2, useState } from 'ts2';
+
+import { friendschatSendKick } from '../0076_grouping/grouping.state';
+import { raidsListsortDetails } from '../lib/game/varcs';
+import { chatMessage, playSound, textWidth } from '../lib/lib.engine';
+import {
+  Copy,
+  Layout,
+  RaidParty,
+  SidepanelFonts,
+  SidepanelSort,
+  SidepanelSounds,
+  SidepanelVarbits,
+  SortColumn,
+} from './raids-sidepanel.constants';
+
+export function currentSort(): Int {
+  const [stored] = useState(raidsListsortDetails);
+  switch (stored) {
+    case SidepanelSort.NAME_ASC:
+    case SidepanelSort.NAME_DESC:
+    case SidepanelSort.COMBAT_ASC:
+    case SidepanelSort.COMBAT_DESC:
+    case SidepanelSort.TOTAL_ASC:
+    case SidepanelSort.TOTAL_DESC:
+      return stored;
+  }
+  return SidepanelSort.NAME_ASC;
+}
+
+export function chooseSort(sort: Int): void {
+  playSound(SidepanelSounds.SELECT);
+  const [, setSort] = useState(raidsListsortDetails);
+  setSort(sort);
+}
+
+export function sortArrowHover(arrow: Ref, transparency: Int): void {
+  arrow.transparency = transparency;
+}
+
+export function raidsSidepanelRefresh(
+  option: Int,
+  list: ComponentId,
+  bar: ComponentId,
+  refresh: ComponentId,
+  header: ComponentId,
+  requesting: ComponentId,
+): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(SidepanelSounds.SELECT);
+  list.hide = true;
+  bar.hide = true;
+  refresh.hide = true;
+  header.hide = true;
+  requesting.hide = false;
+}
+
+export function canKick(): Boolean {
+  if (CS2.friendschat_chat_count_get() > 0 && CS2.friendschat_chat_rank_get() >= CS2.friendschat_chat_min_kick_get()) {
+    return true;
+  }
+  return false;
+}
+
+export function kickMember(name: String): void {
+  if (canKick()) {
+    playSound(SidepanelSounds.SELECT);
+    friendschatSendKick(name);
+    return;
+  }
+  chatMessage(Copy.NO_PERMISSION);
+}
+
+export function fitToColumn(name: String, width: Int): String {
+  let cut: Int = name.length;
+  let fitted: String = name;
+  let candidate: String = name;
+  let done: Int = 0;
+  if (cut > 0 && textWidth(name, Layout.MEASURE_W, SidepanelFonts.SMALL) > width) {
+    while (cut > 1 && done === 0) {
+      cut = cut - 1;
+      candidate = `${name.substring(0, cut)}...`;
+      if (textWidth(candidate, Layout.MEASURE_W, SidepanelFonts.SMALL) <= width) {
+        fitted = candidate;
+        done = 1;
+      }
+    }
+  }
+  return fitted;
+}
+
+export function memberKey(row: Int, column: Int): String {
+  const member = RaidParty.at(row);
+  if (member === null) {
+    return '';
+  }
+  if (column === SortColumn.COMBAT) {
+    return `${member.combat.padStart(3, '0')}${stringOf(row)}`;
+  }
+  if (column === SortColumn.TOTAL) {
+    return `${member.total.padStart(4, '0')}${stringOf(row)}`;
+  }
+  return CS2.tags_remove(member.name);
+}

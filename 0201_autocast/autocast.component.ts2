@@ -1,0 +1,307 @@
+import { useInventory, useServerState, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { textWidth } from '../lib/lib.engine';
+import {
+  MagicItem,
+  blightedItemsAllowed,
+  magicLevel,
+  magicRuneCount,
+  spellSprite,
+  spellbookHasRunes,
+} from '../lib/lib.magic';
+import { AutocastColor, AutocastFonts, AutocastText, Layout, Spellbook } from './autocast.constants';
+import { SpellPos } from './autocast-layouts.data';
+import { AutocastSpells } from './autocast-spells.data';
+import { autocastLayout, runeCountColor, runeCountLabel, spellNameLine } from './autocast.helpers';
+import { hoveredSpell } from './autocast.state';
+
+export function Autocast(): Component {
+  return (
+    <>
+      <layer x="center" y={0} w="fill" h={Layout.SPELLS_H}>
+        <AutocastSpellGrid />
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.INFO_BOTTOM }}
+        w={{ fill: Layout.INFO_W_INSET }}
+        h={{ fill: Layout.INFO_H_INSET }}
+      >
+        <rect x="center" y="center" w="fill" h="fill" color={AutocastColor.INFO_FILL} fill />
+        <rect x="center" y="center" w="fill" h="fill" color={AutocastColor.INFO_OUTLINE} />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: Layout.INNER_OUTLINE_INSET }}
+          h={{ fill: Layout.INNER_OUTLINE_INSET }}
+          color={AutocastColor.INFO_INNER_OUTLINE}
+        />
+
+        <AutocastInfo />
+      </layer>
+    </>
+  );
+}
+
+function AutocastSpellGrid(): Component {
+  const weapon: Item = useServerState(Varps.SPITFIRE_COORD) as Item;
+  const spellbook: Int = useServerState(Varbits.SPELLBOOK);
+  const layout = autocastLayout(weapon, spellbook);
+
+  return (
+    <layer w="fill" h="fill">
+      <text
+        x={{ right: Layout.CANCEL_RIGHT }}
+        y="bottom"
+        w={textWidth(AutocastText.CANCEL, Layout.CANCEL_MEASURE, AutocastFonts.LABEL)}
+        h={Layout.CANCEL_H}
+        text={AutocastText.CANCEL}
+        font={AutocastFonts.LABEL}
+        align="right"
+        valign="middle"
+        shadow
+        color={AutocastColor.CANCEL}
+        hover={{ color: AutocastColor.CANCEL_HOVER }}
+        options={[AutocastText.CANCEL]}
+      />
+
+      {AutocastSpells.map((spell, slot) => (
+        <AutocastSpellCell spell={spell} slot={slot} layout={layout} />
+      ))}
+    </layer>
+  );
+}
+
+function AutocastSpellCell({ spell, slot, layout }: { spell: Item; slot: Int; layout: Map<Int, SpellPos> }): Component {
+  const pos = layout.get(slot);
+  if (pos === null) {
+    return null;
+  }
+  const worn = useInventory(Inventories.WORN);
+  const weapon: Item = worn[3];
+  const shield: Item = worn[5];
+  const lit: Int = magicLevel() >= spell.spellLevelreq! && spellbookHasRunes(spell, weapon, shield) === true ? 1 : 0;
+  const [, setHovered] = useState(hoveredSpell);
+
+  return (
+    <sprite
+      x={{ center: pos.x }}
+      y={{ center: pos.y }}
+      w={Layout.SPELL}
+      h={Layout.SPELL}
+      sprite={spellSprite(spell, -1, lit)}
+      options={[spell.spellName!]}
+      onMouseEnter={() => setHovered(spell as Int)}
+      onMouseLeave={() => setHovered(-1)}
+    />
+  );
+}
+
+function AutocastInfo(): Component {
+  const [hoveredId] = useState(hoveredSpell);
+  const hovered: Item = hoveredId as Item;
+
+  let rune1: Item = hovered.magicRunetype1!;
+  let need1: Int = hovered.magicRunecount1!;
+  let rune2: Item = hovered.magicRunetype2!;
+  let need2: Int = hovered.magicRunecount2!;
+  let rune3: Item = hovered.magicRunetype3!;
+  let need3: Int = hovered.magicRunecount3!;
+  let rune4: Item = hovered.magicRunetype4!;
+  let need4: Int = hovered.magicRunecount4!;
+  const blighted: Int = blightedItemsAllowed();
+  const inv = useInventory(Inventories.INV);
+  switch (hovered) {
+    case MagicItem.SPELL_ICE_RUSH:
+    case MagicItem.SPELL_ICE_BURST:
+    case MagicItem.SPELL_ICE_BLITZ:
+    case MagicItem.SPELL_ICE_BARRAGE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_ICEBARRAGE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_ICEBARRAGE;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_BIND: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_ENTANGLE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_BIND;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_SNARE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_ENTANGLE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_SNARE;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_ENTANGLE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_ENTANGLE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_ENTANGLE;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_TELEPORT_BLOCK:
+    case MagicItem.SPELL_TELEPORT_TO_TARGET: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_TELEBLOCK) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_TELEBLOCK;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_VENGEANCE_OTHER:
+    case MagicItem.SPELL_VENGEANCE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_VENGEANCE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_VENGEANCE;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_WIND_WAVE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        rune3 = MagicItem.BLIGHTED_SACK_SURGE;
+        need3 = 1;
+      }
+    }
+    case MagicItem.SPELL_WATER_WAVE:
+    case MagicItem.SPELL_EARTH_WAVE:
+    case MagicItem.SPELL_FIRE_WAVE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_SURGE;
+        need4 = 1;
+      }
+    }
+    case MagicItem.SPELL_WIND_SURGE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        rune3 = MagicItem.BLIGHTED_SACK_SURGE;
+        need3 = 1;
+      }
+    }
+    case MagicItem.SPELL_WATER_SURGE:
+    case MagicItem.SPELL_EARTH_SURGE:
+    case MagicItem.SPELL_FIRE_SURGE: {
+      if (blighted === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        rune4 = MagicItem.BLIGHTED_SACK_SURGE;
+        need4 = 1;
+      }
+    }
+  }
+
+  const filled: Int = rune4 !== -1 ? 4 : rune3 !== -1 ? 3 : rune2 !== -1 ? 2 : rune1 !== -1 ? 1 : 0;
+
+  if (hovered === -1) {
+    return (
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Layout.IDLE_INSET }}
+        h={{ fill: Layout.IDLE_INSET }}
+        text={AutocastText.IDLE}
+        font={AutocastFonts.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        color={AutocastColor.IDLE}
+      />
+    );
+  }
+
+  return (
+    <>
+      <text
+        x="center"
+        y={0}
+        w={{ fill: Layout.IDLE_INSET }}
+        h={Layout.NAME_H}
+        text={spellNameLine(hovered)}
+        font={AutocastFonts.LABEL}
+        align="center"
+        valign="bottom"
+        shadow
+        color={AutocastColor.NAME}
+      />
+      <text
+        x="center"
+        y={Layout.DESCRIPTION_Y}
+        w={{ fill: Layout.IDLE_INSET }}
+        h={Layout.DESCRIPTION_H}
+        text={hovered.spellDesc!}
+        font={AutocastFonts.SMALL}
+        align="center"
+        valign="middle"
+        shadow
+        color={AutocastColor.DESCRIPTION}
+      />
+
+      {filled >= 1 ? (
+        <layer w="fill" h="fill">
+          <AutocastRuneSlot x={runeSlotX(filled, 0)} rune={rune1} need={need1} />
+        </layer>
+      ) : null}
+      {filled >= 2 ? (
+        <layer w="fill" h="fill">
+          <AutocastRuneSlot x={runeSlotX(filled, 1)} rune={rune2} need={need2} />
+        </layer>
+      ) : null}
+      {filled >= 3 ? (
+        <layer w="fill" h="fill">
+          <AutocastRuneSlot x={runeSlotX(filled, 2)} rune={rune3} need={need3} />
+        </layer>
+      ) : null}
+      {filled >= 4 ? (
+        <layer w="fill" h="fill">
+          <AutocastRuneSlot x={runeSlotX(filled, 3)} rune={rune4} need={need4} />
+        </layer>
+      ) : null}
+    </>
+  );
+}
+
+function runeSlotX(filled: Int, index: Int): Int {
+  switch (filled) {
+    case 1:
+      return 0;
+    case 2:
+      return index === 0 ? -32 : 32;
+    case 3: {
+      switch (index) {
+        case 0:
+          return -53;
+        case 1:
+          return 0;
+      }
+      return 53;
+    }
+  }
+  switch (index) {
+    case 0:
+      return -61;
+    case 1:
+      return -20;
+    case 2:
+      return 20;
+  }
+  return 61;
+}
+
+function AutocastRuneSlot({ x, rune, need }: { x: Int; rune: Item; need: Int }): Component {
+  const worn = useInventory(Inventories.WORN);
+  const have: Int = magicRuneCount(rune, worn[3], worn[5]);
+
+  return (
+    <>
+      <model x={{ center: x }} y={Layout.RUNE_Y} w={Layout.RUNE} h={Layout.RUNE} item={rune} itemCount={1} />
+      <text
+        x={{ center: x }}
+        y="bottom"
+        w={Layout.RUNE}
+        h={{ fill: Layout.RUNE_LABEL_H_INSET }}
+        text={runeCountLabel(0, have, need)}
+        font={AutocastFonts.SMALL}
+        align="center"
+        valign="top"
+        color={runeCountColor(have, need)}
+      />
+    </>
+  );
+}

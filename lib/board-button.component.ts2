@@ -1,0 +1,78 @@
+import { CS2, useInterval, useState } from 'ts2';
+
+import { Fonts } from './game/fonts';
+import { Sounds } from './game/sounds';
+import { clientClock, playSound } from './lib.engine';
+import { onMobile } from './lib.helpers';
+import { StoneButtonOutFilled } from './stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from './stone-button-pressed-filled.component';
+
+export function BoardButton({ label, pressed = false }: { label: String; pressed?: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [readyAt, setReadyAt] = useState(0);
+
+  useInterval(() => {
+    if (readyAt !== 0 && clientClock() >= readyAt) {
+      setReadyAt(0);
+      setHovered(0);
+    }
+  });
+
+  const busy: Int = readyAt !== 0 ? 1 : 0;
+  const down: Int = busy === 1 || pressed || hovered === 1 ? 1 : 0;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={
+        busy === 1 || pressed
+          ? undefined
+          : () => {
+              if (!onMobile()) {
+                setHovered(1);
+              }
+            }
+      }
+      onMouseLeave={
+        busy === 1 || pressed
+          ? undefined
+          : () => {
+              setHovered(0);
+            }
+      }
+      onOptionSelect={(event) => {
+        if (readyAt !== 0) {
+          return;
+        }
+        playSound(Sounds.INTERFACE_SELECT1);
+        CS2.if_resume_pausebutton(event.component);
+        setReadyAt(clientClock() + BUSY_CYCLES);
+      }}
+    >
+      {down === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={busy === 1 ? LOADING_LABEL : label}
+        font={Fonts.P12_FULL}
+        color={LABEL_COLOR}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+export function setColorTransparency(target: ComponentId, color: Int, transparency: Int): void {
+  target.color = color;
+  target.transparency = transparency;
+}
+
+const LOADING_LABEL = '<col=7f7f7f>...</col>';
+const LABEL_COLOR = 0xff981f;
+const BUSY_CYCLES = 80;

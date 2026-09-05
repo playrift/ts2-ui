@@ -1,0 +1,73 @@
+import { useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { Cell, FarmingColor, Layout, Patches } from './farming-view.constants';
+import { patchStatusText, tooltipLeft, tooltipTop } from './farming-view.helpers';
+import {
+  invokedFlags,
+  invokedGrowth,
+  invokedItem,
+  invokedLastState,
+  invokedMinYield,
+  invokedName,
+  invokedPatch,
+  invokedWatered,
+} from './farming-view.state';
+
+export function PatchTooltip(): Component {
+  const universe = useUniverse();
+  const [patch] = useState(invokedPatch);
+  const [itemSeed] = useState(invokedItem);
+  const [growthSeed] = useState(invokedGrowth);
+  const [lastSeed] = useState(invokedLastState);
+  const [minYield] = useState(invokedMinYield);
+  const [wateredSeed] = useState(invokedWatered);
+  const [flags] = useState(invokedFlags);
+  const [name] = useState(invokedName);
+
+  const row = Patches.get(patch);
+  if (!tooltipUp() || row === null) {
+    return null;
+  }
+
+  const text: String = patchStatusText(
+    patch,
+    itemSeed as Item,
+    growthSeed,
+    lastSeed,
+    minYield,
+    wateredSeed,
+    flags,
+    name,
+  );
+  const measure: Int = Math.min(Layout.TOOLTIP_WRAP, universe.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  return (
+    <layer
+      x={tooltipLeft(row.slot, universe.width, boxW)}
+      y={tooltipTop(row.slot, universe.height, boxH)}
+      w={boxW}
+      h={boxH}
+    >
+      <rect w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        font={TooltipBox.font}
+        color={FarmingColor.BLACK}
+        align="left"
+        valign="middle"
+        lineHeight={TooltipBox.line}
+      />
+    </layer>
+  );
+}
+
+export const TOOLTIP_ANCHOR_H = Cell.H;

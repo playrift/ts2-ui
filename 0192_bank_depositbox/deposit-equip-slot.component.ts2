@@ -1,0 +1,67 @@
+import { useInventory, useRef, useServerState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { displayItemName } from '../0084_equipment/equipment.helpers';
+import {
+  Copy,
+  DepositBoxColor,
+  DepositBoxInventories,
+  DepositBoxItems,
+  DepositBoxSprites,
+  DepositBoxVarbits,
+  SlotIcons,
+  Wash,
+} from './bank-depositbox.constants';
+
+export function DepositEquipSlot({ slot }: { slot: Int }): Component {
+  const worn = useInventory(DepositBoxInventories.WORN);
+  const grapple: Int = useServerState(DepositBoxVarbits.GRAPPLE_PENDING);
+  const icon = useRef();
+
+  const held: Item = worn[slot];
+
+  let first: String = Copy.REMOVE;
+  if (grapple === 1) {
+    first = Copy.DEFEND;
+  } else if (held === DepositBoxItems.CUSTOM_WEAR_PLACEHOLDER) {
+    first = Copy.STOP_SMITHING;
+  }
+  let subject: String = '';
+  if (held !== -1) {
+    subject = `<col=ff9040>${displayItemName(held)}</col>`;
+  }
+
+  if (held === -1) {
+    return (
+      <layer w="fill" h="fill">
+        <sprite x="center" y="center" w={36} h={36} sprite={DepositBoxSprites.PLATE} />
+        <sprite x="center" y="center" w={32} h={32} sprite={SlotIcons.get(slot) ?? -1} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      optionSubject={subject}
+      options={[first, Copy.BANK, '', '', '', '', '', '', '', Copy.EXAMINE]}
+      onOptionSelect={() => {
+        flashFor(icon, Wash.FLASH, Wash.CLEAR);
+      }}
+    >
+      <sprite x="center" y="center" w={36} h={36} sprite={DepositBoxSprites.PLATE} />
+      <sprite
+        ref={icon}
+        x={2}
+        y={2}
+        w={36}
+        h={32}
+        item={held}
+        itemCount={worn.count(slot)}
+        outline={1}
+        shadowColor={DepositBoxColor.SLOT_SHADOW}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,275 @@
+import { useInterval, useState, useUniverse } from 'ts2';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { FswColor, FswFonts, FswPanel } from './fsw.constants';
+import {
+  breakpointOf,
+  fswBackgroundHeight,
+  fswBackgroundWidth,
+  fswContentHeight,
+  fswContentTop,
+  fswContentWidth,
+  fswUniverseHeight,
+  fswUniverseWidth,
+  hideIf,
+  hideUnless,
+} from './fsw.helpers';
+import { FswBoxFrame } from './fsw-box-frame.component';
+import { FswBoxStyle, FswBoxes } from './fsw-box.data';
+import { FswButton } from './fsw-button.component';
+import { FswButtonAction } from './fsw.constants';
+import { PointsPage, fswPointsPage } from './fsw-sp-points.state';
+import { AboutPage, BossGrid, PointsTable } from './points-table.constants';
+import { PointsTableView } from './points-table.component';
+import { BossPointsView } from './boss-points.component';
+import { PointsAboutView } from './points-about.component';
+import { Sprites } from '../lib/game/sprites';
+
+export function FswSpPoints(): Component {
+  const universe = useUniverse();
+  const [breakpoint, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const [page, setPage] = useState(fswPointsPage);
+
+  useInterval(() => {
+    const level: Int = breakpointOf(universe.width, universe.height);
+    if (level !== breakpoint) {
+      setPage(PointsPage.GENERAL);
+    }
+    setBreakpoint(level);
+  });
+
+  const uw: Int = fswUniverseWidth(breakpoint);
+  const uh: Int = fswUniverseHeight(breakpoint);
+  const bgW: Int = fswBackgroundWidth(breakpoint);
+  const bgH: Int = fswBackgroundHeight(breakpoint);
+  const style = FswBoxes.at(FswBoxStyle.UNLOCKED);
+
+  const col1: Int =
+    breakpoint === 1 ? PointsTable.ONE.col1 : breakpoint >= 2 ? PointsTable.TWO.col1 : PointsTable.BASE.col1;
+  const col2: Int =
+    breakpoint === 1 ? PointsTable.ONE.col2 : breakpoint >= 2 ? PointsTable.TWO.col2 : PointsTable.BASE.col2;
+  const tableLineH: Int =
+    breakpoint === 1 ? PointsTable.ONE.lineH : breakpoint >= 2 ? PointsTable.TWO.lineH : PointsTable.BASE.lineH;
+  const tableMinRow: Int =
+    breakpoint === 1 ? PointsTable.ONE.minRow : breakpoint >= 2 ? PointsTable.TWO.minRow : PointsTable.BASE.minRow;
+  const buttonW: Int =
+    breakpoint === 1 ? PointsTable.ONE.buttonW : breakpoint >= 2 ? PointsTable.TWO.buttonW : PointsTable.BASE.buttonW;
+  const buttonH: Int =
+    breakpoint === 1 ? PointsTable.ONE.buttonH : breakpoint >= 2 ? PointsTable.TWO.buttonH : PointsTable.BASE.buttonH;
+  const tableFont: Font =
+    breakpoint === 1 ? PointsTable.ONE.font : breakpoint >= 2 ? PointsTable.TWO.font : PointsTable.BASE.font;
+
+  const tableW: Int = bgW - PointsTable.WIDTH_INSET;
+  const col3: Int = tableW - col1 - col2 - PointsTable.COL3_INSET;
+  const tableH: Int = uh - PointsTable.HEIGHT_INSET;
+
+  const cols: Int = breakpoint >= 2 ? BossGrid.TWO.cols : BossGrid.BASE.cols;
+  const bossMinRow: Int =
+    breakpoint === 1 ? BossGrid.ONE.minRow : breakpoint >= 2 ? BossGrid.TWO.minRow : BossGrid.BASE.minRow;
+  const bossLineH: Int =
+    breakpoint === 1 ? BossGrid.ONE.lineH : breakpoint >= 2 ? BossGrid.TWO.lineH : BossGrid.BASE.lineH;
+  const bossFont: Font =
+    breakpoint === 1 ? BossGrid.ONE.font : breakpoint >= 2 ? BossGrid.TWO.font : BossGrid.BASE.font;
+
+  const aboutFont: Font =
+    breakpoint === 1 ? AboutPage.ONE.font : breakpoint >= 2 ? AboutPage.TWO.font : AboutPage.BASE.font;
+  const aboutLineH: Int =
+    breakpoint === 1 ? AboutPage.ONE.lineH : breakpoint >= 2 ? AboutPage.TWO.lineH : AboutPage.BASE.lineH;
+  const aboutY0: Int = breakpoint === 1 ? AboutPage.ONE.y0 : breakpoint >= 2 ? AboutPage.TWO.y0 : AboutPage.BASE.y0;
+  const aboutY1: Int = breakpoint === 1 ? AboutPage.ONE.y1 : breakpoint >= 2 ? AboutPage.TWO.y1 : AboutPage.BASE.y1;
+  const aboutY2: Int = breakpoint === 1 ? AboutPage.ONE.y2 : breakpoint >= 2 ? AboutPage.TWO.y2 : AboutPage.BASE.y2;
+  const aboutY3: Int = breakpoint === 1 ? AboutPage.ONE.y3 : breakpoint >= 2 ? AboutPage.TWO.y3 : AboutPage.BASE.y3;
+  const aboutY4: Int = breakpoint === 1 ? AboutPage.ONE.y4 : breakpoint >= 2 ? AboutPage.TWO.y4 : AboutPage.BASE.y4;
+
+  const pageName: String = page === PointsPage.ABOUT ? 'About' : page === PointsPage.BOSS ? 'Boss Points' : 'General';
+
+  return (
+    <layer x="center" y="center" w={uw} h={uh}>
+      <layer x="center" y="center" w="fill" h="fill" />
+
+      <layer x="center" y="center" w="fill" h="fill">
+        <rect x={0} y={0} w="fill" h="fill" fill color={FswColor.BLACK} transparency={FswPanel.WASH_TRANSPARENCY} />
+
+        <layer x="center" y="center" w={{ fill: FswPanel.BACKGROUND_INSET }} h={{ fill: FswPanel.BACKGROUND_INSET }}>
+          <rect x={1} y={1} w={bgW - 2} h={bgH - 2} fill color={FswColor.FRAME} />
+          <FswBoxFrame x={0} y={0} w={bgW} h={bgH} style={style} />
+        </layer>
+
+        <layer
+          x="center"
+          y={fswContentTop(breakpoint)}
+          w={fswContentWidth(breakpoint)}
+          h={fswContentHeight(breakpoint)}
+        />
+
+        <text
+          x={0}
+          y={FswPanel.TITLE_Y}
+          w="fill"
+          h={FswPanel.TITLE_H}
+          text={`<col=ff981f>Achievement Points - ${pageName}`}
+          font={FswFonts.VERDANA_15}
+          color={FswColor.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+
+        <text
+          x="center"
+          y={FswPanel.SUBTITLE_Y}
+          w={{ fill: FswPanel.SUBTITLE_INSET }}
+          h={FswPanel.SUBTITLE_H}
+          text=""
+          font={FswFonts.P11}
+          color={FswColor.WHITE}
+          shadow
+          align="center"
+        />
+
+        <sprite
+          x={0}
+          y={0}
+          w={FswPanel.ICON_TEMPLATE}
+          h={FswPanel.ICON_TEMPLATE}
+          sprite={Sprites.ICON_BOSS_25X25_39}
+          hide
+        />
+
+        <line
+          x="center"
+          y={FswPanel.LINE_Y}
+          w={{ fill: FswPanel.LINE_INSET }}
+          h={0}
+          color={FswColor.FRAME}
+          lineWidth={FswPanel.LINE_WIDTH}
+          hide
+        />
+
+        <layer x="center" y={PointsTable.TOP} w={tableW} h={{ fill: PointsTable.HEIGHT_INSET }}>
+          <layer x={0} y={0} w="fill" h="fill">
+            <rect x={1} y={1} w={tableW - 2} h={tableH - 2} fill color={FswColor.FRAME} />
+            <FswBoxFrame x={0} y={0} w={tableW} h={tableH} style={style} />
+          </layer>
+
+          <layer x={0} y={0} w="fill" h="fill" hide={hideUnless(page, PointsPage.GENERAL)}>
+            <PointsTableView
+              tableW={tableW}
+              col1={col1}
+              col2={col2}
+              col3={col3}
+              lineH={tableLineH}
+              minRow={tableMinRow}
+              buttonW={buttonW}
+              buttonH={buttonH}
+              font={tableFont}
+            />
+          </layer>
+
+          <layer x={0} y={0} w="fill" h="fill" hide={hideUnless(page, PointsPage.BOSS)}>
+            <BossPointsView bgW={bgW} bgH={bgH} cols={cols} minRow={bossMinRow} lineH={bossLineH} font={bossFont} />
+          </layer>
+
+          <layer x={0} y={0} w="fill" h="fill" hide={hideUnless(page, PointsPage.ABOUT)}>
+            <layer x={0} y={2} w="fill" h={{ fill: 4 }}>
+              <PointsAboutView
+                contentW={tableW}
+                contentH={tableH - 4}
+                y0={aboutY0}
+                y1={aboutY1}
+                y2={aboutY2}
+                y3={aboutY3}
+                y4={aboutY4}
+                lineH={aboutLineH}
+                font={aboutFont}
+              />
+            </layer>
+          </layer>
+        </layer>
+
+        <layer
+          x={{ center: -FswPanel.BUTTON_STEP }}
+          y={{ bottom: FswPanel.BUTTON_BOTTOM }}
+          w={FswPanel.BUTTON_W}
+          h={FswPanel.BUTTON_H}
+          noClickThrough
+          hide={hideIf(page, PointsPage.ABOUT)}
+        >
+          <FswButton
+            label="About"
+            option="View <col=ff981f>About</col>"
+            font={FswFonts.P11}
+            hoverColor={FswColor.YELLOW}
+            action={FswButtonAction.POINTS_ABOUT}
+          />
+        </layer>
+
+        <layer
+          x={{ center: -FswPanel.BUTTON_STEP }}
+          y={{ bottom: FswPanel.BUTTON_BOTTOM }}
+          w={FswPanel.BUTTON_W}
+          h={FswPanel.BUTTON_H}
+          noClickThrough
+          hide={hideUnless(page, PointsPage.ABOUT)}
+        >
+          <FswButton
+            label="General"
+            option="View <col=ff981f>General</col>"
+            font={FswFonts.P11}
+            hoverColor={FswColor.YELLOW}
+            action={FswButtonAction.POINTS_GENERAL}
+          />
+        </layer>
+
+        <layer
+          x="center"
+          y={{ bottom: FswPanel.BUTTON_BOTTOM }}
+          w={FswPanel.BUTTON_W}
+          h={FswPanel.BUTTON_H}
+          noClickThrough
+          hide={hideIf(page, PointsPage.BOSS)}
+        >
+          <FswButton
+            label="Boss Points"
+            option="View <col=ff981f>Boss Points</col>"
+            font={FswFonts.P11}
+            hoverColor={FswColor.YELLOW}
+            action={FswButtonAction.POINTS_BOSS}
+          />
+        </layer>
+
+        <layer
+          x="center"
+          y={{ bottom: FswPanel.BUTTON_BOTTOM }}
+          w={FswPanel.BUTTON_W}
+          h={FswPanel.BUTTON_H}
+          noClickThrough
+          hide={hideUnless(page, PointsPage.BOSS)}
+        >
+          <FswButton
+            label="General"
+            option="View <col=ff981f>General</col>"
+            font={FswFonts.P11}
+            hoverColor={FswColor.YELLOW}
+            action={FswButtonAction.POINTS_GENERAL}
+          />
+        </layer>
+
+        <layer
+          x={{ center: FswPanel.BUTTON_STEP }}
+          y={{ bottom: FswPanel.BUTTON_BOTTOM }}
+          w={FswPanel.BUTTON_W}
+          h={FswPanel.BUTTON_H}
+          noClickThrough
+        >
+          <FswButton
+            label="Close"
+            option="Select <col=ff981f>Close</col>"
+            font={FswFonts.P11}
+            hoverColor={FswColor.RED}
+            action={FswButtonAction.FLASH}
+          />
+        </layer>
+      </layer>
+    </layer>
+  );
+}

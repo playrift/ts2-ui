@@ -1,0 +1,58 @@
+import { useServerState } from 'ts2';
+import { hasBit } from '../lib/lib.engine';
+import { pvpArenaWorld, speedrunningWorld } from '../0134_settings/settings.helpers';
+import { deadmanWorldOf } from '../0226_deadmanprotect/deadman-world.helpers';
+import { leaguesEnabled } from '../0735_league_3_fragments/league-3-fragments.helpers';
+import { eventInvocationsUnlocked } from '../0776_toa_invocations/toa-invocations.helpers';
+import { EventVarps } from './event-rewards.constants';
+
+export function restrictedWorld(): Boolean {
+  const flags: Int = useServerState(EventVarps.MAP_FLAGS);
+  if (deadmanWorldOf(flags) !== 0) {
+    return true;
+  }
+  if (privateEventFlag(flags)) {
+    return true;
+  }
+  if (pvpArenaWorld()) {
+    return true;
+  }
+  if (neverRestricted(flags)) {
+    return true;
+  }
+  if (leaguesEnabled()) {
+    return true;
+  }
+  if (eventInvocationsUnlocked()) {
+    return true;
+  }
+  if (speedrunningWorld()) {
+    return true;
+  }
+  if (worldFlagBit16(flags)) {
+    return true;
+  }
+  if (privateEventWorldOf(flags) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function privateEventFlag(flags: Int): Boolean {
+  return hasBit(flags, 25);
+}
+
+export function neverRestricted(flags: Int): Boolean {
+  return false;
+}
+
+export function privateEventWorldOf(flags: Int): Int {
+  if (hasBit(flags, 25) && !hasBit(flags, 23) && hasBit(flags, 4)) {
+    return 4;
+  }
+  return 0;
+}
+
+export function worldFlagBit16(flags: Int): Boolean {
+  return hasBit(flags, 16);
+}

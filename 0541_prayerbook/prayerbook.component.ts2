@@ -1,0 +1,239 @@
+import { useServerState, useState } from 'ts2';
+
+import { activePrayerBook } from '../0077_quickprayer/prayer-grid.component';
+import { PrayerBook } from '../0077_quickprayer/quickprayer.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { BottomBar, PrayerSkillWatch } from './bottom-bar.component';
+import { FilterMenu } from './filter-menu.component';
+import { PrayerCell } from './prayer-cell.component';
+import { PrayerTooltip } from './prayer-tooltip.component';
+import {
+  BookBit,
+  GLOW_PLATE_TRANSPARENCY,
+  Layout,
+  PanelMode,
+  PrayerbookColour,
+  PrayerbookVarbits,
+} from './prayerbook.constants';
+import { RuinousPrayers, StandardPrayers } from './prayerbook.data';
+import type { PrayerRow } from './prayerbook.data';
+import { activePrayerMask, prayerPanelMode, prayerShown, prayerSkillTick, resetPrayerPanel } from './prayerbook.state';
+
+function standardBookBit(book: Int): Int {
+  if (book === PrayerBook.DEADEYE) {
+    return BookBit.DEADEYE;
+  }
+  if (book === PrayerBook.MYSTIC_VIGOUR) {
+    return BookBit.MYSTIC_VIGOUR;
+  }
+  if (book === PrayerBook.BOTH) {
+    return BookBit.BOTH;
+  }
+  return BookBit.STANDARD;
+}
+
+function unfilteredGrid(mobile: Boolean): Boolean {
+  if (!mobile && useServerState(PrayerbookVarbits.HIDE_FILTER_BUTTON) === 1) {
+    return true;
+  }
+  return false;
+}
+
+function shownPrayerCount(book: List<PrayerRow>, bookBit: Int, unfiltered: Boolean): Int {
+  let shown: Int = 0;
+  let i: Int = 0;
+  let row: PrayerRow | null = book.at(i);
+  while (row !== null) {
+    if (prayerShown(row, bookBit, unfiltered)) {
+      shown = shown + 1;
+    }
+    i = i + 1;
+    row = book.at(i);
+  }
+  return shown;
+}
+
+function ruinousBook(book: Int): Boolean {
+  if (book === PrayerBook.RUINOUS) {
+    return true;
+  }
+  return false;
+}
+
+function glowHidden(mode: Int): Boolean {
+  if (mode === PanelMode.INFO) {
+    return false;
+  }
+  return true;
+}
+
+function gridHidden(mode: Int): Boolean {
+  if (mode === PanelMode.FILTERS) {
+    return true;
+  }
+  return false;
+}
+
+function hoverTipsBound(mode: Int): Boolean {
+  if (mode === PanelMode.INFO) {
+    return false;
+  }
+  if (useServerState(PrayerbookVarbits.TOOLTIPS_OFF) === 0) {
+    return true;
+  }
+  return false;
+}
+
+function gridPitch(): Int {
+  return (Layout.GRID_W - Layout.COLUMNS * Layout.SLOT) / (Layout.COLUMNS - 1) + Layout.SLOT;
+}
+
+export function Prayerbook(): Component {
+  return (
+    <>
+      <layer x="center" w="fill" h="fill" onLoad={() => resetPrayerPanel()}>
+        <InfoGlow />
+        <PrayerGrid />
+        <FilterMenu />
+      </layer>
+      <layer x="center" y="bottom" w="fill" h={Layout.BOTTOM_H}>
+        <BottomBar />
+      </layer>
+      <PrayerTooltip />
+      <PrayerSkillWatch />
+    </>
+  );
+}
+
+function InfoGlow(): Component {
+  const [mode] = useState(prayerPanelMode);
+  const [skillTick] = useState(prayerSkillTick);
+  const mobile: Boolean = onMobile();
+  const book: Int = activePrayerBook();
+  const unfiltered: Boolean = unfilteredGrid(mobile);
+
+  let shown: Int = shownPrayerCount(StandardPrayers, standardBookBit(book), unfiltered);
+  if (ruinousBook(book)) {
+    shown = shownPrayerCount(RuinousPrayers, BookBit.NONE, unfiltered);
+  }
+  let lastRowY: Int = 0;
+  if (shown > 0) {
+    lastRowY = ((shown - 1) / Layout.COLUMNS) * gridPitch();
+  }
+  const glowH: Int = Layout.GLOW_PAD + lastRowY + Layout.SLOT + Layout.GLOW_PAD + skillTick * 0;
+
+  return (
+    <layer x="center" y={Layout.GLOW_Y} w="fill" h={glowH} hide={glowHidden(mode)}>
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={PrayerbookColour.WHITE}
+          transparency={GLOW_PLATE_TRANSPARENCY}
+        />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          fill
+          color={PrayerbookColour.WHITE}
+          transparency={GLOW_PLATE_TRANSPARENCY}
+        />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 4 }}
+          h={{ fill: 4 }}
+          fill
+          color={PrayerbookColour.WHITE}
+          transparency={GLOW_PLATE_TRANSPARENCY}
+        />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 6 }}
+          h={{ fill: 6 }}
+          fill
+          color={PrayerbookColour.WHITE}
+          transparency={GLOW_PLATE_TRANSPARENCY}
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function PrayerGrid(): Component {
+  const [mode] = useState(prayerPanelMode);
+  const [skillTick] = useState(prayerSkillTick);
+  const mobile: Boolean = onMobile();
+  const book: Int = activePrayerBook();
+  const mask: Int = activePrayerMask();
+  const ruinous: Boolean = ruinousBook(book);
+  const bookBit: Int = standardBookBit(book);
+  const unfiltered: Boolean = unfilteredGrid(mobile);
+  const pitch: Int = gridPitch() + skillTick * 0;
+
+  const hoverTips: Boolean = hoverTipsBound(mode);
+
+  if (ruinous) {
+    return (
+      <layer
+        x="center"
+        y="bottom"
+        w={{ fill: Layout.GRID_INSET_W }}
+        h={{ fill: Layout.GRID_INSET_H }}
+        hide={gridHidden(mode)}
+      >
+        {RuinousPrayers.filter((row) => prayerShown(row, BookBit.NONE, unfiltered)).scan(
+          (row, index, placed) => (
+            <PrayerCell
+              item={row.item}
+              x={(placed % Layout.COLUMNS) * pitch}
+              y={(placed / Layout.COLUMNS) * pitch}
+              mode={mode}
+              mask={mask}
+              ruinous={ruinous}
+              hoverTips={hoverTips}
+            />
+          ),
+          (row) => 1,
+        )}
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x="center"
+      y="bottom"
+      w={{ fill: Layout.GRID_INSET_W }}
+      h={{ fill: Layout.GRID_INSET_H }}
+      hide={gridHidden(mode)}
+    >
+      {StandardPrayers.filter((row) => prayerShown(row, bookBit, unfiltered)).scan(
+        (row, index, placed) => (
+          <PrayerCell
+            item={row.item}
+            x={(placed % Layout.COLUMNS) * pitch}
+            y={(placed / Layout.COLUMNS) * pitch}
+            mode={mode}
+            mask={mask}
+            ruinous={ruinous}
+            hoverTips={hoverTips}
+          />
+        ),
+        (row) => 1,
+      )}
+    </layer>
+  );
+}

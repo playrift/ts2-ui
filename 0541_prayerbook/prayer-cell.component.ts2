@@ -1,0 +1,144 @@
+import { useServerState } from 'ts2';
+
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { highRiskWorld, prayerAvailable } from '../0077_quickprayer/quickprayer.helpers';
+import { hasBit } from '../lib/lib.engine';
+import {
+  CROSSED_ICON_TRANSPARENCY,
+  Layout,
+  OP_ACTIVATE,
+  OP_DEACTIVATE,
+  OP_INFO,
+  PanelMode,
+  PrayerbookSprites,
+  PrayerbookVarbits,
+  ProtectItemBit,
+} from './prayerbook.constants';
+import { PrayersByItem } from './prayerbook.data';
+import type { PrayerRow } from './prayerbook.data';
+import { displayedPrayer, hidePrayerTip, prayerOp, showPrayerTip } from './prayerbook.state';
+
+function protectItemCrossed(bit: Int, ruinous: Boolean): Boolean {
+  if (ruinous) {
+    if (bit !== ProtectItemBit.RUINOUS) {
+      return false;
+    }
+  } else if (bit !== ProtectItemBit.STANDARD) {
+    return false;
+  }
+  if (highRiskWorld()) {
+    return true;
+  }
+  if (deadmanWorld() !== 0) {
+    return true;
+  }
+  if (useServerState(PrayerbookVarbits.BR_INGAME) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function PrayerCell({
+  item,
+  x,
+  y,
+  mode,
+  mask,
+  ruinous,
+  hoverTips,
+}: {
+  item: Item;
+  x: Int;
+  y: Int;
+  mode: Int;
+  mask: Int;
+  ruinous: Boolean;
+  hoverTips: Boolean;
+}): Component {
+  const row: PrayerRow | null = PrayersByItem.get(displayedPrayer(item));
+  if (row === null) {
+    return null;
+  }
+  const available: Boolean = prayerAvailable(row.item, row.level);
+  const active: Boolean = hasBit(mask, row.bit);
+
+  const crossed: Boolean = protectItemCrossed(row.bit, ruinous);
+  const firstOp: String = active ? OP_DEACTIVATE : OP_ACTIVATE;
+
+  if (mode === PanelMode.INFO) {
+    return (
+      <layer
+        x={x}
+        y={y}
+        w={Layout.SLOT}
+        h={Layout.SLOT}
+        options={['', OP_INFO]}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        onOptionSelect={(event) => prayerOp(event.option, mode, row.item, x, y)}
+      >
+        <PrayerCellFace row={row} available={available} active={active} crossed={crossed} ruinous={ruinous} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={Layout.SLOT}
+      h={Layout.SLOT}
+      options={[firstOp]}
+      optionSubject={`<col=ff9040>${row.name}</col>`}
+      onOptionSelect={(event) => prayerOp(event.option, mode, row.item, x, y)}
+      onMouseRepeat={hoverTips ? () => showPrayerTip(row.item, x, y) : undefined}
+      onMouseLeave={hoverTips ? () => hidePrayerTip() : undefined}
+    >
+      <PrayerCellFace row={row} available={available} active={active} crossed={crossed} ruinous={ruinous} />
+    </layer>
+  );
+}
+
+function glowHidden(active: Boolean): Boolean {
+  if (active) {
+    return false;
+  }
+  return true;
+}
+
+function PrayerCellFace({
+  row,
+  available,
+  active,
+  crossed,
+  ruinous,
+}: {
+  row: PrayerRow;
+  available: Boolean;
+  active: Boolean;
+  crossed: Boolean;
+  ruinous: Boolean;
+}): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={Layout.SLOT}
+        h={Layout.SLOT}
+        sprite={ruinous ? PrayerbookSprites.GLOW_RUINOUS : PrayerbookSprites.GLOW_STANDARD}
+        hide={glowHidden(active)}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={Layout.ICON}
+        h={Layout.ICON}
+        sprite={available ? row.iconOn : row.iconOff}
+        transparency={crossed ? CROSSED_ICON_TRANSPARENCY : 0}
+      />
+      {crossed ? (
+        <sprite x="center" y="center" w={Layout.CROSS} h={Layout.CROSS} sprite={PrayerbookSprites.PROTECT_ITEM_CROSS} />
+      ) : null}
+    </>
+  );
+}

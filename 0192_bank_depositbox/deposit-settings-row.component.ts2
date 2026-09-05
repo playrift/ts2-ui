@@ -1,0 +1,69 @@
+import { predictServerState, useRef, useServerState } from 'ts2';
+
+import { playSound, textWidth } from '../lib/lib.engine';
+import {
+  Copy,
+  DepositBoxColor,
+  DepositBoxFonts,
+  DepositBoxSounds,
+  DepositBoxSprites,
+  DepositBoxVarbits,
+  Layout,
+} from './bank-depositbox.constants';
+
+export function DepositSettingsRow(): Component {
+  const hidden: Int = useServerState(DepositBoxVarbits.WORN_BUTTON_HIDDEN);
+  const label = useRef();
+
+  const narrow: Int =
+    textWidth(Copy.SETTINGS_ROW, Layout.settings.w / 2 - Layout.settingsRow.halfInset, DepositBoxFonts.BODY) +
+    Layout.settingsRow.pad;
+  const wide: Int = textWidth(Copy.SETTINGS_ROW, Layout.settings.w, DepositBoxFonts.BODY) + Layout.settingsRow.pad;
+  const width: Int = Math.min(narrow, wide);
+
+  let op: String = Copy.HIDE;
+  let radio: Sprite = DepositBoxSprites.RADIO_SHOWN;
+  if (hidden === 1) {
+    op = Copy.SHOW;
+    radio = DepositBoxSprites.RADIO_HIDDEN;
+  }
+
+  return (
+    <layer
+      x="center"
+      y={Layout.settingsRow.y}
+      w={width}
+      h={Layout.settingsRow.h}
+      options={[op]}
+      optionSubject={`<col=ff9040>${Copy.SETTINGS_ROW}</col>`}
+      onMouseEnter={() => {
+        label.color = DepositBoxColor.WHITE;
+      }}
+      onMouseLeave={() => {
+        label.color = DepositBoxColor.TEXT;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(DepositBoxSounds.SELECT);
+        predictServerState(DepositBoxVarbits.WORN_BUTTON_HIDDEN, 1 - hidden);
+      }}
+    >
+      <sprite x={0} y="center" w={Layout.settingsRow.radio} h={Layout.settingsRow.radio} sprite={radio} />
+      <text
+        ref={label}
+        x="right"
+        y="center"
+        w={{ fill: Layout.settingsRow.textInset }}
+        h="fill"
+        text={Copy.SETTINGS_ROW}
+        font={DepositBoxFonts.BODY}
+        color={DepositBoxColor.TEXT}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </layer>
+  );
+}

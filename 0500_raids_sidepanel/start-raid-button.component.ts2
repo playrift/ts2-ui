@@ -1,0 +1,90 @@
+import { createRef, useInterval, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  Copy,
+  Layout,
+  START_PRESS_CYCLES,
+  SidepanelColor,
+  SidepanelFonts,
+  SidepanelSounds,
+  SidepanelVarbits,
+} from './raids-sidepanel.constants';
+import { startButton } from './raids-sidepanel.refs';
+
+const timerHost = createRef('raids_sidepanel:start_timer');
+
+export function StartRaidButton(): Component {
+  useInterval(() => {
+    if (clientClock() < pressedUntil) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hovered, setHovered] = useState(0);
+
+  const leader: Int = useServerState(SidepanelVarbits.IS_LEADER);
+  const progress: Int = useServerState(SidepanelVarbits.PROGRESS);
+
+  startButton.width = textWidth(Copy.START, Layout.START_MEASURE_W, SidepanelFonts.BODY) + Layout.START_PAD;
+
+  if (leader !== 1 || progress !== 0) {
+    return null;
+  }
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer ref={timerHost} w="fill" h="fill">
+        <StoneButtonPressedFilled />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={Copy.START_PRESSED}
+          font={SidepanelFonts.BODY}
+          color={SidepanelColor.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[Copy.START]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(SidepanelSounds.SELECT);
+        setHovered(0);
+        setPressedUntil(clientClock() + START_PRESS_CYCLES);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={Copy.START}
+        font={SidepanelFonts.BODY}
+        color={SidepanelColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

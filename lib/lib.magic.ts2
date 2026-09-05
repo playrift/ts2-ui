@@ -1,0 +1,883 @@
+import { CS2, param, useInventory, useServerState, useSkill } from 'ts2';
+
+import { featureFlag, pvpArenaWorld } from '../0134_settings/settings.helpers';
+import { leaguesEnabled } from '../0735_league_3_fragments/league-3-fragments.helpers';
+import { Inventories } from './game/inventories';
+import { Params } from './game/params';
+import { Varbits } from './game/varbits';
+import { Varps } from './game/varps';
+import { GameframeSlot, gameframeSlot } from './lib.gameframe';
+import { debugMessageAlias } from './lib.debug';
+import { hasBit, membersWorld } from './lib.engine';
+import {
+  AirPouchTypes,
+  AirStaves,
+  EarthPouchTypes,
+  EarthStaves,
+  FakeRunes,
+  FirePouchTypes,
+  FireStaves,
+  MultiRunes,
+  RuneClasses,
+  RunePouchRunes,
+  WaterPouchTypes,
+  WaterStaves,
+} from './magic-runes.data';
+import { LeagueRelicTiers, Relic, RelicTiers } from './league-relics.data';
+import { LeagueToggle, LeagueToggleRow, LeagueToggles } from './league-toggles.data';
+
+export const MAX_RUNE_COUNT = 2147483647;
+
+export const enum MagicItem {
+  AIR_RUNE = 556,
+  WATER_RUNE = 555,
+  EARTH_RUNE = 557,
+  FIRE_RUNE = 554,
+  NATURE_RUNE = 561,
+  CHAOS_RUNE = 562,
+  DEATH_RUNE = 560,
+  BLOOD_RUNE = 565,
+  MIST_RUNE = 4695,
+  DUST_RUNE = 4696,
+  MUD_RUNE = 4698,
+  SMOKE_RUNE = 4697,
+  STEAM_RUNE = 4694,
+  LAVA_RUNE = 4699,
+  SUNFIRE_RUNE = 28929,
+  NZONE_AIR_RUNE = 11715,
+  NZONE_WATER_RUNE = 11716,
+  NZONE_EARTH_RUNE = 11717,
+  NZONE_FIRE_RUNE = 11718,
+  NZONE_CHAOS_RUNE = 11712,
+  NZONE_DEATH_RUNE = 11713,
+  NZONE_BLOOD_RUNE = 11714,
+  FAKE_AIR_RUNE = 11688,
+  FAKE_WATER_RUNE = 11687,
+  FAKE_EARTH_RUNE = 11689,
+  FAKE_FIRE_RUNE = 11686,
+  FAKE_NATURE_RUNE = 11693,
+  PEST_INTERFACE_STAFFS = 8843,
+  ZAMORAK_STAFF = 2417,
+  SLAYER_STAFF = 4170,
+  IBANSTAFF = 1409,
+  SARADOMIN_STAFF = 2415,
+  GUTHIX_STAFF = 2416,
+  PEST_VOID_KNIGHT_MACE = 8841,
+  PEST_VOID_KNIGHT_MACE_TROUVER = 24181,
+  STAFF_OF_BALANCE = 24144,
+  WILD_CAVE_ACCURSED_CHARGED = 27665,
+  SLAYER_STAFF_ENCHANTED = 21255,
+  SOTD = 11791,
+  TOXIC_SOTD = 12902,
+  TOXIC_SOTD_CHARGED = 12904,
+  STAFF_OF_LIGHT = 22296,
+  TOXIC_SOTD_DEADMAN = 33035,
+  TOXIC_SOTD_CHARGED_DEADMAN = 33036,
+  IBANSTAFF_UPGRADED = 12658,
+  NATURE_STAFF_CHARGED = 22370,
+  DEVILS_ELEMENT = 30371,
+  TOME_OF_WATER = 25574,
+  TOME_OF_EARTH = 30064,
+  TOME_OF_FIRE = 20714,
+  TRANSMUTATION_LEDGER = 33229,
+  DIVINE_RUNE_POUCH = 27281,
+  DIVINE_RUNE_POUCH_TROUVER = 27509,
+  BH_RUNE_POUCH = 12791,
+  BH_RUNE_POUCH_TROUVER = 24416,
+  PVPA_RUNE_REPLACEMENT = 27086,
+  BR_RUNE_REPLACEMENT = 23650,
+  CASTLEWARS_RUNE_REPLACEMENT = 30692,
+  BLIGHTED_SACK_ICEBARRAGE = 24607,
+  BLIGHTED_SACK_ENTANGLE = 24613,
+  BLIGHTED_SACK_BIND = 24609,
+  BLIGHTED_SACK_SNARE = 24611,
+  BLIGHTED_SACK_TELEBLOCK = 24615,
+  BLIGHTED_SACK_VENGEANCE = 24621,
+  BLIGHTED_SACK_SURGE = 26705,
+  SPELL_BLOOD_BLITZ = 4644,
+  SPELL_BLOOD_BARRAGE = 4650,
+  SPELL_ICE_BLITZ = 4645,
+  SPELL_ICE_BARRAGE = 4651,
+  SPELL_ICE_RUSH = 4633,
+  SPELL_ICE_BURST = 4639,
+  SPELL_BIND = 3283,
+  SPELL_SNARE = 3300,
+  SPELL_ENTANGLE = 3322,
+  SPELL_TELEPORT_BLOCK = 4555,
+  SPELL_TELEPORT_TO_TARGET = 17152,
+  SPELL_CURE_ME = 9113,
+  SPELL_VENGEANCE_OTHER = 9135,
+  SPELL_VENGEANCE = 9136,
+  SPELL_WIND_WAVE = 3313,
+  SPELL_WATER_WAVE = 3315,
+  SPELL_EARTH_WAVE = 3319,
+  SPELL_FIRE_WAVE = 3321,
+  SPELL_WIND_SURGE = 21876,
+  SPELL_WATER_SURGE = 21877,
+  SPELL_EARTH_SURGE = 21878,
+  SPELL_FIRE_SURGE = 21879,
+  SPELL_ALCHEMIC_DIVERGENCE = 33375,
+  SPELL_ALCHEMIC_CONVERGENCE = 33376,
+  SPELL_HIGH_ALCHEMY = 3303,
+  SPELL_LOW_ALCHEMY = 3284,
+}
+
+export declare const MagicSkills: {
+  readonly MAGIC: SkillRef<6>;
+};
+
+export function saturatingAdd(total: Int, more: Int): Int {
+  if (MAX_RUNE_COUNT - total < more) {
+    return MAX_RUNE_COUNT;
+  }
+  return total + more;
+}
+
+export function not(value: Boolean): Boolean {
+  if (value === true) {
+    return false;
+  }
+  return true;
+}
+
+export function fakeRunesEnabled(): Boolean {
+  if (useServerState(Varbits.BARBASSAULT_AREAEXIT_PENDING) === 1) {
+    return true;
+  }
+  if (useServerState(Varbits.BR_INGAME) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function blightedItemsAllowed(): Int {
+  return useServerState(Varbits.BLIGHTED_ITEMS_ALLOWED);
+}
+
+export function castlewarsRuneReplaced(spell: Item): Boolean {
+  const inv = useInventory(Inventories.INV);
+  if (
+    (useServerState(Varbits.CASTLEWARS_ZAMORAK_TEAM) === 1 ||
+      useServerState(Varbits.CASTLEWARS_SARADOMIN_TEAM) === 1) &&
+    param(spell, Params.PARAM_2259) === true &&
+    inv.total(MagicItem.CASTLEWARS_RUNE_REPLACEMENT) > 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function pvpaLoadoutRunePouch(build: Int): Int {
+  if (pvpArenaWorld() === false) {
+    return -1;
+  }
+  switch (build) {
+    case 1:
+      return useServerState(Varps.PVPA_LOADOUT_B_RUNEPOUCH);
+    case 2:
+      return useServerState(Varps.PVPA_LOADOUT_C_RUNEPOUCH);
+  }
+  return useServerState(Varps.PVPA_LOADOUT_A_RUNEPOUCH);
+}
+
+export function pvpaRuneReplaced(flags: Int, rune: Item, runeClass: Int): Boolean {
+  if (hasBit(flags, runeClass) === false) {
+    return true;
+  }
+  switch (rune) {
+    case MagicItem.AIR_RUNE: {
+      if (hasBit(flags, 15) === false || hasBit(flags, 17) === false || hasBit(flags, 20) === false) {
+        return true;
+      }
+    }
+    case MagicItem.WATER_RUNE: {
+      if (hasBit(flags, 15) === false || hasBit(flags, 16) === false || hasBit(flags, 19) === false) {
+        return true;
+      }
+    }
+    case MagicItem.EARTH_RUNE: {
+      if (hasBit(flags, 17) === false || hasBit(flags, 16) === false || hasBit(flags, 18) === false) {
+        return true;
+      }
+    }
+    case MagicItem.FIRE_RUNE: {
+      if (
+        hasBit(flags, 20) === false ||
+        hasBit(flags, 19) === false ||
+        hasBit(flags, 18) === false ||
+        hasBit(flags, 22) === false
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function eventRewardBit(word: Int, bit: Int): Int {
+  switch (word) {
+    case 0:
+      return hasBit(useServerState(Varps.EVENT_REWARDS_TEMP_9), bit) ? 1 : 0;
+    case 1:
+      return hasBit(useServerState(Varps.EVENT_REWARDS_TEMP_10), bit) ? 1 : 0;
+  }
+  debugMessageAlias(`Undefined $varp index: ${stringOf(word)}`);
+  return -1;
+}
+
+export function eventRelicIndex(relic: Relic): Int {
+  if (featureFlag(0) === false) {
+    return -1;
+  }
+  if (useServerState(Varps.EVENT_LEAGUE_RELICS) === -1) {
+    return -1;
+  }
+  return -1;
+}
+
+export function eventRelicActive(relic: Relic): Boolean {
+  const index: Int = eventRelicIndex(relic);
+  if (index === -1) {
+    return false;
+  }
+  if (eventRewardBit(index / 32, index % 32) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function leagueRelicActive(relic: Relic): Int {
+  if (eventRelicActive(relic) === true) {
+    return 1;
+  }
+  if (leaguesEnabled() === false) {
+    return 0;
+  }
+  const tier: Int = RelicTiers.get(relic) ?? -1;
+  const tiers = LeagueRelicTiers.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (tiers === null) {
+    return 0;
+  }
+  const selections = tiers.get(tier);
+  if (selections === null) {
+    return 0;
+  }
+  switch (tier) {
+    case 0: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_0)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_0)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 1: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_1)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_1)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 2: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_2)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_2)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 3: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_3)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_3)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 4: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_4)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_4)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 5: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_5)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_5)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 6: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_6)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_6)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+    case 7: {
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_7)) === relic) {
+        return 1;
+      }
+      if (selections.get(useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_7)) === relic) {
+        return 1;
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
+
+export function leagueToggleValid(toggle: LeagueToggleRow | null): Boolean {
+  if (toggle === null) {
+    debugMessageAlias('Toggle data was null when passing into valid toggle check.');
+    return false;
+  }
+  const bit: Int = toggle.bit;
+  if (bit >= 32 || bit < 0) {
+    debugMessageAlias(
+      `$toggle_bit was an invalid bit (${stringOf(bit)}) we only support 0-31 bits, if we want more at once, make a new varp.`,
+    );
+    return false;
+  }
+  return true;
+}
+
+export function leagueToggleOn(toggle: LeagueToggle): Boolean {
+  const row = LeagueToggles.at(toggle);
+  if (row === null || leagueToggleValid(row) === false) {
+    return false;
+  }
+  const bit: Int = row.bit;
+  if (row.inverted === true) {
+    return hasBit(useServerState(Varps.VARP_5514), bit);
+  }
+  return not(hasBit(useServerState(Varps.VARP_5514), bit));
+}
+
+export function spellSprite(spell: Item, size: Int, lit: Int): Sprite {
+  let icon: Item = spell;
+  if (spell === MagicItem.SPELL_ALCHEMIC_DIVERGENCE && leagueToggleOn(LeagueToggle.TRANSMUTATION_ALCHEMY) === false) {
+    icon = MagicItem.SPELL_HIGH_ALCHEMY;
+  }
+  if (spell === MagicItem.SPELL_ALCHEMIC_CONVERGENCE && leagueToggleOn(LeagueToggle.TRANSMUTATION_ALCHEMY) === false) {
+    icon = MagicItem.SPELL_LOW_ALCHEMY;
+  }
+  if (lit === 1) {
+    if (size >= 40) {
+      return icon.spellGraphic2On!;
+    }
+    return icon.spellGraphic1On!;
+  }
+  if (size >= 40) {
+    return icon.spellGraphic2Off!;
+  }
+  return icon.spellGraphic1Off!;
+}
+
+export function magicRuneCount(rune: Item, weapon: Item, shield: Item): Int {
+  const inv = useInventory(Inventories.INV);
+  const worn = useInventory(Inventories.WORN);
+  let wielded: Item = weapon;
+  let held: Item = shield;
+  let pouch1: Int = 0;
+  let pouch2: Int = 0;
+  let pouch3: Int = 0;
+  let pouch4: Int = 0;
+  let pouch5: Int = 0;
+  let pouch6: Int = 0;
+  const sorcerer: Int = leagueRelicActive(Relic.SUPERIOR_SORCERER);
+  const mainmodal: ComponentId = gameframeSlot(GameframeSlot.VIEWPORT);
+  let viewingPouch: Boolean = false;
+  if (useServerState(Varbits.PVPA_TRANSMIT_VIEWINGRUNEPOUCH) > 0 && CS2.if_sub_has(mainmodal) === true) {
+    viewingPouch = true;
+  }
+  const members: Boolean = membersWorld();
+  if (viewingPouch) {
+  } else if (members) {
+    if (inv.total(MagicItem.DIVINE_RUNE_POUCH) > 0 || inv.total(MagicItem.DIVINE_RUNE_POUCH_TROUVER) > 0) {
+      pouch1 = useServerState(Varbits.RUNE_POUCH_TYPE_1);
+      pouch2 = useServerState(Varbits.RUNE_POUCH_TYPE_2);
+      pouch3 = useServerState(Varbits.RUNE_POUCH_TYPE_3);
+      pouch4 = useServerState(Varbits.RUNE_POUCH_TYPE_4);
+      if (sorcerer === 1) {
+        pouch5 = useServerState(Varbits.RUNE_POUCH_TYPE_5);
+        pouch6 = useServerState(Varbits.RUNE_POUCH_TYPE_6);
+      }
+    } else if (inv.total(MagicItem.BH_RUNE_POUCH) > 0 || inv.total(MagicItem.BH_RUNE_POUCH_TROUVER) > 0) {
+      pouch1 = useServerState(Varbits.RUNE_POUCH_TYPE_1);
+      pouch2 = useServerState(Varbits.RUNE_POUCH_TYPE_2);
+      pouch3 = useServerState(Varbits.RUNE_POUCH_TYPE_3);
+      if (sorcerer === 1) {
+        pouch5 = useServerState(Varbits.RUNE_POUCH_TYPE_5);
+        pouch6 = useServerState(Varbits.RUNE_POUCH_TYPE_6);
+      }
+    }
+  } else {
+    if (wielded !== -1 && CS2.item_members(wielded) === 1) {
+      wielded = -1;
+    }
+    if (held !== -1 && CS2.item_members(held) === 1) {
+      held = -1;
+    }
+  }
+
+  const runeClass: Int = RuneClasses.get(rune) ?? 0;
+  if (runeClass !== 0) {
+    if (viewingPouch) {
+      if (pvpaRuneReplaced(useServerState(Varps.PVPA_EDITING), rune, runeClass) === true) {
+        return MAX_RUNE_COUNT;
+      }
+    } else if (
+      useServerState(Varbits.PVPA_BATTLEAREA_STATUS) === 1 &&
+      inv.total(MagicItem.PVPA_RUNE_REPLACEMENT) > 0 &&
+      pvpaRuneReplaced(pvpaLoadoutRunePouch(useServerState(Varbits.PVPA_TRANSMIT_BUILD)), rune, runeClass) === true
+    ) {
+      return MAX_RUNE_COUNT;
+    }
+    if (useServerState(Varbits.FOUNTAIN_OF_RUNE_ACTIVE) === 1 && (members || CS2.item_members(rune) === 0)) {
+      return MAX_RUNE_COUNT;
+    }
+  }
+
+  let total: Int = 0;
+  switch (rune) {
+    case MagicItem.AIR_RUNE: {
+      if (held === MagicItem.DEVILS_ELEMENT) {
+        return MAX_RUNE_COUNT;
+      }
+      if ((AirStaves.get(wielded) ?? false) === true) {
+        return MAX_RUNE_COUNT;
+      }
+      if (fakeRunesEnabled() === true) {
+        return inv.total(MagicItem.FAKE_AIR_RUNE);
+      }
+      total = inv.total(MagicItem.AIR_RUNE);
+      if (members) {
+        total = saturatingAdd(total, inv.total(MagicItem.SMOKE_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.MIST_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.DUST_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.NZONE_AIR_RUNE));
+        if ((AirPouchTypes.get(pouch1) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+        }
+        if ((AirPouchTypes.get(pouch2) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+        }
+        if ((AirPouchTypes.get(pouch3) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+        }
+        if ((AirPouchTypes.get(pouch4) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+        }
+        if ((AirPouchTypes.get(pouch5) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+        }
+        if ((AirPouchTypes.get(pouch6) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+        }
+      }
+      return total;
+    }
+    case MagicItem.WATER_RUNE: {
+      if (held === MagicItem.DEVILS_ELEMENT) {
+        return MAX_RUNE_COUNT;
+      }
+      if ((WaterStaves.get(wielded) ?? false) === true) {
+        return MAX_RUNE_COUNT;
+      }
+      if (fakeRunesEnabled() === true) {
+        return inv.total(MagicItem.FAKE_WATER_RUNE);
+      }
+      if (held === MagicItem.TOME_OF_WATER) {
+        return MAX_RUNE_COUNT;
+      }
+      total = inv.total(MagicItem.WATER_RUNE);
+      if (members) {
+        total = saturatingAdd(total, inv.total(MagicItem.STEAM_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.MIST_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.MUD_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.NZONE_WATER_RUNE));
+        if ((WaterPouchTypes.get(pouch1) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+        }
+        if ((WaterPouchTypes.get(pouch2) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+        }
+        if ((WaterPouchTypes.get(pouch3) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+        }
+        if ((WaterPouchTypes.get(pouch4) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+        }
+        if ((WaterPouchTypes.get(pouch5) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+        }
+        if ((WaterPouchTypes.get(pouch6) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+        }
+      }
+      return total;
+    }
+    case MagicItem.EARTH_RUNE: {
+      if (held === MagicItem.DEVILS_ELEMENT) {
+        return MAX_RUNE_COUNT;
+      }
+      if ((EarthStaves.get(wielded) ?? false) === true) {
+        return MAX_RUNE_COUNT;
+      }
+      if (fakeRunesEnabled() === true) {
+        return inv.total(MagicItem.FAKE_EARTH_RUNE);
+      }
+      if (held === MagicItem.TOME_OF_EARTH) {
+        return MAX_RUNE_COUNT;
+      }
+      total = inv.total(MagicItem.EARTH_RUNE);
+      if (members) {
+        total = saturatingAdd(total, inv.total(MagicItem.DUST_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.LAVA_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.MUD_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.NZONE_EARTH_RUNE));
+        if ((EarthPouchTypes.get(pouch1) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+        }
+        if ((EarthPouchTypes.get(pouch2) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+        }
+        if ((EarthPouchTypes.get(pouch3) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+        }
+        if ((EarthPouchTypes.get(pouch4) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+        }
+        if ((EarthPouchTypes.get(pouch5) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+        }
+        if ((EarthPouchTypes.get(pouch6) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+        }
+      }
+      return total;
+    }
+    case MagicItem.FIRE_RUNE: {
+      if (held === MagicItem.DEVILS_ELEMENT) {
+        return MAX_RUNE_COUNT;
+      }
+      if ((FireStaves.get(wielded) ?? false) === true) {
+        return MAX_RUNE_COUNT;
+      }
+      if (fakeRunesEnabled() === true) {
+        return inv.total(MagicItem.FAKE_FIRE_RUNE);
+      }
+      if (held === MagicItem.TOME_OF_FIRE) {
+        return MAX_RUNE_COUNT;
+      }
+      total = inv.total(MagicItem.FIRE_RUNE);
+      if (members) {
+        total = saturatingAdd(total, inv.total(MagicItem.STEAM_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.SMOKE_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.LAVA_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.SUNFIRE_RUNE));
+        total = saturatingAdd(total, inv.total(MagicItem.NZONE_FIRE_RUNE));
+        if ((FirePouchTypes.get(pouch1) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+        }
+        if ((FirePouchTypes.get(pouch2) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+        }
+        if ((FirePouchTypes.get(pouch3) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+        }
+        if ((FirePouchTypes.get(pouch4) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+        }
+        if ((FirePouchTypes.get(pouch5) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+        }
+        if ((FirePouchTypes.get(pouch6) ?? false) === true) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+        }
+      }
+      return total;
+    }
+    case MagicItem.NATURE_RUNE: {
+      if (fakeRunesEnabled() === true) {
+        return inv.total(MagicItem.FAKE_NATURE_RUNE);
+      }
+      total = inv.total(MagicItem.NATURE_RUNE);
+      const shieldSlot: Item = worn[5];
+      if (wielded === MagicItem.NATURE_STAFF_CHARGED) {
+        return MAX_RUNE_COUNT;
+      } else if (inv.total(MagicItem.TRANSMUTATION_LEDGER) > 0 || shieldSlot === MagicItem.TRANSMUTATION_LEDGER) {
+        return MAX_RUNE_COUNT;
+      } else if (members) {
+        if ((RunePouchRunes.get(pouch1) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+        }
+        if ((RunePouchRunes.get(pouch2) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+        }
+        if ((RunePouchRunes.get(pouch3) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+        }
+        if ((RunePouchRunes.get(pouch4) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+        }
+        if ((RunePouchRunes.get(pouch5) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+        }
+        if ((RunePouchRunes.get(pouch6) ?? -1) === MagicItem.NATURE_RUNE) {
+          total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+        }
+      }
+    }
+    case MagicItem.PEST_INTERFACE_STAFFS: {
+      switch (wielded) {
+        case MagicItem.GUTHIX_STAFF:
+        case MagicItem.PEST_VOID_KNIGHT_MACE:
+        case MagicItem.PEST_VOID_KNIGHT_MACE_TROUVER:
+        case MagicItem.STAFF_OF_BALANCE:
+          return 1;
+      }
+      return 0;
+    }
+    case MagicItem.ZAMORAK_STAFF: {
+      if (wielded.isZamorakStaff! === true) {
+        return 1;
+      }
+      switch (wielded) {
+        case MagicItem.ZAMORAK_STAFF:
+          return 1;
+        case MagicItem.WILD_CAVE_ACCURSED_CHARGED:
+          return 1;
+      }
+      return 0;
+    }
+    case MagicItem.SLAYER_STAFF: {
+      switch (wielded) {
+        case MagicItem.SLAYER_STAFF:
+        case MagicItem.SLAYER_STAFF_ENCHANTED:
+        case MagicItem.SOTD:
+        case MagicItem.TOXIC_SOTD:
+        case MagicItem.TOXIC_SOTD_CHARGED:
+        case MagicItem.STAFF_OF_LIGHT:
+        case MagicItem.STAFF_OF_BALANCE:
+        case MagicItem.TOXIC_SOTD_DEADMAN:
+        case MagicItem.TOXIC_SOTD_CHARGED_DEADMAN:
+          return 1;
+      }
+      return 0;
+    }
+    case MagicItem.IBANSTAFF: {
+      if (wielded === MagicItem.IBANSTAFF || wielded === MagicItem.IBANSTAFF_UPGRADED) {
+        return 1;
+      }
+      return 0;
+    }
+    case MagicItem.SARADOMIN_STAFF: {
+      if (wielded === rune || wielded === MagicItem.STAFF_OF_LIGHT) {
+        return 1;
+      }
+      return 0;
+    }
+  }
+
+  const fake: Item = FakeRunes.get(rune) ?? -1;
+  if (fake !== -1 && fakeRunesEnabled() === true) {
+    if (members || CS2.item_members(fake) === 0) {
+      return inv.total(fake);
+    }
+    return 0;
+  }
+  if (members) {
+    total = inv.total(rune);
+    if (rune === MagicItem.CHAOS_RUNE) {
+      total = saturatingAdd(total, inv.total(MagicItem.NZONE_CHAOS_RUNE));
+    } else if (rune === MagicItem.DEATH_RUNE) {
+      total = saturatingAdd(total, inv.total(MagicItem.NZONE_DEATH_RUNE));
+    } else if (rune === MagicItem.BLOOD_RUNE) {
+      total = saturatingAdd(total, inv.total(MagicItem.NZONE_BLOOD_RUNE));
+    }
+    if (rune === (RunePouchRunes.get(pouch1) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+    }
+    if (rune === (RunePouchRunes.get(pouch2) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+    }
+    if (rune === (RunePouchRunes.get(pouch3) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+    }
+    if (rune === (RunePouchRunes.get(pouch4) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+    }
+    if (rune === (RunePouchRunes.get(pouch5) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+    }
+    if (rune === (RunePouchRunes.get(pouch6) ?? -1)) {
+      total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+    }
+    const alternative: Item = MultiRunes.get(rune) ?? -1;
+    if (alternative !== -1) {
+      total = saturatingAdd(total, inv.total(alternative));
+      if (alternative === (RunePouchRunes.get(pouch1) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_1));
+      }
+      if (alternative === (RunePouchRunes.get(pouch2) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_2));
+      }
+      if (alternative === (RunePouchRunes.get(pouch3) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_3));
+      }
+      if (alternative === (RunePouchRunes.get(pouch4) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_4));
+      }
+      if (alternative === (RunePouchRunes.get(pouch5) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_5));
+      }
+      if (alternative === (RunePouchRunes.get(pouch6) ?? -1)) {
+        total = saturatingAdd(total, useServerState(Varbits.RUNE_POUCH_QUANTITY_6));
+      }
+    }
+  } else if (CS2.item_members(rune) === 0) {
+    total = inv.total(rune);
+  } else {
+    total = 0;
+  }
+  return total;
+}
+
+export function spellbookHasRunes(spell: Item, weapon: Item, shield: Item): Boolean {
+  if (leagueRelicActive(Relic.RUNE_SAVIOUR) === 1) {
+    return true;
+  }
+  const inv = useInventory(Inventories.INV);
+  const castlewars: Boolean = castlewarsRuneReplaced(spell);
+  switch (spell) {
+    case MagicItem.SPELL_BLOOD_BLITZ:
+    case MagicItem.SPELL_BLOOD_BARRAGE: {
+      if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_ICE_BLITZ:
+    case MagicItem.SPELL_ICE_BARRAGE: {
+      if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      } else if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_ICEBARRAGE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_ICE_RUSH:
+    case MagicItem.SPELL_ICE_BURST: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_ICEBARRAGE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_BIND:
+    case MagicItem.SPELL_SNARE: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_ENTANGLE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_ENTANGLE: {
+      if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      } else if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_ENTANGLE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_TELEPORT_BLOCK:
+    case MagicItem.SPELL_TELEPORT_TO_TARGET: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_TELEBLOCK) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_CURE_ME: {
+      if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_VENGEANCE_OTHER: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_VENGEANCE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_VENGEANCE: {
+      if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      } else if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_VENGEANCE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_WIND_WAVE:
+    case MagicItem.SPELL_WATER_WAVE:
+    case MagicItem.SPELL_EARTH_WAVE:
+    case MagicItem.SPELL_FIRE_WAVE: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        return true;
+      }
+    }
+    case MagicItem.SPELL_WIND_SURGE:
+    case MagicItem.SPELL_WATER_SURGE:
+    case MagicItem.SPELL_EARTH_SURGE:
+    case MagicItem.SPELL_FIRE_SURGE: {
+      if (blightedItemsAllowed() === 1 && inv.total(MagicItem.BLIGHTED_SACK_SURGE) > 0) {
+        return true;
+      } else if (inv.total(MagicItem.BR_RUNE_REPLACEMENT) > 0 && fakeRunesEnabled() === true) {
+        return true;
+      }
+    }
+  }
+  const rune1: Item = spell.magicRunetype1!;
+  if (
+    rune1 !== -1 &&
+    magicRuneCount(rune1, weapon, shield) < spell.magicRunecount1! &&
+    (castlewars === false || (castlewars === true && (RuneClasses.get(rune1) ?? 0) === 0))
+  ) {
+    return false;
+  }
+  const rune2: Item = spell.magicRunetype2!;
+  if (
+    rune2 !== -1 &&
+    magicRuneCount(rune2, weapon, shield) < spell.magicRunecount2! &&
+    (castlewars === false || (castlewars === true && (RuneClasses.get(rune2) ?? 0) === 0))
+  ) {
+    return false;
+  }
+  const rune3: Item = spell.magicRunetype3!;
+  if (
+    rune3 !== -1 &&
+    magicRuneCount(rune3, weapon, shield) < spell.magicRunecount3! &&
+    (castlewars === false || (castlewars === true && (RuneClasses.get(rune3) ?? 0) === 0))
+  ) {
+    return false;
+  }
+  const rune4: Item = spell.magicRunetype4!;
+  if (
+    rune4 !== -1 &&
+    magicRuneCount(rune4, weapon, shield) < spell.magicRunecount4! &&
+    (castlewars === false || (castlewars === true && (RuneClasses.get(rune4) ?? 0) === 0))
+  ) {
+    return false;
+  }
+  const skill: Skill = spell.spellReqSkill!;
+  if (skill !== -1 && CS2.stat(skill) < spell.spellReqLevel!) {
+    return false;
+  }
+  return true;
+}
+
+export function magicLevel(): Int {
+  return useSkill(MagicSkills.MAGIC);
+}

@@ -1,0 +1,107 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { chatMessage, hasBit, playSound } from '../lib/lib.engine';
+import { debugMessage } from '../lib/lib.debug';
+import { rentalWorld } from '../0134_settings/settings.helpers';
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import {
+  JIGSAW_SERVER_SCRIPT,
+  JigsawLayout,
+  JigsawRow,
+  JigsawSounds,
+  JigsawVarps,
+  PreviewShown,
+  Puzzle,
+  ShuffleCount,
+} from './jigsaw.constants';
+
+export function solvedBits(puzzle: Int): Int {
+  if (puzzle === Puzzle.EGGSHELL) {
+    return useServerState(JigsawVarps.SCRAMBLED_SOLVED);
+  }
+  return useServerState(JigsawVarps.OTHER_SOLVED);
+}
+
+export function pieceSolved(puzzle: Int, index: Int): Int {
+  return hasBit(solvedBits(puzzle), index) ? 1 : 0;
+}
+
+export function allSolved(bits: Int, count: Int): Boolean {
+  let index: Int = 0;
+  while (index < count) {
+    if (!hasBit(bits, index)) {
+      return false;
+    }
+    index = index + 1;
+  }
+  return true;
+}
+
+export function pickStart(used: Int, count: Int): Int {
+  let choice: Int = Random.int(count);
+  while (hasBit(used, choice)) {
+    choice = choice + 1;
+    if (choice >= count) {
+      choice = 0;
+    }
+  }
+  return choice;
+}
+
+export function clampX(x: Int): Int {
+  return minmax(JigsawLayout.CLAMP_MIN, JigsawLayout.BOARD_W - JigsawRow.PIECE_W, x);
+}
+
+export function clampY(y: Int): Int {
+  return minmax(JigsawLayout.CLAMP_MIN, JigsawLayout.BOARD_H - JigsawRow.PIECE_H, y);
+}
+
+export function dragPiece(piece: ComponentId, mouseX: Int, mouseY: Int): void {
+  piece.x = clampX(mouseX);
+  piece.y = clampY(mouseY);
+}
+
+export function dropPiece(piece: ComponentId, index: Int, mouseX: Int, mouseY: Int): void {
+  const x: Int = clampX(mouseX);
+  const y: Int = clampY(mouseY);
+  piece.x = x;
+  piece.y = y;
+  CS2.if_runscript(JIGSAW_SERVER_SCRIPT, piece, index, index, x, y, piece.roll!, 'iiii');
+}
+
+export function rotatePiece(piece: ComponentId, index: Int, zoom: Int): void {
+  let next: Int = piece.roll! + JigsawLayout.ROTATE_STEP;
+  if (next >= JigsawLayout.FULL_TURN) {
+    next = 0;
+  }
+  piece.props = { offsetX: 0, offsetY: 0, pitch: 0, yaw: 0, roll: next, zoom: zoom };
+  CS2.if_runscript(JIGSAW_SERVER_SCRIPT, piece, index, index, piece.x!, piece.y!, next, 'iiii');
+  playSound(JigsawSounds.ROTATE);
+}
+
+export function shufflePieces(bits: Int, count: Int): void {
+  const [shuffles, setShuffles] = useState(ShuffleCount);
+  if (allSolved(bits, count)) {
+    chatMessage('There are no pieces to shuffle as the puzzle is complete.');
+    return;
+  }
+  playSound(JigsawSounds.PAPER);
+  setShuffles(shuffles + 1);
+}
+
+export function showPreview(shown: Boolean): void {
+  const [, setShown] = useState(PreviewShown);
+  setShown(shown ? 1 : 0);
+}
+
+export function togglePreview(): void {
+  const [shown, setShown] = useState(PreviewShown);
+  playSound(JigsawSounds.PAPER);
+  setShown(shown === 1 ? 0 : 1);
+}
+
+export function debugWarn(source: String, text: String): void {
+  if (!rentalWorld()) {
+    return;
+  }
+  debugMessage(`[${source}-CLIENT]<col=ffe600>[WARN]</col> ${text}`);
+}

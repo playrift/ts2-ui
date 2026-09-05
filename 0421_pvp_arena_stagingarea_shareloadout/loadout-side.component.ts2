@@ -1,0 +1,147 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+import { CS2 } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile, opsound, textDevice } from '../lib/lib.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import {
+  COPY_PRESS_CYCLES,
+  Copy,
+  Layout,
+  SPELLBOOK_NAME_DEFAULT,
+  ShareLoadoutColor,
+  ShareLoadoutFonts,
+  ShareLoadoutSounds,
+  ShareLoadoutSprites,
+  ShareLoadoutVarbits,
+  SpellbookNames,
+  Wash,
+  BUILD_NAME_DEFAULT,
+  BuildNames,
+} from './pvp-arena-stagingarea-shareloadout.constants';
+
+export function RunePouchBox(): Component {
+  return (
+    <>
+      <sprite x={0} y="center" w={36} h={36} sprite={ShareLoadoutSprites.PLATE} />
+      <sprite
+        x={Layout.runePouch.iconX}
+        y="center"
+        w={Layout.runePouch.iconW}
+        h={Layout.runePouch.iconH}
+        sprite={ShareLoadoutSprites.RUNE_POUCH}
+        transparency={Wash.RUNE_POUCH}
+      />
+      <text
+        x="right"
+        y="center"
+        w={{ fill: Layout.runePouch.textInset }}
+        h="fill"
+        text={Copy.NO_RUNE_POUCH}
+        font={ShareLoadoutFonts.BODY}
+        color={ShareLoadoutColor.DIM}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function SpellbookBox(): Component {
+  const spellbook: Int = useServerState(ShareLoadoutVarbits.OPPONENT_SPELLBOOK);
+
+  return (
+    <>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={ShareLoadoutSprites.BACKING} tiling />
+      <rect x="center" y="center" w="fill" h="fill" color={ShareLoadoutColor.THINBOX_OUTER} />
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.spellbook.thinboxInset }}
+        h={{ fill: Layout.spellbook.thinboxInset }}
+        color={ShareLoadoutColor.THINBOX_INNER}
+      />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={SpellbookNames.get(spellbook) ?? SPELLBOOK_NAME_DEFAULT}
+        font={ShareLoadoutFonts.BODY}
+        color={ShareLoadoutColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function LoadoutHint(): Component {
+  const build: Int = useServerState(ShareLoadoutVarbits.BUILD);
+  const name: String = BuildNames.get(build) ?? BUILD_NAME_DEFAULT;
+  const verb: String = textDevice(Copy.CLICK, Copy.TAP);
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={`${Copy.HINT_PREFIX}${name}${Copy.HINT_MIDDLE}${verb}${Copy.HINT_SUFFIX}`}
+      font={ShareLoadoutFonts.BODY}
+      color={ShareLoadoutColor.HINT}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={Layout.hint.lineHeight}
+    />
+  );
+}
+
+export function CopyLoadoutButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const hovered: Int = pressed;
+  const clicked: Int = pressedUntil;
+  const host = useRef();
+
+  useInterval(
+    clicked !== 0
+      ? () => {
+          if (clientClock() < clicked) {
+            return;
+          }
+          setPressedUntil(0);
+        }
+      : undefined,
+    host,
+  );
+
+  let skin: Int = hovered;
+  if (clicked !== 0) {
+    skin = 1;
+  }
+
+  return (
+    <layer
+      ref={host}
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(Copy.COPY_LABEL)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => {
+        playSound(ShareLoadoutSounds.SELECT);
+        setPressedUntil(clientClock() + COPY_PRESS_CYCLES);
+      }}
+    >
+      <StoneButtonDraw label={Copy.COPY_LABEL} font={ShareLoadoutFonts.BODY} pressed={skin} flags={0} />
+    </layer>
+  );
+}

@@ -1,0 +1,128 @@
+import { useInterval, useRef, useState, useUniverse } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { FswBoxFrame } from './fsw-box-frame.component';
+import { FswBoxStyle, FswBoxes } from './fsw-box.data';
+import { FswButtonAction, FswButtonLayout, FswColor } from './fsw.constants';
+import { fswClick } from './fsw.helpers';
+import { PointsPage, fswPointsPage } from './fsw-sp-points.state';
+
+export function FswButton({
+  label,
+  option,
+  font,
+  hoverColor,
+  action,
+}: {
+  label: String;
+  option: String;
+  font: Font;
+  hoverColor: Int;
+  action: Int;
+}): Component {
+  const me = useUniverse();
+  const hit = useRef();
+  const frame = useRef();
+  const caption = useRef();
+  const [flash, setFlash] = useState(0);
+  const [, setPage] = useState(fswPointsPage);
+  const deadline: Int = clientClock() + FswButtonLayout.FLASH_CYCLES;
+  useInterval(
+    flash !== 0
+      ? () => {
+          if (clientClock() >= deadline) {
+            setFlash(0);
+          }
+        }
+      : undefined,
+    hit,
+  );
+
+  const style = FswBoxes.at(FswBoxStyle.UNLOCKED);
+  const frameColor: Int = flash !== 0 ? FswColor.CREAM : FswColor.AMBER;
+  const textColor: Int = flash !== 0 ? FswColor.CREAM : FswColor.WHITE;
+  let hoverable: Boolean = false;
+  if (flash === 0) {
+    hoverable = true;
+  }
+
+  return (
+    <>
+      <rect
+        ref={hit}
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        color={FswColor.WHITE}
+        transparency={FswButtonLayout.HIT_TRANSPARENCY}
+        options={[option]}
+        onMouseRepeat={
+          hoverable
+            ? () => {
+                frame.color = hoverColor;
+                caption.color = hoverColor;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          hoverable
+            ? () => {
+                frame.color = FswColor.GREY;
+                caption.color = FswColor.WHITE;
+              }
+            : undefined
+        }
+        onOptionSelect={() => {
+          if (action === FswButtonAction.POINTS_GENERAL) {
+            fswClick();
+            setPage(PointsPage.GENERAL);
+            return;
+          }
+          if (action === FswButtonAction.POINTS_ABOUT) {
+            fswClick();
+            setPage(PointsPage.ABOUT);
+            return;
+          }
+          if (action === FswButtonAction.POINTS_BOSS) {
+            fswClick();
+            setPage(PointsPage.BOSS);
+            return;
+          }
+          fswClick();
+          setFlash(1);
+        }}
+      />
+
+      <rect ref={frame} x={1} y={1} w={me.width - 2} h={me.height - 2} fill color={frameColor} />
+      <layer x={0} y={0} w="fill" h="fill">
+        <FswBoxFrame x={0} y={0} w={me.width} h={me.height} style={style} />
+      </layer>
+
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        color={FswColor.BLACK}
+        transparency={FswButtonLayout.WASH_TRANSPARENCY}
+      />
+
+      <text
+        ref={caption}
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={label}
+        font={font}
+        color={textColor}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={0}
+      />
+    </>
+  );
+}
