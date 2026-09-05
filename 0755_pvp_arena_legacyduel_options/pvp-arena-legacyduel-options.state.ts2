@@ -1,0 +1,375 @@
+import { CS2, predictServerState, sessionState, stopTimer, useInventory, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { chatMessage, clientClock, hasBit, itemName, membersWorld, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import {
+  DuelBit,
+  DuelInventories,
+  DuelSounds,
+  DuelSprites,
+  DuelVarbits,
+  DuelVarps,
+  FLASH_CYCLES,
+  FLASHER_HALF,
+  FLASHER_LIFE,
+  FLASHER_PERIOD,
+  RowWash,
+  WornBit,
+  WornSlot,
+} from './pvp-arena-legacyduel-options.constants';
+import { DuelTip, DuelTips } from './pvp-arena-legacyduel-options.data';
+import {
+  iconAmmo,
+  iconBody,
+  iconCape,
+  iconFeet,
+  iconHands,
+  iconHead,
+  iconLegs,
+  iconNeck,
+  iconRing,
+  iconShield,
+  iconWeapon,
+  itemAmmo,
+  itemBody,
+  itemCape,
+  itemFeet,
+  itemHands,
+  itemHead,
+  itemLegs,
+  itemNeck,
+  itemRing,
+  itemShield,
+  itemWeapon,
+  labelNoSpecial,
+  radioFunWeapons,
+  radioNoDrinks,
+  radioNoFood,
+  radioNoForfeit,
+  radioNoMagic,
+  radioNoMelee,
+  radioNoMovement,
+  radioNoPrayer,
+  radioNoRanged,
+  radioNoSpecial,
+  radioNoSwitch,
+  radioShowInv,
+  signFunWeapons,
+  signNoDrinks,
+  signNoFood,
+  signNoForfeit,
+  signNoMagic,
+  signNoMelee,
+  signNoMovement,
+  signNoPrayer,
+  signNoRanged,
+  signNoSpecial,
+  signNoSwitch,
+  signShowInv,
+  stopAmmo,
+  stopBody,
+  stopCape,
+  stopFeet,
+  stopHands,
+  stopHead,
+  stopLegs,
+  stopNeck,
+  stopRing,
+  stopShield,
+  stopWeapon,
+  wornSign0,
+  wornSign1,
+  wornSign10,
+  wornSign2,
+  wornSign3,
+  wornSign4,
+  wornSign5,
+  wornSign6,
+  wornSign7,
+  wornSign8,
+  wornSign9,
+} from './pvp-arena-legacyduel-options.refs';
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export const duelTip = sessionState(-1);
+
+export function showDuelTooltip(tip: Int): void {
+  const [, setTip] = useState(duelTip);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  const row = DuelTips.at(tip);
+  if (row === null) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(row.dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setTip(tip);
+  tooltipRaise();
+}
+
+export function hideDuelTooltip(): void {
+  const [, setTip] = useState(duelTip);
+  tooltipHide();
+  setTip(DuelTip.NONE);
+}
+
+export function hoverDuelOption(wash: ComponentId, tip: Int): void {
+  if (onMobile()) {
+    return;
+  }
+  wash.transparency = RowWash.HOVER;
+  showDuelTooltip(tip);
+}
+
+export function leaveDuelOption(wash: ComponentId): void {
+  wash.transparency = RowWash.REST;
+  hideDuelTooltip();
+}
+
+export function clickDuelOption(option: Int, bit: Int, tip: Int, wash: ComponentId): void {
+  const row = DuelTips.at(tip);
+  if (row === null) {
+    return;
+  }
+  if (option === 2) {
+    if (onMobile()) {
+      playSound(DuelSounds.SELECT);
+      chatMessage(`${row.label}: ${row.text}`);
+    }
+    return;
+  }
+  if (option !== 1) {
+    return;
+  }
+  if (bit === DuelBit.NO_SPECIAL && !membersWorld()) {
+    return;
+  }
+  playSound(DuelSounds.SELECT);
+  if (bit !== DuelBit.NONE) {
+    const options: Int = useServerState(DuelVarps.OPTIONS);
+    if (hasBit(options, bit)) {
+      predictServerState(DuelVarps.OPTIONS, CS2.bit_clear(options, bit));
+    } else {
+      predictServerState(DuelVarps.OPTIONS, CS2.bit_set(options, bit));
+    }
+    refreshDuelOptions();
+  }
+  wash.transparency = RowWash.PRESSED;
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  wash.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    wash.transparency = RowWash.REST;
+    stopTimer(wash);
+  };
+  hideDuelTooltip();
+}
+
+export function toggleWornOption(bit: Int): void {
+  playSound(DuelSounds.SELECT);
+  const options: Int = useServerState(DuelVarps.OPTIONS);
+  if (!hasBit(options, bit)) {
+    predictServerState(DuelVarps.OPTIONS, CS2.bit_set(options, bit));
+  } else {
+    predictServerState(DuelVarps.OPTIONS, CS2.bit_clear(options, bit));
+  }
+  refreshDuelOptions();
+}
+
+function paintRadio(radio: ComponentId, options: Int, bit: Int): void {
+  if (hasBit(options, bit)) {
+    radio.sprite = DuelSprites.RADIO_ON;
+  } else {
+    radio.sprite = DuelSprites.RADIO_OFF;
+  }
+}
+
+function paintWornSign(sign: ComponentId, worn: Int, slot: Int): void {
+  if (hasBit(worn, slot)) {
+    sign.hide = false;
+  } else {
+    sign.hide = true;
+    hideDuelTooltip();
+  }
+}
+
+export function refreshDuelOptions(): void {
+  const options: Int = useServerState(DuelVarps.OPTIONS);
+  paintRadio(radioNoForfeit, options, DuelBit.NO_FORFEIT);
+  paintRadio(radioNoMovement, options, DuelBit.NO_MOVEMENT);
+  paintRadio(radioNoSwitch, options, DuelBit.NO_SWITCH);
+  paintRadio(radioShowInv, options, DuelBit.SHOW_INVENTORIES);
+  paintRadio(radioNoRanged, options, DuelBit.NO_RANGED);
+  paintRadio(radioNoMelee, options, DuelBit.NO_MELEE);
+  paintRadio(radioNoMagic, options, DuelBit.NO_MAGIC);
+  paintRadio(radioNoDrinks, options, DuelBit.NO_DRINKS);
+  paintRadio(radioNoFood, options, DuelBit.NO_FOOD);
+  paintRadio(radioNoPrayer, options, DuelBit.NO_PRAYER);
+  paintRadio(radioFunWeapons, options, DuelBit.FUN_WEAPONS);
+  paintRadio(radioNoSpecial, options, DuelBit.NO_SPECIAL);
+
+  const worn: Int = useServerState(DuelVarbits.WORN_OPTIONS);
+  paintWornSign(stopAmmo, worn, WornSlot.AMMO);
+  paintWornSign(stopRing, worn, WornSlot.RING);
+  paintWornSign(stopFeet, worn, WornSlot.FEET);
+  paintWornSign(stopHands, worn, WornSlot.HANDS);
+  paintWornSign(stopLegs, worn, WornSlot.LEGS);
+  paintWornSign(stopShield, worn, WornSlot.SHIELD);
+  paintWornSign(stopBody, worn, WornSlot.BODY);
+  paintWornSign(stopWeapon, worn, WornSlot.WEAPON);
+  paintWornSign(stopNeck, worn, WornSlot.NECK);
+  paintWornSign(stopCape, worn, WornSlot.CAPE);
+  paintWornSign(stopHead, worn, WornSlot.HEAD);
+}
+
+export function initDuelOptions(): void {
+  if (!membersWorld()) {
+    labelNoSpecial.text = `<col=${DISABLED_HEX}>No Special Attacks</col>`;
+  }
+  refreshDuelOptions();
+}
+
+const DISABLED_HEX = '999999';
+
+function paintWornSlot(slot: Int, cell: ComponentId, icon: ComponentId, placeholder: Sprite): void {
+  const worn = useInventory(DuelInventories.WORN);
+  const item: Item = worn[slot];
+  if (item !== -1) {
+    cell.props = { item: item, itemCount: worn.count(slot) };
+    cell.optionSubject = `<col=ff9040>${itemName(item)}</col>`;
+    cell.hide = false;
+    icon.sprite = -1;
+  } else {
+    icon.sprite = placeholder;
+  }
+}
+
+export function initDuelWorn(): void {
+  paintWornSlot(WornSlot.HEAD, itemHead, iconHead, DuelSprites.WORN_HEAD);
+  paintWornSlot(WornSlot.CAPE, itemCape, iconCape, DuelSprites.WORN_CAPE);
+  paintWornSlot(WornSlot.NECK, itemNeck, iconNeck, DuelSprites.WORN_NECK);
+  paintWornSlot(WornSlot.AMMO, itemAmmo, iconAmmo, DuelSprites.WORN_AMMO);
+  paintWornSlot(WornSlot.WEAPON, itemWeapon, iconWeapon, DuelSprites.WORN_WEAPON);
+  paintWornSlot(WornSlot.BODY, itemBody, iconBody, DuelSprites.WORN_BODY);
+  paintWornSlot(WornSlot.SHIELD, itemShield, iconShield, DuelSprites.WORN_SHIELD);
+  paintWornSlot(WornSlot.LEGS, itemLegs, iconLegs, DuelSprites.WORN_LEGS);
+  paintWornSlot(WornSlot.HANDS, itemHands, iconHands, DuelSprites.WORN_HANDS);
+  paintWornSlot(WornSlot.FEET, itemFeet, iconFeet, DuelSprites.WORN_FEET);
+  paintWornSlot(WornSlot.RING, itemRing, iconRing, DuelSprites.WORN_RING);
+}
+
+export function ccFlasher(target: ComponentId, since: Int): void {
+  const now: Int = clientClock();
+  const elapsed: Int = now - since;
+  if (elapsed >= FLASHER_LIFE) {
+    target.transparency = RowWash.REST;
+    stopTimer(target);
+    return;
+  }
+  if (now % FLASHER_PERIOD >= FLASHER_HALF) {
+    target.transparency = RowWash.REST;
+    return;
+  }
+  target.transparency = CS2.interpolate(0, elapsed, 0, FLASHER_LIFE, RowWash.REST);
+}
+
+function startFlasher(sign: ComponentId): void {
+  const since: Int = clientClock();
+  sign.hide = false;
+  sign.onTimer = () => ccFlasher(sign, since);
+}
+
+export function flashDuelOption(option: Int): void {
+  switch (option) {
+    case DuelBit.NO_FORFEIT: {
+      startFlasher(signNoForfeit);
+    }
+    case DuelBit.NO_MOVEMENT: {
+      startFlasher(signNoMovement);
+    }
+    case DuelBit.NO_SWITCH: {
+      startFlasher(signNoSwitch);
+    }
+    case DuelBit.SHOW_INVENTORIES: {
+      startFlasher(signShowInv);
+    }
+    case DuelBit.NO_RANGED: {
+      startFlasher(signNoRanged);
+    }
+    case DuelBit.NO_MELEE: {
+      startFlasher(signNoMelee);
+    }
+    case DuelBit.NO_MAGIC: {
+      startFlasher(signNoMagic);
+    }
+    case DuelBit.NO_DRINKS: {
+      startFlasher(signNoDrinks);
+    }
+    case DuelBit.NO_FOOD: {
+      startFlasher(signNoFood);
+    }
+    case DuelBit.NO_PRAYER: {
+      startFlasher(signNoPrayer);
+    }
+    case DuelBit.FUN_WEAPONS: {
+      startFlasher(signFunWeapons);
+    }
+    case DuelBit.NO_SPECIAL: {
+      startFlasher(signNoSpecial);
+    }
+    case WornBit.HEAD: {
+      startFlasher(wornSign0);
+    }
+    case WornBit.CAPE: {
+      startFlasher(wornSign1);
+    }
+    case WornBit.NECK: {
+      startFlasher(wornSign2);
+    }
+    case WornBit.AMMO: {
+      startFlasher(wornSign3);
+    }
+    case WornBit.WEAPON: {
+      startFlasher(wornSign4);
+    }
+    case WornBit.BODY: {
+      startFlasher(wornSign5);
+    }
+    case WornBit.SHIELD: {
+      startFlasher(wornSign6);
+    }
+    case WornBit.LEGS: {
+      startFlasher(wornSign7);
+    }
+    case WornBit.HANDS: {
+      startFlasher(wornSign8);
+    }
+    case WornBit.FEET: {
+      startFlasher(wornSign9);
+    }
+    case WornBit.RING: {
+      startFlasher(wornSign10);
+    }
+  }
+}

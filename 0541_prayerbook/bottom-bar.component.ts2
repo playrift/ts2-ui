@@ -1,0 +1,125 @@
+import { useServerState, useSkill, useSkillBase, useState, useWatch } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { Skills } from '../0077_quickprayer/quickprayer.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { textWidth } from '../lib/lib.engine';
+import {
+  LABEL_FILTERS,
+  LABEL_INFO,
+  LEVEL_MEASURE,
+  Layout,
+  PanelMode,
+  PrayerbookColour,
+  PrayerbookFonts,
+  PrayerbookSprites,
+  PrayerbookVarbits,
+} from './prayerbook.constants';
+import { bumpPrayerSkillTick, prayerPanelMode, prayerSkillTick, togglePrayerPanel } from './prayerbook.state';
+
+function prayerPointsText(): String {
+  return `${stringOf(useSkill(Skills.PRAYER))} / ${stringOf(useSkillBase(Skills.PRAYER))}`;
+}
+
+export function PrayerSkillWatch(): Component {
+  useWatch([Skills.PRAYER, Skills.DEFENCE], () => bumpPrayerSkillTick());
+  return null;
+}
+
+export function BottomBar(): Component {
+  const [mode] = useState(prayerPanelMode);
+  const [skillTick] = useState(prayerSkillTick);
+  const mobile: Boolean = onMobile();
+  const hideFilterButton: Int = useServerState(PrayerbookVarbits.HIDE_FILTER_BUTTON);
+
+  const levelW: Int =
+    Layout.LEVEL_TEXT_INSET + textWidth(LEVEL_MEASURE, Layout.MEASURE_W, PrayerbookFonts.BODY) + skillTick * 0;
+  const filtersLabelW: Int = textWidth(LABEL_FILTERS, Layout.MEASURE_W, PrayerbookFonts.SMALL);
+  const infoLabelW: Int = textWidth(LABEL_INFO, Layout.MEASURE_W, PrayerbookFonts.SMALL);
+
+  let buttonW: Int = filtersLabelW + Layout.BUTTON_PAD;
+  if (mobile && infoLabelW > filtersLabelW) {
+    buttonW = infoLabelW + Layout.BUTTON_PAD;
+  }
+  let gap: Int = (Layout.ROOT_W - buttonW - levelW) / 3;
+  if (mobile) {
+    gap = (Layout.ROOT_W - buttonW * 2 - levelW) / 4 / 2;
+  }
+  let filtersShown: Boolean = true;
+  if (!mobile && hideFilterButton === 1) {
+    filtersShown = false;
+  }
+  let levelCentred: Boolean = true;
+  if (filtersShown && !mobile) {
+    levelCentred = false;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {mobile ? (
+        <layer x={gap} y="center" w={buttonW} h={Layout.BUTTON_H} onClick={() => togglePrayerPanel(PanelMode.INFO)}>
+          {mode === PanelMode.INFO ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={LABEL_INFO}
+            font={PrayerbookFonts.SMALL}
+            color={PrayerbookColour.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+            hover={{ color: PrayerbookColour.LABEL_LIT }}
+          />
+        </layer>
+      ) : null}
+      <layer x={levelCentred ? 'center' : gap} y="center" w={levelW} h="fill">
+        <sprite
+          x={0}
+          y="center"
+          w={Layout.LEVEL_ICON_W}
+          h={Layout.LEVEL_ICON_H}
+          sprite={PrayerbookSprites.PRAYER_ICON}
+        />
+        <text
+          x="right"
+          y="center"
+          w={{ fill: Layout.LEVEL_TEXT_INSET }}
+          h="fill"
+          text={prayerPointsText()}
+          font={PrayerbookFonts.BODY}
+          color={PrayerbookColour.LABEL}
+          shadow
+          align="left"
+          valign="middle"
+        />
+      </layer>
+      {filtersShown ? (
+        <layer
+          x={{ right: gap }}
+          y="center"
+          w={buttonW}
+          h={Layout.BUTTON_H}
+          onClick={() => togglePrayerPanel(PanelMode.FILTERS)}
+        >
+          {mode === PanelMode.FILTERS ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={LABEL_FILTERS}
+            font={PrayerbookFonts.SMALL}
+            color={PrayerbookColour.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+            hover={{ color: PrayerbookColour.LABEL_LIT }}
+          />
+        </layer>
+      ) : null}
+    </layer>
+  );
+}

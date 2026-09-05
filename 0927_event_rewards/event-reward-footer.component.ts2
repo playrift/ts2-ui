@@ -1,0 +1,150 @@
+import { sessionState, useServerState, useState } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { restrictedWorld } from './event-rewards.helpers';
+import { openConfirm } from './event-rewards.state';
+import {
+  EventColor,
+  EventFonts,
+  EventFrame,
+  EventLayout,
+  type EventReward,
+  EventRewards,
+  EventVarps,
+  SelectedReward,
+  THOUSANDS,
+} from './event-rewards.constants';
+
+export function EventPoints(): Component {
+  const points: Int = useServerState(EventVarps.POINTS);
+  const restricted: Boolean = restrictedWorld();
+
+  return (
+    <text
+      x={EventFrame.POINTS_X}
+      y={{ bottom: EventFrame.POINTS_BOTTOM }}
+      w={restricted ? EventFrame.POINTS_W_RESTRICTED : EventFrame.POINTS_W}
+      h={EventFrame.POINTS_H}
+      text={
+        restricted
+          ? 'You can purchase these rewards on a Main-Profile world.'
+          : `Event Points: <col=ffffff>${groupDigits(points, THOUSANDS)}`
+      }
+      font={EventFonts.BODY}
+      color={EventColor.TITLE}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+export const ConfirmPressed = sessionState(0);
+
+export function pressConfirm(): void {
+  const [, setPressed] = useState(ConfirmPressed);
+  setPressed(1);
+}
+
+export function releaseConfirm(): void {
+  const [, setPressed] = useState(ConfirmPressed);
+  setPressed(0);
+}
+
+export function EventConfirmLive({ label, restricted }: { label: String; restricted: Boolean }): Component {
+  const [pressed] = useState(ConfirmPressed);
+
+  return (
+    <layer w="fill" h="fill">
+      {pressed === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <text
+        x="center"
+        y={{ center: EventLayout.BUTTON_LINE_OFFSET }}
+        w="fill"
+        h={{ fill: EventLayout.BUTTON_LINE_INSET }}
+        text={restricted ? 'Info' : 'Confirm'}
+        font={EventFonts.BODY}
+        color={EventColor.LABEL}
+        shadow
+        align="center"
+        valign="top"
+      />
+      <text
+        x="center"
+        y={{ center: EventLayout.BUTTON_LINE_OFFSET }}
+        w="fill"
+        h={{ fill: EventLayout.BUTTON_LINE_INSET }}
+        text={label}
+        font={EventFonts.SUB}
+        color={EventColor.LABEL}
+        shadow
+        align="center"
+        valign="bottom"
+      />
+    </layer>
+  );
+}
+
+function EventConfirmDisabled({ restricted }: { restricted: Boolean }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <StoneButtonPressedFilled />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={restricted ? 'Info' : 'Confirm'}
+        font={EventFonts.BODY}
+        color={EventColor.BLOCKED}
+        shadow={false}
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function EventConfirm(): Component {
+  const [selected] = useState(SelectedReward);
+  const restricted: Boolean = restrictedWorld();
+  const mobile: Boolean = onMobile();
+
+  const chosen: EventReward | null = EventRewards.at(selected);
+  const label: String = chosen === null ? '' : itemName(chosen.item as Item);
+
+  return (
+    <layer
+      x={{ right: EventFrame.BUTTON_RIGHT }}
+      y={{ bottom: EventFrame.BUTTON_BOTTOM }}
+      w={EventFrame.BUTTON_W}
+      h={EventFrame.BUTTON_H}
+    >
+      <layer w="fill" h="fill">
+        {selected !== -1 ? (
+          <EventConfirmLive label={label} restricted={restricted} />
+        ) : (
+          <EventConfirmDisabled restricted={restricted} />
+        )}
+      </layer>
+
+      {selected !== -1 ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          options={[restricted ? 'Info' : 'Confirm']}
+          optionSubject={`<col=ff981f>${label}</col>`}
+          onMouseRepeat={mobile ? undefined : () => pressConfirm()}
+          onMouseLeave={mobile ? undefined : () => releaseConfirm()}
+          onOptionSelect={() => openConfirm()}
+        />
+      ) : null}
+    </layer>
+  );
+}

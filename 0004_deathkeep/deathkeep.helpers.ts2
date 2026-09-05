@@ -1,0 +1,218 @@
+import { param } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { DowngradedRings } from './deathkeep.data';
+import { DeathkeepParams, GRAVE_FEE_CAP, Marker, MAX_INT, Section } from './deathkeep.constants';
+
+export function isDowngradedRing(item: Item): Boolean {
+  let i: Int = 0;
+  while (i < DowngradedRings.length) {
+    if (item === DowngradedRings.at(i)) {
+      return true;
+    }
+    i = i + 1;
+  }
+  return false;
+}
+
+export function sectionOfMarker(marker: Item): Int {
+  if (marker === Marker.KEPT) {
+    return Section.KEPT;
+  }
+  if (marker === Marker.KEPT_DOWNGRADED) {
+    return Section.KEPT;
+  }
+  if (marker === Marker.KEPT_ORNAMENT_LOST) {
+    return Section.KEPT;
+  }
+  if (marker === Marker.GRAVE) {
+    return Section.GRAVE;
+  }
+  if (marker === Marker.GRAVE_DOWNGRADED) {
+    return Section.GRAVE;
+  }
+  if (marker === Marker.COINS) {
+    return Section.COINS;
+  }
+  if (marker === Marker.PKER) {
+    return Section.PKER;
+  }
+  return Section.DELETED;
+}
+
+export function graveFeeCap(ironman: Int): Int {
+  if (ironman !== 0) {
+    return GRAVE_FEE_CAP / 2;
+  }
+  return GRAVE_FEE_CAP;
+}
+
+export function graveItemFee(count: Int, fee: Int, cap: Int): Int {
+  if (MAX_INT / count < fee) {
+    return cap;
+  }
+  return count * fee;
+}
+
+export function addGraveFee(total: Int, itemFee: Int, cap: Int): Int {
+  return Math.min(cap, total + Math.min(cap, itemFee));
+}
+
+export function protectedOutline(item: Item): Int {
+  if (isDowngradedRing(item)) {
+    return 2;
+  }
+  return 1;
+}
+
+export function protectedTip(item: Item, protectedCount: Int): String {
+  if (isDowngradedRing(item)) {
+    return `${itemName(item)}: You'll protect a downgraded version of this item.`;
+  }
+  if (protectedCount > 1) {
+    return `${itemName(item)}: You'll protect your ${stringOf(protectedCount)} most valuable items.`;
+  }
+  return `${itemName(item)}: You'll protect your most valuable item.`;
+}
+
+export function keptOutline(marker: Item): Int {
+  if (marker === Marker.KEPT_DOWNGRADED) {
+    return 2;
+  }
+  if (marker === Marker.KEPT_ORNAMENT_LOST) {
+    return 2;
+  }
+  return 1;
+}
+
+export function keptTip(item: Item, count: Int, marker: Item): String {
+  if (marker === Marker.KEPT_DOWNGRADED) {
+    if (param(item, DeathkeepParams.DISASSEMBLES) === 1) {
+      return `${itemName(item)}: You'll keep the disassembled version of this item and <col=ff0000>lose all potions stored.</col>`;
+    }
+    if (count > 1) {
+      return `${groupDigits(count, ',')} x ${itemName(item)}: You'll keep a downgraded version of these items.`;
+    }
+    return `${itemName(item)}: You'll keep a downgraded version of this item.`;
+  }
+  if (marker === Marker.KEPT_ORNAMENT_LOST) {
+    if (count > 1) {
+      return `${groupDigits(count, ',')} x ${itemName(item)}: You'll keep a downgraded version of these items, and their ornament kit will be lost.`;
+    }
+    return `${itemName(item)}: You'll keep a downgraded version of this item, and its ornament kit will be lost.`;
+  }
+  if (count > 1) {
+    return `${groupDigits(count, ',')} x ${itemName(item)}: You'll always keep these items.`;
+  }
+  return `${itemName(item)}: You'll always keep this item.`;
+}
+
+export function deletedTip(item: Item, count: Int): String {
+  if (count > 1) {
+    return `${groupDigits(count, ',')} x ${itemName(item)}: These items will be deleted.`;
+  }
+  return `${itemName(item)}: This item will be deleted.`;
+}
+
+export function graveOutline(marker: Item): Int {
+  if (marker === Marker.GRAVE_DOWNGRADED) {
+    return 2;
+  }
+  return 1;
+}
+
+function expectedFee(fee: Int): String {
+  if (fee > 1) {
+    return `<br>Expected fee: <col=ff0000>${groupDigits(fee, ',')} coins</col>`;
+  }
+  if (fee === 1) {
+    return '<br>Expected fee: <col=ff0000>1 coin</col>';
+  }
+  return '<br>Expected fee: <col=ff0000>None</col>';
+}
+
+export function graveTip(item: Item, count: Int, marker: Item, fee: Int, ironman: Int): String {
+  if (marker === Marker.GRAVE_DOWNGRADED) {
+    if (count > 1) {
+      if (ironman === 2) {
+        return `${groupDigits(count, ',')} x ${itemName(item)}: A downgraded version of these items will drop on the ground.`;
+      }
+      return `${groupDigits(count, ',')} x ${itemName(item)}: A downgraded version of these items will be sent to your gravestone.${expectedFee(fee)}`;
+    }
+    if (ironman === 2) {
+      return `${itemName(item)}: A downgraded version of this item will drop on the ground.`;
+    }
+    return `${itemName(item)}: A downgraded version of this item will be sent to your gravestone.${expectedFee(fee)}`;
+  }
+  if (count > 1) {
+    if (ironman === 2) {
+      return `${groupDigits(count, ',')} x ${itemName(item)}: These items will drop on the ground.`;
+    }
+    return `${groupDigits(count, ',')} x ${itemName(item)}: These items will be sent to your gravestone.${expectedFee(fee)}`;
+  }
+  if (ironman === 2) {
+    return `${itemName(item)}: This item will drop on the ground.`;
+  }
+  return `${itemName(item)}: This item will be sent to your gravestone.${expectedFee(fee)}`;
+}
+
+export function coinsTip(item: Item, count: Int, value: Int, ironman: Int): String {
+  if (count > 1) {
+    if (ironman === 2) {
+      return `${groupDigits(count, ',')} x ${itemName(item)}: These items will be dropped as coins (${groupDigits(value, ',')}).`;
+    }
+    return `${groupDigits(count, ',')} x ${itemName(item)}: These items will be sent to your gravestone as coins (${groupDigits(value, ',')}).`;
+  }
+  if (ironman === 2) {
+    return `${itemName(item)}: This item will be dropped as coins (${groupDigits(value, ',')}).`;
+  }
+  return `${itemName(item)}: This item will be sent to your gravestone as coins (${groupDigits(value, ',')}).`;
+}
+
+export function pkerTip(item: Item, count: Int): String {
+  if (count > 1) {
+    return `${groupDigits(count, ',')} x ${itemName(item)}: These items will be lost to the player who kills you.`;
+  }
+  return `${itemName(item)}: This item will be lost to the player who kills you.`;
+}
+
+export function quiverGraveTip(item: Item, count: Int): String {
+  if (count > 1) {
+    return `${groupDigits(count, ',')} x ${itemName(item)}: This item will be emptied from Dizana's quiver.`;
+  }
+  return `${itemName(item)}: This item will be emptied from Dizana's quiver.`;
+}
+
+export function quiverPkerTip(item: Item, count: Int): String {
+  if (count > 1) {
+    return `${groupDigits(count, ',')} x ${itemName(item)}: This item will be emptied from Dizana's quiver to the player that killed you.`;
+  }
+  return `${itemName(item)}: This item will be emptied from Dizana's quiver to the player that killed you.`;
+}
+
+export function graveHeading(fee: Int, ironman: Int): String {
+  if (ironman === 2) {
+    return 'Items <col=ff0000>DROPPED</col> near where you die:';
+  }
+  if (fee > 1) {
+    return `Items that go to your <col=ffffff>GRAVESTONE</col>: <col=ffffff>(Fee: ${groupDigits(fee, ',')} coins)</col>`;
+  }
+  if (fee === 1) {
+    return 'Items that go to your <col=ffffff>GRAVESTONE</col>: <col=ffffff>(Fee: 1 coin)</col>';
+  }
+  return 'Items that go to your <col=ffffff>GRAVESTONE</col>: <col=ffffff>(Fee: None)</col>';
+}
+
+export function pkerHeading(killedByPlayer: Boolean): String {
+  if (killedByPlayer) {
+    return 'Items <col=ff0000>LOST</col> to the player who kills you:';
+  }
+  return 'Items <col=ff0000>DROPPED</col> near where you die:';
+}
+
+export function coinsHeading(ironman: Int): String {
+  if (ironman === 2) {
+    return 'Items <col=ff0000>DROPPED</col> as coins:';
+  }
+  return 'Items that go to your <col=ffffff>GRAVESTONE</col> as coins:';
+}

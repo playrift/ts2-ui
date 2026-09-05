@@ -1,0 +1,75 @@
+import { useRef, useState, useUniverse } from 'ts2';
+
+import { clanBoardSort } from '../lib/game/varcs';
+import { playSound, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ArrowTransparency,
+  ClanBoardColor,
+  ClanBoardFonts,
+  ClanBoardSounds,
+  ClanBoardSprites,
+  Layout,
+} from './clans-board.constants';
+import { normalisedSort } from './clans-board.helpers';
+
+export function ClanBoardSortButton({
+  label,
+  ascending,
+  descending,
+}: {
+  label: String;
+  ascending: Int;
+  descending: Int;
+}): Component {
+  const column = useUniverse();
+  const arrow = useRef();
+  const [sortSetting, setSort] = useState(clanBoardSort);
+  const sort: Int = normalisedSort(sortSetting);
+
+  const state: Int = sort === descending ? 2 : sort === ascending ? 1 : 0;
+  const rest: Int = state === 0 ? ArrowTransparency.INACTIVE : ArrowTransparency.ACTIVE;
+  const hover: Int = state === 0 ? ArrowTransparency.INACTIVE_HOVER : ArrowTransparency.ACTIVE_HOVER;
+  const next: Int = state === 1 ? descending : ascending;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          arrow.transparency = hover;
+        }
+      }}
+      onMouseLeave={() => {
+        arrow.transparency = rest;
+      }}
+      onClick={() => {
+        playSound(ClanBoardSounds.CLICK);
+        setSort(next);
+      }}
+    >
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        ref={arrow}
+        x={{ center: textWidth(label, column.width, ClanBoardFonts.BODY) / 2 + Layout.ARROW_GAP }}
+        y="center"
+        w={Layout.ARROW_W}
+        h={Layout.ARROW_H}
+        sprite={state === 2 ? ClanBoardSprites.SORT_DESC : ClanBoardSprites.SORT_ASC}
+        transparency={rest}
+      />
+    </layer>
+  );
+}

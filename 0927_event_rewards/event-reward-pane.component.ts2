@@ -1,0 +1,218 @@
+import { CS2, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { itemName, membersWorld } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { PestRewardsDivider } from '../0645_br_reward_shop/pest-rewards.shared';
+import { restrictedWorld } from './event-rewards.helpers';
+import { selectReward } from './event-rewards.state';
+import {
+  EVENT_NAME,
+  EventBar,
+  EventColor,
+  EventFonts,
+  EventLayout,
+  EventRewards,
+  type EventReward,
+  EventVarps,
+  SelectedReward,
+  THOUSANDS,
+} from './event-rewards.constants';
+
+export function EventRewardPane(): Component {
+  const universe = useUniverse();
+  const list = useRef();
+
+  const [selected] = useState(SelectedReward);
+  const points: Int = useServerState(EventVarps.POINTS);
+  const restricted: Boolean = restrictedWorld();
+  const members: Boolean = membersWorld();
+
+  const paneWidth: Int = universe.width - EventLayout.PANE_W_INSET;
+  const paneHeight: Int = universe.height - EventLayout.PANE_H_INSET;
+  const half: Int = paneWidth / 2;
+  const contentHeight: Int =
+    EventLayout.ROW_Y0 + ((EventRewards.length - 1) / 2) * EventLayout.ROW_STRIDE + EventLayout.CONTENT_TAIL;
+  const rightX: Int = half - EventLayout.ODD_SHIFT + EventLayout.ROW_X;
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={EventLayout.PANE_X}
+        y={EventLayout.PANE_Y}
+        w={{ fill: EventLayout.PANE_W_INSET }}
+        h={{ fill: EventLayout.PANE_H_INSET }}
+        scrollY={0}
+        scrollHeight={contentHeight > paneHeight ? contentHeight : 0}
+      >
+        <layer w="fill" h="fill">
+          {EventRewards.map((row, index) => (
+            <EventRewardHit
+              row={row}
+              index={index}
+              rowX={index % 2 === 0 ? EventLayout.ROW_X : rightX}
+              rowY={EventLayout.ROW_Y0 + (index / 2) * EventLayout.ROW_STRIDE}
+              cellW={half}
+            />
+          ))}
+        </layer>
+
+        <layer w="fill" h="fill">
+          <text
+            x={0}
+            y={EventLayout.TITLE_Y}
+            w={paneWidth}
+            h={EventLayout.TITLE_H}
+            text={EVENT_NAME}
+            font={EventFonts.TITLE}
+            color={EventColor.TITLE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <PestRewardsDivider y={EventLayout.RULE_Y} inset={EventLayout.RULE_INSET} />
+          {EventRewards.map((row, index) => (
+            <EventRewardCell
+              row={row}
+              index={index}
+              rowX={index % 2 === 0 ? EventLayout.ROW_X : rightX}
+              rowY={EventLayout.ROW_Y0 + (index / 2) * EventLayout.ROW_STRIDE}
+              cellW={half}
+              selected={selected}
+              points={points}
+              restricted={restricted}
+              members={members}
+            />
+          ))}
+        </layer>
+      </layer>
+
+      <layer
+        x={{ right: EventLayout.BAR_X }}
+        y={EventLayout.PANE_Y}
+        w={EventLayout.BAR_W}
+        h={{ fill: EventLayout.PANE_H_INSET }}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={EventBar.TRACK}
+          capTopSprite={EventBar.CAP_TOP}
+          thumbSprite={EventBar.THUMB}
+          capBottomSprite={EventBar.CAP_BOTTOM}
+          arrowUp={EventBar.ARROW_UP}
+          arrowDown={EventBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function EventRewardHit({
+  row,
+  index,
+  rowX,
+  rowY,
+  cellW,
+}: {
+  row: EventReward;
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+}): Component {
+  const item: ItemName = row.item;
+
+  return (
+    <rect
+      x={rowX}
+      y={rowY}
+      w={cellW}
+      h={EventLayout.ROW_H}
+      color={EventColor.HIT}
+      fill
+      transparency={EventLayout.HIT_TRANSPARENCY}
+      options={[`Select <col=ff891f>${itemName(item as Item)}`]}
+      onOptionSelect={() => selectReward(index)}
+    />
+  );
+}
+
+export function EventRewardCell({
+  row,
+  index,
+  rowX,
+  rowY,
+  cellW,
+  selected,
+  points,
+  restricted,
+  members,
+}: {
+  row: EventReward;
+  index: Int;
+  rowX: Int;
+  rowY: Int;
+  cellW: Int;
+  selected: Int;
+  points: Int;
+  restricted: Boolean;
+  members: Boolean;
+}): Component {
+  const item: ItemName = row.item;
+
+  if (item === -1) {
+    return null;
+  }
+
+  const cost: Int = row.cost;
+  const name: String = itemName(item as Item);
+  const textW: Int = cellW - EventLayout.TEXT_X;
+
+  const arm: Int =
+    selected === index
+      ? 0
+      : CS2.item_members(item as Item) === 1 && !members
+        ? 1
+        : points < cost && !restricted
+          ? 1
+          : restricted
+            ? 1
+            : 2;
+
+  const price: String = cost === 1 ? `${groupDigits(cost, THOUSANDS)} point` : `${groupDigits(cost, THOUSANDS)} points`;
+
+  return (
+    <>
+      <sprite
+        x={rowX + EventLayout.ICON_X}
+        y={rowY}
+        w={EventLayout.ICON_W}
+        h={EventLayout.ICON_H}
+        item={item}
+        itemCount={-1}
+        outline={EventLayout.ICON_OUTLINE}
+        shadowColor={EventColor.ICON_SHADOW}
+      />
+
+      <text
+        x={rowX + EventLayout.TEXT_X}
+        y={rowY}
+        w={textW}
+        h={EventLayout.ROW_H}
+        text={
+          arm === 0
+            ? `${name}<br>  <col=ffffff>${price}</col>`
+            : arm === 1
+              ? `${name}<br>  <col=9f9f9f>${price}</col>`
+              : `${name}<br>  <col=ff891f>${price}</col>`
+        }
+        font={EventFonts.BODY}
+        color={arm === 0 ? EventColor.SELECTED : arm === 1 ? EventColor.BLOCKED : EventColor.AVAILABLE}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={EventLayout.LINE_HEIGHT}
+      />
+    </>
+  );
+}

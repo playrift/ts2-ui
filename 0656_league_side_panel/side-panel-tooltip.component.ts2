@@ -1,0 +1,79 @@
+import { useUniverse } from 'ts2';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox } from '../lib/tooltip.component';
+import { currentTip } from './league-side-panel.state';
+import { SidePanelLayout, SidePanelText, Tip } from './league-side-panel.constants';
+
+function tipText(tip: Int): String {
+  if (tip === Tip.RANK) {
+    return SidePanelText.TIP_RANK;
+  }
+  if (tip === Tip.SUMMARY) {
+    return SidePanelText.TIP_SUMMARY;
+  }
+  return SidePanelText.TIP_INFO;
+}
+
+function anchorX(tip: Int): Int {
+  if (tip === Tip.RANK) {
+    return SidePanelLayout.RANK_X;
+  }
+  if (tip === Tip.SUMMARY) {
+    return SidePanelLayout.SUMMARY_X;
+  }
+  return SidePanelLayout.ANCHOR_INFO_X;
+}
+
+function anchorY(tip: Int): Int {
+  if (tip === Tip.INFO) {
+    return SidePanelLayout.ANCHOR_INFO_Y;
+  }
+  return SidePanelLayout.ANCHOR_BOTTOM_Y;
+}
+
+function anchorH(tip: Int): Int {
+  if (tip === Tip.INFO) {
+    return SidePanelLayout.ANCHOR_INFO_H;
+  }
+  return SidePanelLayout.ANCHOR_BOTTOM_H;
+}
+
+export function SidePanelTooltip(): Component {
+  const tip: Int = currentTip();
+  if (tip !== Tip.INFO && tip !== Tip.RANK && tip !== Tip.SUMMARY) {
+    return null;
+  }
+  const host = useUniverse();
+  const text: String = tipText(tip);
+
+  const measure: Int = Math.min(SidePanelLayout.TOOLTIP_WRAP, host.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  const left: Int = anchorX(tip);
+  const top: Int = anchorY(tip);
+  const below: Int = top + anchorH(tip) + TooltipBox.nudge;
+
+  return (
+    <layer
+      x={Math.min(left + TooltipBox.nudge, host.width - boxW)}
+      y={below > host.height - boxH ? top - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.fill} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

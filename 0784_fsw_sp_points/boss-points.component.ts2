@@ -1,0 +1,94 @@
+import { useRef } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { FswBar, FswColor } from './fsw.constants';
+import { fswStripe } from './fsw.helpers';
+import { FswBossPoints } from './fsw-boss-points.data';
+import { BossGrid } from './points-table.constants';
+
+export function BossPointsView({
+  bgW,
+  bgH,
+  cols,
+  minRow,
+  lineH,
+  font,
+}: {
+  bgW: Int;
+  bgH: Int;
+  cols: Int;
+  minRow: Int;
+  lineH: Int;
+  font: Font;
+}): Component {
+  const pane = useRef();
+  const colW: Int = (bgW - BossGrid.WIDTH_INSET) / cols;
+  const rows: Int = FswBossPoints.length / cols + 1;
+  const rowH: Int = bgH / rows < minRow ? minRow : bgH / rows;
+  const total: Int = rows * rowH;
+
+  return (
+    <>
+      <layer ref={pane} x={0} y={2} w={{ fill: BossGrid.ICON - 9 }} h={{ fill: 4 }} scrollHeight={total}>
+        {FswBossPoints.scan(
+          (row, index, stripeY) => (
+            <>
+              {index < rows ? (
+                <rect x={0} y={stripeY} w={bgW} h={rowH} fill color={FswColor.BLACK} transparency={fswStripe(index)} />
+              ) : null}
+              <sprite
+                x={(index % cols) * colW + BossGrid.ICON_X}
+                y={(index / cols) * rowH + rowH / 2 - BossGrid.ICON / 2}
+                w={BossGrid.ICON}
+                h={BossGrid.ICON}
+                sprite={row.icon}
+                shadowColor={FswColor.BLACK}
+              />
+              <text
+                x={(index % cols) * colW + BossGrid.TEXT_X}
+                y={(index / cols) * rowH - lineH}
+                w={colW}
+                h={rowH}
+                text={row.name}
+                font={font}
+                color={FswColor.AMBER}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={rowH}
+              />
+              <text
+                x={(index % cols) * colW + BossGrid.TEXT_X}
+                y={(index / cols) * rowH + lineH}
+                w={colW}
+                h={rowH}
+                text={stringOf(row.points)}
+                font={font}
+                color={FswColor.CREAM}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={rowH}
+              />
+            </>
+          ),
+          (row, index) => (index < rows ? rowH : 0),
+        )}
+
+        <line x={colW} y={BossGrid.RULE_Y} w={0} h={total} color={FswColor.RULE} />
+        {cols === 3 ? <line x={colW * 2} y={BossGrid.RULE_Y} w={0} h={total} color={FswColor.RULE} /> : null}
+      </layer>
+
+      <layer x={{ right: 1 }} y={0} w={16} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={FswBar.TRACK}
+          capTopSprite={FswBar.CAP_TOP}
+          thumbSprite={FswBar.THUMB}
+          capBottomSprite={FswBar.CAP_BOTTOM}
+          arrowUp={FswBar.ARROW_UP}
+          arrowDown={FswBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

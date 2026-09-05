@@ -1,0 +1,273 @@
+import { CS2, predictServerState, sessionState, useServerState, useSkill, useState } from 'ts2';
+
+import { osmTooltipStat } from '../lib/game/varcs';
+import { chatMessage, hasBit, membersWorld, playSound } from '../lib/lib.engine';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { PrayerVarbits, Skills } from '../0077_quickprayer/quickprayer.constants';
+import {
+  auguryUnlocked,
+  battleRoyaleFlag,
+  deadeyeUnlocked,
+  defenceLevel,
+  inBattleRoyale,
+  knightWavesDone,
+  mysticVigourUnlocked,
+  prayerAvailable,
+  prayerLevel,
+  prayerMembers,
+  prayerRequirementsMet,
+  rigourUnlocked,
+} from '../0077_quickprayer/quickprayer.helpers';
+import {
+  BookBit,
+  PanelMode,
+  PrayerItem,
+  PrayerbookSounds,
+  PrayerbookVarbits,
+  RECHARGE_MESSAGE,
+  Tooltip,
+} from './prayerbook.constants';
+import { PrayersByItem } from './prayerbook.data';
+import type { PrayerRow } from './prayerbook.data';
+
+export const prayerPanelMode = sessionState(0);
+
+export const prayerTipItem = sessionState(-1);
+export const prayerTipX = sessionState(0);
+export const prayerTipY = sessionState(0);
+
+export const prayerSkillTick = sessionState(0);
+
+export function bumpPrayerSkillTick(): void {
+  const [tick, setTick] = useState(prayerSkillTick);
+  setTick(tick + 1);
+}
+
+export function resetPrayerPanel(): void {
+  const [, setMode] = useState(prayerPanelMode);
+  const [, setStat] = useState(osmTooltipStat);
+  hidePrayerTip();
+  setStat(-1);
+  setMode(PanelMode.NORMAL);
+}
+
+export function togglePrayerPanel(target: Int): void {
+  const [mode, setMode] = useState(prayerPanelMode);
+  const [, setStat] = useState(osmTooltipStat);
+  hidePrayerTip();
+  setStat(-1);
+  if (mode === target) {
+    setMode(PanelMode.NORMAL);
+    return;
+  }
+  setMode(target);
+}
+
+export function activePrayerMask(): Int {
+  if (useServerState(PrayerbookVarbits.PRAYERBOOK) === 1) {
+    return useServerState(PrayerbookVarbits.ALL_ACTIVE_RUINOUS);
+  }
+  return useServerState(PrayerbookVarbits.ALL_ACTIVE);
+}
+
+export function writeActivePrayerMask(mask: Int): void {
+  if (useServerState(PrayerbookVarbits.PRAYERBOOK) === 1) {
+    predictServerState(PrayerbookVarbits.ALL_ACTIVE_RUINOUS, mask);
+    return;
+  }
+  predictServerState(PrayerbookVarbits.ALL_ACTIVE, mask);
+}
+
+export function displayedPrayer(item: Item): Item {
+  if (!membersWorld() || inBattleRoyale()) {
+    return item;
+  }
+  if (item === PrayerItem.EAGLE_EYE && deadeyeUnlocked() === 1) {
+    return PrayerItem.DEADEYE;
+  }
+  if (item === PrayerItem.MYSTIC_MIGHT && mysticVigourUnlocked() === 1) {
+    return PrayerItem.MYSTIC_VIGOUR;
+  }
+  return item;
+}
+
+export function passesPrayerFilter(row: PrayerRow): Boolean {
+  const level: Int = prayerLevel();
+  const defence: Int = defenceLevel();
+  const rigour: Int = rigourUnlocked();
+  const augury: Int = auguryUnlocked();
+  const knightWaves: Boolean = knightWavesDone();
+  const members: Boolean = prayerMembers();
+  const battleRoyale: Int = battleRoyaleFlag();
+  const deadeye: Int = deadeyeUnlocked();
+  const mysticVigour: Int = mysticVigourUnlocked();
+  const blockLowTier: Int = useServerState(PrayerbookVarbits.BLOCK_LOW_TIER);
+  const allowCombined: Int = useServerState(PrayerbookVarbits.ALLOW_COMBINED_TIER);
+
+  if (useServerState(PrayerbookVarbits.BLOCK_LACK_LEVEL) === 1 && level < row.level) {
+    return false;
+  }
+  if (
+    useServerState(PrayerbookVarbits.BLOCK_LOCKED) === 1 &&
+    !prayerRequirementsMet(row.item, members, defence, knightWaves, rigour, augury, battleRoyale, deadeye, mysticVigour)
+  ) {
+    return false;
+  }
+  if (useServerState(PrayerbookVarbits.BLOCK_HEALING) === 1 && row.healing === 1) {
+    return false;
+  }
+  const higher: PrayerRow | null = PrayersByItem.get(row.supersededBy);
+  if (higher !== null) {
+    if (
+      blockLowTier === 1 &&
+      (allowCombined === 1 || higher.tierGroup === row.tierGroup) &&
+      level >= higher.level &&
+      prayerRequirementsMet(
+        higher.item,
+        members,
+        defence,
+        knightWaves,
+        rigour,
+        augury,
+        battleRoyale,
+        deadeye,
+        mysticVigour,
+      )
+    ) {
+      return false;
+    }
+  }
+  if (blockLowTier === 1 && allowCombined === 1 && row.item === PrayerItem.MYSTIC_MIGHT && augury === 1) {
+    return false;
+  }
+  if (blockLowTier === 1 && allowCombined === 1 && row.item === PrayerItem.EAGLE_EYE && rigour === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function prayerShown(row: PrayerRow, bookBit: Int, unfiltered: Boolean): Boolean {
+  if (bookBit !== BookBit.NONE && !hasBit(row.books, bookBit)) {
+    return false;
+  }
+  if (unfiltered) {
+    return true;
+  }
+  return passesPrayerFilter(row);
+}
+
+export function prayerTooltipText(row: PrayerRow): String {
+  return `Level ${stringOf(row.level)}<br>${row.name}<br>${row.description}`;
+}
+
+export function prayerOp(option: Int, mode: Int, item: Item, x: Int, y: Int): void {
+  const row: PrayerRow | null = PrayersByItem.get(item);
+  if (row === null) {
+    return;
+  }
+  if (option === 1) {
+    if (mode === PanelMode.NORMAL) {
+      const mask: Int = activePrayerMask();
+      if (hasBit(mask, row.bit)) {
+        writeActivePrayerMask(CS2.bit_clear(mask, row.bit));
+        return;
+      }
+      if (!prayerAvailable(item, row.level)) {
+        playSound(PrayerbookSounds.PRAYER_OFF);
+        return;
+      }
+      if (useSkill(Skills.PRAYER) <= 0) {
+        playSound(PrayerbookSounds.PRAYER_OFF);
+        chatMessage(RECHARGE_MESSAGE);
+        return;
+      }
+      writeActivePrayerMask(CS2.bit_set(mask, row.bit));
+    }
+  } else if (option === 2) {
+    const [stat, setStat] = useState(osmTooltipStat);
+    hidePrayerTip();
+    if (mode === PanelMode.INFO && stat !== (item as Int)) {
+      playSound(PrayerbookSounds.CLICK);
+      buildPrayerTip(item, x, y);
+      setStat(item as Int);
+    } else {
+      setStat(-1);
+    }
+  }
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(PrayerbookVarbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedDesktop(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(PrayerbookVarbits.OSM_SIMULATE) === 1) {
+    return false;
+  }
+  if (type === 4 || type === 5 || type === 10) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedAny(): Boolean {
+  if (onEnhancedDesktop()) {
+    return true;
+  }
+  if (onEnhancedMobile()) {
+    return true;
+  }
+  return false;
+}
+
+export function showPrayerTip(item: Item, x: Int, y: Int): void {
+  const [, setItem] = useState(prayerTipItem);
+  const [, setX] = useState(prayerTipX);
+  const [, setY] = useState(prayerTipY);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Tooltip.DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setItem(item as Int);
+  setX(x);
+  setY(y);
+  tooltipRaise();
+}
+
+export function buildPrayerTip(item: Item, x: Int, y: Int): void {
+  const [, setItem] = useState(prayerTipItem);
+  const [, setX] = useState(prayerTipX);
+  const [, setY] = useState(prayerTipY);
+  if (onEnhancedAny()) {
+    return;
+  }
+  setItem(item as Int);
+  setX(x);
+  setY(y);
+  tooltipRaise();
+}
+
+export function hidePrayerTip(): void {
+  const [, setItem] = useState(prayerTipItem);
+  tooltipHide();
+  setItem(-1);
+}

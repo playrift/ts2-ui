@@ -1,0 +1,126 @@
+import { useServerState, useState } from 'ts2';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  JigsawArt,
+  JigsawColor,
+  JigsawLayout,
+  JigsawPieces,
+  JigsawRow,
+  JigsawVarps,
+  PreviewShown,
+  Puzzle,
+} from './jigsaw.constants';
+import { showPreview, shufflePieces, solvedBits, togglePreview } from './jigsaw.state';
+
+export function JigsawBacking(): Component {
+  const puzzle: Int = useServerState(JigsawVarps.PUZZLE);
+  const backing: Model = puzzle === Puzzle.EGGSHELL ? JigsawRow.BACKING : JigsawLayout.BACKING_MODEL;
+
+  return (
+    <model
+      x="center"
+      y="center"
+      w={JigsawLayout.BACKING_SIZE}
+      h={JigsawLayout.BACKING_SIZE}
+      model={backing}
+      zoom={JigsawLayout.BACKING_ZOOM}
+      orthogonal
+    />
+  );
+}
+
+export function JigsawPreview(): Component {
+  const [shown] = useState(PreviewShown);
+  const puzzle: Int = useServerState(JigsawVarps.PUZZLE);
+  if (shown === 0) {
+    return null;
+  }
+
+  if (puzzle !== Puzzle.EGGSHELL) {
+    return null;
+  }
+
+  return (
+    <layer w={JigsawLayout.BOARD_W} h={JigsawLayout.BOARD_H} noClickThrough>
+      <rect w="fill" h="fill" color={JigsawColor.DIM} fill transparency={JigsawLayout.DIM_TRANSPARENCY} />
+      <model
+        x={JigsawRow.PREVIEW_X}
+        y={JigsawRow.PREVIEW_Y}
+        w={JigsawLayout.PREVIEW_SIZE}
+        h={JigsawLayout.PREVIEW_SIZE}
+        model={JigsawRow.PREVIEW_MODEL}
+        orthogonal
+        offsetX={0}
+        offsetY={0}
+        pitch={0}
+        yaw={0}
+        roll={0}
+        zoom={JigsawRow.PREVIEW_ZOOM}
+      />
+    </layer>
+  );
+}
+
+export function JigsawShuffleButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const puzzle: Int = useServerState(JigsawVarps.PUZZLE);
+  const bits: Int = solvedBits(puzzle);
+  const count: Int = JigsawPieces.length;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Shuffle']}
+      optionSubject="<col=ff9040>Pieces"
+      onMouseRepeat={mobile ? undefined : () => setHovered(1)}
+      onMouseLeave={mobile ? undefined : () => setHovered(0)}
+      onOptionSelect={() => shufflePieces(bits, count)}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <sprite x="center" y="center" w={JigsawLayout.ICON_SIZE} h={JigsawLayout.ICON_SIZE} sprite={JigsawArt.SHUFFLE} />
+    </layer>
+  );
+}
+
+export function JigsawPreviewButton(): Component {
+  const [shown] = useState(PreviewShown);
+  const mobile: Boolean = onMobile();
+
+  if (mobile) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={['Preview']}
+        optionSubject="<col=ff9040>Layout"
+        onOptionSelect={() => togglePreview()}
+      >
+        {shown === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+        <sprite
+          x={{ center: -1 }}
+          y={{ center: -1 }}
+          w={JigsawLayout.ICON_SIZE}
+          h={JigsawLayout.ICON_SIZE}
+          sprite={JigsawArt.PREVIEW}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer w="fill" h="fill" onMouseRepeat={() => showPreview(true)} onMouseLeave={() => showPreview(false)}>
+      {shown === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <sprite
+        x={{ center: -1 }}
+        y={{ center: -1 }}
+        w={JigsawLayout.ICON_SIZE}
+        h={JigsawLayout.ICON_SIZE}
+        sprite={JigsawArt.PREVIEW}
+      />
+    </layer>
+  );
+}

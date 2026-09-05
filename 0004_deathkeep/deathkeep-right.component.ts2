@@ -1,0 +1,164 @@
+import { CS2, useRef, useState } from 'ts2';
+import { textLineCount } from '../lib/lib.engine';
+import { playSound } from '../lib/lib.engine';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { DeathkeepButtonLabels } from './deathkeep.data';
+import {
+  DeathkeepColors,
+  DeathkeepFonts,
+  DeathkeepSounds,
+  DeathkeepSprites,
+  KILLED_BY_PLAYER_ON,
+  Layout,
+  PROTECT_ITEM_ON,
+  SKULLED_ON,
+  TOGGLE_HOLD_CYCLES,
+  WILDERNESS_ON,
+} from './deathkeep.constants';
+import { clientClock } from '../lib/lib.engine';
+
+function DeathkeepButton({ label, on, y, height }: { label: String; on: Boolean; y: Int; height: Int }): Component {
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const caption = useRef();
+
+  const skinPressed: Boolean = on;
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer x="center" y={y} w={{ fill: Layout.BUTTON_INSET_W }} h={height}>
+        {skinPressed ? <StoneButtonOutFilled /> : <StoneButtonFilled />}
+        <sprite
+          x={Layout.RADIO_X}
+          y="center"
+          w={Layout.RADIO_SIZE}
+          h={Layout.RADIO_SIZE}
+          sprite={skinPressed ? DeathkeepSprites.RADIO_OFF : DeathkeepSprites.RADIO_ON}
+        />
+        <text
+          x={{ right: Layout.BUTTON_LABEL_RIGHT }}
+          y="center"
+          w={{ fill: Layout.BUTTON_LABEL_INSET_W }}
+          h="fill"
+          text={label}
+          font={DeathkeepFonts.BODY}
+          color={DeathkeepColors.LABEL_HOVER}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={Layout.RIGHT_TEXT_LINE_H}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x="center"
+      y={y}
+      w={{ fill: Layout.BUTTON_INSET_W }}
+      h={height}
+      options={['Toggle']}
+      onMouseRepeat={() => {
+        caption.color = DeathkeepColors.LABEL_HOVER;
+      }}
+      onMouseLeave={() => {
+        caption.color = DeathkeepColors.LABEL;
+      }}
+      onOptionSelect={(event) => {
+        playSound(DeathkeepSounds.SELECT);
+        CS2.if_resume_pausebutton(event.component);
+        setPressedUntil(clientClock() + TOGGLE_HOLD_CYCLES);
+      }}
+    >
+      {on ? <StoneButtonFilled /> : <StoneButtonOutFilled />}
+      <sprite
+        x={Layout.RADIO_X}
+        y="center"
+        w={Layout.RADIO_SIZE}
+        h={Layout.RADIO_SIZE}
+        sprite={on ? DeathkeepSprites.RADIO_ON : DeathkeepSprites.RADIO_OFF}
+      />
+      <text
+        ref={caption}
+        x={{ right: Layout.BUTTON_LABEL_RIGHT }}
+        y="center"
+        w={{ fill: Layout.BUTTON_LABEL_INSET_W }}
+        h="fill"
+        text={label}
+        font={DeathkeepFonts.BODY}
+        color={DeathkeepColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.RIGHT_TEXT_LINE_H}
+      />
+    </layer>
+  );
+}
+
+function buttonHeight(label: String, wrap: Int): Int {
+  return (
+    Layout.BUTTON_PAD +
+    Math.max(
+      Layout.BUTTON_MIN_LABEL_H,
+      textLineCount(label, wrap, DeathkeepFonts.BODY) * Layout.INFO_LINE_H + Layout.BUTTON_LABEL_EXTRA,
+    ) +
+    Layout.BUTTON_PAD
+  );
+}
+
+export function DeathkeepRight(): Component {
+  const wrap: Int = Layout.RIGHT_W - Layout.BUTTON_LABEL_WRAP_INSET;
+
+  const h0: Int = buttonHeight(DeathkeepButtonLabels.at(0), wrap);
+  const h1: Int = buttonHeight(DeathkeepButtonLabels.at(1), wrap);
+  const h2: Int = buttonHeight(DeathkeepButtonLabels.at(2), wrap);
+  const h3: Int = buttonHeight(DeathkeepButtonLabels.at(3), wrap);
+  const y0: Int = Layout.BUTTON_TOP;
+  const y1: Int = y0 + h0 + Layout.BUTTON_GAP;
+  const y2: Int = y1 + h1 + Layout.BUTTON_GAP;
+  const y3: Int = y2 + h2 + Layout.BUTTON_GAP;
+
+  return (
+    <>
+      <text
+        x="center"
+        y={Layout.RIGHT_TEXT_Y}
+        w="fill"
+        h={Layout.RIGHT_TEXT_H}
+        text="Showing info for:"
+        font={DeathkeepFonts.INFO}
+        color={DeathkeepColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <DeathkeepButton label={DeathkeepButtonLabels.at(0)} on={PROTECT_ITEM_ON} y={y0} height={h0} />
+      <DeathkeepButton label={DeathkeepButtonLabels.at(1)} on={SKULLED_ON} y={y1} height={h1} />
+      <DeathkeepButton label={DeathkeepButtonLabels.at(2)} on={KILLED_BY_PLAYER_ON} y={y2} height={h2} />
+      <DeathkeepButton label={DeathkeepButtonLabels.at(3)} on={WILDERNESS_ON} y={y3} height={h3} />
+
+      <text
+        x="center"
+        y={{ bottom: Layout.RIGHT_TEXT_Y }}
+        w="fill"
+        h={Layout.RIGHT_TEXT_H}
+        font={DeathkeepFonts.BODY}
+        color={DeathkeepColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.RIGHT_TEXT_LINE_H}
+      />
+
+      <rect hide />
+      <rect hide />
+      <rect hide />
+      <rect hide />
+      <ThinBox />
+    </>
+  );
+}

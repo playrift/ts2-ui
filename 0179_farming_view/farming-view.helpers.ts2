@@ -1,0 +1,179 @@
+import { predictServerState, useState } from 'ts2';
+
+import { farmingViewScrollpos } from '../lib/game/varcs';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { hasBit, playSound } from '../lib/lib.engine';
+import {
+  Cell,
+  FarmingItems,
+  FarmingSounds,
+  FarmingVarbits,
+  Layout,
+  PatchCropNames,
+  PatchFlag,
+  Patches,
+} from './farming-view.constants';
+
+export function selectTab(tab: Int): void {
+  if (tab < 0 || tab >= Layout.TAB_COUNT) {
+    return;
+  }
+  playSound(FarmingSounds.SELECT);
+  predictServerState(FarmingVarbits.TAB, tab);
+  const [, setScrollpos] = useState(farmingViewScrollpos);
+  setScrollpos(0);
+}
+
+export function textClient(classic: String, enhanced: String): String {
+  if (!enhancedAny()) {
+    return classic;
+  }
+  return enhanced;
+}
+
+export function patchLastState(last: Int): Int {
+  if (last <= 0) {
+    return 1;
+  }
+  return last;
+}
+
+export function patchGrowthShown(growth: Int, last: Int): Int {
+  const ceiling: Int = patchLastState(last);
+  if (growth > ceiling) {
+    return ceiling;
+  }
+  return growth;
+}
+
+export function patchCropLine(patch: Int, item: Item): String {
+  if (item === FarmingItems.BUCKET_EMPTY || item === FarmingItems.WEEDS) {
+    const row = Patches.get(patch);
+    if (row === null) {
+      return 'Empty';
+    }
+    return row.empty;
+  }
+  return PatchCropNames.get(item) ?? 'Crop';
+}
+
+export function patchStatusText(
+  patch: Int,
+  item: Item,
+  growthRaw: Int,
+  lastRaw: Int,
+  minYield: Int,
+  watered: Int,
+  flags: Int,
+  name: String,
+): String {
+  let text: String = patchCropLine(patch, item);
+  const growth: Int = patchGrowthShown(growthRaw, lastRaw);
+  if (growth > 0) {
+    text = `${text} (State: ${stringOf(growth)} / ${stringOf(patchLastState(lastRaw))})`;
+    if (hasBit(flags, PatchFlag.DEAD)) {
+      text = `${text}<br>The ${name} is ${textClient('<col=7f0000>', '<col=ef1020>')}dead</col>.`;
+    } else if (hasBit(flags, PatchFlag.DISEASED)) {
+      text = `${text}<br>The ${name} is ${textClient('<col=003f00>', '<col=ef1020>')}diseased</col>.`;
+    }
+  } else if (item === FarmingItems.BUCKET_EMPTY) {
+    text = `${text} (empty)`;
+  } else if (item === FarmingItems.WEEDS) {
+    text = `${text} (weeds)`;
+  }
+  if (hasBit(flags, PatchFlag.GARDENER)) {
+    text = `${text}<br>A gardener is protecting this ${name}.`;
+  } else if (hasBit(flags, PatchFlag.HOSIDIUS_PROTECTED)) {
+    text = `${text}<br>The people of Hosidius are protecting the ${name}.`;
+  } else if (hasBit(flags, PatchFlag.UNDEAD)) {
+    text = `${text}<br>This patch is permanently undead and won't get diseased.`;
+  } else if (hasBit(flags, PatchFlag.FLOWER_PROTECTED)) {
+    text = `${text}<br>A nearby flower patch is providing protection.`;
+  }
+  if (hasBit(flags, PatchFlag.SHOW_WATER) || watered === 1) {
+    if (watered === 1) {
+      text = `${text}<br>The ${name} has been watered.`;
+    } else {
+      text = `${text}<br>The ${name} is dry.`;
+    }
+  }
+  if (
+    hasBit(flags, PatchFlag.SUPERCOMPOST) ||
+    hasBit(flags, PatchFlag.COMPOST) ||
+    hasBit(flags, PatchFlag.ULTRACOMPOST)
+  ) {
+    if (hasBit(flags, PatchFlag.ULTRACOMPOST)) {
+      text = `${text}<br>The ${name} has been treated with ultracompost.`;
+    } else if (hasBit(flags, PatchFlag.SUPERCOMPOST)) {
+      text = `${text}<br>The ${name} has been treated with supercompost.`;
+    } else {
+      text = `${text}<br>The ${name} has been treated with compost.`;
+    }
+  }
+  if (minYield > 0) {
+    text = `${text}<br>Minimum yield: ${stringOf(minYield)}`;
+  }
+  return text;
+}
+
+export function tooltipLeft(slot: Int, hostWidth: Int, boxWidth: Int): Int {
+  const windowLeft: Int = (hostWidth - Layout.CONTENTS_W) / 2;
+  const paneLeft: Int = windowLeft + Layout.BODY_INSET_W / 2;
+  const paneWidth: Int = Layout.CONTENTS_W - Layout.BODY_INSET_W - Layout.PANE_INSET_W;
+  const column: Int = slot % Layout.COLUMNS;
+  const cellLeft: Int = column === 0 ? 0 : column === 1 ? (paneWidth - Cell.W) / 2 : paneWidth - Cell.W;
+  const nudged: Int = paneLeft + cellLeft + Layout.TOOLTIP_NUDGE;
+  if (nudged > hostWidth - boxWidth) {
+    return hostWidth - boxWidth;
+  }
+  return nudged;
+}
+
+export function tooltipTop(slot: Int, hostHeight: Int, boxHeight: Int): Int {
+  const windowTop: Int = (hostHeight - Layout.CONTENTS_H) / 2;
+  const anchorTop: Int = windowTop + Layout.BODY_Y + (Cell.H + Layout.CELL_GAP) * (slot / Layout.COLUMNS);
+  const below: Int = anchorTop + Cell.H + Layout.TOOLTIP_NUDGE;
+  if (below > hostHeight - boxHeight) {
+    return anchorTop - boxHeight - Layout.TOOLTIP_NUDGE;
+  }
+  return below;
+}
+
+export function notOnTab(tab: Int, cellTab: Int): Boolean {
+  if (tab === cellTab) {
+    return false;
+  }
+  return true;
+}
+
+export function patchWatered(watered: Int): Boolean {
+  if (watered === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function patchComposted(flags: Int): Boolean {
+  if (
+    hasBit(flags, PatchFlag.SUPERCOMPOST) ||
+    hasBit(flags, PatchFlag.COMPOST) ||
+    hasBit(flags, PatchFlag.ULTRACOMPOST)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function patchWashed(flags: Int): Boolean {
+  if (hasBit(flags, PatchFlag.DEAD) || hasBit(flags, PatchFlag.DISEASED)) {
+    return true;
+  }
+  return false;
+}
+
+export function patchFilled(invoked: Int, patch: Int): Boolean {
+  if (invoked === patch) {
+    return true;
+  }
+  return false;
+}

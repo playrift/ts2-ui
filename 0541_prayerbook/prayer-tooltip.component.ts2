@@ -1,0 +1,62 @@
+import { useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { Layout, Tooltip } from './prayerbook.constants';
+import { PrayersByItem } from './prayerbook.data';
+import type { PrayerRow } from './prayerbook.data';
+import { prayerTipItem, prayerTipX, prayerTipY, prayerTooltipText } from './prayerbook.state';
+
+export function PrayerTooltip(): Component {
+  const [item] = useState(prayerTipItem);
+  const [cellX] = useState(prayerTipX);
+  const [cellY] = useState(prayerTipY);
+
+  const row: PrayerRow | null = PrayersByItem.get(item as Item);
+  let text: String = '';
+  if (tooltipUp() && row !== null) {
+    text = prayerTooltipText(row);
+  }
+
+  let measure: Int = Tooltip.WRAP;
+  if (measure > Layout.ROOT_W) {
+    measure = Layout.ROOT_W;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  const anchorX: Int = Layout.GRID_INSET_W / 2 + cellX;
+  const anchorY: Int = cellY;
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > Layout.ROOT_W - boxW) {
+    x = Layout.ROOT_W - boxW;
+  }
+  let y: Int = anchorY + Layout.SLOT + TooltipBox.nudge;
+  if (y > Layout.ROOT_H - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (!tooltipUp() || row === null) {
+    return <layer x={Layout.TIP_HOST_X} y={Layout.TIP_HOST_Y} w={Layout.TIP_HOST_W} h={Layout.TIP_HOST_H} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

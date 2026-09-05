@@ -1,0 +1,127 @@
+import { CS2, useInterval, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { hasBit, clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { truncateToWidth } from '../0704_clans_events_create/clans-events-create.helpers';
+import {
+  ClanBoardColor,
+  ClanBoardFonts,
+  ClanBoardSounds,
+  ClanBoardSprites,
+  Copy,
+  FLASH_CYCLES,
+  FilterTransparency,
+  Layout,
+  clansBoardRef,
+  filtersRef,
+} from './clans-board.constants';
+import { ClanInterests } from './clans-board.data';
+import { filtersScrollHeight } from './clans-board.helpers';
+
+export function ClanBoardFilters(): Component {
+  const pane = useUniverse();
+  const rowHeightEach: Int = onMobile() ? Layout.FILTER_ROW_H_MOBILE : Layout.FILTER_ROW_H;
+  const labelWidth: Int = pane.width - Layout.FILTER_LABEL_INSET;
+
+  filtersRef.scrollHeight = filtersScrollHeight(clansBoardRef.height, rowHeightEach);
+
+  return (
+    <>
+      {FilterIndices.map((index) => (
+        <layer x="center" y={index * rowHeightEach} w="fill" h={rowHeightEach}>
+          <ClanBoardFilterRow index={index} rowHeightEach={rowHeightEach} labelWidth={labelWidth} />
+        </layer>
+      ))}
+    </>
+  );
+}
+
+const FilterIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+export function ClanBoardFilterRow({
+  index,
+  rowHeightEach,
+  labelWidth,
+}: {
+  index: Int;
+  rowHeightEach: Int;
+  labelWidth: Int;
+}): Component {
+  const [readyAt, setReadyAt] = useState(0);
+  useInterval(() => {
+    if (readyAt !== 0 && clientClock() >= readyAt) {
+      setReadyAt(0);
+    }
+  });
+
+  const included: Int = useServerState(Varps.MACRO_BEE_POS_3);
+  const excluded: Int = useServerState(Varps.MACRO_BEE_POS_4);
+  const label: String = ClanInterests.at(index) ?? '';
+  const flashing: Int = readyAt !== 0 ? 1 : 0;
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={0}
+        w="fill"
+        h={rowHeightEach}
+        fill
+        color={ClanBoardColor.WHITE}
+        transparency={flashing === 1 ? FilterTransparency.PRESSED : FilterTransparency.REST}
+        options={[Copy.CHANGE_FILTER]}
+        optionSubject={`<col=ff9040>${label}</col>`}
+        onMouseRepeat={
+          flashing === 1
+            ? undefined
+            : (event) => {
+                if (!onMobile()) {
+                  event.self.transparency = FilterTransparency.HOVER;
+                }
+              }
+        }
+        onMouseLeave={
+          flashing === 1
+            ? undefined
+            : (event) => {
+                event.self.transparency = FilterTransparency.REST;
+              }
+        }
+        onOptionSelect={(event) => {
+          if (readyAt !== 0) {
+            return;
+          }
+          playSound(ClanBoardSounds.CLICK);
+          CS2.if_resume_pausebutton(event.component);
+          setReadyAt(clientClock() + FLASH_CYCLES);
+        }}
+      />
+      <sprite
+        x={Layout.FILTER_RADIO_X}
+        y={(rowHeightEach - Layout.FILTER_RADIO) / 2}
+        w={Layout.FILTER_RADIO}
+        h={Layout.FILTER_RADIO}
+        sprite={
+          hasBit(included, index)
+            ? ClanBoardSprites.RADIO_INCLUDE
+            : hasBit(excluded, index)
+              ? ClanBoardSprites.RADIO_EXCLUDE
+              : ClanBoardSprites.RADIO_OFF
+        }
+      />
+      <text
+        x="right"
+        y={0}
+        w={labelWidth}
+        h={rowHeightEach}
+        text={truncateToWidth(label, labelWidth, ClanBoardFonts.BODY)}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}

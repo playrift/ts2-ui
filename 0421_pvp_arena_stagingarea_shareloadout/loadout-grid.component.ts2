@@ -1,0 +1,329 @@
+import { CS2, intArray, useInventory, useServerState, useState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { hasBit, itemName } from '../lib/lib.engine';
+import { LeftStats, RightStats } from '../0765_pvp_arena_choosebuild/build-stats.data';
+import {
+  Ammo,
+  Build,
+  Copy,
+  LOADOUT_ROWS,
+  Layout,
+  LoadoutItems,
+  LoadoutSlots,
+  RUNE_CAP_NONE,
+  RUNE_CAP_ROWS,
+  RuneReplacementCaps,
+  STACK_WORTH,
+  ShareLoadoutColor,
+  ShareLoadoutInventories,
+  ShareLoadoutItems,
+  ShareLoadoutModels,
+  ShareLoadoutVarbits,
+  ShareLoadoutVarps,
+  WarningCamera,
+  Wash,
+} from './pvp-arena-stagingarea-shareloadout.constants';
+import {
+  ammoUnfirable,
+  buildRunePouch,
+  buildSpellbook,
+  itemBlocked,
+  loadoutInvItem,
+  loadoutWornItem,
+  wornSlotDrawn,
+} from './pvp-arena-stagingarea-shareloadout.helpers';
+import { loadoutStatus, wornWarnings } from './pvp-arena-stagingarea-shareloadout.state';
+
+function LoadoutInvSlot({ item, count, index }: { item: Item; count: Int; index: Int }): Component {
+  const x: Int = Layout.grid.originX + Layout.grid.pitchX * (index % Layout.grid.columns);
+  const y: Int = Layout.grid.originY + Layout.grid.pitchY * (index / Layout.grid.columns);
+
+  let first: String = '';
+  if (item === ShareLoadoutItems.RUNE_REPLACEMENT) {
+    first = Copy.CHECK;
+  }
+
+  if (item === -1) {
+    return <sprite x={x} y={y} w={Layout.grid.slotW} h={Layout.grid.slotH} transparency={Wash.EMPTY} />;
+  }
+
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Layout.grid.slotW}
+      h={Layout.grid.slotH}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={ShareLoadoutColor.SLOT_SHADOW}
+      transparency={Wash.CLEAR}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      options={[first, '', '', '', '', '', '', '', '', Copy.EXAMINE]}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Wash.FLASH, Wash.CLEAR);
+      }}
+    />
+  );
+}
+
+export function LoadoutGrid(): Component {
+  const loadout = useInventory(ShareLoadoutInventories.LOADOUT);
+  const build: Int = useServerState(ShareLoadoutVarbits.BUILD);
+  const opponentSpellbook: Int = useServerState(ShareLoadoutVarbits.OPPONENT_SPELLBOOK);
+  const opponentPouch: Int = useServerState(ShareLoadoutVarps.OPPONENT_RUNE_POUCH);
+  const [, setWornWarnings] = useState(wornWarnings);
+
+  let key: Int = Build.MAX_MED;
+  if (build === Build.ZERKER) {
+    key = Build.ZERKER;
+  } else if (build === Build.PURE) {
+    key = Build.PURE;
+  }
+  const left = LeftStats.get(key);
+  const right = RightStats.get(key);
+  const attack: Int = left === null ? 99 : left.row0;
+  const strength: Int = left === null ? 99 : left.row1;
+  const ranged: Int = left === null ? 99 : left.row2;
+  const magic: Int = left === null ? 99 : left.row3;
+  const defence: Int = right === null ? 99 : right.row0;
+  const hitpoints: Int = right === null ? 99 : right.row1;
+  const prayer: Int = right === null ? 99 : right.row2;
+  const agility: Int = right === null ? 99 : right.row3;
+
+  let max3: Int = Ammo.NONE;
+  let max5: Int = Ammo.NONE;
+  let max6: Int = Ammo.NONE;
+  let max7: Int = Ammo.NONE;
+  let max8: Int = Ammo.NONE;
+  let scan: Int = 0;
+  while (scan < LoadoutSlots.ALL) {
+    let counted: Boolean = true;
+    if (scan < LoadoutSlots.WORN) {
+      counted = wornSlotDrawn(scan);
+    }
+    if (counted) {
+      const held: Item = loadout[scan];
+      if (held !== -1) {
+        if (held.loadoutIteminfo! !== Ammo.IS_AMMUNITION) {
+          const kind: Int = held.loadoutAmmotype!;
+          const tier: Int = held.loadoutAmmoreq!;
+          if (kind === Ammo.TYPE_3) {
+            max3 = Math.max(max3, tier);
+          } else if (kind === Ammo.TYPE_5) {
+            max5 = Math.max(max5, tier);
+          } else if (kind === Ammo.TYPE_M6) {
+            max6 = Math.max(max6, tier);
+          } else if (kind === Ammo.TYPE_M7) {
+            max7 = Math.max(max7, tier);
+          } else if (kind === Ammo.TYPE_M8) {
+            max8 = Math.max(max8, tier);
+          }
+        }
+      }
+    }
+    scan = scan + 1;
+  }
+
+  const counts = intArray(LOADOUT_ROWS);
+  const capItems = intArray<Item>(RUNE_CAP_ROWS);
+  const capLeft = intArray(RUNE_CAP_ROWS);
+  let row: Int = LOADOUT_ROWS - 1;
+  while (row > 0) {
+    const name: Item = LoadoutItems.at(row) ?? -1;
+    if (name !== -1) {
+      counts[row] = loadout.total(name);
+      const cap: Int = RuneReplacementCaps.get(name) ?? RUNE_CAP_NONE;
+      if (cap < RUNE_CAP_NONE) {
+        let seat: Int = RUNE_CAP_ROWS;
+        while (seat > 0) {
+          seat = seat - 1;
+          if (capItems[seat] === -1) {
+            capLeft[seat] = cap;
+            capItems[seat] = name;
+            seat = -1;
+          } else if (name === capItems[seat]) {
+            seat = -1;
+          }
+        }
+      }
+    }
+    row = row - 1;
+  }
+
+  const ownSpellbook: Int = buildSpellbook(build);
+  const ownPouch: Int = buildRunePouch(build);
+  const replacements: Int = loadout.total(ShareLoadoutItems.RUNE_REPLACEMENT);
+  let mismatch: Int = 0;
+  if (opponentSpellbook !== ownSpellbook) {
+    mismatch = 1;
+  } else if (opponentPouch !== ownPouch && replacements > 0) {
+    mismatch = 1;
+  }
+
+  let blockedStats: Int = 0;
+  let badAmmo: Int = 0;
+  let tooMany: Int = 0;
+  let wornMask: Int = 0;
+  let slot: Int = LoadoutSlots.WORN;
+  while (slot > 0) {
+    slot = slot - 1;
+    const mine: Int = loadoutWornItem(build, slot);
+    const mineName: Item = LoadoutItems.at(mine) ?? -1;
+    if (mineName !== -1) {
+      if (CS2.item_stackable(mineName)) {
+        counts[mine] = counts[mine] - STACK_WORTH;
+      } else {
+        counts[mine] = counts[mine] - 1;
+      }
+      if (counts[mine] < 0) {
+        mismatch = 1;
+      }
+    }
+    const held: Item = loadout[slot];
+    if (held !== -1) {
+      let warn: Int = 0;
+      const cap: Int = RuneReplacementCaps.get(held) ?? RUNE_CAP_NONE;
+      if (cap < RUNE_CAP_NONE) {
+        let seat: Int = RUNE_CAP_ROWS;
+        while (seat > 0) {
+          seat = seat - 1;
+          if (capItems[seat] === held) {
+            if (capLeft[seat] > 0) {
+              capLeft[seat] = capLeft[seat] - 1;
+            } else {
+              warn = 1;
+              tooMany = 1;
+            }
+            seat = -1;
+          }
+        }
+      }
+      if (itemBlocked(held, attack, strength, ranged, magic, defence, hitpoints, prayer, agility)) {
+        warn = 1;
+        blockedStats = 1;
+      }
+      if (ammoUnfirable(held, max3, max5, max6, max7, max8)) {
+        warn = 1;
+        badAmmo = 1;
+      }
+      if (warn === 1 && wornSlotDrawn(slot)) {
+        wornMask = wornMask + CS2.pow(2, slot);
+      }
+    }
+  }
+
+  let invHideMask: Int = 0;
+  let cell: Int = 0;
+  while (cell < LoadoutSlots.INV) {
+    const mine: Int = loadoutInvItem(build, cell);
+    const mineName: Item = LoadoutItems.at(mine) ?? -1;
+    if (mineName !== -1) {
+      if (CS2.item_stackable(mineName)) {
+        counts[mine] = counts[mine] - STACK_WORTH;
+      } else {
+        counts[mine] = counts[mine] - 1;
+      }
+      if (counts[mine] < 0) {
+        mismatch = 1;
+      }
+    }
+    let hidden: Int = 1;
+    const held: Item = loadout[LoadoutSlots.WORN + cell];
+    if (held !== -1) {
+      let warn: Int = 0;
+      const cap: Int = RuneReplacementCaps.get(held) ?? RUNE_CAP_NONE;
+      if (cap < RUNE_CAP_NONE) {
+        let seat: Int = RUNE_CAP_ROWS;
+        while (seat > 0) {
+          seat = seat - 1;
+          if (capItems[seat] === held) {
+            if (capLeft[seat] > 0) {
+              capLeft[seat] = capLeft[seat] - 1;
+            } else {
+              warn = 1;
+              tooMany = 1;
+            }
+            seat = -1;
+          }
+        }
+      }
+      if (itemBlocked(held, attack, strength, ranged, magic, defence, hitpoints, prayer, agility)) {
+        warn = 1;
+        blockedStats = 1;
+      }
+      if (ammoUnfirable(held, max3, max5, max6, max7, max8)) {
+        warn = 1;
+        badAmmo = 1;
+      }
+      if (warn === 1) {
+        hidden = 0;
+      }
+    }
+    if (hidden === 1) {
+      invHideMask = invHideMask + CS2.pow(2, cell);
+    }
+    cell = cell + 1;
+  }
+
+  if (mismatch === 0) {
+    let leftover: Int = LOADOUT_ROWS - 1;
+    while (leftover > 0 && mismatch === 0) {
+      const name: Item = LoadoutItems.at(leftover) ?? -1;
+      if (name !== -1 && counts[leftover] !== 0) {
+        mismatch = 1;
+      }
+      leftover = leftover - 1;
+    }
+  }
+
+  let status: String = Copy.STATUS_SAME;
+  if (blockedStats === 1) {
+    status = Copy.STATUS_STATS;
+  } else if (tooMany === 1) {
+    status = Copy.STATUS_TOO_MANY;
+  } else if (badAmmo === 1) {
+    status = Copy.STATUS_AMMO;
+  } else if (mismatch === 1) {
+    status = Copy.STATUS_MISMATCH;
+  }
+  loadoutStatus.text = status;
+
+  setWornWarnings(wornMask);
+
+  const items = intArray<Item>(LoadoutSlots.INV);
+  let fill: Int = 0;
+  while (fill < LoadoutSlots.INV) {
+    items[fill] = loadout[LoadoutSlots.WORN + fill];
+    fill = fill + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {items.map((item, index) => (
+        <LoadoutInvSlot item={item} count={loadout.count(LoadoutSlots.WORN + index)} index={index} />
+      ))}
+
+      <rect x="center" y="center" w="fill" h="fill" color={ShareLoadoutColor.THINBOX_OUTER} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={ShareLoadoutColor.THINBOX_INNER} />
+
+      {items.map((item, index) => (
+        <model
+          hide={hasBit(invHideMask, index)}
+          x={Layout.grid.originX + Layout.grid.pitchX * (index % Layout.grid.columns)}
+          y={Layout.grid.originY + Layout.grid.pitchY * (index / Layout.grid.columns)}
+          w={Layout.grid.slotW}
+          h={Layout.grid.slotH}
+          model={ShareLoadoutModels.WARNING}
+          offsetX={WarningCamera.offsetX}
+          offsetY={WarningCamera.offsetY}
+          pitch={WarningCamera.pitch}
+          yaw={WarningCamera.yaw}
+          roll={WarningCamera.roll}
+          zoom={WarningCamera.zoom}
+        />
+      ))}
+    </layer>
+  );
+}

@@ -1,0 +1,489 @@
+import { intArray, param, useInventory, useRef, useServerState, useUniverse } from 'ts2';
+import { QuiverObjs } from '../0592_dizanas_quiver/quiver-objs.data';
+import { PestRewardsDivider } from '../0645_br_reward_shop/pest-rewards.shared';
+import { flashFor } from '../lib/lib.components';
+import { chatMessage, itemName, playSound } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  BOND_SLOT_CAP,
+  BondItem,
+  DeathkeepColors,
+  DeathkeepFonts,
+  DeathkeepInventories,
+  DeathkeepSounds,
+  DeathkeepVars,
+  Flash,
+  KILLED_BY_PLAYER_ON,
+  Layout,
+  Marker,
+  PROTECTED_DRAWN,
+  ScrollbarSprites,
+  Section,
+  ServerArgs,
+} from './deathkeep.constants';
+import {
+  addGraveFee,
+  coinsHeading,
+  coinsTip,
+  deletedTip,
+  graveFeeCap,
+  graveHeading,
+  graveItemFee,
+  graveOutline,
+  graveTip,
+  keptOutline,
+  keptTip,
+  pkerHeading,
+  pkerTip,
+  protectedOutline,
+  protectedTip,
+  quiverGraveTip,
+  quiverPkerTip,
+  sectionOfMarker,
+} from './deathkeep.helpers';
+
+const PROTECTED_ITEMS = [
+  ServerArgs.PROTECTED_ITEM_0,
+  ServerArgs.PROTECTED_ITEM_1,
+  ServerArgs.PROTECTED_ITEM_2,
+  ServerArgs.PROTECTED_ITEM_3,
+] as const;
+
+const BOND_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+] as const;
+
+function DeathkeepSlot({
+  item,
+  count,
+  index,
+  cols,
+  gap,
+  inset,
+  outline,
+  tip,
+  noCount = false,
+}: {
+  item: Item;
+  count: Int;
+  index: Int;
+  cols: Int;
+  gap: Int;
+  inset: Int;
+  outline: Int;
+  tip: String;
+  noCount?: Boolean;
+}): Component {
+  const x: Int = inset + (index % cols) * (Layout.SLOT_W + gap);
+  const y: Int = Layout.ROW_TOP + (index / cols) * (Layout.SLOT_H + gap);
+  if (noCount) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Layout.SLOT_W}
+        h={Layout.SLOT_H}
+        shadowColor={DeathkeepColors.SLOT_SHADOW}
+        outline={outline}
+        item={item}
+        itemCount={count}
+        itemCountMode="never"
+        options={['Check']}
+        optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+        onOptionSelect={(event) => {
+          playSound(DeathkeepSounds.SELECT);
+          chatMessage(tip);
+          flashFor(event.self, Flash.FLASH, Flash.CLEAR);
+        }}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Layout.SLOT_W}
+      h={Layout.SLOT_H}
+      shadowColor={DeathkeepColors.SLOT_SHADOW}
+      outline={outline}
+      item={item}
+      itemCount={count}
+      options={['Check']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        playSound(DeathkeepSounds.SELECT);
+        chatMessage(tip);
+        flashFor(event.self, Flash.FLASH, Flash.CLEAR);
+      }}
+    />
+  );
+}
+
+function SectionHeading({ text }: { text: String }): Component {
+  return (
+    <text
+      x="center"
+      y={Layout.HEADING_Y}
+      w={{ fill: Layout.HEADING_INSET_W }}
+      h={Layout.HEADING_H}
+      text={text}
+      font={DeathkeepFonts.BODY}
+      color={DeathkeepColors.LABEL}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+function sectionHeight(n: Int, cols: Int, gap: Int): Int {
+  if (n <= 0) {
+    return 0;
+  }
+  return Layout.ROW_TOP + ((n - 1) / cols) * (Layout.SLOT_H + gap) + Layout.SLOT_H;
+}
+
+export function DeathkeepLeft(): Component {
+  const universe = useUniverse();
+  const items = useRef();
+
+  const deathkeep = useInventory(DeathkeepInventories.ITEMS);
+  const markers = useInventory(DeathkeepInventories.MARKERS);
+  const inv = useInventory(DeathkeepInventories.INV);
+  const worn = useInventory(DeathkeepInventories.WORN);
+  const ironman: Int = useServerState(DeathkeepVars.IRONMAN);
+  const quiverAmmo: Item = useServerState(DeathkeepVars.QUIVER_AMMO) as Item;
+  const quiverAmmoAmount: Int = useServerState(DeathkeepVars.QUIVER_AMMO_AMOUNT);
+
+  const itemsW: Int = universe.width - Layout.ITEMS_INSET_W;
+  const itemsH: Int = universe.height - Layout.ITEMS_INSET_H;
+  const cols: Int = Math.max(1, itemsW / Layout.SLOT_PITCH);
+  let gap: Int = 0;
+  if (cols > 1) {
+    gap = (itemsW - cols * Layout.SLOT_W) / (cols - 1);
+  }
+  const inset: Int = (itemsW - (cols * Layout.SLOT_W + (cols - 1) * gap)) / 2;
+
+  let kept: Int = PROTECTED_DRAWN;
+  let grave: Int = 0;
+  let pker: Int = 0;
+  let coins: Int = 0;
+  let deleted: Int = 0;
+  const feeCap: Int = graveFeeCap(ironman);
+  let graveFee: Int = 0;
+  const sectionOf = intArray(50);
+  const posOf = intArray(50);
+  let slot: Int = 0;
+  while (slot < 50) {
+    const item: Item = deathkeep[slot];
+    sectionOf[slot] = Section.NONE;
+    posOf[slot] = 0;
+    if (item !== -1) {
+      const marker: Item = markers[slot];
+      const section: Int = sectionOfMarker(marker);
+      sectionOf[slot] = section;
+      if (section === Section.KEPT) {
+        posOf[slot] = kept;
+        kept = kept + 1;
+      }
+      if (section === Section.GRAVE) {
+        posOf[slot] = grave;
+        grave = grave + 1;
+        graveFee = addGraveFee(graveFee, graveItemFee(deathkeep.count(slot), markers.count(slot) - 1, feeCap), feeCap);
+      }
+      if (section === Section.PKER) {
+        posOf[slot] = pker;
+        pker = pker + 1;
+      }
+      if (section === Section.COINS) {
+        posOf[slot] = coins;
+        coins = coins + 1;
+      }
+      if (section === Section.DELETED) {
+        posOf[slot] = deleted;
+        deleted = deleted + 1;
+      }
+    }
+    slot = slot + 1;
+  }
+  const keptBeforeBonds: Int = kept;
+  const bondsTradeable: Int = inv.total(BondItem.TRADEABLE);
+  const bondsTotal: Int = bondsTradeable + inv.total(BondItem.UNTRADEABLE);
+  kept = kept + bondsTotal;
+
+  let hasQuiver: Boolean = false;
+  const cape: Item = worn[1];
+  if (cape !== -1) {
+    if (QuiverObjs.get(cape) === 1) {
+      hasQuiver = true;
+    }
+  }
+  let scan: Int = 0;
+  while (scan < inv.size) {
+    const carried: Item = inv[scan];
+    if (carried !== -1) {
+      if (QuiverObjs.get(carried) === 1) {
+        hasQuiver = true;
+      }
+    }
+    scan = scan + 1;
+  }
+  let quiverInPker: Boolean = false;
+  let quiverInGrave: Boolean = false;
+  const quiverPkerPos: Int = pker;
+  const quiverGravePos: Int = grave;
+  if (hasQuiver) {
+    if (KILLED_BY_PLAYER_ON) {
+      quiverInPker = true;
+      pker = pker + 1;
+    } else {
+      quiverInGrave = true;
+      grave = grave + 1;
+    }
+  }
+
+  const keptH: Int = sectionHeight(kept, cols, gap);
+  const graveH: Int = sectionHeight(grave, cols, gap);
+  const pkerH: Int = sectionHeight(pker, cols, gap);
+  const coinsH: Int = sectionHeight(coins, cols, gap);
+  const deletedH: Int = sectionHeight(deleted, cols, gap);
+  let y: Int = 0;
+  let keptY: Int = 0;
+  let graveY: Int = 0;
+  let pkerY: Int = 0;
+  let coinsY: Int = 0;
+  let deletedY: Int = 0;
+  let graveDividerY: Int = -1;
+  let pkerDividerY: Int = -1;
+  let coinsDividerY: Int = -1;
+  let deletedDividerY: Int = -1;
+  if (kept > 0) {
+    keptY = y;
+    y = y + keptH;
+  }
+  if (grave > 0) {
+    if (y > 0) {
+      graveDividerY = y + Layout.DIVIDER_STEP;
+      y = y + Layout.DIVIDER_STEP * 2;
+    }
+    graveY = y;
+    y = y + graveH;
+  }
+  if (pker > 0) {
+    if (y > 0) {
+      pkerDividerY = y + Layout.DIVIDER_STEP;
+      y = y + Layout.DIVIDER_STEP * 2;
+    }
+    pkerY = y;
+    y = y + pkerH;
+  }
+  if (coins > 0) {
+    if (y > 0) {
+      coinsDividerY = y + Layout.DIVIDER_STEP;
+      y = y + Layout.DIVIDER_STEP * 2;
+    }
+    coinsY = y;
+    y = y + coinsH;
+  }
+  if (deleted > 0) {
+    if (y > 0) {
+      deletedDividerY = y + Layout.DIVIDER_STEP;
+      y = y + Layout.DIVIDER_STEP * 2;
+    }
+    deletedY = y;
+    y = y + deletedH;
+  }
+  if (y > 0) {
+    y = y + Layout.LIST_TAIL;
+  }
+  let scrollH: Int = 0;
+  if (itemsH < y) {
+    scrollH = y;
+  }
+
+  return (
+    <>
+      <layer
+        ref={items}
+        x={Layout.ITEMS_X}
+        y="center"
+        w={{ fill: Layout.ITEMS_INSET_W }}
+        h={{ fill: Layout.ITEMS_INSET_H }}
+        scrollHeight={scrollH}
+      >
+        {kept > 0 && (
+          <layer x="center" y={keptY} w="fill" h={keptH}>
+            {PROTECTED_ITEMS.map(
+              (item, i) =>
+                item !== -1 &&
+                i < ServerArgs.PROTECTED_COUNT && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={1}
+                    index={i}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={protectedOutline(item)}
+                    tip={protectedTip(item, ServerArgs.PROTECTED_COUNT)}
+                    noCount
+                  />
+                ),
+            )}
+            {deathkeep.map(
+              (item, s) =>
+                sectionOf[s] === Section.KEPT && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={deathkeep.count(s)}
+                    index={posOf[s]}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={keptOutline(markers[s])}
+                    tip={keptTip(item, deathkeep.count(s), markers[s])}
+                  />
+                ),
+            )}
+            {BOND_SLOTS.map(
+              (i) =>
+                i < bondsTotal && (
+                  <DeathkeepSlot
+                    item={i < bondsTradeable ? BondItem.TRADEABLE : BondItem.UNTRADEABLE}
+                    count={1}
+                    index={keptBeforeBonds + i}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={1}
+                    tip={keptTip(i < bondsTradeable ? BondItem.TRADEABLE : BondItem.UNTRADEABLE, 1, Marker.KEPT)}
+                  />
+                ),
+            )}
+            <SectionHeading text="Items that are <col=ffffff>KEPT</col>:" />
+          </layer>
+        )}
+        {graveDividerY >= 0 && <PestRewardsDivider y={graveDividerY} inset={0} />}
+        {grave > 0 && (
+          <layer x="center" y={graveY} w="fill" h={graveH}>
+            {deathkeep.map(
+              (item, s) =>
+                sectionOf[s] === Section.GRAVE && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={deathkeep.count(s)}
+                    index={posOf[s]}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={graveOutline(markers[s])}
+                    tip={graveTip(item, deathkeep.count(s), markers[s], markers.count(s) - 1, ironman)}
+                  />
+                ),
+            )}
+            {quiverInGrave && (
+              <DeathkeepSlot
+                item={quiverAmmo}
+                count={quiverAmmoAmount}
+                index={quiverGravePos}
+                cols={cols}
+                gap={gap}
+                inset={inset}
+                outline={1}
+                tip={quiverGraveTip(quiverAmmo, quiverAmmoAmount)}
+              />
+            )}
+            <SectionHeading text={graveHeading(graveFee, ironman)} />
+          </layer>
+        )}
+        {pkerDividerY >= 0 && <PestRewardsDivider y={pkerDividerY} inset={0} />}
+        {pker > 0 && (
+          <layer x="center" y={pkerY} w="fill" h={pkerH}>
+            {deathkeep.map(
+              (item, s) =>
+                sectionOf[s] === Section.PKER && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={deathkeep.count(s)}
+                    index={posOf[s]}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={1}
+                    tip={pkerTip(item, deathkeep.count(s))}
+                  />
+                ),
+            )}
+            {quiverInPker && (
+              <DeathkeepSlot
+                item={quiverAmmo}
+                count={quiverAmmoAmount}
+                index={quiverPkerPos}
+                cols={cols}
+                gap={gap}
+                inset={inset}
+                outline={1}
+                tip={quiverPkerTip(quiverAmmo, quiverAmmoAmount)}
+              />
+            )}
+            <SectionHeading text={pkerHeading(KILLED_BY_PLAYER_ON)} />
+          </layer>
+        )}
+        {coinsDividerY >= 0 && <PestRewardsDivider y={coinsDividerY} inset={0} />}
+        {coins > 0 && (
+          <layer x="center" y={coinsY} w="fill" h={coinsH}>
+            {deathkeep.map(
+              (item, s) =>
+                sectionOf[s] === Section.COINS && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={deathkeep.count(s)}
+                    index={posOf[s]}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={1}
+                    tip={coinsTip(item, deathkeep.count(s), markers.count(s) - 1, ironman)}
+                  />
+                ),
+            )}
+            <SectionHeading text={coinsHeading(ironman)} />
+          </layer>
+        )}
+        {deletedDividerY >= 0 && <PestRewardsDivider y={deletedDividerY} inset={0} />}
+        {deleted > 0 && (
+          <layer x="center" y={deletedY} w="fill" h={deletedH}>
+            {deathkeep.map(
+              (item, s) =>
+                sectionOf[s] === Section.DELETED && (
+                  <DeathkeepSlot
+                    item={item}
+                    count={deathkeep.count(s)}
+                    index={posOf[s]}
+                    cols={cols}
+                    gap={gap}
+                    inset={inset}
+                    outline={1}
+                    tip={deletedTip(item, deathkeep.count(s))}
+                  />
+                ),
+            )}
+            <SectionHeading text="Items that are <col=ff0000>DELETED</col>:" />
+          </layer>
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.SCROLLBAR_RIGHT }} y="center" w={Layout.SCROLLBAR_W} h={{ fill: Layout.ITEMS_INSET_H }}>
+        <ScrollbarVertical
+          content={items}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

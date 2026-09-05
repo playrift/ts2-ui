@@ -1,0 +1,185 @@
+import { CS2, intArray, useDerived, useRef, useServerState, useState } from 'ts2';
+import {
+  JigsawLayout,
+  JigsawPieces,
+  type JigsawPoint,
+  JigsawRow,
+  JigsawStartPoints,
+  JigsawVarps,
+  Puzzle,
+  ShuffleCount,
+} from './jigsaw.constants';
+import { debugWarn, dragPiece, dropPiece, pickStart, pieceSolved, rotatePiece } from './jigsaw.state';
+
+export function ScrambledPieces(): Component {
+  const board = useRef();
+  const puzzle: Int = useServerState(JigsawVarps.PUZZLE);
+  const [shuffles] = useState(ShuffleCount);
+
+  const count: Int = JigsawPieces.length;
+  const points: Int = JigsawStartPoints.length;
+
+  const starts = intArray(31);
+  let used: Int = 0;
+  let dealt: Int = 0;
+  while (dealt < count) {
+    const start: Int = pickStart(used, points);
+    starts[dealt] = start;
+    used = CS2.bit_set(used, start);
+    dealt = dealt + 1;
+  }
+
+  if (puzzle !== Puzzle.EGGSHELL) {
+    return null;
+  }
+
+  return (
+    <layer ref={board} w="fill" h="fill">
+      {JigsawPieces.map((piece, pieceIndex) => (
+        <ScrambledPiece
+          puzzle={puzzle}
+          index={pieceIndex}
+          model={piece.model}
+          startIndex={starts[pieceIndex]}
+          shuffles={shuffles}
+          board={board}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function ScrambledPiece({
+  puzzle,
+  index,
+  model,
+  startIndex,
+  shuffles,
+  board,
+}: {
+  puzzle: Int;
+  index: Int;
+  model: Model;
+  startIndex: Int;
+  shuffles: Int;
+  board: Ref;
+}): Component {
+  const solved: Int = useDerived(() => pieceSolved(puzzle, index));
+
+  const point: JigsawPoint | null = JigsawStartPoints.at(startIndex);
+  const startX: Int = point === null ? 0 : point.x;
+  const startY: Int = point === null ? 0 : point.y;
+
+  if (startX < 0 || startX > JigsawLayout.BOARD_W) {
+    debugWarn(
+      'Jigsaw',
+      `Jigsaw position was outside or near the edge of the interface, may not be visible. xpos = ${stringOf(startX)}.`,
+    );
+  }
+  if (startY < 0 || startY > JigsawLayout.BOARD_H) {
+    debugWarn(
+      'Jigsaw',
+      `Jigsaw position was outside or near the edge of the interface, may not be visible. ypos = ${stringOf(startY)}.`,
+    );
+  }
+
+  if (solved === 1) {
+    return null;
+  }
+
+  const roll: Int = Random.int(JigsawLayout.ROTATIONS) * JigsawLayout.ROTATE_STEP;
+
+  return (
+    <model
+      x={startX}
+      y={startY}
+      w={JigsawRow.PIECE_W}
+      h={JigsawRow.PIECE_H}
+      model={model}
+      orthogonal
+      offsetX={0}
+      offsetY={0}
+      pitch={0}
+      yaw={0}
+      roll={roll}
+      zoom={JigsawRow.PIECE_ZOOM}
+      options={['Rotate']}
+      optionSubject={`<col=ff9040>${JigsawRow.PIECE_NAME}`}
+      draggable={board}
+      onOptionSelect={(event) => {
+        rotatePiece(event.self, index, JigsawRow.PIECE_ZOOM);
+      }}
+      onDrag={(event) => {
+        dragPiece(event.self, event.mouseX, event.mouseY);
+      }}
+      onDragComplete={(event) => {
+        dropPiece(event.self, index, event.mouseX, event.mouseY);
+      }}
+    />
+  );
+}
+
+export function SolvedPieces(): Component {
+  const puzzle: Int = useServerState(JigsawVarps.PUZZLE);
+  if (puzzle !== Puzzle.EGGSHELL) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {JigsawPieces.map((piece, pieceIndex) => (
+        <SolvedPiece puzzle={puzzle} index={pieceIndex} model={piece.model} x={piece.x} y={piece.y} />
+      ))}
+    </layer>
+  );
+}
+
+function SolvedPiece({
+  puzzle,
+  index,
+  model,
+  x,
+  y,
+}: {
+  puzzle: Int;
+  index: Int;
+  model: Model;
+  x: Int;
+  y: Int;
+}): Component {
+  const solved: Int = useDerived(() => pieceSolved(puzzle, index));
+
+  if (x < 0 || x > JigsawLayout.BOARD_W) {
+    debugWarn(
+      'Jigsaw',
+      `Jigsaw position was outside or near the edge of the interface, may not be visible. xpos = ${stringOf(x)}.`,
+    );
+  }
+  if (y < 0 || y > JigsawLayout.BOARD_H) {
+    debugWarn(
+      'Jigsaw',
+      `Jigsaw position was outside or near the edge of the interface, may not be visible. ypos = ${stringOf(y)}.`,
+    );
+  }
+
+  if (solved === 0) {
+    return null;
+  }
+
+  return (
+    <model
+      x={x}
+      y={y}
+      w={JigsawRow.PIECE_W}
+      h={JigsawRow.PIECE_H}
+      model={model}
+      orthogonal
+      offsetX={0}
+      offsetY={0}
+      pitch={0}
+      yaw={0}
+      roll={0}
+      zoom={JigsawRow.PIECE_ZOOM}
+    />
+  );
+}

@@ -1,0 +1,313 @@
+import { CS2, intArray } from 'ts2';
+
+import { hasBit, textLineCount, textWidth } from '../lib/lib.engine';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import {
+  ClanBoardFonts,
+  Copy,
+  Layout,
+  SortMode,
+  applicantsRef,
+  bottomRef,
+  myclanRef,
+  refreshRef,
+} from './clans-board.constants';
+import { ClanBoardPacket, ClanBoardPackets, ClanInterests } from './clans-board.data';
+
+export function packetField(line: String, n: Int): String {
+  let rest: String = line;
+  let skipped: Int = 0;
+  while (skipped < n) {
+    rest = pipeTail(rest);
+    skipped = skipped + 1;
+  }
+  return pipeHead(rest);
+}
+
+export function packetLine(slot: Int): String {
+  const packet: ClanBoardPacket | null = ClanBoardPackets.at(slot);
+  if (packet === null) {
+    return '';
+  }
+  return packet.line;
+}
+
+export function packetFlags(slot: Int): Int {
+  const packet: ClanBoardPacket | null = ClanBoardPackets.at(slot);
+  if (packet === null) {
+    return 0;
+  }
+  return packet.flags;
+}
+
+export function formatInterests(mask: String, flags: Int): String {
+  const length: Int = mask.length;
+  const ticked = intArray(16);
+  let count: Int = 0;
+  let at: Int = 0;
+  while (at < length) {
+    if ('01'.indexOf(mask.substring(at, at + 1), 0) === 1 && (ClanInterests.at(at) ?? '').length > 0) {
+      ticked[count] = at;
+      count = count + 1;
+    }
+    at = at + 1;
+  }
+  let text: String = '';
+  let name: String = '';
+  at = 0;
+  while (at < count) {
+    name = ClanInterests.at(ticked[at]) ?? '';
+    if (hasBit(flags, ticked[at])) {
+      name = `<col=ffffff>${name}</col>`;
+    } else {
+      name = `<col=afafaf>${name}</col>`;
+    }
+    if (at > 0) {
+      if (at < count - 1) {
+        text = `${text}, ${name}`;
+      } else {
+        text = `${text} and ${name}.`;
+      }
+    } else {
+      text = `${text}${name}`;
+    }
+    at = at + 1;
+  }
+  if (at <= 0) {
+    text = `${text}No interests listed.`;
+  }
+  return text;
+}
+
+export function requirementBits(line: String): Int {
+  let bits: Int = 0;
+  if (packetField(line, 5).length > 0) {
+    bits = bits | 1;
+  }
+  if (packetField(line, 6).length > 0) {
+    bits = bits | 2;
+  }
+  return bits;
+}
+
+export function requirementsText(line: String): String {
+  const bits: Int = requirementBits(line);
+  const combat: String = packetField(line, 5);
+  const total: String = packetField(line, 6);
+  if (bits === 3) {
+    return `Combat level: <col=ff981f>${combat}</col>, Skill total: <col=ff981f>${total}</col>`;
+  }
+  if (bits === 2) {
+    return `Skill total: <col=ff981f>${total}</col>`;
+  }
+  if (bits === 1) {
+    return `Combat level: <col=ff981f>${combat}</col>`;
+  }
+  return '';
+}
+
+export function interestsHeight(line: String, flags: Int, wrapWidth: Int): Int {
+  return (
+    textLineCount(formatInterests(packetField(line, 4), flags), wrapWidth, ClanBoardFonts.BODY) * Layout.ROW_LINE_H +
+    Layout.ROW_INTERESTS_PAD
+  );
+}
+
+export function rowHeight(line: String, flags: Int, wrapWidth: Int): Int {
+  let height: Int = Layout.ROW_HEAD_H + interestsHeight(line, flags, wrapWidth) + Layout.ROW_TAIL;
+  if (requirementBits(line) > 0) {
+    height = height + Layout.ROW_REQUIREMENTS_H;
+  }
+  return height;
+}
+
+export function normalisedSort(sort: Int): Int {
+  if (sort >= SortMode.CREATED_DESC && sort <= SortMode.CREATED_ASC) {
+    return sort;
+  }
+  return SortMode.CREATED_ASC;
+}
+
+export function sortDescending(sort: Int): Boolean {
+  if (sort === SortMode.NAME_DESC || sort === SortMode.SIZE_DESC || sort === SortMode.CREATED_DESC) {
+    return true;
+  }
+  return false;
+}
+
+export function sortKey(line: String, slot: Int, sort: Int): String {
+  if (sort === SortMode.NAME_ASC || sort === SortMode.NAME_DESC) {
+    return CS2.tags_remove(packetField(line, 0));
+  }
+  if (sort === SortMode.SIZE_ASC || sort === SortMode.SIZE_DESC) {
+    return `${packetField(line, 1).padStart(3, '0')}${slot}`;
+  }
+  return `${packetField(line, 3).padStart(6, '0')}${slot}`;
+}
+
+export function sortsBefore(keyA: String, a: Int, keyB: String, b: Int): Boolean {
+  const order: Int = CS2.compare(keyA, keyB);
+  if (order < 0) {
+    return true;
+  }
+  if (order === 0 && a < b) {
+    return true;
+  }
+  return false;
+}
+
+export function drawnAbove(other: Int, slot: Int, sort: Int, wrapWidth: Int): Boolean {
+  const mine: String = sortKey(packetLine(slot), slot, sort);
+  const theirs: String = sortKey(packetLine(other), other, sort);
+  if (sortDescending(sort)) {
+    return sortsBefore(mine, slot, theirs, other);
+  }
+  return sortsBefore(theirs, other, mine, slot);
+}
+
+export function rowTop(slot: Int, sort: Int, wrapWidth: Int): Int {
+  let top: Int = 0;
+  let other: Int = 0;
+  const count: Int = ClanBoardPackets.length;
+  while (other < count) {
+    if (other !== slot && packetLine(other).length > 0 && drawnAbove(other, slot, sort, wrapWidth)) {
+      top = top + rowHeight(packetLine(other), packetFlags(other), wrapWidth);
+    }
+    other = other + 1;
+  }
+  return top;
+}
+
+export function rowRank(slot: Int, sort: Int): Int {
+  let rank: Int = 0;
+  let other: Int = 0;
+  const count: Int = ClanBoardPackets.length;
+  const mine: String = sortKey(packetLine(slot), slot, sort);
+  while (other < count) {
+    if (
+      other !== slot &&
+      packetLine(other).length > 0 &&
+      sortsBefore(sortKey(packetLine(other), other, sort), other, mine, slot)
+    ) {
+      rank = rank + 1;
+    }
+    other = other + 1;
+  }
+  return rank;
+}
+
+export function slotHeight(slot: Int, wrapWidth: Int): Int {
+  const line: String = packetLine(slot);
+  if (line.length === 0) {
+    return 0;
+  }
+  return rowHeight(line, packetFlags(slot), wrapWidth);
+}
+
+export function slotTop(slot: Int, sort: Int, wrapWidth: Int): Int {
+  if (packetLine(slot).length === 0) {
+    return 0;
+  }
+  return rowTop(slot, sort, wrapWidth);
+}
+
+export function filledRowCount(): Int {
+  let filled: Int = 0;
+  let slot: Int = 0;
+  const count: Int = ClanBoardPackets.length;
+  while (slot < count) {
+    if (packetLine(slot).length > 0) {
+      filled = filled + 1;
+    }
+    slot = slot + 1;
+  }
+  return filled;
+}
+
+export function listExtent(wrapWidth: Int): Int {
+  let extent: Int = 0;
+  let slot: Int = 0;
+  const count: Int = ClanBoardPackets.length;
+  while (slot < count) {
+    if (packetLine(slot).length > 0) {
+      extent = extent + rowHeight(packetLine(slot), packetFlags(slot), wrapWidth);
+    }
+    slot = slot + 1;
+  }
+  return extent;
+}
+
+export function filtersExtent(rowHeightEach: Int): Int {
+  let extent: Int = 0;
+  let index: Int = 0;
+  const count: Int = ClanInterests.length;
+  while (index < count) {
+    if ((ClanInterests.at(index) ?? '').length > 0) {
+      extent = extent + rowHeightEach;
+    }
+    index = index + 1;
+  }
+  return extent;
+}
+
+export function filtersFloor(): Int {
+  return Layout.FILTERS_FLOOR + Layout.LEGEND_H;
+}
+
+export function listFloor(): Int {
+  return Layout.LIST_FLOOR + Layout.SORT_H + Layout.LIST_FLOOR_PAD + Layout.BOTTOM_H;
+}
+
+export function boardHeight(slotHeight: Int, filtersContent: Int, listContent: Int): Int {
+  const wanted: Int = Math.max(filtersContent + filtersFloor(), listContent + listFloor());
+  return Math.min(slotHeight - Layout.PANEL_MARGIN, wanted);
+}
+
+export function paneScrollExtent(content: Int, height: Int, floor: Int): Int {
+  if (content > height - floor) {
+    return content;
+  }
+  return 0;
+}
+
+export function filtersScrollHeight(slotHeight: Int, filterRowHeight: Int): Int {
+  const filtersContent: Int = filtersExtent(filterRowHeight);
+  const listContent: Int = listExtent(Layout.LIST_PANE_W - Layout.ROW_INSET_W);
+  const height: Int = boardHeight(slotHeight, filtersContent, listContent);
+  return paneScrollExtent(filtersContent, height, filtersFloor());
+}
+
+export function listScrollHeight(slotHeight: Int, filterRowHeight: Int, listWidth: Int): Int {
+  const filtersContent: Int = filtersExtent(filterRowHeight);
+  const listContent: Int = listExtent(listWidth - Layout.ROW_INSET_W);
+  const height: Int = boardHeight(slotHeight, filtersContent, listContent);
+  return paneScrollExtent(listContent, height, listFloor());
+}
+
+export function noClansText(filtered: Int): String {
+  if (filtered !== 0) {
+    return 'No clans matching your filter settings, for which you satisfy the requirements, are currently accepting applications on this world.';
+  }
+  return 'No clans for which you satisfy the requirements are currently accepting applications on this world.';
+}
+
+export function layoutBoardButtons(): void {
+  const myclanW: Int =
+    Layout.BUTTON_PAD +
+    Math.max(
+      textWidth(Copy.LIST_CLAN, Layout.MEASURE_W, ClanBoardFonts.BODY),
+      textWidth(Copy.DELIST_CLAN, Layout.MEASURE_W, ClanBoardFonts.BODY),
+    );
+  const applicantsW: Int = Layout.BUTTON_PAD + textWidth(Copy.APPLICANTS, Layout.MEASURE_W, ClanBoardFonts.BODY);
+  const refreshW: Int = Layout.BUTTON_PAD + textWidth(Copy.REFRESH, Layout.MEASURE_W, ClanBoardFonts.BODY);
+  const gap: Int = (bottomRef.width - Layout.BOTTOM_INSET - (myclanW + applicantsW + refreshW)) / 4;
+  let x: Int = Layout.BOTTOM_EDGE + gap;
+  myclanRef.width = myclanW;
+  myclanRef.x = x;
+  x = x + myclanW + gap;
+  applicantsRef.width = applicantsW;
+  applicantsRef.x = x;
+  x = x + applicantsW + gap;
+  refreshRef.width = refreshW;
+  refreshRef.x = x;
+}

@@ -1,0 +1,328 @@
+import { CS2, useRef } from 'ts2';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { FswBar, FswButtonAction, FswColor } from './fsw.constants';
+import { fswStripe } from './fsw.helpers';
+import { FswButton } from './fsw-button.component';
+import { FswPointsInfo } from './fsw-points-info.data';
+import { PointsTable } from './points-table.constants';
+
+export function PointsTableView({
+  tableW,
+  col1,
+  col2,
+  col3,
+  lineH,
+  minRow,
+  buttonW,
+  buttonH,
+  font,
+}: {
+  tableW: Int;
+  col1: Int;
+  col2: Int;
+  col3: Int;
+  lineH: Int;
+  minRow: Int;
+  buttonW: Int;
+  buttonH: Int;
+  font: Font;
+}): Component {
+  const pane = useRef();
+  const total: Int = tableHeight(col1, col2, col3, lineH, minRow, font);
+  const notesW: Int = col3 - PointsTable.CELL_PAD;
+
+  return (
+    <>
+      <layer x={0} y={0} w={{ fill: PointsTable.COL3_INSET }} h={PointsTable.HEADER_H}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <rect
+            x={PointsTable.HEADER_WASH_INSET}
+            y={PointsTable.HEADER_WASH_INSET}
+            w={tableW - PointsTable.COL3_INSET - 2}
+            h={PointsTable.HEADER_WASH_H}
+            fill
+            color={FswColor.WHITE}
+            transparency={PointsTable.HEADER_WASH_TRANSPARENCY}
+          />
+          <line
+            x={PointsTable.HEADER_RULE_X}
+            y={PointsTable.HEADER_RULE_Y}
+            w={tableW - PointsTable.COL3_INSET}
+            h={0}
+            color={FswColor.FRAME}
+          />
+        </layer>
+
+        <layer x={0} y={0} w={col1} h="fill">
+          <HeaderCell label="Task" width={col1} font={font} />
+        </layer>
+        <layer x={col1 - 1} y={0} w={col2 + 1} h="fill">
+          <HeaderCell label="Points" width={col1} font={font} />
+        </layer>
+        <layer x={col1 + col2 - 1} y={0} w={col3 + 3} h="fill">
+          <HeaderCell label="Notes" width={col1} font={font} />
+        </layer>
+      </layer>
+
+      <layer
+        ref={pane}
+        x={0}
+        y={PointsTable.HEADER_H}
+        w={{ fill: PointsTable.COL3_INSET }}
+        h={{ fill: 27 }}
+        scrollHeight={total}
+      >
+        <layer x={0} y={0} w="fill" h="fill">
+          {FswPointsInfo.scan(
+            (row, index, y) => (
+              <rect
+                x={0}
+                y={y}
+                w={tableW}
+                h={rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font)}
+                fill
+                color={FswColor.BLACK}
+                transparency={fswStripe(index)}
+              />
+            ),
+            (row) => rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font),
+          )}
+        </layer>
+
+        <layer x={0} y={0} w={col1} h="fill">
+          {FswPointsInfo.scan(
+            (row, index, y) => (
+              <TaskCell
+                y={y}
+                rowH={rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font)}
+                width={col1}
+                lineH={lineH}
+                font={font}
+                task={row.task}
+                icon={row.icon}
+                iconSize={row.iconSize}
+                iconDx={row.iconDx}
+              />
+            ),
+            (row) => rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font),
+          )}
+        </layer>
+
+        <layer x={col1 - 1} y={0} w={col2 + 1} h="fill">
+          {FswPointsInfo.scan(
+            (row, index, y) => (
+              <PointsCell
+                y={y}
+                rowH={rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font)}
+                width={col2}
+                lineH={lineH}
+                font={font}
+                points={row.points}
+                buttonW={buttonW}
+                buttonH={buttonH}
+              />
+            ),
+            (row) => rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font),
+          )}
+          <line x={PointsTable.RULE_INSET} y={0} w={0} h={total} color={FswColor.RULE} />
+          <line x={col2 + 1 - PointsTable.RULE_INSET} y={0} w={0} h={total} color={FswColor.RULE} />
+        </layer>
+
+        <layer x={col1 + col2 - 1} y={0} w={col3 + 1} h="fill">
+          {FswPointsInfo.scan(
+            (row, index, y) => (
+              <text
+                x={PointsTable.CELL_PAD / 2}
+                y={y}
+                w={notesW}
+                h={rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font)}
+                text={row.notes}
+                font={font}
+                color={FswColor.CREAM}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={lineH}
+              />
+            ),
+            (row) => rowHeight(row.task, row.points, row.notes, col1, col2, notesW, lineH, minRow, font),
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 1 }} y={0} w={PointsTable.COL3_INSET} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={FswBar.TRACK}
+          capTopSprite={FswBar.CAP_TOP}
+          thumbSprite={FswBar.THUMB}
+          capBottomSprite={FswBar.CAP_BOTTOM}
+          arrowUp={FswBar.ARROW_UP}
+          arrowDown={FswBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function HeaderCell({ label, width, font }: { label: String; width: Int; font: Font }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w={width}
+      h={PointsTable.HEADER_H}
+      text={label}
+      font={font}
+      color={FswColor.AMBER}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={PointsTable.HEADER_H}
+    />
+  );
+}
+
+function TaskCell({
+  y,
+  rowH,
+  width,
+  lineH,
+  font,
+  task,
+  icon,
+  iconSize,
+  iconDx,
+}: {
+  y: Int;
+  rowH: Int;
+  width: Int;
+  lineH: Int;
+  font: Font;
+  task: String;
+  icon: Sprite;
+  iconSize: Int;
+  iconDx: Int;
+}): Component {
+  const pairW: Int = textWidth(task, width, font) + PointsTable.ICON_GAP + iconSize;
+  const left: Int = width / 2 - pairW / 2;
+
+  return (
+    <>
+      <sprite
+        x={left + iconDx}
+        y={y + rowH / 2 - iconSize / 2}
+        w={iconSize}
+        h={iconSize}
+        sprite={icon}
+        shadowColor={FswColor.BLACK}
+      />
+      <text
+        x={left + iconSize + PointsTable.ICON_GAP}
+        y={y}
+        w={width}
+        h={rowH}
+        text={task}
+        font={font}
+        color={FswColor.CREAM}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={lineH}
+      />
+    </>
+  );
+}
+
+function PointsCell({
+  y,
+  rowH,
+  width,
+  lineH,
+  font,
+  points,
+  buttonW,
+  buttonH,
+}: {
+  y: Int;
+  rowH: Int;
+  width: Int;
+  lineH: Int;
+  font: Font;
+  points: String;
+  buttonW: Int;
+  buttonH: Int;
+}): Component {
+  return (
+    <>
+      {CS2.compare(points, '#') === 0 ? (
+        <layer x={width / 2 - buttonW / 2} y={y + rowH / 2 - buttonH / 2} w={buttonW} h={buttonH}>
+          <FswButton
+            label="Boss Points"
+            option="View Boss Points"
+            font={font}
+            hoverColor={FswColor.YELLOW}
+            action={FswButtonAction.POINTS_BOSS}
+          />
+        </layer>
+      ) : (
+        <text
+          x={0}
+          y={y}
+          w={width}
+          h={rowH}
+          text={points}
+          font={font}
+          color={FswColor.CREAM}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={lineH}
+        />
+      )}
+    </>
+  );
+}
+
+export function rowHeight(
+  task: String,
+  points: String,
+  notes: String,
+  col1: Int,
+  col2: Int,
+  notesW: Int,
+  lineH: Int,
+  minRow: Int,
+  font: Font,
+): Int {
+  let tallest: Int = textLineCount(task, col1, font) * lineH + PointsTable.CELL_PAD;
+  const pointsH: Int = textLineCount(points, col2, font) * lineH + PointsTable.CELL_PAD;
+  const notesH: Int = textLineCount(notes, notesW, font) * lineH + PointsTable.CELL_PAD;
+  if (pointsH > tallest) {
+    tallest = pointsH;
+  }
+  if (notesH > tallest) {
+    tallest = notesH;
+  }
+  const floor: Int = minRow + PointsTable.CELL_PAD;
+  if (tallest < floor) {
+    tallest = floor;
+  }
+  return tallest;
+}
+
+export function tableHeight(col1: Int, col2: Int, col3: Int, lineH: Int, minRow: Int, font: Font): Int {
+  const notesW: Int = col3 - PointsTable.CELL_PAD;
+  let total: Int = 0;
+  let at: Int = 0;
+  while (at < FswPointsInfo.length) {
+    const row = FswPointsInfo.at(at);
+    const task: String = row === null ? '' : row.task;
+    const points: String = row === null ? '' : row.points;
+    const notes: String = row === null ? '' : row.notes;
+    total = total + rowHeight(task, points, notes, col1, col2, notesW, lineH, minRow, font);
+    at = at + 1;
+  }
+  return total;
+}

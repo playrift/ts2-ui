@@ -1,0 +1,291 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { itemName } from '../lib/lib.engine';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import {
+  Copy,
+  DepositBoxColor,
+  DepositBoxInventories,
+  DepositBoxItems,
+  DepositBoxVarbits,
+  DepositBoxVarps,
+  Grid,
+  LockFrame,
+  LockFrameStyle,
+  LockFrameStyles,
+  QuantityMode,
+  Wash,
+} from './bank-depositbox.constants';
+import { banksideExtraOp, sideSlotLocked, sideSlotLocksShown, sideSlotShowOp } from './bank-depositbox.helpers';
+
+function FilledSlot({
+  item,
+  count,
+  slot,
+  mode,
+  requested,
+  overview,
+  ignoreLocks,
+  showOp,
+  hideSideOps,
+  if1,
+  if2,
+  if3,
+  if4,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  mode: Int;
+  requested: Int;
+  overview: Int;
+  ignoreLocks: Int;
+  showOp: Int;
+  hideSideOps: Int;
+  if1: Int;
+  if2: Int;
+  if3: Int;
+  if4: Int;
+}): Component {
+  const atLeastOne: Int = Math.max(1, requested);
+  let op1: String = '';
+  let op2: String = '';
+  let op3: String = '';
+  let op4: String = '';
+  let op5: String = '';
+  let op6: String = '';
+  if (mode === QuantityMode.FIVE) {
+    op1 = Copy.DEPOSIT_5;
+    op2 = Copy.DEPOSIT_1;
+    op4 = Copy.DEPOSIT_10;
+    op5 = Copy.DEPOSIT_X;
+    op6 = Copy.DEPOSIT_ALL;
+  } else if (mode === QuantityMode.TEN) {
+    op1 = Copy.DEPOSIT_10;
+    op2 = Copy.DEPOSIT_1;
+    op3 = Copy.DEPOSIT_5;
+    op5 = Copy.DEPOSIT_X;
+    op6 = Copy.DEPOSIT_ALL;
+  } else if (mode === QuantityMode.X) {
+    op1 = `Deposit-${atLeastOne}`;
+    op2 = Copy.DEPOSIT_1;
+    op3 = Copy.DEPOSIT_5;
+    op4 = Copy.DEPOSIT_10;
+    op5 = Copy.DEPOSIT_X;
+    op6 = Copy.DEPOSIT_ALL;
+  } else if (mode === QuantityMode.ALL) {
+    op1 = Copy.DEPOSIT_ALL;
+    op2 = Copy.DEPOSIT_1;
+    op3 = Copy.DEPOSIT_5;
+    op4 = Copy.DEPOSIT_10;
+    op5 = Copy.DEPOSIT_X;
+  } else {
+    op2 = Copy.DEPOSIT_1;
+    op3 = Copy.DEPOSIT_5;
+    op4 = Copy.DEPOSIT_10;
+    op5 = Copy.DEPOSIT_X;
+    op6 = Copy.DEPOSIT_ALL;
+  }
+
+  const op9: String = banksideExtraOp(item, slot, hideSideOps, if1, if2, if3, if4);
+
+  const locked: Boolean = sideSlotLocked(ignoreLocks, overview, slot);
+  let op10: String = Copy.EXAMINE;
+  if (sideSlotShowOp(ignoreLocks, showOp)) {
+    if (locked) {
+      op10 = Copy.UNLOCK_SLOT;
+    } else {
+      op10 = Copy.LOCK_SLOT;
+    }
+  }
+
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={DepositBoxColor.SLOT_SHADOW}
+      transparency={Wash.CLEAR}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={[op1, op2, op3, op4, op5, op6, '', '', op9, op10]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+    />
+  );
+}
+
+function LockedEmptySlot({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={DepositBoxItems.BLANK}
+      itemCount={1}
+      outline={1}
+      shadowColor={DepositBoxColor.SLOT_SHADOW}
+      transparency={Wash.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={['', '', '', '', '', '', '', '', '', Copy.UNLOCK_SLOT]}
+      optionSubject={Copy.SLOT_SUBJECT}
+    />
+  );
+}
+
+function EmptySlot({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={DepositBoxItems.BLANK}
+      itemCount={1}
+      outline={1}
+      shadowColor={DepositBoxColor.SLOT_SHADOW}
+      transparency={Wash.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+    />
+  );
+}
+
+function DepositSlot({
+  item,
+  count,
+  slot,
+  mode,
+  requested,
+  overview,
+  ignoreLocks,
+  showOp,
+  hideSideOps,
+  if1,
+  if2,
+  if3,
+  if4,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  mode: Int;
+  requested: Int;
+  overview: Int;
+  ignoreLocks: Int;
+  showOp: Int;
+  hideSideOps: Int;
+  if1: Int;
+  if2: Int;
+  if3: Int;
+  if4: Int;
+}): Component {
+  const locked: Boolean = sideSlotLocked(ignoreLocks, overview, slot);
+  const lockOp: Boolean = sideSlotShowOp(ignoreLocks, showOp);
+  if (item !== -1) {
+    return (
+      <FilledSlot
+        item={item}
+        count={count}
+        slot={slot}
+        mode={mode}
+        requested={requested}
+        overview={overview}
+        ignoreLocks={ignoreLocks}
+        showOp={showOp}
+        hideSideOps={hideSideOps}
+        if1={if1}
+        if2={if2}
+        if3={if3}
+        if4={if4}
+      />
+    );
+  }
+  if (locked && lockOp) {
+    return <LockedEmptySlot slot={slot} />;
+  }
+  return <EmptySlot slot={slot} />;
+}
+
+export function DepositGrid(): Component {
+  const inv = useInventory(DepositBoxInventories.INV);
+  const mode: Int = useServerState(DepositBoxVarbits.MODE);
+  const requested: Int = useServerState(DepositBoxVarps.REQUESTED_QUANTITY);
+  const overview: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_OVERVIEW);
+  const ignoreLocks: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_IGNOREINVLOCKS);
+  const showOp: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_SHOWOP);
+  const hideSideOps: Int = useServerState(DepositBoxVarbits.HIDE_SIDE_OPS);
+  const if1: Int = useServerState(DepositBoxVarps.IF1);
+  const if2: Int = useServerState(DepositBoxVarps.IF2);
+  const if3: Int = useServerState(DepositBoxVarps.IF3);
+  const if4: Int = useServerState(DepositBoxVarps.IF4);
+
+  return (
+    <layer w="fill" h="fill">
+      {inv.map((item, slot) => (
+        <DepositSlot
+          item={item}
+          count={inv.count(slot)}
+          slot={slot}
+          mode={mode}
+          requested={requested}
+          overview={overview}
+          ignoreLocks={ignoreLocks}
+          showOp={showOp}
+          hideSideOps={hideSideOps}
+          if1={if1}
+          if2={if2}
+          if3={if3}
+          if4={if4}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function LockFrameAt({ slot, overview, ignoreLocks }: { slot: Int; overview: Int; ignoreLocks: Int }): Component {
+  if (!sideSlotLocksShown(overview, ignoreLocks)) {
+    return null;
+  }
+  if (!sideSlotLocked(ignoreLocks, overview, slot)) {
+    return null;
+  }
+  const style = LockFrameStyles.at(LockFrameStyle.RED);
+  if (style === null) {
+    return null;
+  }
+  const x: Int = Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X - LockFrame.X_INSET;
+  const y: Int = Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y - LockFrame.Y_INSET;
+  return (
+    <layer x={x} y={y} w={LockFrame.W} h={LockFrame.H}>
+      <rect
+        x={LockFrame.FILL_INSET}
+        y={LockFrame.FILL_INSET}
+        w={LockFrame.W - LockFrame.FILL_SHRINK}
+        h={LockFrame.H - LockFrame.FILL_SHRINK}
+        fill
+        color={DepositBoxColor.LOCK_FILL}
+      />
+      <StructBoxFrame x={0} y={0} w={LockFrame.W} h={LockFrame.H} style={style} />
+    </layer>
+  );
+}
+
+export function LockFrames(): Component {
+  const inv = useInventory(DepositBoxInventories.INV);
+  const overview: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_OVERVIEW);
+  const ignoreLocks: Int = useServerState(DepositBoxVarbits.SIDE_SLOT_IGNOREINVLOCKS);
+
+  return (
+    <layer w="fill" h="fill">
+      {inv.map((item, slot) => (
+        <LockFrameAt slot={slot} overview={overview} ignoreLocks={ignoreLocks} />
+      ))}
+    </layer>
+  );
+}

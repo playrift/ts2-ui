@@ -1,0 +1,191 @@
+import { CS2, useInterval, useRef, useState, useUniverse } from 'ts2';
+
+import { setColorTransparency } from '../lib/board-button.component';
+import { clanBoardSort } from '../lib/game/varcs';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ClanBoardColor,
+  ClanBoardFonts,
+  ClanBoardSounds,
+  Copy,
+  FLASH_CYCLES,
+  Layout,
+  RowTransparency,
+  listRef,
+} from './clans-board.constants';
+import {
+  interestsHeight,
+  normalisedSort,
+  packetField,
+  packetFlags,
+  packetLine,
+  requirementBits,
+  requirementsText,
+  formatInterests,
+  rowRank,
+} from './clans-board.helpers';
+
+export function ClanBoardEntry({ slot }: { slot: Int }): Component {
+  const mount = useUniverse();
+  const stripe = useRef();
+  const [sortSetting] = useState(clanBoardSort);
+  const [readyAt, setReadyAt] = useState(0);
+
+  useInterval(() => {
+    if (readyAt !== 0 && clientClock() >= readyAt) {
+      setReadyAt(0);
+    }
+  });
+
+  const line: String = packetLine(slot);
+  const flags: Int = packetFlags(slot);
+  const filled: Int = line.length > 0 ? 1 : 0;
+  const sort: Int = normalisedSort(sortSetting);
+  const wrapWidth: Int = listRef.width - Layout.ROW_INSET_W;
+
+  const name: String = packetField(line, 0);
+  const size: String = packetField(line, 1);
+  const created: String = packetField(line, 2);
+  const createdKey: String = packetField(line, 3);
+  const interests: String = formatInterests(packetField(line, 4), flags);
+  const interestsH: Int = interestsHeight(line, flags, wrapWidth);
+  const requirements: Int = requirementBits(line);
+
+  const restTransparency: Int = rowRank(slot, sort) % 2 === 0 ? RowTransparency.EVEN : RowTransparency.ODD;
+
+  if (filled === 1 && readyAt === 0) {
+    mount.options = [Copy.VIEW_CLAN, '', '', '', '', '', '', '', '', Copy.REPORT_NAME];
+  } else {
+    mount.options = [];
+  }
+  mount.optionSubject = filled === 1 ? `<col=ff9040>${CS2.tags_remove(name)}</col>` : '';
+  if (filled === 1) {
+    mount.onMouseRepeat = () => {
+      if (readyAt === 0 && !onMobile()) {
+        setColorTransparency(stripe, ClanBoardColor.WHITE, RowTransparency.HOVER);
+      }
+    };
+    mount.onMouseLeave = () => {
+      if (readyAt === 0) {
+        setColorTransparency(stripe, ClanBoardColor.WHITE, restTransparency);
+      }
+    };
+    mount.onOptionSelect = (event) => {
+      if (readyAt !== 0) {
+        return;
+      }
+      if (event.option !== 1 && event.option !== 10) {
+        return;
+      }
+      playSound(ClanBoardSounds.CLICK);
+      CS2.if_resume_pausebutton(event.component);
+      setReadyAt(clientClock() + FLASH_CYCLES);
+    };
+  }
+
+  return filled === 1 ? (
+    <>
+      <rect
+        ref={stripe}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        fill
+        color={ClanBoardColor.WHITE}
+        transparency={readyAt !== 0 ? RowTransparency.PRESSED : restTransparency}
+      />
+      <text
+        x={0}
+        y={0}
+        w={Layout.SORT_NAME_W}
+        h={Layout.ROW_HEAD_H}
+        text={name}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.NAME}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={Layout.SORT_NAME_W}
+        y={0}
+        w={Layout.SORT_SIZE_W}
+        h={Layout.ROW_HEAD_H}
+        text={size}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x="right"
+        y={0}
+        w={{ fill: Layout.SORT_NAME_W + Layout.SORT_SIZE_W }}
+        h={Layout.ROW_HEAD_H}
+        text={created}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x="center"
+        y={Layout.ROW_HEAD_H}
+        w={{ fill: Layout.ROW_INSET_W }}
+        h={interestsH}
+        text={interests}
+        font={ClanBoardFonts.BODY}
+        color={ClanBoardColor.DETAIL}
+        align="center"
+        valign="top"
+        shadow
+      />
+      <text
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        hide
+        text={`${createdKey.padStart(6, '0')}${slot}`}
+        font={ClanBoardFonts.SORT_KEY}
+        color={ClanBoardColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        hide
+        text={`${size.padStart(3, '0')}${slot}`}
+        font={ClanBoardFonts.SORT_KEY}
+        color={ClanBoardColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      {requirements > 0 ? (
+        <text
+          x="center"
+          y={Layout.ROW_HEAD_H + interestsH}
+          w={{ fill: Layout.ROW_INSET_W }}
+          h={Layout.ROW_REQUIREMENTS_H}
+          text={requirementsText(line)}
+          font={ClanBoardFonts.BODY}
+          color={ClanBoardColor.DETAIL}
+          align="center"
+          valign="top"
+          shadow
+        />
+      ) : (
+        <text x={0} y={0} w={0} h={0} hide text="" font={ClanBoardFonts.BODY} />
+      )}
+    </>
+  ) : null;
+}

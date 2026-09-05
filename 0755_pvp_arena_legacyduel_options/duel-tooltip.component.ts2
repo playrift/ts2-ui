@@ -1,0 +1,79 @@
+import { useInterval, useState } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { tooltipStale } from '../lib/tooltip.component';
+import { DuelFonts, DuelLayout, TooltipBox } from './pvp-arena-legacyduel-options.constants';
+import { DuelTips } from './pvp-arena-legacyduel-options.data';
+import { duelTip, hideDuelTooltip } from './pvp-arena-legacyduel-options.state';
+
+export function DuelTooltip(): Component {
+  const [built] = useState(tooltipBuilt);
+  const [key] = useState(duelTip);
+
+  useInterval(
+    built === 1
+      ? () => {
+          if (tooltipStale()) {
+            hideDuelTooltip();
+          }
+        }
+      : undefined,
+  );
+
+  const row = DuelTips.at(key);
+  let text: String = '';
+  let anchorX: Int = 0;
+  let anchorY: Int = 0;
+  let anchorH: Int = 0;
+  let wrap: Int = 0;
+  if (built === 1 && row !== null) {
+    text = row.text;
+    anchorX = row.x;
+    anchorY = row.y;
+    anchorH = row.h;
+    wrap = row.wrap;
+  }
+
+  const hostW: Int = DuelLayout.root.w;
+  const hostH: Int = DuelLayout.root.h;
+  let measure: Int = wrap;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, DuelFonts.LABEL);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, DuelFonts.LABEL);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer x={0} y={0} w={DuelLayout.tooltip.w} h={DuelLayout.tooltip.h} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={DuelFonts.LABEL}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

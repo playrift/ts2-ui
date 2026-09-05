@@ -1,0 +1,70 @@
+import { useInventory, useState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { hasBit, itemName } from '../lib/lib.engine';
+import {
+  Copy,
+  ShareLoadoutColor,
+  ShareLoadoutInventories,
+  ShareLoadoutModels,
+  ShareLoadoutSprites,
+  SlotIcons,
+  WarningCamera,
+  Wash,
+} from './pvp-arena-stagingarea-shareloadout.constants';
+import { wornWarnings } from './pvp-arena-stagingarea-shareloadout.state';
+
+export function LoadoutWornSlot({ slot }: { slot: Int }): Component {
+  const loadout = useInventory(ShareLoadoutInventories.LOADOUT);
+  const [warnings] = useState(wornWarnings);
+
+  const held: Item = loadout[slot];
+  const warned: Boolean = hasBit(warnings, slot);
+
+  if (held === -1) {
+    return (
+      <>
+        <sprite x="center" y="center" w={36} h={36} sprite={ShareLoadoutSprites.PLATE} />
+        <sprite x={{ center: 2 }} y="center" w={36} h={32} transparency={Wash.EMPTY} />
+        <sprite x="center" y="center" w={32} h={32} sprite={SlotIcons.get(slot) ?? -1} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <sprite x="center" y="center" w={36} h={36} sprite={ShareLoadoutSprites.PLATE} />
+      <sprite
+        x={{ center: 2 }}
+        y="center"
+        w={36}
+        h={32}
+        item={held}
+        itemCount={loadout.count(slot)}
+        outline={1}
+        shadowColor={ShareLoadoutColor.SLOT_SHADOW}
+        transparency={Wash.CLEAR}
+        optionSubject={`<col=ff9040>${itemName(held)}</col>`}
+        options={['', '', '', '', '', '', '', '', '', Copy.EXAMINE]}
+        onOptionSelect={(event) => {
+          flashFor(event.self, Wash.FLASH, Wash.CLEAR);
+        }}
+      />
+      {warned && (
+        <model
+          x={{ center: 1 }}
+          y="center"
+          w={36}
+          h={32}
+          model={ShareLoadoutModels.WARNING}
+          offsetX={WarningCamera.offsetX}
+          offsetY={WarningCamera.offsetY}
+          pitch={WarningCamera.pitch}
+          yaw={WarningCamera.yaw}
+          roll={WarningCamera.roll}
+          zoom={WarningCamera.zoom}
+        />
+      )}
+    </>
+  );
+}

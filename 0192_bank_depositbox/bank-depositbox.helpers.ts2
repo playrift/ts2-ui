@@ -1,0 +1,124 @@
+import { CS2, useState } from 'ts2';
+import { hasBit, membersWorld, playSound } from '../lib/lib.engine';
+import { Copy, DepositBoxItems, DepositBoxSounds } from './bank-depositbox.constants';
+import {
+  depositBlocker,
+  depositMain,
+  depositMenuButton,
+  depositMenuOpen,
+  depositSettingsMenu,
+  depositTitle,
+} from './bank-depositbox.state';
+
+export function sideSlotLocksShown(overview: Int, ignoreLocks: Int): Boolean {
+  if (ignoreLocks === 1) {
+    return false;
+  }
+  if (overview === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function sideSlotShowOp(ignoreLocks: Int, showOp: Int): Boolean {
+  if (ignoreLocks === 0 && showOp === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function sideSlotLocked(ignoreLocks: Int, overview: Int, slot: Int): Boolean {
+  if (ignoreLocks === 0 && hasBit(overview, slot)) {
+    return true;
+  }
+  return false;
+}
+
+export function banksideExtraOp(
+  item: Item,
+  slot: Int,
+  hideSideOps: Int,
+  if1: Int,
+  if2: Int,
+  if3: Int,
+  if4: Int,
+): String {
+  if (hideSideOps === 1) {
+    return '';
+  }
+  let op: String = item.banksideOpText!;
+  if (item === DepositBoxItems.RCU_POUCH_SMALL) {
+    if (hasBit(if1, 0)) {
+      op = Copy.EMPTY;
+    }
+  } else if (item === DepositBoxItems.RCU_POUCH_MEDIUM || item === DepositBoxItems.RCU_POUCH_MEDIUM_DEGRADE) {
+    if (hasBit(if1, 1)) {
+      op = Copy.EMPTY;
+    }
+  } else if (item === DepositBoxItems.RCU_POUCH_LARGE || item === DepositBoxItems.RCU_POUCH_LARGE_DEGRADE) {
+    if (hasBit(if1, 2)) {
+      op = Copy.EMPTY;
+    }
+  } else if (item === DepositBoxItems.RCU_POUCH_GIANT || item === DepositBoxItems.RCU_POUCH_GIANT_DEGRADE) {
+    if (hasBit(if1, 3)) {
+      op = Copy.EMPTY;
+    }
+  } else if (item === DepositBoxItems.RCU_POUCH_COLOSSAL || item === DepositBoxItems.RCU_POUCH_COLOSSAL_DEGRADE) {
+    if (hasBit(if1, 4)) {
+      op = Copy.EMPTY;
+    }
+  } else if (item === DepositBoxItems.COAL_BAG || item === DepositBoxItems.COAL_BAG_OPEN) {
+    if (hasBit(if1, 5)) {
+      op = Copy.FILL;
+    }
+  } else {
+    let candidate: Boolean = false;
+    if (op.length <= 0 || hasBit(if4, slot)) {
+      candidate = true;
+    }
+    if (candidate) {
+      let offerable: Boolean = false;
+      if (membersWorld()) {
+        offerable = true;
+      }
+      if (CS2.item_members(item) === 0) {
+        offerable = true;
+      }
+      if (offerable) {
+        if (hasBit(if2, slot)) {
+          op = CS2.item_iop(item, item.banksideOpIndex!);
+        } else if (hasBit(if3, slot)) {
+          op = CS2.item_iop(item, 1);
+        } else if (hasBit(if4, slot)) {
+          op = Copy.FILL;
+        }
+      }
+    }
+  }
+  return op;
+}
+
+export function toggleDepositMenu(): void {
+  playSound(DepositBoxSounds.SELECT);
+  const [open, setOpen] = useState(depositMenuOpen);
+  if (open === 0) {
+    setOpen(1);
+    depositSettingsMenu.hide = false;
+    depositMain.hide = true;
+    depositBlocker.hide = true;
+    depositMenuButton.options = [Copy.HIDE_MENU];
+    depositTitle.text = Copy.MENU_TITLE;
+  } else {
+    setOpen(0);
+    depositSettingsMenu.hide = true;
+    depositMain.hide = false;
+    depositBlocker.hide = false;
+    depositMenuButton.options = [Copy.SHOW_MENU];
+    depositTitle.text = Copy.TITLE;
+  }
+}
+
+export function resetDepositMenu(): void {
+  const [, setOpen] = useState(depositMenuOpen);
+  setOpen(0);
+}

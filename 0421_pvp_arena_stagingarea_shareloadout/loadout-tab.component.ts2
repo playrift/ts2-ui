@@ -1,0 +1,189 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  BUILD_NAME_DEFAULT,
+  BuildNames,
+  Copy,
+  Layout,
+  ShareLoadoutColor,
+  ShareLoadoutFonts,
+  ShareLoadoutSounds,
+  ShareLoadoutSprites,
+  ShareLoadoutVarbits,
+  TAB_LOADING_CYCLES,
+} from './pvp-arena-stagingarea-shareloadout.constants';
+
+export function LoadoutTab({ index }: { index: Int }): Component {
+  const build: Int = useServerState(ShareLoadoutVarbits.BUILD);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const leftCorner = useRef();
+  const rightCorner = useRef();
+  const middle = useRef();
+  const host = useRef();
+
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }
+      : undefined,
+    host,
+  );
+
+  const label: String = BuildNames.get(index) ?? BUILD_NAME_DEFAULT;
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer ref={host} w="fill" h="fill" options={[label]}>
+        <sprite
+          x="left"
+          y="bottom"
+          w={Layout.tab.cornerW}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_HOVER_CORNER}
+        />
+        <sprite
+          x="right"
+          y="bottom"
+          w={Layout.tab.cornerW}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_HOVER_CORNER}
+          hflip
+        />
+        <sprite
+          x="center"
+          y="bottom"
+          w={{ fill: Layout.tab.middleInset }}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_HOVER_MIDDLE}
+          tiling
+        />
+        <text
+          x="center"
+          y={{ center: Layout.tab.labelDy }}
+          w="fill"
+          h="fill"
+          text={Copy.LOADING}
+          font={ShareLoadoutFonts.BODY}
+          color={ShareLoadoutColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  if (build === index) {
+    return (
+      <layer w="fill" h="fill" options={[label]}>
+        <sprite
+          x="left"
+          y="bottom"
+          w={Layout.tab.cornerW}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_ON_CORNER}
+        />
+        <sprite
+          x="right"
+          y="bottom"
+          w={Layout.tab.cornerW}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_ON_CORNER}
+          hflip
+        />
+        <sprite
+          x="center"
+          y="bottom"
+          w={{ fill: Layout.tab.middleInset }}
+          h={Layout.tab.cornerH}
+          sprite={ShareLoadoutSprites.TAB_ON_MIDDLE}
+          tiling
+        />
+        <text
+          x="center"
+          y={{ center: Layout.tab.labelDy }}
+          w="fill"
+          h="fill"
+          text={label}
+          font={ShareLoadoutFonts.BODY}
+          color={ShareLoadoutColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          leftCorner.sprite = ShareLoadoutSprites.TAB_HOVER_CORNER;
+          rightCorner.sprite = ShareLoadoutSprites.TAB_HOVER_CORNER;
+          middle.sprite = ShareLoadoutSprites.TAB_HOVER_MIDDLE;
+        }
+      }}
+      onMouseLeave={() => {
+        leftCorner.sprite = ShareLoadoutSprites.TAB_OFF_CORNER;
+        rightCorner.sprite = ShareLoadoutSprites.TAB_OFF_CORNER;
+        middle.sprite = ShareLoadoutSprites.TAB_OFF_MIDDLE;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(ShareLoadoutSounds.SELECT);
+        setPressedUntil(clientClock() + TAB_LOADING_CYCLES);
+      }}
+    >
+      <sprite
+        ref={leftCorner}
+        x="left"
+        y="bottom"
+        w={Layout.tab.cornerW}
+        h={Layout.tab.cornerH}
+        sprite={ShareLoadoutSprites.TAB_OFF_CORNER}
+      />
+      <sprite
+        ref={rightCorner}
+        x="right"
+        y="bottom"
+        w={Layout.tab.cornerW}
+        h={Layout.tab.cornerH}
+        sprite={ShareLoadoutSprites.TAB_OFF_CORNER}
+        hflip
+      />
+      <sprite
+        ref={middle}
+        x="center"
+        y="bottom"
+        w={{ fill: Layout.tab.middleInset }}
+        h={Layout.tab.cornerH}
+        sprite={ShareLoadoutSprites.TAB_OFF_MIDDLE}
+        tiling
+      />
+      <text
+        x="center"
+        y={{ center: Layout.tab.labelDy }}
+        w="fill"
+        h="fill"
+        text={label}
+        font={ShareLoadoutFonts.BODY}
+        color={ShareLoadoutColor.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

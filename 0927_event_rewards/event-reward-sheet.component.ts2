@@ -1,0 +1,202 @@
+import { useState } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { CrmLoadingIcon } from '../0284_membership_benefits_prompt/crm-loading-icon.component';
+import { restrictedWorld } from './event-rewards.helpers';
+import { buyReward, cancelConfirm } from './event-rewards.state';
+import {
+  ConfirmSheetOpen,
+  ErrorShown,
+  ErrorText,
+  EventColor,
+  EventFonts,
+  EventFrame,
+  type EventReward,
+  EventRewards,
+  LoadingOpen,
+  SelectedReward,
+  THOUSANDS,
+} from './event-rewards.constants';
+
+export function EventConfirmSheet(): Component {
+  const [open] = useState(ConfirmSheetOpen);
+  const [selected] = useState(SelectedReward);
+  const [loading] = useState(LoadingOpen);
+  const restricted: Boolean = restrictedWorld();
+
+  if (open === 0 || selected === -1) {
+    return null;
+  }
+
+  const row: EventReward | null = EventRewards.at(selected);
+  const name: String = row === null ? '' : itemName(row.item as Item);
+  const cost: Int = row === null ? -1 : row.cost;
+
+  return (
+    <layer w="fill" h="fill" noClickThrough>
+      <rect w="fill" h="fill" color={EventColor.DIM} fill transparency={EventFrame.DIM_TRANSPARENCY} />
+
+      <layer x="center" y="center" w={EventFrame.SHEET_W} h={EventFrame.SHEET_H}>
+        <SteelBorder x="center" y="center" title={name} titleColor={SteelborderColor.TITLE} flags={1} />
+
+        <text
+          x={{ center: EventFrame.SHEET_TEXT_X }}
+          y={EventFrame.SHEET_TEXT_Y}
+          w={{ fill: EventFrame.SHEET_TEXT_W_INSET }}
+          h={EventFrame.SHEET_TEXT_H}
+          text={
+            restricted
+              ? `<br><col=ffffff>${name}</col><br><br>It will cost <col=ffffff>${groupDigits(cost, THOUSANDS)}</col> points.`
+              : `<col=ffffff>${name}</col><br><br><br>Are you sure that you wish to buy this item for <col=ffffff>${groupDigits(cost, THOUSANDS)}</col> points?<br><col=ffffff>You cannot sell this item back</col> if you change your mind.`
+          }
+          font={EventFonts.BODY}
+          color={EventColor.SHEET_TEXT}
+          shadow
+          align="left"
+          valign="top"
+          lineHeight={EventFrame.SHEET_LINE_HEIGHT}
+        />
+
+        {!restricted ? <SheetConfirmButton /> : null}
+
+        <SheetCancelButton restricted={restricted} />
+
+        {loading === 1 ? (
+          <layer w="fill" h="fill" noClickThrough>
+            <rect w="fill" h="fill" color={EventColor.DIM} fill transparency={EventFrame.DIM_TRANSPARENCY} />
+            <CrmLoadingIcon />
+          </layer>
+        ) : null}
+      </layer>
+
+      <EventErrorStrip />
+    </layer>
+  );
+}
+
+function EventErrorStrip(): Component {
+  const [error] = useState(ErrorText);
+  const [shown] = useState(ErrorShown);
+
+  return (
+    <layer x="center" y={{ bottom: EventFrame.ERROR_BOTTOM }} w={EventFrame.ERROR_W} h={EventFrame.ERROR_H}>
+      <layer x="center" y="center" w="fill" h="fill">
+        {shown === 1 ? <SteelFrame backdrop /> : null}
+      </layer>
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={error}
+        font={EventFonts.BODY}
+        color={EventColor.ERROR_TEXT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function SheetConfirmButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      x={{ right: EventFrame.SHEET_BUTTON_X }}
+      y={{ bottom: EventFrame.SHEET_BUTTON_BOTTOM }}
+      w={EventFrame.SHEET_BUTTON_W}
+      h={EventFrame.SHEET_BUTTON_H}
+      options={['Confirm']}
+      optionSubject="<col=ff981f>Event reward</col>"
+      onMouseEnter={() => setHovered(mobile ? 0 : 1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => buyReward()}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Confirm"
+        font={EventFonts.BODY}
+        color={hovered === 1 ? EventColor.LABEL_HOVER : EventColor.SELECTED}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function SheetCancelButton({ restricted }: { restricted: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  if (restricted) {
+    return (
+      <layer
+        x="center"
+        y={{ bottom: EventFrame.SHEET_BACK_BOTTOM_RESTRICTED }}
+        w={EventFrame.SHEET_BUTTON_W}
+        h={EventFrame.SHEET_BUTTON_H}
+        options={['Back']}
+        optionSubject="<col=ff981f>Event reward</col>"
+        onMouseEnter={() => setHovered(mobile ? 0 : 1)}
+        onMouseLeave={() => setHovered(0)}
+        onOptionSelect={() => cancelConfirm()}
+      >
+        {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text="Back"
+          font={EventFonts.BODY}
+          color={hovered === 1 ? EventColor.LABEL_HOVER : EventColor.SELECTED}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      x={EventFrame.SHEET_BUTTON_X}
+      y={{ bottom: EventFrame.SHEET_BUTTON_BOTTOM }}
+      w={EventFrame.SHEET_BUTTON_W}
+      h={EventFrame.SHEET_BUTTON_H}
+      options={['Cancel']}
+      optionSubject="<col=ff981f>Event reward</col>"
+      onMouseEnter={() => setHovered(mobile ? 0 : 1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => cancelConfirm()}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Cancel"
+        font={EventFonts.BODY}
+        color={hovered === 1 ? EventColor.LABEL_HOVER : EventColor.SELECTED}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

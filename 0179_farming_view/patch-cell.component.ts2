@@ -1,0 +1,261 @@
+import { CS2, useState, useUniverse } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import {
+  FarmingColor,
+  FarmingFonts,
+  FarmingItems,
+  FarmingSprites,
+  Layout,
+  PatchFlag,
+  Patches,
+  ThinBoxInk,
+} from './farming-view.constants';
+import {
+  patchComposted,
+  patchCropLine,
+  patchFilled,
+  patchGrowthShown,
+  patchLastState,
+  patchWashed,
+  patchWatered,
+} from './farming-view.helpers';
+import {
+  hidePatchTooltip,
+  invokedFlags,
+  invokedGrowth,
+  invokedItem,
+  invokedLastState,
+  invokedMinYield,
+  invokedPatch,
+  invokedWatered,
+  showPatchTooltip,
+} from './farming-view.state';
+
+export function PatchPanel({ patch }: { patch: Int }): Component {
+  const [invoked] = useState(invokedPatch);
+  const [flags] = useState(invokedFlags);
+
+  const filled: Boolean = patchFilled(invoked, patch);
+  const wash: Boolean = patchWashed(flags);
+
+  return (
+    <>
+      {filled && wash ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={hasBit(flags, PatchFlag.DEAD) ? FarmingColor.DEAD_WASH : FarmingColor.DISEASED_WASH}
+          transparency={Layout.WASH_TRANSPARENCY}
+        />
+      ) : filled ? (
+        <sprite x="center" y="center" w="fill" h="fill" sprite={FarmingSprites.BACKING} tiling />
+      ) : (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text="Loading..."
+          font={FarmingFonts.BODY}
+          color={FarmingColor.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+      <rect x="center" y="center" w="fill" h="fill" color={ThinBoxInk.OUTER} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={ThinBoxInk.INNER} />
+    </>
+  );
+}
+
+export function PatchOverlay({ patch }: { patch: Int }): Component {
+  const universe = useUniverse();
+  const [invoked] = useState(invokedPatch);
+  const [itemSeed] = useState(invokedItem);
+  const [growthSeed] = useState(invokedGrowth);
+  const [lastSeed] = useState(invokedLastState);
+  const [minYield] = useState(invokedMinYield);
+  const [wateredSeed] = useState(invokedWatered);
+  const [flags] = useState(invokedFlags);
+
+  if (invoked !== patch) {
+    return null;
+  }
+
+  const item: Item = itemSeed as Item;
+  const row = Patches.get(patch);
+  const title: String = row === null ? 'Patch' : row.name;
+  const growth: Int = patchGrowthShown(growthSeed, lastSeed);
+  const last: Int = patchLastState(lastSeed);
+  const watered: Boolean = patchWatered(wateredSeed);
+  const barHeight: Int = universe.height - Layout.BAR_INSET_H;
+  const barFull: Int = barHeight - Layout.BAR_INNER_INSET;
+  const statusColor: Int = hasBit(flags, PatchFlag.DEAD)
+    ? FarmingColor.DEAD
+    : hasBit(flags, PatchFlag.DISEASED)
+      ? FarmingColor.TEXT
+      : FarmingColor.HEALTHY;
+  const composted: Boolean = patchComposted(flags);
+
+  return (
+    <layer w="fill" h="fill" onMouseRepeat={() => showPatchTooltip()} onMouseLeave={() => hidePatchTooltip()}>
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={Layout.LINE_H}
+        text={title}
+        font={FarmingFonts.TITLE}
+        color={FarmingColor.TEXT}
+        shadow
+        align="center"
+        valign="bottom"
+      />
+      <text
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Layout.LINE_H}
+        text={patchCropLine(patch, item)}
+        font={FarmingFonts.BODY}
+        color={FarmingColor.TEXT}
+        shadow
+        align="center"
+        valign="top"
+      />
+
+      {growth > 0 && (
+        <>
+          <rect
+            x={Layout.BAR_X}
+            y={{ bottom: Layout.BAR_BOTTOM }}
+            w={Layout.BAR_W_OUTER}
+            h={barHeight}
+            fill
+            color={FarmingColor.BLACK}
+          />
+          <rect
+            x={Layout.BAR_X}
+            y={{ bottom: Layout.BAR_BOTTOM }}
+            w={Layout.BAR_W_OUTER}
+            h={barHeight}
+            color={statusColor}
+          />
+          <rect
+            x={Layout.BAR_INNER_X}
+            y={{ bottom: Layout.BAR_INNER_BOTTOM }}
+            w={Layout.BAR_W_INNER}
+            h={CS2.interpolate(0, growth, 0, last, barFull)}
+            fill
+            color={statusColor}
+          />
+        </>
+      )}
+
+      {hasBit(flags, PatchFlag.GARDENER) ? (
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_Y }}
+          w={Layout.ICON}
+          h={Layout.ICON}
+          sprite={FarmingSprites.GARDENER}
+        />
+      ) : hasBit(flags, PatchFlag.HOSIDIUS_PROTECTED) ? (
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_Y }}
+          w={Layout.ICON_NARROW}
+          h={Layout.ICON}
+          sprite={FarmingSprites.HOSIDIUS}
+        />
+      ) : hasBit(flags, PatchFlag.UNDEAD) ? (
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_Y }}
+          w={Layout.ICON_NARROW}
+          h={Layout.ICON}
+          sprite={FarmingSprites.UNDEAD}
+        />
+      ) : hasBit(flags, PatchFlag.FLOWER_PROTECTED) ? (
+        <sprite
+          x="center"
+          y={{ bottom: Layout.ICON_Y }}
+          w={Layout.ICON}
+          h={Layout.ICON_ITEM_H}
+          item={FarmingItems.FLOWERS}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={FarmingColor.ICON_SHADOW}
+        />
+      ) : null}
+
+      {watered ? (
+        <sprite
+          x={{ right: Layout.ICON_X_RIGHT }}
+          y={Layout.ICON_Y}
+          w={Layout.ICON}
+          h={Layout.ICON_ITEM_H}
+          item={FarmingItems.WATERING_CAN_FULL}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={FarmingColor.ICON_SHADOW}
+        />
+      ) : hasBit(flags, PatchFlag.SHOW_WATER) ? (
+        <sprite
+          x={{ right: Layout.ICON_X_RIGHT }}
+          y={Layout.ICON_Y}
+          w={Layout.ICON}
+          h={Layout.ICON_ITEM_H}
+          item={FarmingItems.WATERING_CAN_EMPTY}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={FarmingColor.ICON_SHADOW}
+          transparency={Layout.DRY_TRANSPARENCY}
+        />
+      ) : null}
+
+      {composted && (
+        <sprite
+          x={{ right: Layout.ICON_X_RIGHT }}
+          y={{ bottom: Layout.ICON_Y }}
+          w={Layout.ICON}
+          h={Layout.ICON_ITEM_H}
+          item={
+            hasBit(flags, PatchFlag.ULTRACOMPOST)
+              ? FarmingItems.ULTRACOMPOST
+              : hasBit(flags, PatchFlag.SUPERCOMPOST)
+                ? FarmingItems.SUPERCOMPOST
+                : FarmingItems.COMPOST
+          }
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={FarmingColor.ICON_SHADOW}
+        />
+      )}
+
+      {minYield > 0 && (
+        <text
+          x={{ center: Layout.YIELD_DX }}
+          y={{ center: Layout.YIELD_DY }}
+          w={Layout.YIELD_BOX}
+          h={Layout.YIELD_BOX}
+          text={stringOf(minYield)}
+          font={FarmingFonts.YIELD}
+          color={FarmingColor.YIELD}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+    </layer>
+  );
+}
