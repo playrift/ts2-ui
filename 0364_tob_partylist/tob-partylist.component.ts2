@@ -1,0 +1,174 @@
+import { useServerState } from 'ts2';
+
+import { BoardButton } from '../lib/board-button.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  Copy,
+  Layout,
+  TobPartylistColor,
+  TobPartylistFonts,
+  TobPartylistModels,
+  TobPartylistScrollbar,
+  TobPartylistSlots,
+  listRef,
+} from './tob-partylist.constants';
+import { resetTobPartyList } from './tob-partylist.helpers';
+
+export function TobPartylist(): Component {
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={Layout.PANEL_H} onLoad={() => resetTobPartyList()}>
+      <SteelBorderEntrypoint title={Copy.TITLE} />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x="center" y={0} w="fill" h={{ fill: Layout.LIST_BOX_INSET_H }}>
+          <model
+            x={Layout.MODEL_A_X}
+            y={Layout.MODEL_A_Y}
+            w={Layout.MODEL}
+            h={Layout.MODEL}
+            model={TobPartylistModels.CHEST}
+            zoom={600}
+            pitch={512}
+          />
+          <model
+            x={Layout.MODEL_B_X}
+            y={Layout.MODEL_B_Y}
+            w={Layout.MODEL}
+            h={Layout.MODEL}
+            model={TobPartylistModels.CHEST_ALT}
+            zoom={600}
+            pitch={512}
+            yaw={512}
+          />
+          <model
+            x={Layout.MODEL_C_X}
+            y={Layout.MODEL_C_Y}
+            w={Layout.MODEL}
+            h={Layout.MODEL}
+            model={TobPartylistModels.PROP}
+            zoom={800}
+            pitch={512}
+            yaw={256}
+          />
+          <model
+            right={Layout.MODEL_D_RIGHT}
+            y={Layout.MODEL_D_Y}
+            w={Layout.MODEL}
+            h={Layout.MODEL}
+            model={TobPartylistModels.CHEST_ALT}
+            zoom={500}
+            pitch={512}
+            yaw={113}
+          />
+          <model
+            right={Layout.MODEL_E_RIGHT}
+            y={Layout.MODEL_E_Y}
+            w={Layout.MODEL}
+            h={Layout.MODEL}
+            model={TobPartylistModels.CHEST}
+            zoom={700}
+            pitch={512}
+            yaw={682}
+          />
+
+          <layer x="center" y={0} w="fill" h={Layout.HEADER_H}>
+            <layer x={Layout.COL_MEMBERS_X} y="center" w={Layout.COL_MEMBERS_W} h={{ fill: Layout.HEADER_INSET_H }} />
+            <layer x={Layout.COL_SIZE_X} y="center" w={Layout.COL_SIZE_W} h={{ fill: Layout.HEADER_INSET_H }} />
+            <layer x={Layout.COL_LEADER_X} y="center" w={Layout.COL_LEADER_W} h={{ fill: Layout.HEADER_INSET_H }} />
+            <layer x={Layout.COL_COMBAT_X} y="center" w={Layout.COL_COMBAT_W} h={{ fill: Layout.HEADER_INSET_H }} />
+            <layer x={Layout.COL_MODE_X} y="center" w={Layout.COL_MODE_W} h={{ fill: Layout.HEADER_INSET_H }} />
+            <layer
+              right={Layout.COL_AGE_RIGHT}
+              y="center"
+              w={{ fill: Layout.COL_AGE_INSET_W }}
+              h={{ fill: Layout.HEADER_INSET_H }}
+            />
+            <ThinBoxEntrypoint />
+          </layer>
+
+          <layer
+            ref={listRef}
+            x={Layout.LIST_X}
+            y={{ bottom: Layout.LIST_BOTTOM }}
+            w={{ fill: Layout.LIST_INSET_W }}
+            h={{ fill: Layout.LIST_INSET_H }}
+          >
+            {TobPartylistSlots.map(() => (
+              <layer x="center" y={0} w="fill" h={Layout.ROW_H} hide />
+            ))}
+            <text
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              text={Copy.LOADING}
+              font={TobPartylistFonts.BODY}
+              color={TobPartylistColor.LOADING}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          </layer>
+
+          <layer
+            right={Layout.SCROLLBAR_RIGHT}
+            y={{ bottom: Layout.LIST_BOTTOM }}
+            w={Layout.SCROLLBAR_W}
+            h={{ fill: Layout.LIST_INSET_H }}
+          >
+            <ScrollbarVertical
+              content={listRef}
+              track={TobPartylistScrollbar.TRACK}
+              capTopSprite={TobPartylistScrollbar.CAP_TOP}
+              thumbSprite={TobPartylistScrollbar.THUMB}
+              capBottomSprite={TobPartylistScrollbar.CAP_BOTTOM}
+              arrowUp={TobPartylistScrollbar.ARROW_UP}
+              arrowDown={TobPartylistScrollbar.ARROW_DOWN}
+            />
+          </layer>
+
+          <ThinBoxEntrypoint />
+        </layer>
+
+        <layer x={Layout.REFRESH_X} y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H} hide>
+          <BoardButton label={Copy.REFRESH} />
+        </layer>
+
+        <layer x="center" y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H} hide>
+          <TobMyPartyButton />
+        </layer>
+
+        <layer right={Layout.FRIENDS_RIGHT} y="bottom" w={Layout.BUTTON_W} h={Layout.BUTTON_H} hide>
+          <TobFriendsClanButton />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+export function TobMyPartyButton(): Component {
+  const partyHeld: Int = useServerState(Varps.TOB_MYCONTROLLER);
+  return (
+    <layer w="fill" h="fill">
+      <BoardButton label={partyHeld !== -1 ? Copy.MY_PARTY : Copy.MAKE_PARTY} />
+    </layer>
+  );
+}
+
+export function TobFriendsClanButton(): Component {
+  const filtered: Int = useServerState(Varbits.TOB_LOBBY_FRIENDS_FILTER);
+  return (
+    <layer w="fill" h="fill">
+      <BoardButton label={filtered === 1 ? Copy.FRIENDS_CLAN_ON : Copy.FRIENDS_CLAN} />
+    </layer>
+  );
+}

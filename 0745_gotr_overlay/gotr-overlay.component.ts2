@@ -1,0 +1,91 @@
+import { CS2 } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import {
+  atmosphericRef,
+  ComponentType,
+  Fade,
+  PORTAL_ANIM,
+  PosMode,
+  SizeMode,
+  Wipe,
+  WipeChild,
+} from './gotr-overlay.constants';
+
+export function GotrOverlay(): Component {
+  return <layer static ref={atmosphericRef} w="fill" h="fill" x="center" y="center" />;
+}
+
+export function gotrOverlayFadeIn(model: Model, colour: Int, container: ComponentId = atmosphericRef): void {
+  CS2.cc_all_delete(container);
+
+  CS2.cc_create(container, ComponentType.MODEL, WipeChild.MODEL, false);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+  CS2.cc_hide_set(false);
+  CS2.cc_model_set(model);
+  CS2.cc_model_angle_set(0, Wipe.MODEL_OFFSET_Y, 0, 0, 0, Wipe.START_ZOOM);
+  CS2.cc_model_anim_set(PORTAL_ANIM);
+
+  CS2.cc_create(container, ComponentType.RECT, WipeChild.WASH, false);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+  CS2.cc_fill_set(true);
+  CS2.cc_colour_set(colour);
+  CS2.cc_transparency_set(Wipe.CLEAR);
+
+  const startedAt: Int = clientClock();
+  CS2.if_on_timer_set(() => gotrOverlayTick(startedAt, Fade.IN, container), container);
+}
+
+export function gotrOverlayFadeOut(container: ComponentId = atmosphericRef): void {
+  const startedAt: Int = clientClock();
+  CS2.if_on_timer_set(() => gotrOverlayTick(startedAt, Fade.OUT, container), container);
+}
+
+function gotrOverlayTick(start: Int, direction: Int, container: ComponentId): void {
+  const elapsed: Int = clientClock() - start;
+
+  if (elapsed >= Wipe.CYCLES) {
+    if (direction === Fade.OUT) {
+      CS2.cc_all_delete(container);
+    } else if (CS2.cc_find(container, WipeChild.WASH)) {
+      CS2.cc_transparency_set(Wipe.OPAQUE);
+    }
+    CS2.if_on_timer_set(null, container);
+    return;
+  }
+
+  if (CS2.cc_find(container, WipeChild.MODEL)) {
+    if (direction === Fade.IN) {
+      CS2.cc_model_angle_set(
+        0,
+        Wipe.MODEL_OFFSET_Y,
+        0,
+        0,
+        0,
+        Math.max(Wipe.MIN_ZOOM, CS2.scale(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, CS2.cc_model_zoom_get())),
+      );
+    } else {
+      CS2.cc_model_angle_set(
+        0,
+        Wipe.MODEL_OFFSET_Y,
+        0,
+        0,
+        0,
+        Math.max(
+          Wipe.MIN_ZOOM,
+          CS2.scale(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(CS2.cc_model_zoom_get(), Wipe.MIN_ZOOM_OUT)),
+        ),
+      );
+    }
+  }
+
+  if (CS2.cc_find(container, WipeChild.WASH)) {
+    if (direction === Fade.IN) {
+      CS2.cc_transparency_set(CS2.cc_trans_get() - Wipe.STEP);
+    } else {
+      CS2.cc_transparency_set(CS2.cc_trans_get() + Wipe.STEP);
+    }
+  }
+}

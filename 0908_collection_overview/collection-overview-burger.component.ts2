@@ -1,0 +1,135 @@
+import { CS2 } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { buttonSelectSound } from '../0736_league_3_side_panel/league-3-side-panel.state';
+import { graphicSwapperUnlessMobile, onMobile } from '../lib/lib.helpers';
+import {
+  Build,
+  BuildColor,
+  BuildTrans,
+  BuiltCopy,
+  Layout,
+  OverviewColor,
+  OverviewFonts,
+  OverviewSprites,
+  burgerButtonRef,
+  burgerFrameRef,
+  burgerGlyphRef,
+  burgerOverlayRef,
+} from './collection-overview.constants';
+
+export function BurgerButton(): Component {
+  return (
+    <layer
+      ref={burgerButtonRef}
+      x={Layout.BURGER_XY}
+      y={Layout.BURGER_XY}
+      w={Layout.BURGER}
+      h={Layout.BURGER}
+      options={[BuiltCopy.BURGER_OP]}
+      onOptionSelect={() => toggleBurgerMenu()}
+    >
+      <sprite
+        ref={burgerGlyphRef}
+        x="center"
+        y="center"
+        w={Build.BURGER_GLYPH}
+        h={Build.BURGER_GLYPH}
+        sprite={OverviewSprites.BURGER}
+        onMouseRepeat={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER_LIT)}
+        onMouseLeave={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER)}
+      />
+    </layer>
+  );
+}
+
+function toggleBurgerMenu(): void {
+  if (CS2.if_hide_get(burgerFrameRef) === false) {
+    burgerFrameRef.hide = true;
+    burgerOverlayRef.hide = true;
+    burgerFrameRef.noClickThrough = false;
+    burgerGlyphRef.sprite = OverviewSprites.BURGER;
+    return;
+  }
+  burgerFrameRef.hide = false;
+  burgerOverlayRef.hide = false;
+  burgerFrameRef.noClickThrough = true;
+  burgerGlyphRef.sprite = OverviewSprites.BURGER_LIT;
+}
+
+export function closeBurgerMenu(): void {
+  buttonSelectSound();
+  burgerFrameRef.hide = true;
+  burgerOverlayRef.hide = true;
+  burgerGlyphRef.sprite = OverviewSprites.BURGER;
+}
+
+export function BurgerMenu(): Component {
+  const rowH: Int = (onMobile() ? Build.MENU_ROWS_H_MOBILE : Build.MENU_ROWS_H) / 2;
+  const rowW: Int = (onMobile() ? Build.MENU_W_MOBILE : Build.MENU_W) - Build.MENU_PAD;
+
+  return (
+    <>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={OverviewSprites.BACKDROP_LIGHT} tiling />
+
+      <SteelFrame backdrop={false} />
+
+      <rect
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET}
+        w={rowW}
+        h={rowH}
+        fill
+        color={BuildColor.MENU_HIGHLIGHT}
+        transparency={BuildTrans.INVISIBLE}
+      />
+      <text
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET}
+        w={rowW}
+        h={rowH}
+        text={BuiltCopy.MENU_LOG}
+        font={OverviewFonts.BUILT}
+        color={OverviewColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        options={[BuiltCopy.MENU_LOG_OP]}
+        onOptionSelect={() => closeBurgerMenu()}
+        onMouseEnter={(event) => hoverMenuLabel(event.self, BuildColor.MENU_HIGHLIGHT)}
+        onMouseLeave={(event) => hoverMenuLabel(event.self, OverviewColor.LABEL)}
+      />
+
+      <rect
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET + rowH}
+        w={rowW}
+        h={rowH}
+        fill
+        color={BuildColor.MENU_HIGHLIGHT}
+        transparency={BuildTrans.MENU_HIGHLIGHT}
+      />
+      <text
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET + rowH}
+        w={rowW}
+        h={rowH}
+        text={BuiltCopy.MENU_OVERVIEW}
+        font={OverviewFonts.BUILT}
+        color={BuildColor.MENU_LABEL_SELECTED}
+        transparency={BuildTrans.MENU_LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        options={[BuiltCopy.MENU_OVERVIEW_OP]}
+        onOptionSelect={() => closeBurgerMenu()}
+      />
+    </>
+  );
+}
+
+function hoverMenuLabel(target: ComponentId, color: Int): void {
+  if (!onMobile()) {
+    target.color = color;
+  }
+}

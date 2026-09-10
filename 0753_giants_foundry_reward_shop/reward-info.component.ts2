@@ -1,0 +1,192 @@
+import { onMounted, onUpdated, useServerState, useUniverse } from 'ts2';
+
+import { textLineCount } from '../lib/lib.engine';
+import { Copy, Info, ShopColor, ShopFont, ShopVars } from './giants-foundry-reward-shop.constants';
+import {
+  axisKeyword,
+  axisMagnitude,
+  mouldFlatSpiked,
+  mouldIcon,
+  mouldLevel,
+  mouldLightHeavy,
+  mouldNarrowBroad,
+  mouldTypeLabel,
+  rewardCost,
+  rewardDescription,
+  rewardHeading,
+  rewardItem,
+  rewardMould,
+} from './giants-foundry-reward-shop.helpers';
+import { info as infoRef } from './giants-foundry-reward-shop.refs';
+
+export function RewardInfo(): Component {
+  const selected: Int = useServerState(ShopVars.SELECTED);
+
+  const pane = useUniverse();
+  const paneWidth: Int = pane.width;
+  const textW: Int = paneWidth - Info.PAD * 2;
+
+  const item: Item = rewardItem(selected);
+  const mould: Int = rewardMould(selected);
+  let chosen: Boolean = false;
+  if (item !== -1) {
+    chosen = true;
+  }
+  if (mould >= 0) {
+    chosen = true;
+  }
+
+  const heading: String = rewardHeading(selected);
+  const headingH: Int = textLineCount(heading, textW, ShopFont.BOLD) * Info.LINE_H;
+
+  const iconY: Int = Info.PAD + headingH + Info.GAP;
+  const iconAdvance: Int = chosen ? Info.ICON_ADVANCE + Info.GAP : 0;
+
+  const costY: Int = iconY + iconAdvance;
+  const costText: String = `Cost: ${stringOf(rewardCost(selected))}`;
+  const costH: Int = chosen ? textLineCount(costText, textW, ShopFont.BODY) * Info.LINE_H : 0;
+
+  const bodyY: Int = costY + (chosen ? costH + Info.GAP : 0);
+  const body: String = chosen ? rewardDescription(selected) : Copy.BLURB;
+  const bodyH: Int = textLineCount(body, textW, ShopFont.BODY) * Info.LINE_H;
+
+  const statY: Int = bodyY + bodyH + Info.GAP;
+  const row: Int = Info.LINE_H;
+
+  const extent: Int = mould >= 0 ? statY + row * 2 + Info.GAP + row * 3 + Info.GAP : bodyY + bodyH + Info.GAP;
+
+  onMounted(() => {
+    infoRef.scrollHeight = extent;
+  });
+  onUpdated(() => {
+    infoRef.scrollHeight = extent;
+  });
+
+  return (
+    <layer x={0} y={0} w="fill" h={extent}>
+      <text
+        x={Info.PAD}
+        y={Info.PAD}
+        w={textW}
+        h={headingH}
+        font={ShopFont.BOLD}
+        text={heading}
+        align="center"
+        valign="middle"
+        lineHeight={Info.LINE_H}
+        shadow
+        color={ShopColor.ACCENT}
+      />
+
+      {item !== -1 && (
+        <sprite
+          x={paneWidth / 2 - Info.ITEM_W / 2}
+          y={iconY}
+          w={Info.ITEM_W}
+          h={Info.ITEM_H}
+          item={item}
+          itemCount={-1}
+          outline={1}
+          shadowColor={ShopColor.ICON_SHADOW}
+        />
+      )}
+      {mould >= 0 && (
+        <sprite
+          x={paneWidth / 2 - Info.MOULD_X_OFFSET}
+          y={iconY}
+          w={Info.MOULD_W}
+          h={Info.MOULD_H}
+          sprite={mouldIcon(mould)}
+        />
+      )}
+
+      {chosen && (
+        <text
+          x={Info.PAD}
+          y={costY}
+          w={textW}
+          h={costH}
+          font={ShopFont.BODY}
+          text={costText}
+          align="center"
+          valign="middle"
+          lineHeight={Info.LINE_H}
+          shadow
+          color={ShopColor.ACCENT}
+        />
+      )}
+
+      <text
+        x={Info.PAD}
+        y={bodyY}
+        w={textW}
+        h={bodyH}
+        font={ShopFont.BODY}
+        text={body}
+        lineHeight={Info.LINE_H}
+        shadow
+        color={ShopColor.ACCENT}
+      />
+
+      {mould >= 0 && (
+        <>
+          <text
+            x={Info.PAD}
+            y={statY}
+            w={textW}
+            h={row}
+            font={ShopFont.BODY}
+            text={`Smithing Level: ${stringOf(mouldLevel(mould))}`}
+            lineHeight={Info.LINE_H}
+            shadow
+            color={ShopColor.ACCENT}
+          />
+          <text
+            x={Info.PAD}
+            y={statY + row}
+            w={textW}
+            h={row}
+            font={ShopFont.BODY}
+            text={mouldTypeLabel(mould)}
+            lineHeight={Info.LINE_H}
+            shadow
+            color={ShopColor.ACCENT}
+          />
+          <text
+            x={Info.PAD}
+            y={statY + row * 2 + Info.GAP}
+            w={textW}
+            h={row}
+            font={ShopFont.BODY}
+            text={`${axisKeyword(0, mouldNarrowBroad(mould))}: ${stringOf(axisMagnitude(mouldNarrowBroad(mould)))}`}
+            lineHeight={Info.LINE_H}
+            shadow
+            color={ShopColor.ACCENT}
+          />
+          <text
+            x={Info.PAD}
+            y={statY + row * 3 + Info.GAP}
+            w={textW}
+            h={row}
+            font={ShopFont.BODY}
+            text={`${axisKeyword(1, mouldLightHeavy(mould))}: ${stringOf(axisMagnitude(mouldLightHeavy(mould)))}`}
+            lineHeight={Info.LINE_H}
+            shadow
+            color={ShopColor.ACCENT}
+          />
+          <text
+            x={Info.PAD}
+            y={statY + row * 4 + Info.GAP}
+            w={textW}
+            h={row}
+            font={ShopFont.BODY}
+            text={`${axisKeyword(2, mouldFlatSpiked(mould))}: ${stringOf(axisMagnitude(mouldFlatSpiked(mould)))}`}
+            lineHeight={Info.LINE_H}
+            shadow
+            color={ShopColor.ACCENT}
+          />
+        </>
+      )}
+    </layer>
+  );
+}

@@ -1,0 +1,199 @@
+import { CS2 } from 'ts2';
+
+import { StoneButton } from '../lib/stone-button.component';
+import { buttonSelectSound } from '../0736_league_3_side_panel/league-3-side-panel.state';
+import {
+  Build,
+  BuildColor,
+  BuildTrans,
+  BuiltCopy,
+  OverviewFonts,
+  OverviewSprites,
+} from './collection-overview.constants';
+import { CollectionSubsections } from './collection-overview.data';
+import { subsectionCounts } from './collection-overview.state';
+
+export function SubsectionButtons(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <layer x={Build.TILE_X0 + i * Build.TILE_STRIDE} y={0} w={Build.TILE_W} h={Build.TILE_BUTTON_H}>
+          <sprite w="fill" h="fill" sprite={OverviewSprites.TILE_BACKDROP} tiling />
+          <StoneButton />
+        </layer>
+      ))}
+    </>
+  );
+}
+
+export function SubsectionClickMasks(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <rect
+          x={Build.TILE_X0 + i * Build.TILE_STRIDE}
+          y={0}
+          w={Build.TILE_W}
+          h={Build.TILE_BUTTON_H}
+          transparency={BuildTrans.INVISIBLE}
+          options={[`${row.name}${BuiltCopy.TILE_OP_SUFFIX}`]}
+          onOptionSelect={() => buttonSelectSound()}
+        />
+      ))}
+    </>
+  );
+}
+
+export function SubsectionOutlines(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <rect
+          x={Build.TILE_X0 + i * Build.TILE_STRIDE}
+          y={Build.TILE_OUTLINE_Y}
+          w={Build.TILE_W}
+          h={Build.TILE_OUTLINE_H}
+          color={BuildColor.TILE_OUTLINE}
+          transparency={BuildTrans.TILE_OUTLINE}
+          optionSubject={`${BuiltCopy.TILE_OPBASE_OPEN}${row.name}${BuiltCopy.TILE_OPBASE_CLOSE}`}
+        />
+      ))}
+    </>
+  );
+}
+
+export function SubsectionNames(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <text
+          x={Build.TILE_X0 + i * Build.TILE_STRIDE}
+          y={Build.TILE_NAME_Y}
+          w={Build.TILE_W}
+          h={Build.TILE_NAME_H}
+          text={row.name}
+          font={OverviewFonts.BUILT}
+          color={BuildColor.TILE_NAME}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      ))}
+    </>
+  );
+}
+
+export function SubsectionIcons(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <sprite
+          x={Build.TILE_X0 + i * Build.TILE_STRIDE + Build.TILE_ICON_DX}
+          y={Build.TILE_ICON_Y}
+          w={Build.ICON_W}
+          h={Build.ICON_H}
+          item={row.icon}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+        />
+      ))}
+    </>
+  );
+}
+
+export function SubsectionProgress(): Component {
+  return (
+    <>
+      {CollectionSubsections.map((row, i) => (
+        <SubsectionProgressBlock slot={i} left={Build.TILE_X0 + i * Build.TILE_STRIDE} />
+      ))}
+    </>
+  );
+}
+
+function SubsectionProgressBlock({ slot, left }: { slot: Int; left: Int }): Component {
+  const [have, max] = subsectionCounts(slot);
+  const complete: Boolean = have === max;
+  const accent: Int = complete ? BuildColor.SEG_DONE : BuildColor.SEG_PARTIAL;
+
+  let ink: Int = BuildColor.SEG_EMPTY;
+  if (complete) {
+    ink = accent;
+  } else if (have > 0) {
+    ink = BuildColor.SEG_PARTIAL;
+  }
+
+  const span: Int = 1 + CS2.scale(have, max > 1 ? max : 1, Build.SEG_SPAN);
+  const x: Int = left + Build.SEG_DX;
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={Build.SEG_Y + Build.SEG_SPACER_DY}
+        w={Build.SEG_W}
+        h={Build.SEG_SPACER_H}
+        fill
+        color={BuildColor.MENU_HIGHLIGHT}
+        transparency={BuildTrans.INVISIBLE}
+      />
+
+      <text
+        x={x}
+        y={Build.SEG_Y + Build.SEG_TEXT_DY}
+        w={Build.SEG_W}
+        h={Build.SEG_TEXT_H}
+        text={`${have}/${max}`}
+        color={ink}
+        font={OverviewFonts.BUILT}
+        align="center"
+        valign="top"
+        shadow
+      />
+
+      <rect
+        x={x}
+        y={Build.SEG_Y + Build.SEG_TRACK_DY}
+        w={Build.SEG_W}
+        h={Build.SEG_TRACK_H}
+        fill
+        color={BuildColor.SEG_FRAME}
+        transparency={BuildTrans.SEG_TRACK}
+      />
+
+      {Segments.map((j) => (
+        <rect
+          x={x + j * Build.SEG_STEP}
+          y={Build.SEG_Y + Build.SEG_TRACK_DY}
+          w={Build.SEG_OUTLINE_W}
+          h={Build.SEG_TRACK_H}
+          color={BuildColor.SEG_FRAME}
+        />
+      ))}
+
+      {Segments.map((j) => (
+        <rect
+          x={x + j * Build.SEG_STEP + 1}
+          y={Build.SEG_Y + Build.SEG_FILL_DY}
+          w={segmentFill(span - j * Build.SEG_STEP)}
+          h={Build.SEG_FILL_H}
+          fill
+          color={ink}
+        />
+      ))}
+    </>
+  );
+}
+
+const Segments = [0, 1, 2, 3];
+
+function segmentFill(remaining: Int): Int {
+  if (remaining > Build.SEG_STEP) {
+    return Build.SEG_FILL_W;
+  }
+  if (remaining > 0) {
+    return remaining - 1;
+  }
+  return -1;
+}

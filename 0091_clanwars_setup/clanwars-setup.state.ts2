@@ -1,0 +1,154 @@
+import { sessionState, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { ClanWarsSounds, ClanWarsWash, Layout } from './clanwars-setup.constants';
+import { onEnhancedAny, optionSetting, setOptionSetting, toggleMisc } from './clanwars-setup.helpers';
+import {
+  paneOriginX,
+  paneOriginY,
+  smallBoxHeight,
+  smallBoxLeft,
+  smallBoxSet,
+  smallBoxTop,
+} from './clanwars-setup.panes';
+import { ClanWarsOptions } from './clanwars-setup.data';
+
+export const openSmallBox = sessionState(-1);
+
+export const hoveredEntry = sessionState(-1);
+
+export const tooltipKey = sessionState(-1);
+export const tooltipLeft = sessionState(-1);
+export const tooltipTop = sessionState(-1);
+export const tooltipHeight = sessionState(-1);
+
+export const TIP_SET_BASE = 1024;
+
+function clipIntoPane(y: Int, scrolled: Int, height: Int): Int {
+  const inside: Int = y - scrolled;
+  if (inside < 0) {
+    return 0;
+  }
+  if (inside > height) {
+    return height;
+  }
+  return inside;
+}
+
+export function showRowTooltip(key: Int, pane: Ref): void {
+  const [, setKey] = useState(tooltipKey);
+  const [, setLeft] = useState(tooltipLeft);
+  const [, setTop] = useState(tooltipTop);
+  const [, setHeight] = useState(tooltipHeight);
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Layout.tooltip.dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const set: Int = key / 64;
+  const scrolled: Int = pane.scrollY;
+  const height: Int = pane.height;
+  const rowTop: Int = (key % 64) * Layout.row.h;
+  const top: Int = clipIntoPane(rowTop, scrolled, height);
+  const bottom: Int = clipIntoPane(rowTop + Layout.row.h, scrolled, height);
+  setKey(key);
+  setLeft(paneOriginX(set));
+  setTop(paneOriginY(set) + top);
+  setHeight(bottom - top);
+  tooltipRaise();
+}
+
+export function showBoxTooltip(box: Int): void {
+  const [, setKey] = useState(tooltipKey);
+  const [, setLeft] = useState(tooltipLeft);
+  const [, setTop] = useState(tooltipTop);
+  const [, setHeight] = useState(tooltipHeight);
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(Layout.tooltip.dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setKey(TIP_SET_BASE + smallBoxSet(box));
+  setLeft(smallBoxLeft(box));
+  setTop(smallBoxTop(box));
+  setHeight(smallBoxHeight(box));
+  tooltipRaise();
+}
+
+export function hideClanWarsTooltip(): void {
+  const [, setKey] = useState(tooltipKey);
+  tooltipHide();
+  setKey(-1);
+}
+
+export function clanWarsRowLeave(row: ComponentId): void {
+  ccSetTrans(row, ClanWarsWash.CLEAR);
+  hideClanWarsTooltip();
+}
+
+export function chooseOption(key: Int): void {
+  const set: Int = key / 64;
+  const index: Int = key % 64;
+  if (optionSetting(set) === index) {
+    return;
+  }
+  playSound(ClanWarsSounds.SELECT);
+  setOptionSetting(set, index);
+}
+
+export function toggleMiscOption(key: Int): void {
+  const row = ClanWarsOptions.get(key);
+  if (row === null) {
+    return;
+  }
+  playSound(ClanWarsSounds.SELECT);
+  toggleMisc(row.bit);
+}
+
+export function openDropdown(index: SmallBoxIndex): void {
+  const [, setOpen] = useState(openSmallBox);
+  playSound(ClanWarsSounds.SELECT);
+  hideClanWarsTooltip();
+  setOpen(index);
+}
+
+type SmallBoxIndex = Int;
+
+export function dismissDropdown(): void {
+  const [, setOpen] = useState(openSmallBox);
+  const [, setHover] = useState(hoveredEntry);
+  playSound(ClanWarsSounds.SELECT);
+  setOpen(-1);
+  setHover(-1);
+}
+
+export function chooseDropdownOption(key: Int): void {
+  const [, setOpen] = useState(openSmallBox);
+  const [, setHover] = useState(hoveredEntry);
+  playSound(ClanWarsSounds.SELECT);
+  setOptionSetting(key / 64, key % 64);
+  setOpen(-1);
+  setHover(-1);
+}
+
+export function hoverEntry(index: Int): void {
+  const [, setHover] = useState(hoveredEntry);
+  setHover(index);
+}
+
+export function unhoverEntry(): void {
+  const [, setHover] = useState(hoveredEntry);
+  setHover(-1);
+}

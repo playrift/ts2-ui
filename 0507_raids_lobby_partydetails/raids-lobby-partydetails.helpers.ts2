@@ -1,0 +1,218 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { raidsCount } from '../lib/game/varcs';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import {
+  Copy,
+  LabelKind,
+  Layout,
+  PartyRole,
+  PartydetailsCheckbox,
+  PartydetailsTransparency,
+  SortKeyChild,
+  SortMode,
+  statsSlot,
+} from './raids-lobby-partydetails.constants';
+import { PartydetailsRowLines } from './raids-lobby-partydetails.data';
+
+export function rowField(line: String, n: Int): String {
+  let rest: String = line;
+  let skipped: Int = 0;
+  while (skipped < n) {
+    rest = pipeTail(rest);
+    skipped = skipped + 1;
+  }
+  return pipeHead(rest);
+}
+
+export function rowTail(line: String): String {
+  return pipeTail(pipeTail(pipeTail(pipeTail(line))));
+}
+
+export function rowLine(slot: Int): String {
+  return PartydetailsRowLines.at(slot) ?? '';
+}
+
+export function rowCount(): Int {
+  return PartydetailsRowLines.length;
+}
+
+export function resetRaidsPartyDetails(): void {
+  const [, setCount] = useState(raidsCount);
+  setCount(rowCount());
+}
+
+export function normalisedSort(sort: Int): Int {
+  if (sort >= SortMode.NAME_ASC && sort <= SortMode.KILL_DESC) {
+    return sort;
+  }
+  return SortMode.NAME_ASC;
+}
+
+export function sortDescending(sort: Int): Boolean {
+  if (
+    sort === SortMode.NAME_DESC ||
+    sort === SortMode.COMBAT_DESC ||
+    sort === SortMode.SKILL_DESC ||
+    sort === SortMode.KILL_DESC
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function rowSortKey(slot: Int, sort: Int): String {
+  const line: String = rowLine(slot);
+  const child: Int = sortKeyChild(sort);
+  if (child === SortKeyChild.COMBAT) {
+    return `${rowField(line, 1).padStart(3, '0')}${slot}`;
+  }
+  if (child === SortKeyChild.SKILL) {
+    return `${rowField(line, 2).padStart(4, '0')}${slot}`;
+  }
+  if (child === SortKeyChild.KILL) {
+    return `${rowField(line, 3).padStart(4, '0')}${slot}`;
+  }
+  return CS2.tags_remove(rowField(line, 0));
+}
+
+export function sortKeyChild(sort: Int): Int {
+  if (sort === SortMode.COMBAT_ASC || sort === SortMode.COMBAT_DESC) {
+    return SortKeyChild.COMBAT;
+  }
+  if (sort === SortMode.SKILL_ASC || sort === SortMode.SKILL_DESC) {
+    return SortKeyChild.SKILL;
+  }
+  if (sort === SortMode.KILL_ASC || sort === SortMode.KILL_DESC) {
+    return SortKeyChild.KILL;
+  }
+  return SortKeyChild.NAME;
+}
+
+export function sortsBefore(keyA: String, a: Int, keyB: String, b: Int): Boolean {
+  const order: Int = CS2.compare(keyA, keyB);
+  if (order < 0) {
+    return true;
+  }
+  if (order === 0 && a < b) {
+    return true;
+  }
+  return false;
+}
+
+export function rowRank(slot: Int, sort: Int): Int {
+  let rank: Int = 0;
+  let other: Int = 0;
+  const count: Int = rowCount();
+  const mine: String = rowSortKey(slot, sort);
+  while (other < count) {
+    if (other !== slot && sortsBefore(rowSortKey(other, sort), other, mine, slot)) {
+      rank = rank + 1;
+    }
+    other = other + 1;
+  }
+  return rank;
+}
+
+export function rowTop(slot: Int, sort: Int): Int {
+  const rank: Int = rowRank(slot, sort);
+  if (sortDescending(sort)) {
+    return (rowCount() - 1 - rank) * Layout.ROW_H;
+  }
+  return rank * Layout.ROW_H;
+}
+
+export function rowTransparency(slot: Int, rank: Int, selected: Int): Int {
+  if (slot === selected) {
+    return PartydetailsTransparency.ROW_SELECTED;
+  }
+  if (rank % 2 === 0) {
+    return PartydetailsTransparency.ROW_EVEN;
+  }
+  return PartydetailsTransparency.ROW_ODD;
+}
+
+export function keyBelow(key: String, floor: String): Boolean {
+  if (CS2.compare(key, floor) < 0) {
+    return true;
+  }
+  return false;
+}
+
+export function openStats(slot: Int): void {
+  const [, setSelected] = useState(statsSlot);
+  setSelected(slot);
+}
+
+export function listScrollHeight(paneHeight: Int): Int {
+  const extent: Int = rowCount() * Layout.ROW_H;
+  if (extent > paneHeight) {
+    return extent;
+  }
+  return 0;
+}
+
+export function labelRowText(kind: Int, label: String): String {
+  const partySize: Int = useServerState(Varbits.RAIDS_LOBBY_PARTYSIZE);
+  const minCombat: Int = useServerState(Varbits.RAIDS_LOBBY_MINCOMBAT);
+  const minSkillTotal: Int = useServerState(Varbits.RAIDS_LOBBY_MINSKILLTOTAL);
+  const scaling: Int = useServerState(Varbits.RAIDS_SCALING);
+  const mapPool: Int = useServerState(Varbits.RAIDS_MAP_POOL_SELECTED);
+
+  let value: String = '';
+  if (kind === LabelKind.PARTY_SIZE) {
+    value = stringOf(partySize);
+  } else if (kind === LabelKind.MIN_COMBAT) {
+    value = stringOf(minCombat);
+  } else if (kind === LabelKind.MIN_SKILLTOTAL) {
+    value = stringOf(minSkillTotal);
+  } else if (kind === LabelKind.SCALING) {
+    value = stringOf(scaling);
+  } else if (kind === LabelKind.MAP_POOL) {
+    if (mapPool === 0) {
+      value = Copy.MAP_SMALL;
+    }
+    if (mapPool === 1) {
+      value = Copy.MAP_LARGE;
+    }
+    if (mapPool === 2) {
+      value = Copy.MAP_FULL;
+    }
+  }
+  if (value.length > 0) {
+    return `${label}: <col=ffffff>${value}</col>`;
+  }
+  if (kind === LabelKind.CHALLENGE) {
+    return label;
+  }
+  return `${label}: ${Copy.NO_VALUE}`;
+}
+
+export function checkboxSprite(role: Int): Sprite {
+  const mapPool: Int = useServerState(Varbits.RAIDS_MAP_POOL_SELECTED);
+  const challenge: Int = useServerState(Varbits.RAIDS_CHALLENGE_MODE);
+  if (role === PartyRole.OWNER) {
+    if (mapPool !== 2) {
+      return PartydetailsCheckbox.SET_DISABLED;
+    }
+    if (challenge === 1) {
+      return PartydetailsCheckbox.SET_TICKED;
+    }
+    return PartydetailsCheckbox.SET_PLAIN;
+  }
+  if (mapPool !== 2) {
+    return PartydetailsCheckbox.DISABLED;
+  }
+  if (challenge === 1 && mapPool === 2) {
+    return PartydetailsCheckbox.TICKED;
+  }
+  return PartydetailsCheckbox.PLAIN;
+}
+
+export function canKick(): Boolean {
+  if (CS2.friendschat_chat_count_get() > 0 && CS2.friendschat_chat_rank_get() >= CS2.friendschat_chat_min_kick_get()) {
+    return true;
+  }
+  return false;
+}

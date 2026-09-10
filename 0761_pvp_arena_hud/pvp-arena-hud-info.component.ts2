@@ -1,0 +1,59 @@
+import { CS2, Engine, useRef, useRerenderOn, useServerState } from 'ts2';
+
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { Copy, Layout, PvpArenaHudSprites, PvpArenaHudVarbits, Wash } from './pvp-arena-hud.constants';
+import { infoBox } from './pvp-arena-hud.refs';
+
+export function PvpArenaHudInfo(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+
+  const show: Int = useServerState(PvpArenaHudVarbits.SHOW_INFO_BUTTON);
+  const status: Int = useServerState(PvpArenaHudVarbits.STATUS);
+  const remaining: Int = useServerState(PvpArenaHudVarbits.TIME_REMAINING);
+  const icon = useRef();
+
+  let shown: Int = 0;
+  if (show !== 0) {
+    shown = 1;
+    if (status === 1) {
+      if (remaining > 0) {
+        shown = 0;
+      }
+    }
+  }
+
+  const floater: ComponentId = gameframeSlot(GameframeSlot.SUB_MOUNT);
+  let floating: Boolean = false;
+  if (floater !== -1) {
+    floating = CS2.if_sub_has(floater);
+  }
+
+  if (shown === 1) {
+    infoBox.options = [floating ? Copy.CLOSE_OP : Copy.VIEW_OP];
+    infoBox.optionSubject = floating ? Copy.FLOATER_SUBJECT : Copy.INFO_SUBJECT;
+    infoBox.noClickThrough = true;
+  } else {
+    infoBox.options = [];
+    infoBox.noClickThrough = false;
+  }
+
+  if (shown === 0) {
+    return null;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => ccSetTrans(icon, Wash.ICON_DIM)}
+      onMouseLeave={() => ccSetTrans(icon, Wash.ICON_REST)}
+    >
+      {floating ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+
+      <sprite ref={icon} x="center" y="center" w={Layout.ICON} h={Layout.ICON} sprite={PvpArenaHudSprites.INFO} />
+    </layer>
+  );
+}

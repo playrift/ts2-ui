@@ -1,0 +1,71 @@
+import { onMounted, useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { ClanWarsColor, ClanWarsFonts, ClanWarsVarbits, Layout } from './clanwars-setup.constants';
+import { acceptClanWars, cornerBlocked, cornerText, repaintCorner, resetOpponentClock } from './clanwars-setup.helpers';
+
+export function AcceptCorner(): Component {
+  const label = useRef();
+  const button = useRef();
+
+  const accepted: Int = useServerState(ClanWarsVarbits.ACCEPT);
+  const blocked: Boolean = cornerBlocked();
+  const message: String = cornerText();
+  const [hovered, setHovered] = useState(0);
+
+  onMounted(() => {
+    resetOpponentClock();
+  });
+  useInterval(() => {
+    repaintCorner(label, button);
+  });
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        ref={button}
+        x="center"
+        y="center"
+        w={Layout.corner.buttonW}
+        h={Layout.corner.buttonH}
+        hide={blocked}
+        options={['Accept']}
+        onOptionSelect={() => acceptClanWars()}
+        onMouseRepeat={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
+      >
+        {accepted === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={accepted === 1 ? 'Waiting' : 'Accept'}
+          font={ClanWarsFonts.ROW}
+          color={accepted === 1 || hovered === 1 ? ClanWarsColor.SELECTED : ClanWarsColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      <ThinBoxEntrypoint />
+
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w={{ fill: Layout.corner.labelInset }}
+        h="fill"
+        text={message}
+        font={ClanWarsFonts.ROW}
+        color={ClanWarsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

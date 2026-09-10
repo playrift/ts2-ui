@@ -1,0 +1,90 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import {
+  Copy,
+  LabelKind,
+  Layout,
+  PartyRole,
+  PartydetailsColor,
+  PartydetailsFonts,
+  PartydetailsSounds,
+  SET_BUSY_CYCLES,
+} from './raids-lobby-partydetails.constants';
+import { PartydetailsSetup } from './raids-lobby-partydetails.data';
+import { checkboxSprite, labelRowText } from './raids-lobby-partydetails.helpers';
+
+export function PartydetailsLabelRow({ kind, label }: { kind: Int; label: String }): Component {
+  const caption = useRef();
+  const [readyAt, setReadyAt] = useState(0);
+
+  useInterval(() => {
+    if (readyAt !== 0 && clientClock() >= readyAt) {
+      setReadyAt(0);
+    }
+  });
+
+  const busy: Int = readyAt !== 0 ? 1 : 0;
+  const settable: Int = PartydetailsSetup.ROLE === PartyRole.OWNER ? 1 : 0;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[settable === 1 ? Copy.SET : '']}
+      optionSubject={settable === 1 ? `<col=ff9040>${label}</col>` : ''}
+      onMouseRepeat={
+        settable === 1 && busy === 0
+          ? () => {
+              caption.color = PartydetailsColor.LABEL_HOVER;
+            }
+          : undefined
+      }
+      onMouseLeave={
+        settable === 1 && busy === 0
+          ? () => {
+              caption.color = PartydetailsColor.LABEL;
+            }
+          : undefined
+      }
+      onOptionSelect={
+        settable === 1
+          ? (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              if (readyAt !== 0) {
+                return;
+              }
+              playSound(PartydetailsSounds.CLICK);
+              CS2.if_resume_pausebutton(event.component);
+              setReadyAt(clientClock() + SET_BUSY_CYCLES);
+            }
+          : undefined
+      }
+    >
+      {kind === LabelKind.CHALLENGE ? (
+        <sprite
+          x={Layout.CHECKBOX_X}
+          y={Layout.CHECKBOX_Y}
+          w={Layout.CHECKBOX}
+          h={Layout.CHECKBOX}
+          sprite={checkboxSprite(PartydetailsSetup.ROLE)}
+        />
+      ) : null}
+      <text
+        ref={caption}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={busy === 1 ? Copy.PENDING : labelRowText(kind, label)}
+        font={PartydetailsFonts.BODY}
+        color={busy === 1 ? PartydetailsColor.PENDING : PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

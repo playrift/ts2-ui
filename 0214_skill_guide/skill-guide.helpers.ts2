@@ -1,0 +1,62 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { skillGuideV2X, skillGuideV2Y } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { GuideChrome, GuideDrag } from './skill-guide.constants';
+
+export function textColourSwapper(component: ComponentId, colour: Int): void {
+  component.color = colour;
+}
+
+export function guideTopInset(): Int {
+  if (onMobile()) {
+    return GuideChrome.MOBILE_TOP_INSET;
+  }
+  return GuideChrome.DESKTOP_TOP_INSET;
+}
+
+export function guideDraggable(): Boolean {
+  if (CS2.window_mode_get() === 1) {
+    return false;
+  }
+  if (onMobile()) {
+    return false;
+  }
+  const setting: Int = useServerState(Varbits.SETTINGS_INTERFACE_RESIZING);
+  if (setting === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function dragGuideWindow(window: ComponentId, root: ComponentId, mouseX: Int, mouseY: Int): void {
+  if (!guideDraggable()) {
+    return;
+  }
+
+  const top: Int = guideTopInset();
+  const windowW: Int = window.width!;
+  const windowH: Int = window.height!;
+  const frameW: Int = root.width!;
+  const frameH: Int = root.height! - top;
+
+  let x: Int = mouseX;
+  let y: Int = mouseY;
+  if (x < GuideDrag.SNAP_X) {
+    x = 0;
+  }
+  if (y < top + GuideDrag.SNAP_Y) {
+    y = top;
+  }
+  x = Math.max(0, Math.min(x, frameW - windowW));
+  y = Math.max(top, Math.min(y, top + frameH - windowH));
+
+  window.x = x;
+  window.y = y;
+
+  const [, setX] = useState(skillGuideV2X);
+  const [, setY] = useState(skillGuideV2Y);
+  setX(x);
+  setY(y);
+}

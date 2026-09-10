@@ -1,0 +1,93 @@
+import { useRef, useServerState, useState } from 'ts2';
+
+import { teletabScrollPos } from '../lib/game/varcs';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SkillQuantityStrip } from '../lib/skillmain-quantity.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { IngredientPanel } from './ingredient-panel.component';
+import { TabletButton } from './tablet-button.component';
+import {
+  Grid,
+  Panel,
+  TabletCells,
+  TeletabBar,
+  TeletabSprites,
+  TeletabVarbits,
+  TeletabVarps,
+} from './teletabs-craft-if.constants';
+import { teletabBaseItem, teletabRowCount, teletabScrollExtent, teletabTitle } from './teletabs-craft-if.helpers';
+
+export function TeletabsCraft(): Component {
+  const table: Int = useServerState(TeletabVarps.TABLE);
+  const rows: Int = teletabRowCount(table);
+  const extent: Int = teletabScrollExtent(table, rows);
+  const scrolls: Boolean = extent > Grid.MIN_EXTENT ? true : false;
+
+  const spellbook: Int = useServerState(TeletabVarbits.SPELLBOOK);
+
+  const [saved] = useState(teletabScrollPos);
+  const travel: Int = Math.max(extent - Panel.PANE_H, 1);
+  const restore: Int = Math.clamp(0, travel, saved);
+
+  const pane = useRef();
+
+  return (
+    <layer x="center" y="center" w={scrolls ? Panel.WIDE : Panel.NARROW} h={Panel.H}>
+      <SteelBorder title={teletabTitle(spellbook)} titleColor={SteelborderColor.TITLE} flags={0} />
+
+      <layer x="center" y={Panel.BODY_Y} w={{ fill: Panel.BODY_W_INSET }} h={{ fill: Panel.BODY_H_INSET }}>
+        <layer x="right" y={0} w={Panel.STRIP_W} h={Panel.STRIP_MOUNT_H}>
+          <SkillQuantityStrip dx={Panel.STRIP_DX} dy={Panel.STRIP_DY} declared={teletabBaseItem(spellbook)} />
+        </layer>
+
+        <layer x={{ right: Panel.ING_RIGHT }} y="bottom" w={{ fill: Panel.ING_W_INSET }} h={Panel.ING_H}>
+          <IngredientPanel table={table} />
+        </layer>
+
+        <layer x={0} y={0} w={{ fill: Panel.LIST_W_INSET }} h={{ fill: Panel.LIST_H_INSET }}>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={TeletabSprites.BACKING} tiling />
+
+          <layer
+            ref={pane}
+            x={Panel.PANE_X}
+            y="center"
+            w={Panel.PANE_W}
+            h={{ fill: Panel.PANE_H_INSET }}
+            scrollHeight={extent}
+            scrollY={restore}
+          >
+            <layer x={0} y={0} w="fill" h={extent}>
+              {TabletCells.map((cell) => (
+                <layer x={cell.x} y={cell.y} w={Grid.W} h={Grid.H}>
+                  <TabletButton slot={cell.slot} table={table} />
+                </layer>
+              ))}
+            </layer>
+          </layer>
+
+          <layer
+            hide={scrolls ? false : true}
+            x={{ right: Panel.BAR_RIGHT }}
+            y="center"
+            w={Panel.BAR_W}
+            h={{ fill: Panel.BAR_H_INSET }}
+          >
+            <ScrollbarVertical
+              content={pane}
+              track={TeletabBar.TRACK}
+              capTopSprite={TeletabBar.CAP_TOP}
+              thumbSprite={TeletabBar.THUMB}
+              capBottomSprite={TeletabBar.CAP_BOTTOM}
+              arrowUp={TeletabBar.ARROW_UP}
+              arrowDown={TeletabBar.ARROW_DOWN}
+            />
+          </layer>
+
+          <rect x="center" y="center" w="fill" h="fill" color={0x0e0e0c} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={0x474745} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}

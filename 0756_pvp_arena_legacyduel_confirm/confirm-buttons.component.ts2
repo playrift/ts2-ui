@@ -1,0 +1,167 @@
+import { CS2, useInterval, useServerState, useState } from 'ts2';
+
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { clientClock, hasBit, playSound } from '../lib/lib.engine';
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import {
+  ACCEPT_CYCLES,
+  ConfirmBit,
+  ConfirmFonts,
+  ConfirmSounds,
+  ConfirmSprites,
+  ConfirmVarbits,
+  ConfirmVarps,
+  Copy,
+  Layout,
+  TabWash,
+  confirmTab,
+} from './pvp-arena-legacyduel-confirm.constants';
+import { selectConfirmTab } from './pvp-arena-legacyduel-confirm.state';
+
+export function ConfirmTabButton({ tab, icon }: { tab: Int; icon: Sprite }): Component {
+  const options: Int = useServerState(ConfirmVarps.OPTIONS);
+  const [current] = useState(confirmTab);
+  const [hover, setHover] = useState(0);
+
+  let live: Int = 0;
+  if (hasBit(options, ConfirmBit.SHOW_INVENTORIES)) {
+    if (current !== tab) {
+      live = 1;
+    }
+  }
+
+  if (live === 0) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonPressed>
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.tabIcon.w}
+            h={Layout.tabIcon.h}
+            sprite={icon}
+            transparency={hasBit(options, ConfirmBit.SHOW_INVENTORIES) ? TabWash.LIVE : TabWash.DEAD}
+          />
+        </StoneButtonPressed>
+      </layer>
+    );
+  }
+
+  const down: Int = hover;
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => setHover(1)}
+      onMouseLeave={() => setHover(0)}
+      onClick={() => {
+        playSound(ConfirmSounds.SELECT);
+        selectConfirmTab(tab);
+      }}
+    >
+      {down === 1 ? (
+        <StoneButtonPressed>
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.tabIcon.w}
+            h={Layout.tabIcon.h}
+            sprite={icon}
+            transparency={TabWash.LIVE}
+          />
+        </StoneButtonPressed>
+      ) : (
+        <StoneButton>
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.tabIcon.w}
+            h={Layout.tabIcon.h}
+            sprite={icon}
+            transparency={TabWash.LIVE}
+          />
+        </StoneButton>
+      )}
+    </layer>
+  );
+}
+
+export function ConfirmAcceptButton(): Component {
+  const accepted: Int = useServerState(ConfirmVarbits.I_ACCEPT);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hover, setHover] = useState(0);
+
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() >= pressedUntil) {
+            setPressedUntil(0);
+            setHover(0);
+          }
+        }
+      : undefined,
+  );
+
+  const skin: Int = hover;
+
+  if (accepted === 1) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonDraw label={Copy.ACCEPTED} font={ConfirmFonts.BODY} pressed={1} />
+      </layer>
+    );
+  }
+  if (pressedUntil !== 0) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonDraw label={Copy.PRESSED} font={ConfirmFonts.BODY} pressed={1} />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(Copy.ACCEPT)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHover(1);
+        }
+      }}
+      onMouseLeave={() => setHover(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(ConfirmSounds.SELECT);
+        setPressedUntil(clientClock() + ACCEPT_CYCLES);
+      }}
+    >
+      <StoneButtonDraw label={Copy.ACCEPT} font={ConfirmFonts.BODY} pressed={skin} />
+    </layer>
+  );
+}
+
+export function ConfirmDeclineButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(Copy.DECLINE)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={() => closeInterface()}
+    >
+      <StoneButtonDraw label={Copy.DECLINE} font={ConfirmFonts.BODY} pressed={skin} />
+    </layer>
+  );
+}

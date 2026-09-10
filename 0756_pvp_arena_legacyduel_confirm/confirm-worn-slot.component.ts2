@@ -1,0 +1,76 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { hasBit, itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import {
+  ConfirmItem,
+  ConfirmSprites,
+  ConfirmVarbits,
+  Copy,
+  ItemFlash,
+  Layout,
+} from './pvp-arena-legacyduel-confirm.constants';
+import { WornSlotPlaceholders } from './pvp-arena-legacyduel-confirm.data';
+import { hideConfirmTip, showConfirmTip } from './pvp-arena-legacyduel-confirm.state';
+
+export function ConfirmWornSlot({ slot }: { slot: Int }): Component {
+  return (
+    <>
+      <sprite x="center" y="center" w={Layout.cell.plate} h={Layout.cell.plate} sprite={ConfirmSprites.SLOT_PLATE} />
+      <ConfirmWornItem slot={slot} />
+      <ConfirmWornStop slot={slot} />
+    </>
+  );
+}
+
+function ConfirmWornItem({ slot }: { slot: Int }): Component {
+  const worn = useInventory(Inventories.WORN);
+  const held: Item = worn[slot];
+  const placeholder = WornSlotPlaceholders.get(slot);
+
+  if (held !== -1) {
+    return (
+      <sprite
+        x="center"
+        y="center"
+        w={Layout.cell.item}
+        h={Layout.cell.itemH}
+        item={held}
+        itemCount={0}
+        itemCountMode="never"
+        shadowColor={ConfirmItem.SHADOW}
+        outline={ConfirmItem.OUTLINE}
+        optionSubject={`<col=ff9040>${itemName(held)}`}
+        options={['', '', '', '', '', '', '', '', '', Copy.EXAMINE]}
+        onOptionSelect={(event) => flashFor(event.self, ItemFlash.PRESSED, ItemFlash.REST)}
+      />
+    );
+  }
+  if (placeholder === null) {
+    return <layer x="center" y="center" w={Layout.cell.empty} h={Layout.cell.empty} />;
+  }
+  return <sprite x="center" y="center" w={Layout.cell.empty} h={Layout.cell.empty} sprite={placeholder} />;
+}
+
+function ConfirmWornStop({ slot }: { slot: Int }): Component {
+  const barred: Int = useServerState(ConfirmVarbits.WORN_OPTIONS);
+
+  if (!hasBit(barred, slot)) {
+    return (
+      <layer x="center" y="center" w={Layout.cell.stop} h={Layout.cell.stop} onMouseLeave={() => hideConfirmTip()} />
+    );
+  }
+
+  return (
+    <sprite
+      x="center"
+      y="center"
+      w={Layout.cell.stop}
+      h={Layout.cell.stop}
+      sprite={ConfirmSprites.STOP}
+      onMouseRepeat={() => showConfirmTip(slot)}
+      onMouseLeave={() => hideConfirmTip()}
+    />
+  );
+}

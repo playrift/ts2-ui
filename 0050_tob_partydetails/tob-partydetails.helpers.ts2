@@ -1,0 +1,246 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { pipeHead } from '../lib/lib.format';
+import { clientClock } from '../lib/lib.engine';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { raidsCount, raidsListsortDetails } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import {
+  actionRef,
+  backRef,
+  boardBuilt,
+  headerRef,
+  levelRef,
+  modeRef,
+  refreshRef,
+  leaderHighlightRef,
+  refreshStartedAt,
+  sizeRef,
+  sortareaRef,
+  tipIndex,
+  unblockRef,
+  Copy,
+  Layout,
+  PartyRole,
+  ROW_COLUMNS_W,
+  TobPartydetailsColor,
+  p1DownRef,
+  p1UpRef,
+  p2DownRef,
+  p2UpRef,
+  p3DownRef,
+  p3UpRef,
+  p4DownRef,
+  p4UpRef,
+  p5DownRef,
+  p5UpRef,
+} from './tob-partydetails.constants';
+import {
+  APPLICANT_COUNT,
+  BoardPacket,
+  MEMBER_COUNT,
+  MODE_DEFAULT,
+  TobPartydetailsModes,
+} from './tob-partydetails.data';
+
+export function resetTobPartydetails(): void {
+  const [, setCount] = useState(raidsCount);
+  const [, setBuilt] = useState(boardBuilt);
+  const [, setTip] = useState(tipIndex);
+  const [, setStartedAt] = useState(refreshStartedAt);
+  setCount(0);
+  setBuilt(0);
+  setTip(-1);
+  setStartedAt(-1);
+  headerRef.hide = true;
+  sortareaRef.hide = true;
+  backRef.hide = true;
+  refreshRef.hide = true;
+  unblockRef.hide = true;
+  sizeRef.hide = true;
+  levelRef.hide = true;
+  actionRef.hide = true;
+  modeRef.hide = true;
+  tobPartydetailsHideArrows();
+}
+
+export function tobPartydetailsBuild(): void {
+  const [, setBuilt] = useState(boardBuilt);
+  const [, setSort] = useState(raidsListsortDetails);
+  const [, setCount] = useState(raidsCount);
+  const [, setStartedAt] = useState(refreshStartedAt);
+  setBuilt(1);
+  setCount(MEMBER_COUNT + APPLICANT_COUNT);
+
+  headerRef.hide = false;
+
+  if (APPLICANT_COUNT > 0) {
+    sortareaRef.hide = false;
+    setSort(0);
+  } else {
+    sortareaRef.hide = true;
+  }
+
+  backRef.hide = false;
+  refreshRef.hide = false;
+
+  sizeRef.hide = false;
+  levelRef.hide = false;
+  modeRef.hide = false;
+
+  actionRef.hide = false;
+  if (BoardPacket.role === PartyRole.LEADER) {
+    unblockRef.hide = false;
+  }
+
+  if (MEMBER_COUNT > 0) {
+    leaderHighlightRef.hide = false;
+  }
+
+  setStartedAt(clientClock());
+
+  tobPartydetailsPlaceArrows();
+}
+
+export function tobPartydetailsHideArrows(): void {
+  p1UpRef.hide = true;
+  p1DownRef.hide = true;
+  p2UpRef.hide = true;
+  p2DownRef.hide = true;
+  p3UpRef.hide = true;
+  p3DownRef.hide = true;
+  p4UpRef.hide = true;
+  p4DownRef.hide = true;
+  p5UpRef.hide = true;
+  p5DownRef.hide = true;
+}
+
+export function tobPartydetailsPlaceArrows(): void {
+  tobPartydetailsHideArrows();
+  if (BoardPacket.role !== PartyRole.LEADER) {
+    return;
+  }
+  placeArrowPair(p1UpRef, p1DownRef, 0);
+  placeArrowPair(p2UpRef, p2DownRef, 1);
+  placeArrowPair(p3UpRef, p3DownRef, 2);
+  placeArrowPair(p4UpRef, p4DownRef, 3);
+  placeArrowPair(p5UpRef, p5DownRef, 4);
+}
+
+function placeArrowPair(up: ComponentId, down: ComponentId, index: Int): void {
+  const top: Int = index * Layout.ROW_H + Layout.ROW_TOP;
+  const left: Int = ROW_COLUMNS_W + 8;
+  up.hide = false;
+  up.x = left;
+  up.y = top;
+  up.width = Layout.ARROW_LIVE;
+  up.height = Layout.ARROW_LIVE;
+  up.color = TobPartydetailsColor.MOVE_UP;
+  down.hide = false;
+  down.x = left + Layout.ARROW_LIVE + 8;
+  down.y = top;
+  down.width = Layout.ARROW_LIVE;
+  down.height = Layout.ARROW_LIVE;
+}
+
+export function setTobPartydetailsSort(key: Int): void {
+  const [, setSort] = useState(raidsListsortDetails);
+  setSort(key);
+}
+
+export function showTobPartydetailsTip(tip: Int): void {
+  const [, setTip] = useState(tipIndex);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(TOOLTIP_DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setTip(tip);
+  tooltipRaise();
+}
+
+function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4) {
+      return true;
+    }
+    if (type === 5) {
+      return true;
+    }
+    if (type === 10) {
+      return true;
+    }
+  }
+  if (type === 7) {
+    return true;
+  }
+  if (type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function hideTobPartydetailsTip(): void {
+  const [, setTip] = useState(tipIndex);
+  tooltipHide();
+  setTip(-1);
+}
+
+export function rowColor(name: String): Int {
+  if (CS2.compare(CS2.lowercase(name), CS2.lowercase(CS2.tags_remove(CS2.chat_playername()))) === 0) {
+    return TobPartydetailsColor.ROW_SELF;
+  }
+  return TobPartydetailsColor.ROW;
+}
+
+export function partyTitle(leader: String): String {
+  if (leader.length > 0) {
+    return `${Copy.PARTY_OF}${leader}`;
+  }
+  return Copy.LEADERLESS;
+}
+
+export function plateNumber(label: String, value: Int): String {
+  if (value > 0) {
+    return `${label}${Copy.VALUE_OPEN}${value}${Copy.VALUE_CLOSE}`;
+  }
+  return `${label}${Copy.VALUE_NONE}`;
+}
+
+export function plateMode(label: String, key: Int): String {
+  const name: String = TobPartydetailsModes.at(key) ?? MODE_DEFAULT;
+  return `${label}${Copy.VALUE_OPEN}${name}${Copy.VALUE_CLOSE}`;
+}
+
+export function rowTransparency(index: Int): Int {
+  if (index % 2 === 0) {
+    return Layout.ROW_TRANSPARENCY_ALT;
+  }
+  return Layout.ROW_TRANSPARENCY;
+}
+
+export function cellText(field: String): String {
+  if (field.length > 0) {
+    return field;
+  }
+  return Copy.EMPTY_CELL;
+}
+
+export function cellColor(field: String, base: Int): Int {
+  if (field.length > 0) {
+    return base;
+  }
+  return TobPartydetailsColor.MUTED;
+}
+
+export function rowSubject(name: String): String {
+  return `<col=ff9040>${name}</col>`;
+}
+
+const TOOLTIP_DWELL = 25;

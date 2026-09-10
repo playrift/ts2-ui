@@ -1,0 +1,99 @@
+import { useInventory, useServerState } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  Grid,
+  SeedVaultColor,
+  SeedVaultDeposit,
+  SeedVaultVarps,
+  SELECT_ALL,
+} from './seed-vault-deposit.constants';
+
+function SeedVaultDepositSlot({
+  item,
+  count,
+  slot,
+  armed,
+  typed,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  armed: Int;
+  typed: Int;
+}): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={SeedVaultColor.SLOT_SHADOW}
+      options={[
+        armed === SELECT_ALL ? 'Deposit-All' : armed > 1 ? `Deposit-${armed}` : '',
+        'Deposit-1',
+        'Deposit-5',
+        'Deposit-10',
+        typed > 1 ? `Deposit-${typed}` : '',
+        'Deposit-X',
+        'Deposit-All',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+    />
+  );
+}
+
+function SeedVaultDepositBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BLANK_ITEM}
+      itemCount={1}
+      outline={Grid.OUTLINE}
+      shadowColor={SeedVaultColor.SLOT_SHADOW}
+      hide
+    />
+  );
+}
+
+function SeedVaultDepositCell({
+  item,
+  count,
+  slot,
+  armed,
+  typed,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  armed: Int;
+  typed: Int;
+}): Component {
+  if (item === -1) {
+    return <SeedVaultDepositBlank slot={slot} />;
+  }
+  return <SeedVaultDepositSlot item={item} count={count} slot={slot} armed={armed} typed={typed} />;
+}
+
+export function SeedVaultDepositSide(): Component {
+  const bag = useInventory(SeedVaultDeposit.INV);
+  const armed: Int = useServerState(SeedVaultVarps.SELECTED_QTY);
+  const typed: Int = useServerState(SeedVaultVarps.REQUESTED_QTY);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <SeedVaultDepositCell item={item} count={bag.count(slot)} slot={slot} armed={armed} typed={typed} />
+      ))}
+    </layer>
+  );
+}

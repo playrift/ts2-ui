@@ -1,0 +1,153 @@
+import { useInventory, useServerState, useSkill } from 'ts2';
+
+import { magicToString } from '../0126_farming_tools_side/carried-tools.shared';
+import {
+  Ingredient,
+  Panel,
+  TeletabColor,
+  TeletabFonts,
+  TeletabInventories,
+  TeletabSkills,
+  TeletabSprites,
+  TeletabVarbits,
+  WornSlot,
+} from './teletabs-craft-if.constants';
+import { ingredientDx, ingredientHeld, tabletName, teletabBaseItem, teletabTablet } from './teletabs-craft-if.helpers';
+import { ConfirmButton } from './confirm-button.component';
+
+export function IngredientPanel({ table }: { table: Int }): Component {
+  const spellbook: Int = useServerState(TeletabVarbits.SPELLBOOK);
+  const base: Item = teletabBaseItem(spellbook);
+  const chosen: Int = useServerState(TeletabVarbits.CHOSEN);
+
+  const tablet: Item = table === -1 ? -1 : teletabTablet(table, chosen - 1);
+  const name: String = tabletName(tablet);
+  const spell: Item = tablet === -1 ? -1 : (tablet.teletabSpell ?? -1);
+
+  const opLabel: String = name.length > 0 ? `Create <col=ff9040>${name}</col>` : 'Create';
+
+  const level: Int = useSkill(TeletabSkills.MAGIC);
+  const need: Int = spell === -1 ? 0 : (spell.spellLevelreq ?? 1);
+  const levelLine: String =
+    level >= need ? `${name}: Level ${stringOf(need)}` : `${name}: <col=ff0000>Level ${stringOf(need)}</col>`;
+
+  const worn = useInventory(TeletabInventories.WORN);
+  const weapon: Item = worn[WornSlot.WEAPON];
+  const shield: Item = worn[WornSlot.SHIELD];
+
+  const item1: Item = spell === -1 ? -1 : (spell.magicRunetype1 ?? -1);
+  const item2: Item = spell === -1 ? -1 : (spell.magicRunetype2 ?? -1);
+  const item3: Item = spell === -1 ? -1 : (spell.magicRunetype3 ?? -1);
+  const item4: Item = spell === -1 ? -1 : (spell.magicRunetype4 ?? -1);
+  const need1: Int = spell === -1 ? 0 : (spell.magicRunecount1 ?? 0);
+  const need2: Int = spell === -1 ? 0 : (spell.magicRunecount2 ?? 0);
+  const need3: Int = spell === -1 ? 0 : (spell.magicRunecount3 ?? 0);
+  const need4: Int = spell === -1 ? 0 : (spell.magicRunecount4 ?? 0);
+
+  const has0: Int = spell === -1 ? 0 : 1;
+  const has1: Int = item1 !== -1 && need1 > 0 ? 1 : 0;
+  const has2: Int = item2 !== -1 && need2 > 0 ? 1 : 0;
+  const has3: Int = item3 !== -1 && need3 > 0 ? 1 : 0;
+  const has4: Int = item4 !== -1 && need4 > 0 ? 1 : 0;
+  const drawn: Int = has0 + has1 + has2 + has3 + has4;
+  const at1: Int = has0;
+  const at2: Int = at1 + has1;
+  const at3: Int = at2 + has2;
+  const at4: Int = at3 + has3;
+
+  const held0: Int = has0 === 1 ? ingredientHeld(base, base, weapon, shield) : 0;
+  const held1: Int = has1 === 1 ? ingredientHeld(item1, base, weapon, shield) : 0;
+  const held2: Int = has2 === 1 ? ingredientHeld(item2, base, weapon, shield) : 0;
+  const held3: Int = has3 === 1 ? ingredientHeld(item3, base, weapon, shield) : 0;
+  const held4: Int = has4 === 1 ? ingredientHeld(item4, base, weapon, shield) : 0;
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={TeletabSprites.BACKING} tiling />
+
+      <text
+        x={Panel.LABEL_X}
+        y={{ bottom: Panel.LABEL_BOTTOM }}
+        w={{ fill: Panel.LABEL_W_INSET }}
+        h={Panel.LABEL_H}
+        text={spell === -1 ? 'Select a tablet' : levelLine}
+        font={TeletabFonts.HEADING}
+        color={TeletabColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <layer
+        x={{ right: Panel.CONFIRM_RIGHT }}
+        y={{ bottom: Panel.CONFIRM_BOTTOM }}
+        w={Panel.CONFIRM_W}
+        h={Panel.CONFIRM_H}
+      >
+        <ConfirmButton enabled={spell !== -1 ? true : false} opLabel={opLabel} />
+      </layer>
+
+      {drawn === 0 && spell !== -1 ? (
+        <text
+          x="center"
+          y={Ingredient.UNAVAILABLE_Y}
+          w={{ fill: Ingredient.UNAVAILABLE_W_INSET }}
+          h={Ingredient.UNAVAILABLE_H}
+          text={Ingredient.UNAVAILABLE}
+          font={TeletabFonts.HEADING}
+          color={TeletabColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      ) : null}
+
+      {has0 === 1 ? <IngredientCell item={base} need={1} held={held0} dx={ingredientDx(drawn, 0)} /> : null}
+      {has1 === 1 ? <IngredientCell item={item1} need={need1} held={held1} dx={ingredientDx(drawn, at1)} /> : null}
+      {has2 === 1 ? <IngredientCell item={item2} need={need2} held={held2} dx={ingredientDx(drawn, at2)} /> : null}
+      {has3 === 1 ? <IngredientCell item={item3} need={need3} held={held3} dx={ingredientDx(drawn, at3)} /> : null}
+      {has4 === 1 ? <IngredientCell item={item4} need={need4} held={held4} dx={ingredientDx(drawn, at4)} /> : null}
+
+      <rect x="center" y="center" w="fill" h="fill" color={0x0e0e0c} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={0x474745} />
+    </layer>
+  );
+}
+
+function IngredientCell({ item, need, held, dx }: { item: Item; need: Int; held: Int; dx: Int }): Component {
+  const enough: Boolean = held >= need ? true : false;
+  return (
+    <>
+      <sprite
+        x={{ center: dx }}
+        y={Ingredient.ICON_Y}
+        w={Ingredient.ICON_W}
+        h={Ingredient.ICON_H}
+        item={item}
+        itemCount={1}
+        itemCountMode="never"
+        outline={1}
+        shadowColor={TeletabColor.ICON_SHADOW}
+      />
+      <text
+        x={{ center: dx }}
+        y={Ingredient.COUNT_Y}
+        w={Ingredient.COUNT_W}
+        h={Ingredient.COUNT_H}
+        text={`${magicToString(held)}/${stringOf(need)}`}
+        font={TeletabFonts.BODY}
+        color={enough ? TeletabColor.LABEL : TeletabColor.DIM}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={{ center: dx + Ingredient.MARK_DX }}
+        y={Ingredient.MARK_Y}
+        w={enough ? Ingredient.TICK : Ingredient.CROSS}
+        h={enough ? Ingredient.TICK : Ingredient.CROSS}
+        sprite={enough ? TeletabSprites.TICK : TeletabSprites.CROSS}
+      />
+    </>
+  );
+}

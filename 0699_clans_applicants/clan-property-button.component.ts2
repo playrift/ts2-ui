@@ -1,0 +1,155 @@
+import { CS2, useInterval, useServerState, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { groupDigits } from '../lib/lib.format';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ApplicantsColor,
+  ApplicantsFonts,
+  ApplicantsSounds,
+  ApplicantsVarbits,
+  Copy,
+} from './clans-applicants.constants';
+
+export function ClanPropertyButton({ kind }: { kind: PropertyKind }): Component {
+  const [readyAt, setReadyAt] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [profileWord] = useState(0);
+
+  useInterval(() => {
+    if (readyAt !== 0 && clientClock() >= readyAt) {
+      setReadyAt(0);
+      setHovered(0);
+    }
+  });
+
+  if (readyAt !== 0) {
+    return (
+      <layer w="fill" h="fill">
+        <ButtonBackgroundPressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={Copy.PRESSED}
+          font={ApplicantsFonts.BODY}
+          color={ApplicantsColor.HIGHLIGHT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[propertyOp(kind)]}
+      optionSubject={propertySubject(kind)}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+      onOptionSelect={(event) => {
+        playSound(ApplicantsSounds.CLICK);
+        CS2.if_resume_pausebutton(event.component);
+        setReadyAt(clientClock() + PRESSED_CYCLES);
+      }}
+    >
+      <ButtonBackground />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={propertyLabel(kind, profileWord)}
+        font={ApplicantsFonts.BODY}
+        color={hovered === 1 ? ApplicantsColor.HIGHLIGHT : ApplicantsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+export enum PropertyKind {
+  RECRUIT = 0,
+  COMBAT = 1,
+  SKILL = 2,
+}
+
+function propertyOp(kind: PropertyKind): String {
+  if (kind === PropertyKind.RECRUIT) {
+    return recruitLabel();
+  }
+  return Copy.SET;
+}
+
+function propertySubject(kind: PropertyKind): String {
+  if (kind === PropertyKind.COMBAT) {
+    return Copy.COMBAT_SUBJECT;
+  }
+  if (kind === PropertyKind.SKILL) {
+    return Copy.SKILL_SUBJECT;
+  }
+  return '';
+}
+
+function propertyLabel(kind: PropertyKind, profileWord: Int): String {
+  if (kind === PropertyKind.RECRUIT) {
+    return recruitLabel();
+  }
+  if (kind === PropertyKind.COMBAT) {
+    return combatLabel(profileWord);
+  }
+  return skillLabel(profileWord);
+}
+
+function recruitLabel(): String {
+  if (useServerState(ApplicantsVarbits.I_AM_RECRUITER) === 1) {
+    return Copy.STOP_INVITING;
+  }
+  return Copy.INVITE;
+}
+
+function combatLabel(profileWord: Int): String {
+  if (!CS2.clanprofile_find()) {
+    return Copy.LOADING_TAG;
+  }
+  const level: Int = CS2.bit_range_get(profileWord, 0, 6);
+  if (level >= COMBAT_CAP) {
+    return `Combat: ${level}`;
+  }
+  if (level > 0) {
+    return `Combat: ${level}+`;
+  }
+  return Copy.COMBAT_NONE;
+}
+
+function skillLabel(profileWord: Int): String {
+  if (!CS2.clanprofile_find()) {
+    return Copy.LOADING_TAG;
+  }
+  const total: Int = CS2.bit_range_get(profileWord, 7, 18);
+  if (total >= SKILL_CAP) {
+    return `Skill total: ${groupDigits(total, Copy.SEPARATOR)}`;
+  }
+  if (total > 0) {
+    return `Skill total: ${groupDigits(total, Copy.SEPARATOR)}+`;
+  }
+  return Copy.SKILL_NONE;
+}
+
+const COMBAT_CAP = 126;
+const SKILL_CAP = 2376;
+const PRESSED_CYCLES = 80;

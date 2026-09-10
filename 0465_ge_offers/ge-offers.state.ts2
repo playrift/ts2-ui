@@ -1,0 +1,143 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { tooltipBuilt, tooltipTime } from '../lib/game/varcs';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { GeSounds, NEVER, Slots, TIP_NONE, TIP_STRIDE, Titles, Tooltip } from './ge-offers.constants';
+import { geSinkItem, geTax } from './ge-offers.helpers';
+
+export function selectedSlot(): Int {
+  return useServerState(Varbits.GE_SELECTEDSLOT) - 1;
+}
+
+export function hasSelection(): Boolean {
+  const slot: Int = selectedSlot();
+  if (slot < 0) {
+    return false;
+  }
+  if (slot >= Slots.COUNT) {
+    return false;
+  }
+  return true;
+}
+
+export function selectionIsEmpty(): Boolean {
+  const slot: Int = selectedSlot();
+  if (slot < 0 || slot >= Slots.COUNT) {
+    return false;
+  }
+  if (!CS2.stockmarket_offer_empty_is(slot)) {
+    return false;
+  }
+  if (geSinkItem(slot) === -1) {
+    return true;
+  }
+  return false;
+}
+
+export function panelTitle(): String {
+  if (!hasSelection()) {
+    return Titles.NONE;
+  }
+  return selectionIsEmpty() ? Titles.SETUP : Titles.STATUS;
+}
+
+function anyTaxUnsettled(): Boolean {
+  if (geTax(0) >= NEVER || geTax(1) >= NEVER) {
+    return true;
+  }
+  if (geTax(2) >= NEVER || geTax(3) >= NEVER) {
+    return true;
+  }
+  if (geTax(4) >= NEVER || geTax(5) >= NEVER) {
+    return true;
+  }
+  if (geTax(6) >= NEVER || geTax(7) >= NEVER) {
+    return true;
+  }
+  return false;
+}
+
+export function selectSlot(option: Int, slot: Int, offerType: Int, held: Boolean): void {
+  if (option !== 1 && option !== 2) {
+    return;
+  }
+  playSound(GeSounds.CLICK);
+  if (option !== 1) {
+    return;
+  }
+  if (slot < 0 || slot >= Slots.COUNT) {
+    predictServerState(Varbits.GE_SELECTEDSLOT, 0);
+    return;
+  }
+  let chosen: Int = offerType;
+  const empty: Boolean = CS2.stockmarket_offer_empty_is(slot);
+  if (empty) {
+    if (geSinkItem(slot) !== -1) {
+      chosen = 1;
+    } else if (held) {
+      return;
+    }
+  }
+  if (anyTaxUnsettled()) {
+    return;
+  }
+  predictServerState(Varbits.GE_SELECTEDSLOT, slot + 1);
+  if (chosen !== -1 && empty) {
+    predictServerState(Varbits.GE_NEWOFFER_TYPE, chosen);
+  }
+}
+
+function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+function dwellElapsed(): Boolean {
+  const [until, setUntil] = useState(tooltipTime);
+  if (until < clientClock() + Tooltip.DWELL) {
+    if (until < clientClock()) {
+      setUntil(clientClock() + 2);
+    } else {
+      setUntil(until + 2);
+    }
+    return false;
+  }
+  setUntil(clientClock() + Tooltip.DWELL + 10);
+  return true;
+}
+
+function tooltipReady(): Boolean {
+  const [built] = useState(tooltipBuilt);
+  if (built === TIP_NONE) {
+    return true;
+  }
+  return false;
+}
+
+export function showGeTooltip(handle: Int): void {
+  const [, setTip] = useState(tooltipBuilt);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (tooltipReady() && dwellElapsed()) {
+    setTip(handle + 1);
+  }
+}
+
+export function hideGeTooltip(): void {
+  const [, setTip] = useState(tooltipBuilt);
+  setTip(TIP_NONE);
+}
+
+export function tipHandle(slot: Int, source: Int): Int {
+  return slot * TIP_STRIDE + source;
+}

@@ -1,0 +1,77 @@
+import { CS2, useState } from 'ts2';
+
+import { pollId } from '../lib/game/varcs';
+import { textWidth } from '../lib/lib.engine';
+import {
+  AffinityStatus,
+  AffinityText,
+  ApplicantsFonts,
+  Copy,
+  Layout,
+  combatLevelRef,
+  recruitRef,
+  skillTotalRef,
+} from './clans-applicants.constants';
+
+export function applicantsTitle(status: Int, asGuest: Int, guestStatus: Int): String {
+  if (status === AffinityStatus.LIVE && CS2.activeclansettings_affined_find(0)) {
+    return `${CS2.activeclansettings_clan_name_get()}: ${Copy.TITLE_SUFFIX}`;
+  }
+  return clanStatusText(asGuest, guestStatus, status);
+}
+
+export function clanStatusText(asGuest: Int, guestStatus: Int, status: Int): String {
+  const shown: Int = asGuest === 1 ? guestStatus : status;
+  if (shown === AffinityStatus.FETCHING) {
+    return AffinityText.FETCHING;
+  }
+  if (shown === AffinityStatus.NO_CLAN || shown === AffinityStatus.LIVE) {
+    return AffinityText.NO_CLAN;
+  }
+  if (shown === AffinityStatus.CONNECTING) {
+    return AffinityText.CONNECTING;
+  }
+  return AffinityText.UNAVAILABLE;
+}
+
+export function recruitButtonWidth(): Int {
+  return (
+    Math.max(
+      textWidth(Copy.INVITE, Layout.MEASURE_W, ApplicantsFonts.BODY),
+      textWidth(Copy.STOP_INVITING, Layout.MEASURE_W, ApplicantsFonts.BODY),
+    ) + Layout.BUTTON_PAD
+  );
+}
+
+export function combatButtonWidth(): Int {
+  return (
+    Math.max(
+      textWidth(Copy.COMBAT_MEASURE, Layout.MEASURE_W, ApplicantsFonts.BODY),
+      textWidth(Copy.LOADING_TAG, Layout.MEASURE_W, ApplicantsFonts.BODY),
+    ) + Layout.BUTTON_PAD
+  );
+}
+
+export function skillButtonWidth(): Int {
+  return (
+    Math.max(
+      textWidth(Copy.SKILL_MEASURE, Layout.MEASURE_W, ApplicantsFonts.BODY),
+      textWidth(Copy.LOADING_TAG, Layout.MEASURE_W, ApplicantsFonts.BODY),
+    ) + Layout.BUTTON_PAD
+  );
+}
+
+export function layoutPropertyButtons(): void {
+  const [, setPollId] = useState(pollId);
+  setPollId(0);
+
+  const recruitW: Int = recruitButtonWidth();
+  const combatW: Int = combatButtonWidth();
+  const skillW: Int = skillButtonWidth();
+
+  recruitRef.width = recruitW;
+  combatLevelRef.width = combatW;
+  skillTotalRef.width = skillW;
+
+  combatLevelRef.x = recruitW + (Layout.TOP_W - (recruitW + combatW + skillW)) / 2;
+}

@@ -1,0 +1,195 @@
+import { CS2, stopTimer } from 'ts2';
+import { chatMessage, clientClock, textLineCount } from '../lib/lib.engine';
+import {
+  CONFIRM_NAME_WRAP,
+  Copy,
+  ICON_OPAQUE,
+  ICON_OUTLINE_HOVER,
+  ICON_OUTLINE_REST,
+  PRESS_CYCLES,
+  PetColor,
+  PetFonts,
+  RowShade,
+} from './pet-insurance.constants';
+import {
+  PetLocationNames,
+  PetLocationPhrases,
+  PET_LOCATION_NAME_DEFAULT,
+  PET_LOCATION_PHRASE_DEFAULT,
+} from './pet-insurance.data';
+
+export enum PetList {
+  INSURED = 0,
+  RECLAIMABLE = 1,
+}
+
+export function petBit(index: Int, word0: Int, word1: Int, word2: Int): Boolean {
+  if (index < 31) {
+    return CS2.testbit(word0, index);
+  }
+  if (index < 62) {
+    return CS2.testbit(word1, index - 31);
+  }
+  return CS2.testbit(word2, index - 62);
+}
+
+export function petShown(
+  index: Int,
+  list: PetList,
+  found1: Int,
+  found2: Int,
+  found3: Int,
+  owned1: Int,
+  owned2: Int,
+  owned3: Int,
+): Boolean {
+  const found: Boolean = petBit(index, found1, found2, found3);
+  const insured: Boolean = petBit(index, owned1, owned2, owned3);
+  if (!found) {
+    return false;
+  }
+  if (list === PetList.INSURED) {
+    return insured;
+  }
+  if (insured) {
+    return false;
+  }
+  return true;
+}
+
+export function petRowAdvance(
+  index: Int,
+  list: PetList,
+  height: Int,
+  found1: Int,
+  found2: Int,
+  found3: Int,
+  owned1: Int,
+  owned2: Int,
+  owned3: Int,
+): Int {
+  if (petShown(index, list, found1, found2, found3, owned1, owned2, owned3)) {
+    return height;
+  }
+  return 0;
+}
+
+export function petStripeAdvance(
+  index: Int,
+  list: PetList,
+  found1: Int,
+  found2: Int,
+  found3: Int,
+  owned1: Int,
+  owned2: Int,
+  owned3: Int,
+): Int {
+  if (petShown(index, list, found1, found2, found3, owned1, owned2, owned3)) {
+    return 1;
+  }
+  return 0;
+}
+
+export function petLocation(
+  index: Int,
+  word0: Int,
+  word1: Int,
+  word2: Int,
+  word3: Int,
+  word4: Int,
+  word5: Int,
+  word6: Int,
+  word7: Int,
+  word8: Int,
+): Int {
+  const bank: Int = index / 8;
+  if (bank === 0) {
+    return CS2.bit_range_get(word0, index * 4, index * 4 + 3);
+  }
+  if (bank === 1) {
+    return CS2.bit_range_get(word1, (index - 8) * 4, (index - 8) * 4 + 3);
+  }
+  if (bank === 2) {
+    return CS2.bit_range_get(word2, (index - 16) * 4, (index - 16) * 4 + 3);
+  }
+  if (bank === 3) {
+    return CS2.bit_range_get(word3, (index - 24) * 4, (index - 24) * 4 + 3);
+  }
+  if (bank === 4) {
+    return CS2.bit_range_get(word4, (index - 32) * 4, (index - 32) * 4 + 3);
+  }
+  if (bank === 5) {
+    return CS2.bit_range_get(word5, (index - 40) * 4, (index - 40) * 4 + 3);
+  }
+  if (bank === 6) {
+    return CS2.bit_range_get(word6, (index - 48) * 4, (index - 48) * 4 + 3);
+  }
+  if (bank === 7) {
+    return CS2.bit_range_get(word7, (index - 56) * 4, (index - 56) * 4 + 3);
+  }
+  if (bank === 8) {
+    return CS2.bit_range_get(word8, (index - 64) * 4, (index - 64) * 4 + 3);
+  }
+  chatMessage(`LOCATION UNKNOWN! ID: ${stringOf(index)}`);
+  return 0;
+}
+
+export function petLocationName(location: Int): String {
+  return PetLocationNames.get(location) ?? PET_LOCATION_NAME_DEFAULT;
+}
+
+export function petLocationPhrase(location: Int): String {
+  return PetLocationPhrases.get(location) ?? PET_LOCATION_PHRASE_DEFAULT;
+}
+
+export function tellPetLocation(name: String, location: Int): void {
+  chatMessage(`Your ${name} is currently ${petLocationPhrase(location)}.`);
+}
+
+export function tokenText(processed: Int, discounted: Int): String {
+  if (processed === 0 && discounted === 0) {
+    return Copy.NO_TOKENS;
+  }
+  if (discounted === 1) {
+    return `${stringOf(processed)}${Copy.HALF_TOKEN}`;
+  }
+  return stringOf(processed);
+}
+
+export function confirmNameFont(name: String): Font {
+  if (textLineCount(name, CONFIRM_NAME_WRAP, PetFonts.BOLD) > 1) {
+    if (textLineCount(name, CONFIRM_NAME_WRAP, PetFonts.BODY) > 1) {
+      return PetFonts.SMALL;
+    }
+    return PetFonts.BODY;
+  }
+  return PetFonts.BOLD;
+}
+
+export function enterPetRow(row: ComponentId, icon: ComponentId, label: ComponentId): void {
+  row.transparency = RowShade.HOVER;
+  icon.outline = ICON_OUTLINE_HOVER;
+  label.color = PetColor.WHITE;
+}
+
+export function leavePetRow(row: ComponentId, icon: ComponentId, label: ComponentId, rest: Int): void {
+  row.transparency = rest;
+  icon.outline = ICON_OUTLINE_REST;
+  label.color = PetColor.DIM;
+}
+
+export function pressPetRow(row: ComponentId, icon: ComponentId, label: ComponentId, rest: Int): void {
+  const restoreAt: Int = clientClock() + PRESS_CYCLES;
+  row.transparency = RowShade.PRESSED;
+  icon.outline = ICON_OUTLINE_REST;
+  icon.transparency = RowShade.PRESSED;
+  label.color = PetColor.DIM;
+  row.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    row.transparency = rest;
+    icon.transparency = ICON_OPAQUE;
+    stopTimer(row);
+  };
+}

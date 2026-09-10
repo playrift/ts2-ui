@@ -1,0 +1,147 @@
+import { useServerState } from 'ts2';
+
+import { CS2 } from 'ts2';
+import { scaled } from '../lib/lib.engine';
+import { InfoColor, InfoVarbits, Layout } from './pvp-arena-1v1-info.constants';
+import { BracketLinks } from './pvp-arena-1v1-info.data';
+
+export function BracketLines(): Component {
+  const raw: Int = useServerState(InfoVarbits.ROUND_COUNT);
+  const rounds: Int = Math.max(Layout.bracket.MIN_ROUNDS, Math.min(Layout.bracket.MAX_ROUNDS, raw));
+  const gap: Int = gapFor(rounds);
+  const pitch: Int = Layout.bracket.CELL_W + gap;
+
+  return (
+    <layer w="fill" h="fill">
+      <line
+        x="center"
+        y={{ center: 1 }}
+        w={pitch * 2}
+        h={1}
+        color={InfoColor.LINE_DARK}
+        lineWidth={2}
+        lineDirection={false}
+      />
+      <line
+        x="center"
+        y="center"
+        w={pitch * 2}
+        h={1}
+        color={InfoColor.LINE_LIGHT}
+        lineWidth={2}
+        lineDirection={false}
+      />
+
+      {BracketLinks.map(
+        (link) =>
+          link.round <= rounds && (
+            <>
+              <line
+                x={{ center: leftCx(pitch, link.round) }}
+                y={{ center: leftCy(rounds, link.round, link.index) + 1 }}
+                w={pitch}
+                h={linkHeight(rounds, link.round, link.index)}
+                color={InfoColor.LINE_DARK}
+                lineWidth={2}
+                lineDirection={oddIndex(link.index)}
+              />
+              <line
+                x={{ center: leftCx(pitch, link.round) }}
+                y={{ center: leftCy(rounds, link.round, link.index) }}
+                w={pitch}
+                h={linkHeight(rounds, link.round, link.index)}
+                color={InfoColor.LINE_LIGHT}
+                lineWidth={2}
+                lineDirection={oddIndex(link.index)}
+              />
+              <line
+                x={{ center: rightCx(pitch, link.round) }}
+                y={{ center: rightCy(rounds, link.round, link.index) + 1 }}
+                w={pitch}
+                h={linkHeight(rounds, link.round, link.index)}
+                color={InfoColor.LINE_DARK}
+                lineWidth={2}
+                lineDirection={evenIndex(link.index)}
+              />
+              <line
+                x={{ center: rightCx(pitch, link.round) }}
+                y={{ center: rightCy(rounds, link.round, link.index) }}
+                w={pitch}
+                h={linkHeight(rounds, link.round, link.index)}
+                color={InfoColor.LINE_LIGHT}
+                lineWidth={2}
+                lineDirection={evenIndex(link.index)}
+              />
+            </>
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function gapFor(rounds: Int): Int {
+  return (
+    Layout.bracket.GAP_BASE +
+    scaled(
+      Layout.bracket.GAP_STEPS - (rounds - Layout.bracket.MIN_ROUNDS),
+      Layout.bracket.GAP_STEPS,
+      Layout.bracket.GAP_SPAN,
+    )
+  );
+}
+
+function spanOf(rounds: Int, round: Int): Int {
+  return Math.pow(2, rounds - round) * Layout.bracket.STEP;
+}
+
+function upperY(rounds: Int, round: Int, index: Int): Int {
+  const half: Int = Math.pow(2, round - 2);
+  return scaled(1 - half + 2 * index, 2, spanOf(rounds, round));
+}
+
+function lowerY(rounds: Int, round: Int, index: Int): Int {
+  const prevHalf: Int = Math.pow(2, round - 3);
+  return scaled(1 - prevHalf + 2 * (index / 2), 2, spanOf(rounds, round - 1));
+}
+
+function linkHeight(rounds: Int, round: Int, index: Int): Int {
+  return CS2.abs(lowerY(rounds, round, index) - upperY(rounds, round, index));
+}
+
+function leftCx(pitch: Int, round: Int): Int {
+  return pitch / 2 - (round - 1) * pitch;
+}
+
+function rightCx(pitch: Int, round: Int): Int {
+  return (round - 2) * pitch + pitch / 2;
+}
+
+function leftCy(rounds: Int, round: Int, index: Int): Int {
+  const half: Int = linkHeight(rounds, round, index) / 2;
+  if (index % 2 === 0) {
+    return upperY(rounds, round, index) + half;
+  }
+  return lowerY(rounds, round, index) + half;
+}
+
+function rightCy(rounds: Int, round: Int, index: Int): Int {
+  const half: Int = linkHeight(rounds, round, index) / 2;
+  if (index % 2 === 0) {
+    return upperY(rounds, round, index) + half;
+  }
+  return lowerY(rounds, round, index) + half;
+}
+
+function oddIndex(index: Int): Boolean {
+  if (index % 2 === 0) {
+    return false;
+  }
+  return true;
+}
+
+function evenIndex(index: Int): Boolean {
+  if (index % 2 === 0) {
+    return true;
+  }
+  return false;
+}

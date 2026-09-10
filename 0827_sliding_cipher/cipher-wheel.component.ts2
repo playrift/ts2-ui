@@ -1,0 +1,57 @@
+import { useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { slidingCipherClientValue } from '../lib/game/varcs';
+import { CipherInner, CipherOuter } from './cipher-alphabets.data';
+import { cipherCellCount, cipherPick, cipherStrip } from './sliding-cipher.state';
+import { CipherArt, CipherFonts, CipherInk, CipherState, Layout } from './sliding-cipher.constants';
+
+export function CipherWheel(): Component {
+  const server: Int = useServerState(Varbits.SLIDING_CIPHER_CURRENT_VALUE);
+  const [client] = useState(slidingCipherClientValue);
+  const offset: Int = client === CipherState.UNSET ? server : client;
+  const size: Int = cipherCellCount();
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite x="left" y="center" w={Layout.CAP_W} h={Layout.CAP_H} sprite={CipherArt.CAP_LEFT} />
+      <sprite x="right" y="center" w={Layout.CAP_W} h={Layout.CAP_H} sprite={CipherArt.CAP_RIGHT} />
+
+      {CipherOuter.map((letter, index) => (
+        <>
+          <sprite
+            x={Layout.CELL_X0 + index * Layout.CELL_W}
+            y="center"
+            w={Layout.CELL_W}
+            h={Layout.CELL_H}
+            sprite={cipherStrip(index % 5)}
+          />
+          <text
+            x={Layout.CELL_X0 + index * Layout.CELL_W}
+            y={{ center: Layout.OUTER_DY }}
+            w={Layout.LETTER_W}
+            h={Layout.LETTER_H}
+            font={CipherFonts.LETTER}
+            color={CipherInk.OUTER}
+            shadow
+            align="center"
+            valign="middle"
+            text={letter}
+          />
+          <text
+            x={Layout.CELL_X0 + index * Layout.CELL_W}
+            y={{ center: Layout.INNER_DY }}
+            w={Layout.LETTER_W}
+            h={Layout.LETTER_H}
+            font={CipherFonts.LETTER}
+            color={CipherInk.INNER}
+            shadow
+            align="center"
+            valign="middle"
+            text={CipherInner.at(cipherPick(index, offset, size)) ?? ''}
+          />
+        </>
+      ))}
+    </layer>
+  );
+}

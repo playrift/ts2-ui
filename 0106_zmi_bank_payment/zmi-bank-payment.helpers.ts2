@@ -1,0 +1,121 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { membersWorld } from '../lib/lib.engine';
+import { Relic } from '../lib/league-relics.data';
+import { leagueRelicActive, saturatingAdd } from '../lib/lib.magic';
+import { RuneIndex, ZmiRunes } from './zmi-runes.data';
+import { PouchItem, PouchVarbits, RUNE_SLOTS, ZmiInventories } from './zmi-bank-payment.constants';
+
+export function runePouchSlots(): Int {
+  if (membersWorld()) {
+    const backpack = useInventory(ZmiInventories.BACKPACK);
+    if (backpack.total(PouchItem.DIVINE) > 0 || backpack.total(PouchItem.DIVINE_TROUVER) > 0) {
+      return 4;
+    }
+    if (backpack.total(PouchItem.BOUNTY_HUNTER) > 0 || backpack.total(PouchItem.BOUNTY_HUNTER_TROUVER) > 0) {
+      return 3;
+    }
+  }
+  return 0;
+}
+
+export function runePouchExtraSlots(): Int {
+  if (membersWorld()) {
+    const backpack = useInventory(ZmiInventories.BACKPACK);
+    if (backpack.total(PouchItem.DIVINE) > 0 || backpack.total(PouchItem.DIVINE_TROUVER) > 0) {
+      return leagueRelicActive(Relic.SUPERIOR_SORCERER);
+    }
+    if (backpack.total(PouchItem.BOUNTY_HUNTER) > 0 || backpack.total(PouchItem.BOUNTY_HUNTER_TROUVER) > 0) {
+      return leagueRelicActive(Relic.SUPERIOR_SORCERER);
+    }
+  }
+  return 0;
+}
+
+export function pouchSlotType(slot: Int): Int {
+  if (slot === 1) {
+    return useServerState(PouchVarbits.TYPE_1);
+  }
+  if (slot === 2) {
+    return useServerState(PouchVarbits.TYPE_2);
+  }
+  if (slot === 3) {
+    return useServerState(PouchVarbits.TYPE_3);
+  }
+  if (slot === 4) {
+    return useServerState(PouchVarbits.TYPE_4);
+  }
+  if (slot === 5) {
+    return useServerState(PouchVarbits.TYPE_5);
+  }
+  if (slot === 6) {
+    return useServerState(PouchVarbits.TYPE_6);
+  }
+  return 0;
+}
+
+export function pouchSlotCount(slot: Int): Int {
+  let quantity: Int = 0;
+  if (slot === 1) {
+    quantity = useServerState(PouchVarbits.QUANTITY_1);
+  }
+  if (slot === 2) {
+    quantity = useServerState(PouchVarbits.QUANTITY_2);
+  }
+  if (slot === 3) {
+    quantity = useServerState(PouchVarbits.QUANTITY_3);
+  }
+  if (slot === 4) {
+    quantity = useServerState(PouchVarbits.QUANTITY_4);
+  }
+  if (slot === 5) {
+    quantity = useServerState(PouchVarbits.QUANTITY_5);
+  }
+  if (slot === 6) {
+    quantity = useServerState(PouchVarbits.QUANTITY_6);
+  }
+  if (quantity > 0) {
+    return quantity;
+  }
+  return 0;
+}
+
+export function pouchSlotRune(slot: Int): ItemName {
+  if (pouchSlotCount(slot) > 0) {
+    return ZmiRunes.get(pouchSlotType(slot)) ?? -1;
+  }
+  return -1;
+}
+
+export function runeTotal(rune: ItemName): Int {
+  const index: Int = RuneIndex.get(rune as Item) ?? 0;
+  if (index <= 0) {
+    return -1;
+  }
+  if (index > RUNE_SLOTS) {
+    return -1;
+  }
+
+  const backpack = useInventory(ZmiInventories.BACKPACK);
+  let total: Int = backpack.total(rune as Item);
+
+  const slots: Int = runePouchSlots();
+  let slot: Int = 1;
+  while (slot <= slots) {
+    if (pouchSlotRune(slot) === rune) {
+      total = saturatingAdd(total, pouchSlotCount(slot));
+    }
+    slot = slot + 1;
+  }
+
+  if (runePouchExtraSlots() === 1) {
+    if (pouchSlotRune(5) === rune) {
+      total = saturatingAdd(total, pouchSlotCount(5));
+    }
+    if (pouchSlotRune(6) === rune) {
+      total = saturatingAdd(total, pouchSlotCount(6));
+    }
+  }
+
+  return total;
+}

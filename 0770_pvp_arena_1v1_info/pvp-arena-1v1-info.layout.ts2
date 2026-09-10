@@ -1,0 +1,221 @@
+import { sessionState, stopTimer, useServerState, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { scaled } from '../lib/lib.engine';
+import { gapFor } from './bracket-lines.component';
+import { InfoVarbits, Layout, infoHeight, infoWidth, infoX, infoY } from './pvp-arena-1v1-info.constants';
+
+export function roundCount(): Int {
+  const raw: Int = useServerState(InfoVarbits.ROUND_COUNT);
+  return Math.max(Layout.bracket.MIN_ROUNDS, Math.min(Layout.bracket.MAX_ROUNDS, raw));
+}
+
+export function dodgerDrop(): Int {
+  let drop: Int = 0;
+  if (useServerState(InfoVarbits.BATTLEAREA_STATUS) === 1) {
+    if (useServerState(InfoVarbits.BATTLEAREA_TIME) > 0) {
+      drop = drop + Layout.dodger.BATTLEAREA;
+    }
+  }
+  if (useServerState(InfoVarbits.XPDROPS_ENABLED) === 1) {
+    drop = drop + Layout.dodger.XPDROPS;
+    if (useServerState(InfoVarbits.XPDROPS_PROGRESS_TYPE) !== 0) {
+      drop = drop + Layout.dodger.XPDROPS_PROGRESS;
+    }
+  }
+  return drop;
+}
+
+export function minWidth(): Int {
+  return scaled(Layout.MIN_W_NUM, Layout.MIN_W_DEN, Layout.MIN_W_OF);
+}
+
+export function minHeight(): Int {
+  return scaled(Layout.MIN_H_NUM, Layout.MIN_H_DEN, Layout.MIN_H_OF);
+}
+
+export function gridWidth(rounds: Int): Int {
+  const columns: Int = 2 * rounds - 1;
+  return columns * Layout.bracket.CELL_W + (columns - 1) * gapFor(rounds);
+}
+
+export function gridHeight(rounds: Int): Int {
+  const leaves: Int = Math.pow(2, rounds - Layout.bracket.MIN_ROUNDS);
+  return leaves * Layout.bracket.CELL_H + (leaves - 1) * Layout.bracket.ROW_GAP;
+}
+
+export function maxWidth(rounds: Int): Int {
+  return gridWidth(rounds) + Layout.bracket.PAD_W;
+}
+
+export function maxHeight(rounds: Int): Int {
+  return gridHeight(rounds) + Layout.bracket.PAD_H;
+}
+
+export function panelWidth(rounds: Int, available: Int): Int {
+  const [stored] = useState(infoWidth);
+  let raw: Int = stored;
+  if (raw < minWidth()) {
+    raw = scaled(Layout.OPEN_W_NUM, Layout.OPEN_W_DEN, Layout.OPEN_W_OF);
+  }
+  return Math.max(minWidth(), Math.min(maxWidth(rounds), Math.min(raw, available)));
+}
+
+export function panelHeight(rounds: Int, available: Int): Int {
+  const [stored] = useState(infoHeight);
+  let raw: Int = stored;
+  if (raw < minHeight()) {
+    raw = scaled(Layout.OPEN_H_NUM, Layout.OPEN_H_DEN, Layout.OPEN_H_OF);
+  }
+  return Math.max(minHeight(), Math.min(maxHeight(rounds), Math.min(raw, available)));
+}
+
+export function panelX(available: Int, rawWidth: Int, width: Int): Int {
+  const [stored] = useState(infoX);
+  let raw: Int = stored;
+  if (raw < 0) {
+    raw = (available - rawWidth) / 2;
+  }
+  return Math.max(0, Math.min(raw, available - width));
+}
+
+export function panelY(top: Int, dodgerHeight: Int, available: Int, rawHeight: Int, height: Int): Int {
+  const [stored] = useState(infoY);
+  let raw: Int = stored;
+  if (raw < top) {
+    raw = Math.max(top, (dodgerHeight - rawHeight) / 2);
+  }
+  return Math.max(top, Math.min(raw, top + available - height));
+}
+
+export function rawWidth(): Int {
+  const [stored] = useState(infoWidth);
+  if (stored < minWidth()) {
+    return scaled(Layout.OPEN_W_NUM, Layout.OPEN_W_DEN, Layout.OPEN_W_OF);
+  }
+  return stored;
+}
+
+export function rawHeight(): Int {
+  const [stored] = useState(infoHeight);
+  if (stored < minHeight()) {
+    return scaled(Layout.OPEN_H_NUM, Layout.OPEN_H_DEN, Layout.OPEN_H_OF);
+  }
+  return stored;
+}
+
+export function resizeDrag(
+  index: Int,
+  dx: Int,
+  dy: Int,
+  top: Int,
+  availW: Int,
+  dodgerHeight: Int,
+  preview: ComponentId,
+  content: ComponentId,
+): void {
+  const rounds: Int = roundCount();
+  const availH: Int = dodgerHeight - top;
+
+  let w: Int = panelWidth(rounds, availW);
+  let h: Int = panelHeight(rounds, availH);
+  let x: Int = panelX(availW, rawWidth(), w);
+  let y: Int = panelY(top, dodgerHeight, availH, rawHeight(), h);
+
+  if (index === 0) {
+    x = x + dx;
+    y = y + dy;
+  } else if (index === 1) {
+    h = h + dy;
+  } else if (index === 2) {
+    w = w - dx;
+    x = x + dx;
+  } else if (index === 3) {
+    w = w + dx;
+  } else if (index === 4) {
+    w = w - dx;
+    x = x + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (index === 5) {
+    w = w + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (index === 6) {
+    w = w - dx;
+    x = x + dx;
+    h = h + dy;
+  } else if (index === 7) {
+    w = w + dx;
+    h = h + dy;
+  }
+
+  if (x < Layout.MARGIN) {
+    w = w + x;
+    x = 0;
+  }
+  let slack: Int = availW - (x + w);
+  if (slack < Layout.MARGIN) {
+    w = w + slack;
+  }
+  if (y < top + Layout.MARGIN) {
+    h = h + Math.max(0, y - top);
+    y = top;
+  }
+  slack = availH + top - (y + h);
+  if (slack < Layout.MARGIN) {
+    h = h + slack;
+  }
+
+  w = Math.max(minWidth(), Math.min(maxWidth(rounds), Math.min(w, availW)));
+  h = Math.max(minHeight(), Math.min(maxHeight(rounds), Math.min(h, availH)));
+  x = Math.max(0, Math.min(x, availW - w));
+  y = Math.max(top, Math.min(y, top + availH - h));
+
+  preview.x = x;
+  preview.y = y;
+  preview.width = w;
+  preview.height = h;
+  preview.hide = false;
+  content.hide = true;
+
+  const [, setW] = useState(pendingWidth);
+  const [, setH] = useState(pendingHeight);
+  const [, setX] = useState(pendingX);
+  const [, setY] = useState(pendingY);
+  setW(w);
+  setH(h);
+  setX(x);
+  setY(y);
+}
+
+export const pendingWidth = sessionState(-1);
+export const pendingHeight = sessionState(-1);
+export const pendingX = sessionState(-1);
+export const pendingY = sessionState(-1);
+
+export function armResizeCommit(self: ComponentId): void {
+  const deadline: Int = clientClock() + Layout.COMMIT_CYCLES;
+  self.onTimer = () => {
+    if (clientClock() < deadline) {
+      return;
+    }
+    commitResize();
+    stopTimer(self);
+  };
+}
+
+function commitResize(): void {
+  const [w] = useState(pendingWidth);
+  const [h] = useState(pendingHeight);
+  const [px] = useState(pendingX);
+  const [py] = useState(pendingY);
+  const [, setW] = useState(infoWidth);
+  const [, setH] = useState(infoHeight);
+  const [, setX] = useState(infoX);
+  const [, setY] = useState(infoY);
+  setW(w);
+  setH(h);
+  setX(px);
+  setY(py);
+}

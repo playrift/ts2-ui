@@ -1,0 +1,41 @@
+import { useServerState, useState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import { pvpaCountdown } from '../lib/game/varcs';
+import { rgbToHex } from '../0259_area_task/area-task.helpers';
+import { colourTag } from '../0889_nps/colour-tag';
+import { Countdown, Palette, PvpArenaHudVarbits } from './pvp-arena-hud.constants';
+
+export function pvpArenaHudWriteTime(label: ComponentId): void {
+  const [previous, setCountdown] = useState(pvpaCountdown);
+  let ticks: Int = Math.max(0, previous - 1);
+  const fromServer: Int = useServerState(PvpArenaHudVarbits.TIME_REMAINING) * Countdown.UNIT;
+  if (fromServer > ticks + Countdown.RESYNC || fromServer < ticks - Countdown.RESYNC) {
+    ticks = fromServer;
+  }
+  setCountdown(ticks);
+
+  let shown: Int = ticks;
+  let colour: Int = Palette.TIMER_TEXT;
+  if (ticks > Countdown.RED_FLOOR) {
+    shown = ticks - Countdown.RED_FLOOR;
+    let span: Int = Countdown.SHORT_SPAN;
+    if (useServerState(PvpArenaHudVarbits.LONG_BATTLE) === 1) {
+      span = Countdown.LONG_SPAN;
+    }
+    colour = rgbToHex(
+      Countdown.RED,
+      scaled(shown, span, Countdown.GREEN_AT_MAX),
+      scaled(shown, span, Countdown.BLUE_AT_MAX),
+    );
+  }
+
+  const seconds: Int = shown / Countdown.PER_SECOND;
+  let body: String = '';
+  if (seconds % Countdown.PER_MINUTE >= Countdown.TWO_DIGITS) {
+    body = `${seconds / Countdown.PER_MINUTE}:${seconds % Countdown.PER_MINUTE}`;
+  } else {
+    body = `${seconds / Countdown.PER_MINUTE}:0${seconds % Countdown.PER_MINUTE}`;
+  }
+  label.text = `${colourTag(colour, 'col')}${body}</col>`;
+}

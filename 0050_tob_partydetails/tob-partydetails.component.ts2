@@ -1,0 +1,1151 @@
+import { useInterval, useState } from 'ts2';
+
+import { BoardButton } from '../lib/board-button.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { SteelborderColor } from '../lib/lib.constants';
+import { clientClock, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import { raidsListsortDetails } from '../lib/game/varcs';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import {
+  actionRef,
+  applicantsRef,
+  backRef,
+  boardBuilt,
+  currentRef,
+  frameRef,
+  refreshStartedAt,
+  headerRef,
+  leaderHighlightRef,
+  levelRef,
+  middleRef,
+  modeRef,
+  refreshRef,
+  sizeRef,
+  sortareaRef,
+  timerRef,
+  tipIndex,
+  tooltipRef,
+  topRef,
+  unblockRef,
+  universeRef,
+  p1DownRef,
+  p1UpRef,
+  p2DownRef,
+  p2UpRef,
+  p3DownRef,
+  p3UpRef,
+  p4DownRef,
+  p4UpRef,
+  p5DownRef,
+  p5UpRef,
+  AutoRefresh,
+  Copy,
+  Layout,
+  PartyRole,
+  RowColumns,
+  SortKeys,
+  Tip,
+  TobPartydetailsColor,
+  TobPartydetailsFonts,
+  TobPartydetailsModels,
+  TobPartydetailsSprites,
+  TobPartydetailsTips,
+  Tooltip,
+} from './tob-partydetails.constants';
+import type { TobPartydetailsTip } from './tob-partydetails.constants';
+import { ApplicantPackets, BoardPacket, LEADER_PACKET, MemberPackets } from './tob-partydetails.data';
+import {
+  cellColor,
+  cellText,
+  hideTobPartydetailsTip,
+  partyTitle,
+  plateMode,
+  plateNumber,
+  resetTobPartydetails,
+  rowColor,
+  rowSubject,
+  rowTransparency,
+  setTobPartydetailsSort,
+  showTobPartydetailsTip,
+} from './tob-partydetails.helpers';
+
+export function TobPartydetails(): Component {
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Layout.CONTENT_BOTTOM }}
+      w={{ fill: Layout.CONTENT_INSET_W }}
+      h={{ fill: Layout.CONTENT_INSET_H }}
+    >
+      <TobPartydetailsTop />
+      <TobPartydetailsMiddle />
+
+      <model
+        x={0}
+        y="bottom"
+        w={Layout.DECOR_W}
+        h={Layout.DECOR_H}
+        model={TobPartydetailsModels.CHEST_ALT}
+        zoom={1800}
+        pitch={512}
+        offsetX={-67}
+        offsetY={18}
+      />
+      <model
+        x={0}
+        y="bottom"
+        w={Layout.DECOR_W}
+        h={Layout.DECOR_H}
+        model={TobPartydetailsModels.CHEST}
+        zoom={1500}
+        pitch={512}
+        yaw={648}
+        offsetX={21}
+        offsetY={5}
+      />
+      <model
+        x={0}
+        y="bottom"
+        w={Layout.DECOR_W}
+        h={Layout.DECOR_H}
+        model={TobPartydetailsModels.CHEST_ALT}
+        zoom={1900}
+        pitch={512}
+        yaw={842}
+        offsetX={91}
+        offsetY={-33}
+      />
+
+      <layer ref={unblockRef} x={0} y="bottom" w={Layout.BUTTON_W} h={{ fill: Layout.BUTTON_INSET_H }} hide>
+        <TobPartydetailsUnblockButton />
+      </layer>
+
+      <layer
+        ref={modeRef}
+        x={Layout.PLATE_MODE_X}
+        y={{ bottom: Layout.PLATE_BOTTOM }}
+        w={Layout.PLATE_MODE_W}
+        h={Layout.PLATE_H}
+        hide
+      >
+        <PlateSkin />
+        <TobPartydetailsPlate label={Copy.MODE} value={BoardPacket.mode} subject={Copy.SUBJECT_MODE} table />
+      </layer>
+      <layer
+        ref={sizeRef}
+        x={Layout.PLATE_SIZE_X}
+        y={{ bottom: Layout.PLATE_BOTTOM }}
+        w={Layout.PLATE_SIZE_W}
+        h={Layout.PLATE_H}
+        hide
+      >
+        <PlateSkin />
+        <TobPartydetailsPlate
+          label={Copy.PREFERRED_SIZE}
+          value={BoardPacket.preferredSize}
+          subject={Copy.SUBJECT_SIZE}
+        />
+      </layer>
+      <layer
+        ref={levelRef}
+        x={Layout.PLATE_LEVEL_X}
+        y={{ bottom: Layout.PLATE_BOTTOM }}
+        w={Layout.PLATE_LEVEL_W}
+        h={Layout.PLATE_H}
+        hide
+      >
+        <PlateSkin />
+        <TobPartydetailsPlate
+          label={Copy.PREFERRED_LEVEL}
+          value={BoardPacket.preferredLevel}
+          subject={Copy.SUBJECT_LEVEL}
+        />
+      </layer>
+
+      <layer ref={actionRef} right={0} y="bottom" w={Layout.BUTTON_W} h={{ fill: Layout.BUTTON_INSET_H }} hide>
+        <TobPartydetailsActionButton />
+      </layer>
+
+      <TobPartydetailsArrows />
+    </layer>
+  );
+}
+
+function TobPartydetailsTop(): Component {
+  return (
+    <layer ref={topRef} x="center" y={0} w="fill" h={Layout.TOP_H}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={TobPartydetailsSprites.BACKING} tiling />
+      <rect x="center" y="center" w="fill" h="fill" color={TobPartydetailsColor.BOX_OUTER} />
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.BOX_INNER_INSET }}
+        h={{ fill: Layout.BOX_INNER_INSET }}
+        color={TobPartydetailsColor.BOX_INNER}
+      />
+      <TobPartydetailsHeader />
+      <layer
+        ref={currentRef}
+        x="center"
+        y={{ bottom: Layout.CURRENT_BOTTOM }}
+        w={{ fill: Layout.CURRENT_INSET_W }}
+        h={Layout.CURRENT_H}
+        dragDeadZone={Layout.CURRENT_DRAG_DEAD_ZONE}
+      >
+        <rect
+          ref={leaderHighlightRef}
+          x={0}
+          y={0}
+          w="fill"
+          h={Layout.LEADER_H}
+          fill
+          color={TobPartydetailsColor.LEADER}
+          transparency={Layout.LEADER_TRANSPARENCY}
+          hide
+        />
+        <TobPartydetailsMembers />
+      </layer>
+      <TobPartydetailsLoading />
+    </layer>
+  );
+}
+
+function TobPartydetailsHeader(): Component {
+  return (
+    <layer ref={headerRef} x="center" y={0} w="fill" h={Layout.HEADER_H} hide>
+      <layer
+        ref={refreshRef}
+        x={Layout.REFRESH_X}
+        y="center"
+        w={Layout.REFRESH_W}
+        h={{ fill: Layout.HEADER_ROW_INSET_H }}
+        hide
+      >
+        <BoardButton label={Copy.REFRESH} />
+      </layer>
+
+      <layer x={Layout.DIAL_X} y="center" w={Layout.DIAL_W} h="fill">
+        <DialModels lit={false} />
+        <TobPartydetailsTimerWipe />
+      </layer>
+
+      <sprite
+        x={Layout.ICON_COMBAT_X}
+        y="center"
+        w={Layout.ICON_COMBAT_W}
+        h={Layout.ICON_COMBAT_H}
+        sprite={TobPartydetailsSprites.COMBAT}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.COMBAT)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_ATTACK_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.ATTACK}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.ATTACK)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_STRENGTH_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.STRENGTH}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.STRENGTH)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_RANGED_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.RANGED}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.RANGED)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_MAGIC_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.MAGIC}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.MAGIC)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_DEFENCE_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.DEFENCE}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.DEFENCE)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_HITPOINTS_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.HITPOINTS}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.HITPOINTS)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <sprite
+        x={Layout.ICON_PRAYER_X}
+        y="center"
+        w={Layout.ICON_W}
+        h={Layout.ICON_W}
+        sprite={TobPartydetailsSprites.PRAYER}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.PRAYER)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+      <model
+        right={Layout.ICON_RUNS_RIGHT}
+        y={0}
+        w={{ fill: Layout.ICON_RUNS_INSET_W }}
+        h="fill"
+        model={TobPartydetailsModels.CHEST}
+        zoom={1245}
+        pitch={512}
+        yaw={1700}
+        offsetX={-20}
+        offsetY={-5}
+        onMouseRepeat={() => showTobPartydetailsTip(Tip.RUNS)}
+        onMouseLeave={() => hideTobPartydetailsTip()}
+      />
+
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}
+
+function DialModels({ lit }: { lit: Boolean }): Component {
+  return (
+    <>
+      <model
+        x={0}
+        y="center"
+        w={Layout.DIAL_MODEL_W}
+        h={Layout.DIAL_MODEL_H}
+        model={lit ? TobPartydetailsModels.DIAL_A_LIT : TobPartydetailsModels.DIAL_A_DIM}
+        zoom={1900}
+        pitch={512}
+        yaw={626}
+        offsetX={-232}
+        offsetY={-4}
+      />
+      <model
+        x={0}
+        y="center"
+        w={Layout.DIAL_MODEL_W}
+        h={Layout.DIAL_MODEL_H}
+        model={lit ? TobPartydetailsModels.CHEST_ALT : TobPartydetailsModels.DIAL_B_DIM}
+        zoom={1600}
+        pitch={512}
+        yaw={1530}
+        offsetX={-137}
+        offsetY={19}
+      />
+      <model
+        x={0}
+        y="center"
+        w={Layout.DIAL_MODEL_W}
+        h={Layout.DIAL_MODEL_H}
+        model={lit ? TobPartydetailsModels.DIAL_A_LIT : TobPartydetailsModels.DIAL_A_DIM}
+        zoom={1900}
+        pitch={512}
+        yaw={1405}
+        offsetX={-43}
+        offsetY={3}
+      />
+    </>
+  );
+}
+
+function TobPartydetailsTimerWipe(): Component {
+  const [startedAt] = useState(refreshStartedAt);
+  const [seen, setSeen] = useState(0);
+
+  let remaining: Int = AutoRefresh.CYCLES;
+  let ticking: Boolean = false;
+  if (startedAt !== -1) {
+    remaining = AutoRefresh.CYCLES - (seen - startedAt);
+    if (remaining < 0) {
+      remaining = 0;
+    }
+    if (remaining > AutoRefresh.CYCLES) {
+      remaining = AutoRefresh.CYCLES;
+    }
+    if (remaining > 0) {
+      ticking = true;
+    }
+  }
+  useInterval(ticking ? () => setSeen(clientClock()) : undefined);
+
+  return (
+    <layer ref={timerRef} x={0} y="center" w={(Layout.DIAL_W * remaining) / AutoRefresh.CYCLES} h="fill">
+      <DialModels lit />
+    </layer>
+  );
+}
+
+function TobPartydetailsLoading(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 1) {
+    return null;
+  }
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={Copy.LOADING}
+      font={TobPartydetailsFonts.BODY}
+      color={TobPartydetailsColor.MUTED}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function TobPartydetailsMiddle(): Component {
+  return (
+    <layer ref={middleRef} x="center" y={Layout.MIDDLE_Y} w="fill" h={{ fill: Layout.MIDDLE_INSET_H }}>
+      <rect x="center" y="center" w="fill" h="fill" color={TobPartydetailsColor.BOX_OUTER} />
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.BOX_INNER_INSET }}
+        h={{ fill: Layout.BOX_INNER_INSET }}
+        color={TobPartydetailsColor.BOX_INNER}
+      />
+      <TobPartydetailsSortArea />
+      <layer
+        ref={applicantsRef}
+        x="center"
+        y={{ bottom: Layout.APPLICANTS_BOTTOM }}
+        w={{ fill: Layout.APPLICANTS_INSET_W }}
+        h={{ fill: Layout.APPLICANTS_INSET_H }}
+      >
+        <TobPartydetailsApplicants />
+      </layer>
+      <TobPartydetailsMiddleText />
+    </layer>
+  );
+}
+
+function TobPartydetailsMiddleText(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 1 && ApplicantPackets.length > 0) {
+    return null;
+  }
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={built === 1 ? Copy.NO_APPLICANTS : Copy.LOADING}
+      font={TobPartydetailsFonts.BODY}
+      color={TobPartydetailsColor.MUTED}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function TobPartydetailsSortArea(): Component {
+  return (
+    <layer ref={sortareaRef} x="center" y={0} w="fill" h={Layout.SORTAREA_H} hide>
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_NAME_X}
+        w={Layout.SORT_NAME_W}
+        asc={SortKeys.NAME_ASC}
+        desc={SortKeys.NAME_DESC}
+        tip={Tip.SORT_NAME}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_COMBAT_X}
+        w={Layout.SORT_COMBAT_W}
+        asc={SortKeys.COMBAT_ASC}
+        desc={SortKeys.COMBAT_DESC}
+        tip={Tip.SORT_COMBAT}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_ATTACK_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.ATTACK_ASC}
+        desc={SortKeys.ATTACK_DESC}
+        tip={Tip.SORT_ATTACK}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_STRENGTH_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.STRENGTH_ASC}
+        desc={SortKeys.STRENGTH_DESC}
+        tip={Tip.SORT_STRENGTH}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_RANGED_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.RANGED_ASC}
+        desc={SortKeys.RANGED_DESC}
+        tip={Tip.SORT_RANGED}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_MAGIC_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.MAGIC_ASC}
+        desc={SortKeys.MAGIC_DESC}
+        tip={Tip.SORT_MAGIC}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_DEFENCE_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.DEFENCE_ASC}
+        desc={SortKeys.DEFENCE_DESC}
+        tip={Tip.SORT_DEFENCE}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_HITPOINTS_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.HITPOINTS_ASC}
+        desc={SortKeys.HITPOINTS_DESC}
+        tip={Tip.SORT_HITPOINTS}
+      />
+      <TobPartydetailsSortColumn
+        x={Layout.SORT_PRAYER_X}
+        w={Layout.SORT_W}
+        asc={SortKeys.PRAYER_ASC}
+        desc={SortKeys.PRAYER_DESC}
+        tip={Tip.SORT_PRAYER}
+      />
+      <TobPartydetailsRunsColumn />
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}
+
+function TobPartydetailsSortColumn({
+  x,
+  w,
+  asc,
+  desc,
+  tip,
+}: {
+  x: Int;
+  w: Int;
+  asc: Int;
+  desc: Int;
+  tip: Int;
+}): Component {
+  return (
+    <layer x={x} y="center" w={w} h={{ fill: Layout.SORT_INSET_H }}>
+      <TobPartydetailsSortArrow asc={asc} desc={desc} tip={tip} />
+    </layer>
+  );
+}
+
+function TobPartydetailsRunsColumn(): Component {
+  return (
+    <layer
+      right={Layout.SORT_RUNS_RIGHT}
+      y="center"
+      w={{ fill: Layout.SORT_RUNS_INSET_W }}
+      h={{ fill: Layout.SORT_INSET_H }}
+    >
+      <TobPartydetailsSortArrow asc={SortKeys.RUNS_ASC} desc={SortKeys.RUNS_DESC} tip={Tip.SORT_RUNS} />
+    </layer>
+  );
+}
+
+function TobPartydetailsSortArrow({ asc, desc, tip }: { asc: Int; desc: Int; tip: Int }): Component {
+  const [sort] = useState(raidsListsortDetails);
+  let live: Boolean = false;
+  if (sort === asc) {
+    live = true;
+  }
+  if (sort === desc) {
+    live = true;
+  }
+  const [hovered, setHovered] = useState(0);
+  let rest: Int = 100;
+  let lit: Int = 200;
+  if (live) {
+    rest = 0;
+    lit = 120;
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        setHovered(1);
+        showTobPartydetailsTip(tip);
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+        hideTobPartydetailsTip();
+      }}
+      onClick={() => setTobPartydetailsSort(sort === asc ? desc : asc)}
+    >
+      <sprite
+        x="center"
+        y="center"
+        w={Layout.SORT_ARROW_W}
+        h={Layout.SORT_ARROW_H}
+        sprite={sort === desc ? TobPartydetailsSprites.SORT_DESC : TobPartydetailsSprites.SORT_ASC}
+        transparency={hovered === 1 ? lit : rest}
+      />
+    </layer>
+  );
+}
+
+function TobPartydetailsArrows(): Component {
+  return (
+    <layer x={0} y={Layout.ARROWS_Y} w={Layout.ARROWS_W} h={Layout.ARROWS_H}>
+      <sprite
+        ref={p1UpRef}
+        x={Layout.ARROW_UP_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide
+      />
+      <sprite
+        ref={p1DownRef}
+        x={Layout.ARROW_DOWN_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide
+      />
+      <sprite
+        ref={p2UpRef}
+        x={Layout.ARROW_ALT_UP_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_UP_W}
+        h={Layout.ARROW_UP_H}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide
+      />
+      <sprite
+        ref={p2DownRef}
+        x={Layout.ARROW_DOWN_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide
+      />
+      <sprite
+        ref={p3UpRef}
+        x={Layout.ARROW_ALT_UP_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_UP_W}
+        h={Layout.ARROW_UP_H}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide
+      />
+      <sprite
+        ref={p3DownRef}
+        x={Layout.ARROW_DOWN_X}
+        y={Layout.ARROW_DOWN_Y}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide
+      />
+      <sprite
+        ref={p4UpRef}
+        x={Layout.ARROW_ALT_UP_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_UP_W}
+        h={Layout.ARROW_UP_H}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide
+      />
+      <sprite
+        ref={p4DownRef}
+        x={Layout.ARROW_DOWN_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide
+      />
+      <sprite
+        ref={p5UpRef}
+        x={Layout.ARROW_ALT_UP_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_UP_W}
+        h={Layout.ARROW_UP_H}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide
+      />
+      <sprite
+        ref={p5DownRef}
+        x={Layout.ARROW_DOWN_X}
+        y={{ center: Layout.ARROW_Y }}
+        w={Layout.ARROW_DOWN_W}
+        h={Layout.ARROW_DOWN_W}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide
+      />
+    </layer>
+  );
+}
+
+function PlateSkin(): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.PLATE_MID_INSET_W }}
+        h={Layout.PLATE_H}
+        sprite={TobPartydetailsSprites.PLATE_MID}
+        tiling
+      />
+      <sprite x={0} y="center" w={Layout.PLATE_CAP_W} h={Layout.PLATE_H} sprite={TobPartydetailsSprites.PLATE_LEFT} />
+      <sprite
+        right={0}
+        y="center"
+        w={Layout.PLATE_CAP_W}
+        h={Layout.PLATE_H}
+        sprite={TobPartydetailsSprites.PLATE_RIGHT}
+      />
+    </>
+  );
+}
+
+function TobPartydetailsPlate({
+  label,
+  value,
+  subject,
+  table = false,
+}: {
+  label: String;
+  value: Int;
+  subject: String;
+  table?: Boolean;
+}): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0) {
+    return null;
+  }
+  const text: String = table ? plateMode(label, value) : plateNumber(label, value);
+  return (
+    <layer w="fill" h="fill">
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={text}
+        font={TobPartydetailsFonts.ROW}
+        color={TobPartydetailsColor.PLATE}
+        align="center"
+        valign="middle"
+        shadow
+        options={[Copy.SET]}
+        optionSubject={subject}
+        onMouseRepeat={(event) => plateHovered(event.self)}
+        onMouseLeave={(event) => plateRested(event.self)}
+      />
+    </layer>
+  );
+}
+
+export function TobPartydetailsFrame(): Component {
+  return (
+    <layer ref={frameRef} x="center" y="center" w="fill" h="fill" onLoad={() => resetTobPartydetails()}>
+      <TobPartydetailsTitle />
+    </layer>
+  );
+}
+
+function TobPartydetailsTitle(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      <SteelBorder title={partyTitle(pipeHead(LEADER_PACKET))} titleColor={SteelborderColor.TITLE} flags={0} />
+    </layer>
+  );
+}
+
+export function TobPartydetailsBack(): Component {
+  return (
+    <layer ref={backRef} x={Layout.BACK_X} y={Layout.BACK_Y} w={Layout.BACK} h={Layout.BACK} hide options={[Copy.BACK]}>
+      <TobPartydetailsBackButton />
+    </layer>
+  );
+}
+
+function TobPartydetailsBackButton(): Component {
+  return (
+    <sprite
+      x="center"
+      y="center"
+      w={Layout.BACK}
+      h={Layout.BACK}
+      sprite={TobPartydetailsSprites.BACK}
+      onMouseRepeat={(event) => backButtonLit(event.component)}
+      onMouseLeave={(event) => backButtonRest(event.component)}
+    />
+  );
+}
+
+function backButtonLit(target: ComponentId): void {
+  if (!onMobile()) {
+    target.sprite = TobPartydetailsSprites.BACK_LIT;
+  }
+}
+
+function backButtonRest(target: ComponentId): void {
+  target.sprite = TobPartydetailsSprites.BACK;
+}
+
+function rowHovered(target: ComponentId): void {
+  target.transparency = Layout.ROW_TRANSPARENCY_HOVER;
+}
+
+function rowRested(target: ComponentId, wash: Int): void {
+  target.transparency = wash;
+}
+
+function plateHovered(target: ComponentId): void {
+  target.color = TobPartydetailsColor.PLATE_HOVER;
+}
+
+function plateRested(target: ComponentId): void {
+  target.color = TobPartydetailsColor.PLATE;
+}
+
+function TobPartydetailsActionButton(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      <BoardButton label={actionLabel()} />
+    </layer>
+  );
+}
+
+function actionLabel(): String {
+  if (BoardPacket.role === PartyRole.LEADER) {
+    return Copy.DISBAND;
+  }
+  if (BoardPacket.role === PartyRole.MEMBER) {
+    return Copy.LEAVE;
+  }
+  if (BoardPacket.role === PartyRole.APPLICANT) {
+    return Copy.WITHDRAW;
+  }
+  if (BoardPacket.role === PartyRole.BLOCKED) {
+    return Copy.APPLY_DISABLED;
+  }
+  return Copy.APPLY;
+}
+
+function TobPartydetailsUnblockButton(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0 || BoardPacket.role !== PartyRole.LEADER) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      <BoardButton label={Copy.UNBLOCK} />
+    </layer>
+  );
+}
+
+function TobPartydetailsMembers(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      {MemberPackets.map((line, index) => (
+        <TobPartydetailsMemberRow line={line} index={index} />
+      ))}
+    </layer>
+  );
+}
+
+function TobPartydetailsMemberRow({ line, index }: { line: String; index: Int }): Component {
+  const name: String = pipeHead(line);
+  const rest0: String = pipeTail(line);
+  const combat: String = pipeHead(rest0);
+  const rest1: String = pipeTail(rest0);
+  const attack: String = pipeHead(rest1);
+  const rest2: String = pipeTail(rest1);
+  const strength: String = pipeHead(rest2);
+  const rest3: String = pipeTail(rest2);
+  const ranged: String = pipeHead(rest3);
+  const rest4: String = pipeTail(rest3);
+  const magic: String = pipeHead(rest4);
+  const rest5: String = pipeTail(rest4);
+  const defence: String = pipeHead(rest5);
+  const rest6: String = pipeTail(rest5);
+  const hitpoints: String = pipeHead(rest6);
+  const rest7: String = pipeTail(rest6);
+  const prayer: String = pipeHead(rest7);
+  const rest8: String = pipeTail(rest7);
+  const runs: String = pipeHead(rest8);
+
+  const top: Int = index * Layout.ROW_H + Layout.ROW_TOP;
+  const wash: Int = rowTransparency(index);
+  const ink: Int = rowColor(name);
+
+  return (
+    <>
+      {BoardPacket.role === PartyRole.LEADER ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={TobPartydetailsColor.ROW_BACK}
+          transparency={wash}
+          options={['', '', '', '', '', '', '', '', '', index === 0 ? Copy.QUIT_PARTY : Copy.KICK]}
+          optionSubject={rowSubject(name)}
+          onMouseRepeat={(event) => rowHovered(event.self)}
+          onMouseLeave={(event) => rowRested(event.self, wash)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={TobPartydetailsColor.ROW_BACK}
+          transparency={wash}
+        />
+      )}
+      <RowCell x={RowColumns.NAME.x} w={RowColumns.NAME.w} y={top} field={name} ink={ink} />
+      <RowCell x={RowColumns.COMBAT.x} w={RowColumns.COMBAT.w} y={top} field={combat} ink={ink} />
+      <RowCell x={RowColumns.ATTACK.x} w={RowColumns.ATTACK.w} y={top} field={attack} ink={ink} />
+      <RowCell x={RowColumns.STRENGTH.x} w={RowColumns.STRENGTH.w} y={top} field={strength} ink={ink} />
+      <RowCell x={RowColumns.RANGED.x} w={RowColumns.RANGED.w} y={top} field={ranged} ink={ink} />
+      <RowCell x={RowColumns.MAGIC.x} w={RowColumns.MAGIC.w} y={top} field={magic} ink={ink} />
+      <RowCell x={RowColumns.DEFENCE.x} w={RowColumns.DEFENCE.w} y={top} field={defence} ink={ink} />
+      <RowCell x={RowColumns.HITPOINTS.x} w={RowColumns.HITPOINTS.w} y={top} field={hitpoints} ink={ink} />
+      <RowCell x={RowColumns.PRAYER.x} w={RowColumns.PRAYER.w} y={top} field={prayer} ink={ink} />
+      <RowCell x={RowColumns.RUNS.x} w={RowColumns.RUNS.w} y={top} field={runs} ink={ink} />
+    </>
+  );
+}
+
+function TobPartydetailsApplicants(): Component {
+  const [built] = useState(boardBuilt);
+  if (built === 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      {ApplicantPackets.map((line, index) => (
+        <TobPartydetailsApplicantRow line={line} index={index} />
+      ))}
+    </layer>
+  );
+}
+
+function TobPartydetailsApplicantRow({ line, index }: { line: String; index: Int }): Component {
+  const name: String = pipeHead(line);
+  const rest0: String = pipeTail(line);
+  const combat: String = pipeHead(rest0);
+  const rest1: String = pipeTail(rest0);
+  const attack: String = pipeHead(rest1);
+  const rest2: String = pipeTail(rest1);
+  const strength: String = pipeHead(rest2);
+  const rest3: String = pipeTail(rest2);
+  const ranged: String = pipeHead(rest3);
+  const rest4: String = pipeTail(rest3);
+  const magic: String = pipeHead(rest4);
+  const rest5: String = pipeTail(rest4);
+  const defence: String = pipeHead(rest5);
+  const rest6: String = pipeTail(rest5);
+  const hitpoints: String = pipeHead(rest6);
+  const rest7: String = pipeTail(rest6);
+  const prayer: String = pipeHead(rest7);
+  const rest8: String = pipeTail(rest7);
+  const runs: String = pipeHead(rest8);
+
+  const top: Int = index * Layout.ROW_H;
+  const wash: Int = rowTransparency(index);
+  const ink: Int = rowColor(name);
+
+  return (
+    <>
+      {BoardPacket.role === PartyRole.LEADER ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={TobPartydetailsColor.ROW_BACK}
+          transparency={wash}
+          options={[Copy.ACCEPT, '', '', '', '', '', '', '', '', Copy.REJECT]}
+          optionSubject={rowSubject(name)}
+          onMouseRepeat={(event) => rowHovered(event.self)}
+          onMouseLeave={(event) => rowRested(event.self, wash)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Layout.ROW_H}
+          fill
+          color={TobPartydetailsColor.ROW_BACK}
+          transparency={wash}
+        />
+      )}
+      <ApplicantCell x={RowColumns.NAME.x} w={RowColumns.NAME.w} y={top} field={name} ink={ink} />
+      <ApplicantCell x={RowColumns.COMBAT.x} w={RowColumns.COMBAT.w} y={top} field={combat} ink={ink} />
+      <ApplicantCell x={RowColumns.ATTACK.x} w={RowColumns.ATTACK.w} y={top} field={attack} ink={ink} />
+      <ApplicantCell x={RowColumns.STRENGTH.x} w={RowColumns.STRENGTH.w} y={top} field={strength} ink={ink} />
+      <ApplicantCell x={RowColumns.RANGED.x} w={RowColumns.RANGED.w} y={top} field={ranged} ink={ink} />
+      <ApplicantCell x={RowColumns.MAGIC.x} w={RowColumns.MAGIC.w} y={top} field={magic} ink={ink} />
+      <ApplicantCell x={RowColumns.DEFENCE.x} w={RowColumns.DEFENCE.w} y={top} field={defence} ink={ink} />
+      <ApplicantCell x={RowColumns.HITPOINTS.x} w={RowColumns.HITPOINTS.w} y={top} field={hitpoints} ink={ink} />
+      <ApplicantCell x={RowColumns.PRAYER.x} w={RowColumns.PRAYER.w} y={top} field={prayer} ink={ink} />
+      <ApplicantCell x={RowColumns.RUNS.x} w={RowColumns.RUNS.w} y={top} field={runs} ink={ink} />
+    </>
+  );
+}
+
+function RowCell({ x, y, w, field, ink }: { x: Int; y: Int; w: Int; field: String; ink: Int }): Component {
+  return (
+    <text
+      x={x}
+      y={y}
+      w={w}
+      h={Layout.ROW_H}
+      text={cellText(field)}
+      font={TobPartydetailsFonts.ROW}
+      color={cellColor(field, ink)}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function ApplicantCell({ x, y, w, field, ink }: { x: Int; y: Int; w: Int; field: String; ink: Int }): Component {
+  return (
+    <text
+      x={x}
+      y={y}
+      w={w}
+      h={Layout.ROW_H}
+      text={field}
+      font={TobPartydetailsFonts.ROW}
+      color={ink}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+export function TobPartydetailsTooltip(): Component {
+  const [key] = useState(tipIndex);
+  const tip: TobPartydetailsTip | null = TobPartydetailsTips.at(key);
+
+  const hostW: Int = universeRef.width;
+  const hostH: Int = universeRef.height;
+  const rootX: Int = universeRef.x;
+  const rootY: Int = universeRef.y;
+
+  let text: String = '';
+  let anchorX: Int = 0;
+  let anchorY: Int = 0;
+  let anchorH: Int = 0;
+  let wrap: Int = Tooltip.WRAP;
+  if (tooltipUp() && key >= 0 && tip !== null) {
+    text = tip.text;
+    anchorX = tip.x + rootX;
+    anchorY = tip.y + rootY;
+    anchorH = tip.h;
+    wrap = tip.wrap;
+  }
+  let measure: Int = wrap;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  let shown: Boolean = false;
+  if (text.length > 0) {
+    shown = true;
+  }
+
+  return (
+    <layer
+      ref={tooltipRef}
+      x={shown ? x : 0}
+      y={shown ? y : 0}
+      w={shown ? boxW : Layout.TOOLTIP}
+      h={shown ? boxH : Layout.TOOLTIP}
+    >
+      {shown && <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />}
+      {shown && <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />}
+      {shown && (
+        <text
+          x="center"
+          y={{ bottom: 0 }}
+          w={{ fill: TooltipBox.padX }}
+          h={{ fill: 1 }}
+          text={text}
+          align="left"
+          valign="top"
+          lineHeight={0}
+          font={TooltipBox.font}
+          color={TooltipBox.ink}
+        />
+      )}
+    </layer>
+  );
+}

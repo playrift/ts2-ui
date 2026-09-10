@@ -1,0 +1,149 @@
+import { useServerState } from 'ts2';
+
+import { anythingToCollect } from '../0402_ge_collect/ge-collect.helpers';
+import { Varps } from '../lib/game/varps';
+import { itemName } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { GeColors, GeFonts, GeSprites, Index, Panel, TopBar, TopBarText } from './ge-offers.constants';
+import { commas } from './ge-offers.helpers';
+
+function repeatLabel(type: Int, count: Int, item: Int): String {
+  if (type === 0) {
+    return `Buy: ${commas(count)} x ${itemName(item as Item)}`;
+  }
+  return `Sell: ${commas(count)} x ${itemName(item as Item)}`;
+}
+
+export function GeOffersTopBar(): Component {
+  const collect: Boolean = anythingToCollect();
+
+  const lastItem: Int = useServerState(Varps.GE_LAST_OFFER_ITEM);
+  const lastCount: Int = useServerState(Varps.GE_LAST_OFFER_QUANTITY);
+  const lastType: Int = useServerState(Varps.GE_LAST_OFFER_TYPE);
+  let repeat: Boolean = false;
+  if (lastItem !== -1) {
+    repeat = true;
+  }
+  let noCollect: Boolean = true;
+  if (collect) {
+    noCollect = false;
+  }
+  let noRepeat: Boolean = true;
+  if (repeat) {
+    noRepeat = false;
+  }
+
+  let idleW: Int = Panel.VIEW_W;
+  if (collect) {
+    idleW = idleW - TopBar.RESERVE;
+  }
+  if (repeat) {
+    idleW = idleW - TopBar.RESERVE;
+  }
+  const idleX: Int = repeat ? TopBar.RESERVE : 0;
+
+  return (
+    <layer x="center" y={0} w="fill" h={Index.BAR_H}>
+      {collect ? (
+        <sprite
+          x={TopBar.COLLECT_X}
+          y={TopBar.BUTTON_Y}
+          w={TopBar.BUTTON_W}
+          h={TopBar.BUTTON_H}
+          sprite={GeSprites.BUTTON}
+          tiling={false}
+          options={[TopBarText.COLLECT_INV, TopBarText.COLLECT_BANK]}
+          onOptionSelect={(event) => opsound(event.option, TopBar.OP_MASK)}
+          onMouseRepeat={(event) => {
+            event.self.sprite = GeSprites.BUTTON_OVER;
+          }}
+          onMouseLeave={(event) => {
+            event.self.sprite = GeSprites.BUTTON;
+          }}
+        />
+      ) : (
+        <sprite
+          x={TopBar.COLLECT_X}
+          y={TopBar.BUTTON_Y}
+          w={TopBar.BUTTON_W}
+          h={TopBar.BUTTON_H}
+          tiling={false}
+          hide
+          options={[TopBarText.COLLECT_INV, TopBarText.COLLECT_BANK]}
+          onOptionSelect={(event) => opsound(event.option, TopBar.OP_MASK)}
+        />
+      )}
+
+      {repeat ? (
+        <sprite
+          x={TopBar.REPEAT_X}
+          y={TopBar.BUTTON_Y}
+          w={TopBar.BUTTON_W}
+          h={TopBar.BUTTON_H}
+          sprite={GeSprites.BUTTON}
+          tiling={false}
+          options={[repeatLabel(lastType, lastCount, lastItem)]}
+          onOptionSelect={(event) => opsound(event.option, TopBar.OP_MASK)}
+          onMouseRepeat={(event) => {
+            event.self.sprite = GeSprites.BUTTON_OVER;
+          }}
+          onMouseLeave={(event) => {
+            event.self.sprite = GeSprites.BUTTON;
+          }}
+        />
+      ) : (
+        <sprite
+          x={TopBar.REPEAT_X}
+          y={TopBar.BUTTON_Y}
+          w={TopBar.BUTTON_W}
+          h={TopBar.BUTTON_H}
+          tiling={false}
+          hide
+          options={[TopBarText.REPEAT]}
+          onOptionSelect={(event) => opsound(event.option, TopBar.OP_MASK)}
+        />
+      )}
+
+      <text
+        x={TopBar.COLLECT_X}
+        y={0}
+        w={TopBar.BUTTON_W}
+        h={Index.BAR_H}
+        font={GeFonts.BODY}
+        color={GeColors.BUTTON_LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={TopBarText.COLLECT}
+        hide={noCollect}
+      />
+
+      <text
+        x={TopBar.REPEAT_X}
+        y={0}
+        w={TopBar.BUTTON_W}
+        h={Index.BAR_H}
+        font={GeFonts.BODY}
+        color={GeColors.BUTTON_LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={TopBarText.REPEAT}
+        hide={noRepeat}
+      />
+
+      <text
+        x={idleX}
+        y={0}
+        w={idleW}
+        h={Index.BAR_H}
+        font={GeFonts.BODY}
+        color={GeColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={TopBarText.IDLE}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,81 @@
+import { useState, useUniverse } from 'ts2';
+
+import { tooltipBuilt } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { CreateTip, GeColors, GeFonts, Panel, TIP_STRIDE, TipSource, Tooltip } from './ge-offers.constants';
+
+import {
+  cellCount,
+  cellItem,
+  createTip,
+  ironmanAccount,
+  offerTip,
+  offerTipShown,
+  slotEnabled,
+} from './ge-offers.helpers';
+import { tipAnchorH, tipAnchorX, tipAnchorY } from './ge-offers.layout';
+
+function tipShown(slot: Int, source: Int): Boolean {
+  if (source === TipSource.OFFER) {
+    return offerTipShown(slot, cellItem(slot, 0));
+  }
+  return slotEnabled(slot);
+}
+
+export function GeTooltip(): Component {
+  const [tip] = useState(tooltipBuilt);
+  if (tip < 1) {
+    return null;
+  }
+  const handle: Int = tip - 1;
+  const slot: Int = handle / TIP_STRIDE;
+  const source: Int = handle - slot * TIP_STRIDE;
+  const ironman: Boolean = ironmanAccount();
+
+  const shown: Boolean = tipShown(slot, source);
+  if (!shown) {
+    return null;
+  }
+
+  const text: String =
+    source === TipSource.OFFER
+      ? offerTip(slot, cellItem(slot, 0), cellCount(slot, 0) + cellCount(slot, 1))
+      : source === TipSource.BUY
+        ? createTip(ironman)
+        : CreateTip.SELL;
+
+  const parent = useUniverse();
+
+  const wrap: Int = Math.min(Tooltip.WRAP, parent.width) - Tooltip.PAD_X;
+  const boxW: Int = Tooltip.PAD_X + textWidth(text, wrap, GeFonts.TOOLTIP);
+  const boxH: Int = Tooltip.PAD_Y + Tooltip.LINE * textLineCount(text, wrap, GeFonts.TOOLTIP);
+
+  const boardX: Int = (parent.width - Panel.W) / 2;
+  const boardY: Int = (parent.height - Panel.H) / 2;
+  const ax: Int = boardX + Panel.VIEW_X + tipAnchorX(slot, source, ironman);
+  const ay: Int = boardY + Panel.VIEW_Y + tipAnchorY(slot, source, ironman);
+  const below: Int = ay + tipAnchorH(source, ironman) + Tooltip.GAP;
+
+  return (
+    <layer
+      x={Math.min(ax + Tooltip.GAP, parent.width - boxW)}
+      y={below > parent.height - boxH ? ay - boxH - Tooltip.GAP : below}
+      w={boxW}
+      h={boxH}
+    >
+      <rect x="center" y="center" w="fill" h="fill" color={Tooltip.FILL} fill />
+      <rect x="center" y="center" w="fill" h="fill" color={Tooltip.INK} />
+      <text
+        x="center"
+        y="bottom"
+        w={{ fill: Tooltip.PAD_X }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        font={GeFonts.TOOLTIP}
+        color={GeColors.INK}
+      />
+    </layer>
+  );
+}

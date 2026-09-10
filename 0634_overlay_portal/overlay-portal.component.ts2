@@ -1,0 +1,137 @@
+import { CS2 } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import {
+  backgroundRef,
+  ComponentType,
+  Fade,
+  foregroundRef,
+  NO_BACKDROP,
+  PORTAL_ANIM,
+  PosMode,
+  SizeMode,
+  Wipe,
+  WipeChild,
+} from './overlay-portal.constants';
+
+export function OverlayPortal(): Component {
+  return (
+    <>
+      <layer static ref={backgroundRef} w="fill" h="fill" x="center" y="center" />
+
+      <layer static ref={foregroundRef} w="fill" h="fill" x="center" y="center" />
+    </>
+  );
+}
+
+export function overlayPortalFadeIn(
+  model: Model,
+  sheetColour: Int,
+  backdropColour: Int = NO_BACKDROP,
+  backdropTransparency: Int = NO_BACKDROP,
+  background: ComponentId = backgroundRef,
+  foreground: ComponentId = foregroundRef,
+): void {
+  CS2.cc_all_delete(background);
+  CS2.cc_all_delete(foreground);
+
+  if (backdropColour !== NO_BACKDROP && backdropTransparency !== NO_BACKDROP) {
+    CS2.cc_create(background, ComponentType.RECT, WipeChild.BACKDROP, false);
+    CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+    CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+    CS2.cc_fill_set(true);
+    CS2.cc_colour_set(backdropColour);
+    CS2.cc_transparency_set(backdropTransparency);
+  }
+
+  CS2.cc_create(foreground, ComponentType.MODEL, WipeChild.MODEL, false);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+  CS2.cc_hide_set(false);
+  CS2.cc_model_set(model);
+  CS2.cc_model_angle_set(0, Wipe.MODEL_OFFSET_Y, 0, 0, 0, Wipe.START_ZOOM);
+  CS2.cc_model_anim_set(PORTAL_ANIM);
+
+  CS2.cc_create(foreground, ComponentType.RECT, WipeChild.WASH, false);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+  CS2.cc_fill_set(true);
+  CS2.cc_colour_set(sheetColour);
+  CS2.cc_transparency_set(Wipe.CLEAR);
+
+  const startedAt: Int = clientClock();
+  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.IN, foreground), foreground);
+}
+
+export function overlayPortalFadeOut(
+  backdropColour: Int = NO_BACKDROP,
+  backdropTransparency: Int = NO_BACKDROP,
+  background: ComponentId = backgroundRef,
+  foreground: ComponentId = foregroundRef,
+): void {
+  CS2.cc_all_delete(background);
+
+  if (backdropColour !== NO_BACKDROP && backdropTransparency !== NO_BACKDROP) {
+    CS2.cc_create(background, ComponentType.RECT, WipeChild.BACKDROP, false);
+    CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+    CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
+    CS2.cc_fill_set(true);
+    CS2.cc_colour_set(backdropColour);
+    CS2.cc_transparency_set(backdropTransparency);
+  }
+
+  const startedAt: Int = clientClock();
+  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.OUT, foreground), foreground);
+}
+
+export function overlayPortalDismiss(foreground: ComponentId = foregroundRef): void {
+  const startedAt: Int = clientClock();
+  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.OUT, foreground), foreground);
+}
+
+function overlayPortalTick(start: Int, direction: Int, foreground: ComponentId): void {
+  const elapsed: Int = clientClock() - start;
+
+  if (elapsed >= Wipe.CYCLES) {
+    if (direction === Fade.OUT) {
+      CS2.cc_all_delete(foreground);
+    } else if (CS2.cc_find(foreground, WipeChild.WASH)) {
+      CS2.cc_transparency_set(Wipe.OPAQUE);
+    }
+    CS2.if_on_timer_set(null, foreground);
+    return;
+  }
+
+  if (CS2.cc_find(foreground, WipeChild.MODEL)) {
+    if (direction === Fade.IN) {
+      CS2.cc_model_angle_set(
+        0,
+        Wipe.MODEL_OFFSET_Y,
+        0,
+        0,
+        0,
+        Math.max(Wipe.MIN_ZOOM, CS2.scale(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, CS2.cc_model_zoom_get())),
+      );
+    } else {
+      CS2.cc_model_angle_set(
+        0,
+        Wipe.MODEL_OFFSET_Y,
+        0,
+        0,
+        0,
+        Math.max(
+          Wipe.MIN_ZOOM,
+          CS2.scale(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(CS2.cc_model_zoom_get(), Wipe.MIN_ZOOM_OUT)),
+        ),
+      );
+    }
+  }
+
+  if (CS2.cc_find(foreground, WipeChild.WASH)) {
+    if (direction === Fade.IN) {
+      CS2.cc_transparency_set(CS2.cc_trans_get() - Wipe.STEP);
+    } else {
+      CS2.cc_transparency_set(CS2.cc_trans_get() + Wipe.STEP);
+    }
+  }
+}

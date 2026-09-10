@@ -1,0 +1,188 @@
+import { useDerived, useInterval, useOnResize, useRef, useServerState, useUniverse } from 'ts2';
+
+import { StonePanelEntrypoint } from '../0648_target_streaks/stone-panel-entrypoint.component';
+import { tobHudNameFlasher } from '../0773_toa_lobby/toa-lobby.helpers';
+import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import { Varbits } from '../lib/game/varbits';
+import {
+  Layout,
+  NO_CONTENT,
+  PartyStatus,
+  TobHudColor,
+  TobHudDodge,
+  TobHudFonts,
+  TobHudSprites,
+  hudRef,
+  middleDodgerRef,
+  namesDodgerRef,
+  namesRef,
+  progressRef,
+  safezoneRef,
+  screenFlashRef,
+  statusDodgerRef,
+  statusRef,
+} from './tob-hud.constants';
+import { inTobLobby, tobHudMiddleTick, tobHudStatusTick } from './tob-hud.state';
+import { TobHudProgress } from './tob-hud-progress.component';
+import { TobHudStatus } from './tob-hud-status.component';
+
+export function flashTobHeadline(target: ComponentId): void {
+  target.color = tobHudNameFlasher();
+}
+
+export function TobHudScreenFlash(): Component {
+  return <layer ref={screenFlashRef} x="center" y="center" w="fill" h="fill" />;
+}
+
+export function TobHudSafezone(): Component {
+  useInterval(
+    () => overlayRelayout(safezoneRef, NO_CONTENT, TobHudDodge.SAFE_AREA, Anchor.LEFT, Anchor.TOP, 0),
+    safezoneRef,
+  );
+
+  return (
+    <layer ref={safezoneRef} x="center" y="center" w="fill" h="fill">
+      <TobHudFrame />
+    </layer>
+  );
+}
+
+export function TobHudFrame(): Component {
+  useInterval(
+    () => overlayRelayout(hudRef, NO_CONTENT, TobHudDodge.GAMEFRAME_EDGES, Anchor.LEFT, Anchor.TOP, 0),
+    hudRef,
+  );
+
+  return (
+    <layer ref={hudRef} x={0} y={0} w="fill" h="fill">
+      <TobHudNamesDodger />
+      <TobHudStatusDodger />
+      <TobHudMiddleDodger />
+    </layer>
+  );
+}
+
+export function TobHudNamesDodger(): Component {
+  useInterval(
+    () => overlayRelayout(namesDodgerRef, namesRef, TobHudDodge.LEFT, Anchor.LEFT, Anchor.TOP, 1),
+    namesDodgerRef,
+  );
+
+  return (
+    <layer ref={namesDodgerRef} x={0} y={0} w="fill" h="fill">
+      <layer static ref={namesRef} x={Layout.BOARD_X} y={Layout.BOARD_Y} w={Layout.BOARD_W} h={Layout.BOARD_H}>
+        <TobHudLobbyBoard />
+      </layer>
+    </layer>
+  );
+}
+
+export function TobHudStatusDodger(): Component {
+  useInterval(() => tobHudStatusTick(statusDodgerRef, statusRef), statusDodgerRef);
+
+  return (
+    <layer ref={statusDodgerRef} x={0} y={0} w="fill" h="fill">
+      <layer
+        static
+        ref={statusRef}
+        x={Layout.COLUMN_X}
+        y={Layout.COLUMN_Y}
+        w={Layout.COLUMN_W}
+        h={Layout.COLUMN_H_FULL}
+      >
+        <TobHudStatus />
+      </layer>
+    </layer>
+  );
+}
+
+export function TobHudMiddleDodger(): Component {
+  useInterval(() => tobHudMiddleTick(middleDodgerRef, progressRef, hudRef), middleDodgerRef);
+
+  return (
+    <layer ref={middleDodgerRef} x={0} y={0} w="fill" h="fill">
+      <layer
+        static
+        ref={progressRef}
+        x="center"
+        y={Layout.PROGRESS_Y}
+        w={{ fill: Layout.PROGRESS_INSET_W }}
+        h={Layout.PROGRESS_H}
+      >
+        <TobHudProgress />
+      </layer>
+    </layer>
+  );
+}
+
+function lobbyCaption(status: Int): String {
+  if (status === PartyStatus.READY) {
+    return 'Step inside now!';
+  }
+  if (status === PartyStatus.NONE) {
+    return 'No party';
+  }
+  return 'Party';
+}
+
+function lobbyInk(status: Int): Int {
+  if (status === PartyStatus.READY) {
+    return tobHudNameFlasher();
+  }
+  return TobHudColor.LABEL;
+}
+
+export function TobHudLobbyBoard(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+
+  const inLobby: Int = useDerived(() => inTobLobby());
+  const status: Int = useServerState(Varbits.TOB_CLIENT_PARTYSTATUS);
+
+  if (inLobby === 0 || status === PartyStatus.HIDDEN) {
+    return null;
+  }
+
+  const caption: String = lobbyCaption(status);
+  const ink: Int = lobbyInk(status);
+
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        sprite={TobHudSprites.BACKING}
+        tiling
+        transparency={Layout.BACKING_TRANSPARENCY}
+      />
+      <text
+        x="center"
+        y={Layout.HEADER_Y}
+        w={{ fill: Layout.HEADER_INSET_W }}
+        h={Layout.HEADER_H}
+        text={caption}
+        font={TobHudFonts.HEADLINE}
+        align="center"
+        valign="middle"
+        shadow
+        color={ink}
+        onTimer={status === PartyStatus.READY ? (event) => flashTobHeadline(event.self) : null}
+      />
+      <text
+        x="center"
+        y={{ bottom: Layout.NAMES_BOTTOM }}
+        w={{ fill: Layout.NAMES_INSET_W }}
+        h={{ fill: Layout.NAMES_INSET_H }}
+        font={TobHudFonts.NAMES}
+        align="center"
+        valign="middle"
+        shadow
+        color={TobHudColor.LABEL}
+        lineHeight={Layout.NAMES_LINE_H}
+      />
+      <StonePanelEntrypoint divider={Layout.DIVIDER} />
+    </layer>
+  );
+}

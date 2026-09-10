@@ -1,0 +1,71 @@
+import { useRef, useState } from 'ts2';
+
+import { textLineCount } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Layout, Leading, MESSAGE_COLOR, MESSAGE_FONT, MesoBar, mesoverlayMessage } from './mesoverlay.constants';
+
+export function Mesoverlay(): Component {
+  const [message] = useState(mesoverlayMessage);
+
+  const lines: Int = textLineCount(message, Layout.PANE_W, MESSAGE_FONT);
+
+  let leading: Int = Leading.DEFAULT;
+  if (lines === 2) {
+    leading = Leading.TWO_LINE;
+  } else if (lines === 3) {
+    leading = Leading.THREE_LINE;
+  }
+
+  const paragraph: Int = lines * leading + Leading.PAD;
+  let fits: Boolean = false;
+  if (paragraph <= Layout.PANE_H) {
+    fits = true;
+  }
+
+  const pane = useRef();
+
+  return (
+    <layer w="fill" h="fill" noClickThrough>
+      <layer
+        ref={pane}
+        x="center"
+        y="center"
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={fits ? 0 : paragraph}
+      >
+        <text
+          x="center"
+          y={fits ? 'center' : 0}
+          w="fill"
+          h={paragraph}
+          text={message}
+          font={MESSAGE_FONT}
+          color={MESSAGE_COLOR}
+          align="center"
+          valign="middle"
+          lineHeight={leading}
+        />
+      </layer>
+
+      <layer x="right" y="center" w={Layout.BAR_W} h={{ fill: Layout.PANE_INSET_H }} hide={fits}>
+        {!fits && (
+          <ScrollbarVertical
+            content={pane}
+            track={MesoBar.TRACK}
+            capTopSprite={MesoBar.CAP_TOP}
+            thumbSprite={MesoBar.THUMB}
+            capBottomSprite={MesoBar.CAP_BOTTOM}
+            arrowUp={MesoBar.ARROW_UP}
+            arrowDown={MesoBar.ARROW_DOWN}
+          />
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+export function mesoverlaySetText(text: String): void {
+  const [, setMessage] = useState(mesoverlayMessage);
+  setMessage(text);
+}

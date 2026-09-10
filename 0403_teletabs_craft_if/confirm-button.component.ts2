@@ -1,0 +1,84 @@
+import { useInterval, useState, createRef } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { CONFIRM_CYCLES, TeletabColor, TeletabFonts, TeletabSounds } from './teletabs-craft-if.constants';
+
+const flashHost = createRef('teletabs_craft_if:confirm_flash');
+
+export function ConfirmButton({ enabled, opLabel }: { enabled: Boolean; opLabel: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [confirmedUntil, setConfirmedUntil] = useState(0);
+
+  useInterval(() => {
+    if (clientClock() < confirmedUntil) {
+      return;
+    }
+    setConfirmedUntil(0);
+  }, flashHost);
+
+  if (!enabled) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonPressedFilled />
+        <ConfirmCaption text="<col=9f9f9f>---</col>" />
+      </layer>
+    );
+  }
+
+  if (clientClock() < confirmedUntil) {
+    return (
+      <layer ref={flashHost} w="fill" h="fill" options={[opLabel]}>
+        <StoneButtonPressedFilled />
+        <ConfirmCaption text="Create" />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[opLabel]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(TeletabSounds.SELECT);
+        setHovered(0);
+        setConfirmedUntil(clientClock() + CONFIRM_CYCLES);
+      }}
+    >
+      {hovered === 1 ? (
+        <>
+          <StoneButtonPressedFilled />
+        </>
+      ) : (
+        <>
+          <StoneButtonOutFilled />
+        </>
+      )}
+      <ConfirmCaption text="Create" />
+    </layer>
+  );
+}
+
+function ConfirmCaption({ text }: { text: String }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={text}
+      font={TeletabFonts.HEADING}
+      color={TeletabColor.LABEL}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}

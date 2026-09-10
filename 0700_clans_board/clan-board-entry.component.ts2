@@ -54,35 +54,48 @@ export function ClanBoardEntry({ slot }: { slot: Int }): Component {
 
   const restTransparency: Int = rowRank(slot, sort) % 2 === 0 ? RowTransparency.EVEN : RowTransparency.ODD;
 
+  let live: Boolean = false;
   if (filled === 1 && readyAt === 0) {
+    live = true;
+  }
+  let hoverable: Boolean = false;
+  if (live && !onMobile()) {
+    hoverable = true;
+  }
+
+  if (live) {
     mount.options = [Copy.VIEW_CLAN, '', '', '', '', '', '', '', '', Copy.REPORT_NAME];
   } else {
     mount.options = [];
   }
   mount.optionSubject = filled === 1 ? `<col=ff9040>${CS2.tags_remove(name)}</col>` : '';
-  if (filled === 1) {
-    mount.onMouseRepeat = () => {
-      if (readyAt === 0 && !onMobile()) {
-        setColorTransparency(stripe, ClanBoardColor.WHITE, RowTransparency.HOVER);
+  mount.onMouseRepeat = hoverable
+    ? () => {
+        if (readyAt === 0) {
+          setColorTransparency(stripe, ClanBoardColor.WHITE, RowTransparency.HOVER);
+        }
       }
-    };
-    mount.onMouseLeave = () => {
-      if (readyAt === 0) {
-        setColorTransparency(stripe, ClanBoardColor.WHITE, restTransparency);
+    : null;
+  mount.onMouseLeave = live
+    ? () => {
+        if (readyAt === 0) {
+          setColorTransparency(stripe, ClanBoardColor.WHITE, restTransparency);
+        }
       }
-    };
-    mount.onOptionSelect = (event) => {
-      if (readyAt !== 0) {
-        return;
+    : null;
+  mount.onOptionSelect = live
+    ? (event) => {
+        if (readyAt !== 0) {
+          return;
+        }
+        if (event.option !== 1 && event.option !== 10) {
+          return;
+        }
+        playSound(ClanBoardSounds.CLICK);
+        CS2.if_resume_pausebutton(event.component);
+        setReadyAt(clientClock() + FLASH_CYCLES);
       }
-      if (event.option !== 1 && event.option !== 10) {
-        return;
-      }
-      playSound(ClanBoardSounds.CLICK);
-      CS2.if_resume_pausebutton(event.component);
-      setReadyAt(clientClock() + FLASH_CYCLES);
-    };
-  }
+    : null;
 
   return filled === 1 ? (
     <>

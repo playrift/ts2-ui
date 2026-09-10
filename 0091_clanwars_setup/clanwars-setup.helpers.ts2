@@ -1,0 +1,268 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { clanwarsOpponentchangetime } from '../lib/game/varcs';
+import { clientClock, membersWorld, playSound } from '../lib/lib.engine';
+import {
+  ClanWarsOptionSets,
+  ClanWarsOptions,
+  ClanWarsSounds,
+  ClanWarsVarbits,
+  ClanWarsVarps,
+  Layout,
+  OptionSet,
+  optionKey,
+} from './clanwars-setup.constants';
+
+export function optionSetting(set: OptionSet): Int {
+  switch (set) {
+    case OptionSet.GAME_END:
+      return useServerState(ClanWarsVarbits.GAME_END);
+    case OptionSet.MELEE:
+      return useServerState(ClanWarsVarbits.MELEE);
+    case OptionSet.RANGING:
+      return useServerState(ClanWarsVarbits.RANGING);
+    case OptionSet.MAGIC:
+      return useServerState(ClanWarsVarbits.MAGIC);
+    case OptionSet.PRAYER:
+      return useServerState(ClanWarsVarbits.PRAYER);
+    case OptionSet.FOOD:
+      return useServerState(ClanWarsVarbits.FOOD);
+    case OptionSet.DRINKS:
+      return useServerState(ClanWarsVarbits.DRINKS);
+    case OptionSet.SPECIAL:
+      return useServerState(ClanWarsVarbits.SPECIAL);
+    case OptionSet.STRAGGLERS:
+      return useServerState(ClanWarsVarbits.STRAGGLERS);
+    case OptionSet.ARENA:
+      return useServerState(ClanWarsVarbits.ARENA);
+    case OptionSet.LEAVING:
+      return useServerState(ClanWarsVarbits.LEAVING);
+    case OptionSet.REJOIN:
+      return useServerState(ClanWarsVarbits.REJOIN);
+    case OptionSet.TEAM_CAP:
+      return useServerState(ClanWarsVarbits.TEAM_CAP);
+  }
+  return 0;
+}
+
+export function setOptionSetting(set: OptionSet, value: Int): void {
+  switch (set) {
+    case OptionSet.GAME_END:
+      predictServerState(ClanWarsVarbits.GAME_END, value);
+      return;
+    case OptionSet.MELEE:
+      predictServerState(ClanWarsVarbits.MELEE, value);
+      return;
+    case OptionSet.RANGING:
+      predictServerState(ClanWarsVarbits.RANGING, value);
+      return;
+    case OptionSet.MAGIC:
+      predictServerState(ClanWarsVarbits.MAGIC, value);
+      return;
+    case OptionSet.PRAYER:
+      predictServerState(ClanWarsVarbits.PRAYER, value);
+      return;
+    case OptionSet.FOOD:
+      predictServerState(ClanWarsVarbits.FOOD, value);
+      return;
+    case OptionSet.DRINKS:
+      predictServerState(ClanWarsVarbits.DRINKS, value);
+      return;
+    case OptionSet.SPECIAL:
+      predictServerState(ClanWarsVarbits.SPECIAL, value);
+      return;
+    case OptionSet.STRAGGLERS:
+      predictServerState(ClanWarsVarbits.STRAGGLERS, value);
+      return;
+    case OptionSet.ARENA:
+      predictServerState(ClanWarsVarbits.ARENA, value);
+      return;
+    case OptionSet.LEAVING:
+      predictServerState(ClanWarsVarbits.LEAVING, value);
+      return;
+    case OptionSet.REJOIN:
+      predictServerState(ClanWarsVarbits.REJOIN, value);
+      return;
+    case OptionSet.TEAM_CAP:
+      predictServerState(ClanWarsVarbits.TEAM_CAP, value);
+      return;
+  }
+}
+
+export function miscToggled(bit: Int): Boolean {
+  return CS2.testbit(useServerState(ClanWarsVarps.SETTINGS), bit);
+}
+
+export function toggleMisc(bit: Int): void {
+  const settings: Int = useServerState(ClanWarsVarps.SETTINGS);
+  if (CS2.testbit(settings, bit)) {
+    predictServerState(ClanWarsVarps.SETTINGS, CS2.bit_clear(settings, bit));
+    return;
+  }
+  predictServerState(ClanWarsVarps.SETTINGS, CS2.bit_set(settings, bit));
+}
+
+export function optionLabel(set: OptionSet, index: Int): String {
+  const row = ClanWarsOptions.get(optionKey(set, index));
+  return row === null ? '' : row.label;
+}
+
+export function optionDescription(key: Int): String {
+  const row = ClanWarsOptions.get(key);
+  return row === null ? '' : row.description;
+}
+
+export function optionSetTip(set: OptionSet): String {
+  const row = ClanWarsOptionSets.at(set);
+  return row === null ? '' : row.tip;
+}
+
+export function arenaIsMembers(index: Int): Boolean {
+  const row = ClanWarsOptions.get(optionKey(OptionSet.ARENA, index));
+  return row === null ? false : row.members;
+}
+
+export enum ClanWarsWarn {
+  NONE = 0,
+  ALL_COMBAT_OFF = 1,
+  BINDING_ONLY = 2,
+  POWERED_STAVES = 3,
+  BINDING_NO_FREEZE = 4,
+  VLS = 5,
+  MEMBERS_ARENA = 6,
+  OPPONENT_CHANGED = 7,
+}
+
+export function clanWarsWarning(): Int {
+  const melee: Int = useServerState(ClanWarsVarbits.MELEE);
+  const ranged: Int = useServerState(ClanWarsVarbits.RANGING);
+  const magic: Int = useServerState(ClanWarsVarbits.MAGIC);
+  if (melee === 1 && ranged === 1) {
+    if (magic === 4) {
+      return ClanWarsWarn.ALL_COMBAT_OFF;
+    }
+    if (magic === 3) {
+      return ClanWarsWarn.BINDING_ONLY;
+    }
+  }
+  if (magic >= 3 && useServerState(ClanWarsVarbits.POWERED_STAVES) === 1) {
+    return ClanWarsWarn.POWERED_STAVES;
+  }
+  if (useServerState(ClanWarsVarbits.FREEZING) === 1 && magic === 3) {
+    return ClanWarsWarn.BINDING_NO_FREEZE;
+  }
+  if (melee === 1 && useServerState(ClanWarsVarbits.VLS) === 1) {
+    return ClanWarsWarn.VLS;
+  }
+  if (!membersWorld() && arenaIsMembers(useServerState(ClanWarsVarbits.ARENA))) {
+    return ClanWarsWarn.MEMBERS_ARENA;
+  }
+  return ClanWarsWarn.NONE;
+}
+
+export function clanWarsWarningText(warn: Int): String {
+  switch (warn) {
+    case ClanWarsWarn.ALL_COMBAT_OFF:
+      return '<col=ff0000>If you turn off all forms of combat, your battle will be mighty peculiar.</col>';
+    case ClanWarsWarn.BINDING_ONLY:
+      return "<col=ff0000>You can't have a proper battle with only the Bind, Snare and Entangle spells.</col>";
+    case ClanWarsWarn.POWERED_STAVES:
+      return '<col=ff0000>Powered Staves are enabled against players, yet their spells are forbidden by the Magic restrictions.</col>';
+    case ClanWarsWarn.BINDING_NO_FREEZE:
+      return "<col=ff0000>It seems odd to restrict Magic to just the binding spells when you've disabled their binding effects.</col>";
+    case ClanWarsWarn.VLS:
+      return "<col=ff0000>Vesta's Blighted Longsword is enabled, yet Melee is restricted.</col>";
+    case ClanWarsWarn.MEMBERS_ARENA:
+      return "<col=ff0000>That's a members-only arena.</col>";
+  }
+  return '';
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(ClanWarsVarbits.MOBILE_SIMULATED) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedDesktop(): Boolean {
+  if (useServerState(ClanWarsVarbits.MOBILE_SIMULATED) === 1) {
+    return false;
+  }
+  const type: Int = CS2.clienttype();
+  if (type === 4 || type === 5 || type === 10) {
+    return true;
+  }
+  return false;
+}
+
+export function onEnhancedAny(): Boolean {
+  if (onEnhancedDesktop()) {
+    return true;
+  }
+  if (onEnhancedMobile()) {
+    return true;
+  }
+  return false;
+}
+
+export function countdownSeconds(): Int {
+  const [changed] = useState(clanwarsOpponentchangetime);
+  if (changed < 0) {
+    return 0;
+  }
+  const elapsed: Int = clientClock() - changed;
+  if (elapsed < 0) {
+    return 0;
+  }
+  if (elapsed >= Layout.countdown.window) {
+    return 0;
+  }
+  return (Layout.countdown.window - elapsed) / Layout.countdown.perSecond + 1;
+}
+
+export function resetOpponentClock(): void {
+  const [, setChanged] = useState(clanwarsOpponentchangetime);
+  setChanged(-2147483648);
+}
+
+export function cornerText(): String {
+  const warn: Int = clanWarsWarning();
+  if (warn !== ClanWarsWarn.NONE) {
+    return clanWarsWarningText(warn);
+  }
+  const seconds: Int = countdownSeconds();
+  if (seconds > 0) {
+    return `Your opponent has made changes!<br>${CS2.tostring(seconds)}`;
+  }
+  return '';
+}
+
+export function cornerBlocked(): Boolean {
+  if (clanWarsWarning() !== ClanWarsWarn.NONE) {
+    return true;
+  }
+  if (countdownSeconds() > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function repaintCorner(label: Ref, button: Ref): void {
+  label.text = cornerText();
+  button.hide = cornerBlocked();
+}
+
+export function acceptClanWars(): void {
+  if (useServerState(ClanWarsVarbits.ACCEPT) === 1) {
+    return;
+  }
+  playSound(ClanWarsSounds.SELECT);
+  predictServerState(ClanWarsVarbits.ACCEPT, 1);
+}

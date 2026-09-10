@@ -1,0 +1,157 @@
+import { createRef, useServerState } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { PrestigeRewards, PvpShopItems } from './pvp-shop.data';
+import {
+  BountyHat,
+  Fade,
+  Grid,
+  Layout,
+  PRESTIGE_HEADING,
+  Prestige,
+  SEPARATOR,
+  StoreColors,
+  StoreFonts,
+  StoreScrollbar,
+  StoreVarps,
+  SWAP_ROGUE_HAT,
+  TITLE_PREFIX,
+  TITLE_SUFFIX,
+} from './pvp-store.constants';
+
+const itemListPane = createRef('pvp_store_itemlist');
+
+export function shopIcon(item: ItemName, swap: Boolean): ItemName {
+  if (swap) {
+    if (item === BountyHat.HUNTER) {
+      return BountyHat.ROGUE;
+    }
+  }
+  return item;
+}
+
+export function priceColor(points: Int, price: Int): Int {
+  if (points < price) {
+    return StoreColors.UNAFFORDABLE;
+  }
+  return StoreColors.AFFORDABLE;
+}
+
+export function PvpStore(): Component {
+  const archaic: Int = useServerState(StoreVarps.ARCHAIC_POINTS);
+  const prestige: Int = useServerState(StoreVarps.PRESTIGE_POINTS);
+
+  const shopRows: Int = (PvpShopItems.length + Grid.PER_ROW - 1) / Grid.PER_ROW;
+  const shopHeight: Int = shopRows * Grid.ROW_H;
+
+  const rewardRows: Int = (PrestigeRewards.length + Grid.PER_ROW - 1) / Grid.PER_ROW;
+  const rewardHeight: Int = Prestige.TOP + rewardRows * Grid.ROW_H;
+
+  const extent: Int = shopHeight + rewardHeight;
+
+  return (
+    <>
+      <layer w="fill" h="fill">
+        <SteelBorderEntrypoint title={`${TITLE_PREFIX}${groupDigits(archaic, SEPARATOR)}${TITLE_SUFFIX}`} />
+      </layer>
+
+      <layer
+        ref={itemListPane}
+        x={Layout.PANE_X}
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={extent > Layout.PANE_H ? extent : 0}
+      >
+        {PvpShopItems.map((item, index) => (
+          <sprite
+            x={(index % Grid.PER_ROW) * Grid.STRIDE}
+            y={(index / Grid.PER_ROW) * Grid.ROW_H}
+            w={Grid.ITEM_W}
+            h={Grid.ITEM_H}
+            item={shopIcon(item, SWAP_ROGUE_HAT)}
+            itemCount={1}
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+            options={['Value', 'Buy-1', 'Buy-5', 'Buy-10', 'Buy-50', '', '', '', '', 'Examine']}
+            optionSubject={`<col=ff9040>${itemName(shopIcon(item, SWAP_ROGUE_HAT) as Item)}</col>`}
+            onOptionSelect={(event) => {
+              flashFor(event.self, Fade.PRESSED, Fade.REST);
+            }}
+          />
+        ))}
+
+        <layer x="center" y={shopHeight} w="fill" h={rewardHeight} hide>
+          {PrestigeRewards.map((item, index) => (
+            <sprite
+              x={(index % Grid.PER_ROW) * Grid.STRIDE}
+              y={Prestige.TOP + (index / Grid.PER_ROW) * Grid.ROW_H}
+              w={Grid.ITEM_W}
+              h={Grid.ITEM_H}
+              item={item}
+              itemCount={1}
+              outline={Grid.OUTLINE}
+              shadowColor={Grid.SHADOW}
+              options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(item as Item)}</col>`}
+              onOptionSelect={(event) => {
+                flashFor(event.self, Fade.PRESSED, Fade.REST);
+              }}
+            />
+          ))}
+
+          <text
+            x="center"
+            y={0}
+            w="fill"
+            h={Prestige.TOP}
+            text={PRESTIGE_HEADING}
+            font={StoreFonts.HEADING}
+            color={StoreColors.HEADING}
+            shadow
+            align="left"
+            valign="middle"
+          />
+
+          {PrestigeRewards.map((item, index) => (
+            <text
+              x={(index % Grid.PER_ROW) * Grid.STRIDE}
+              y={Prestige.TOP + (index / Grid.PER_ROW + 1) * Grid.ROW_H - Prestige.PRICE_H}
+              w={Prestige.PRICE_W}
+              h={Prestige.PRICE_H}
+              text={groupDigits((item as Item).pvpStorePrice!, SEPARATOR)}
+              color={priceColor(prestige, (item as Item).pvpStorePrice!)}
+              font={StoreFonts.PRICE}
+              shadow
+              align="center"
+              valign="middle"
+            />
+          ))}
+        </layer>
+
+        <layer x="center" y={{ bottom: 0 }} w={Layout.UNLOCKS_W} h={0} hide />
+      </layer>
+
+      <layer
+        x={{ right: Layout.BAR_RIGHT }}
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={Layout.BAR_W}
+        h={{ fill: Layout.PANE_INSET_H }}
+      >
+        <ScrollbarVertical
+          content={itemListPane}
+          track={StoreScrollbar.TRACK}
+          capTopSprite={StoreScrollbar.CAP_TOP}
+          thumbSprite={StoreScrollbar.THUMB}
+          capBottomSprite={StoreScrollbar.CAP_BOTTOM}
+          arrowUp={StoreScrollbar.ARROW_UP}
+          arrowDown={StoreScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

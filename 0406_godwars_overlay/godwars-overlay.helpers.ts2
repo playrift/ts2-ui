@@ -1,0 +1,166 @@
+import { CS2, stopTimer, useServerState, useState } from 'ts2';
+
+import { caTierComplete } from '../0206_nzone_rewards/nzone-rewards.price';
+import { godwarsDarkness as godwarsDarknessVarc, nexOverlayFade } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { playerCoord } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { coordInBox } from '../lib/lib.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
+import { Darkness, GodwarsDodge, Killcount, Layout, NexFade } from './godwars-overlay.constants';
+import { contents, darkness, dodger, fader, killsLayer, tintBox } from './godwars-overlay.refs';
+
+const enum SizeMode {
+  ABS = 0,
+}
+
+export function killcountDiscount(): Int {
+  if (caTierComplete(6) === 1) {
+    return 25;
+  }
+  if (caTierComplete(5) === 1) {
+    return 15;
+  }
+  if (caTierComplete(4) === 1) {
+    return 10;
+  }
+  if (caTierComplete(3) === 1) {
+    return 5;
+  }
+  return 0;
+}
+
+export function godwarsKillcount(target: ComponentId, kills: Int): void {
+  const requirement: Int = Killcount.BASE_REQUIREMENT - killcountDiscount();
+  let label: String = '';
+  if (kills >= Killcount.MAX) {
+    label = 'Max';
+  } else {
+    label = groupDigits(kills, ',');
+  }
+  if (kills < requirement) {
+    label = `${Killcount.SHORT_COLOUR}${label}`;
+  }
+  target.text = label;
+}
+
+export function godwarsKillcountArmadyl(target: ComponentId): void {
+  const kills: Int = useServerState(Varbits.GODWARS_COUNTER_ARMADYL);
+  godwarsKillcount(target, kills);
+}
+
+export function godwarsKillcountBandos(target: ComponentId): void {
+  const kills: Int = useServerState(Varbits.GODWARS_COUNTER_BANDOS);
+  godwarsKillcount(target, kills);
+}
+
+export function godwarsKillcountSaradomin(target: ComponentId): void {
+  const kills: Int = useServerState(Varbits.GODWARS_COUNTER_SARADOMIN);
+  godwarsKillcount(target, kills);
+}
+
+export function godwarsKillcountZamorak(target: ComponentId): void {
+  const kills: Int = useServerState(Varbits.GODWARS_COUNTER_ZAMORAK);
+  godwarsKillcount(target, kills);
+}
+
+export function godwarsKillcountZaros(target: ComponentId): void {
+  const kills: Int = useServerState(Varbits.GODWARS_COUNTER_ZAROS);
+  godwarsKillcount(target, kills);
+}
+
+export function nexPlateHeight(plate: ComponentId = killsLayer): void {
+  const frozenDoor: Int = useServerState(Varbits.FROZEN_DOOR);
+  CS2.if_size_set(
+    Layout.PLATE_W,
+    frozenDoor >= NexFade.ANCIENT_ROW_GATE ? Layout.PLATE_H_NEX : Layout.PLATE_H_PLAIN,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    plate,
+  );
+}
+
+export function godwarsHideshow(panel: ComponentId = contents, wash: ComponentId = fader): void {
+  const [, setDarkness] = useState(godwarsDarknessVarc);
+  const instanced: Int = useServerState(Varbits.GODWARS_INSTANCE);
+  const at: Coord = playerCoord();
+
+  if (
+    coordInBox(tileOf(2816, 5248, 0), tileOf(2943, 5375, 3), at) ||
+    coordInBox(tileOf(2816, 5184, 0), tileOf(2943, 5234, 3), at) ||
+    instanced === 1
+  ) {
+    panel.hide = false;
+  } else {
+    panel.hide = true;
+    stopTimer(wash);
+    wash.transparency = Darkness.CLEAR;
+    setDarkness(Darkness.PARKED);
+  }
+}
+
+export function godwarsDarknessStep(wash: ComponentId = darkness): void {
+  const [current, setDarkness] = useState(godwarsDarknessVarc);
+  const saradominLight: Int = useServerState(Varbits.GODWARS_SARADOMIN_LIGHT);
+  const zamorakInstance: Int = useServerState(Varbits.GODWARS_INSTANCE_ZAMORAK);
+  const at: Coord = playerCoord();
+
+  let target: Int = Darkness.CLEAR;
+  if (saradominLight === 0) {
+    if (coordInBox(tileOf(2912, 5312, 2), tileOf(2943, 5335, 2), at) || zamorakInstance === 1) {
+      target = Darkness.ZAMORAK;
+    } else if (coordInBox(tileOf(2904, 5336, 2), tileOf(2943, 5375, 2), at)) {
+      target = Darkness.MID;
+    } else if (
+      coordInBox(tileOf(2880, 5352, 2), tileOf(2903, 5375, 2), at) ||
+      coordInBox(tileOf(2888, 5344, 2), tileOf(2903, 5351, 2), at)
+    ) {
+      target = Darkness.LIGHT;
+    }
+  }
+
+  let next: Int = current;
+  if (next > target) {
+    next = next - Darkness.STEP;
+    if (next < target) {
+      next = target;
+    }
+  } else if (next < target) {
+    next = next + Darkness.STEP;
+    if (next > target) {
+      next = target;
+    }
+  }
+
+  if (next !== current) {
+    wash.transparency = next;
+    setDarkness(next);
+  }
+}
+
+export function nexFadeTimer(wash: ComponentId = tintBox): void {
+  const [fade] = useState(nexOverlayFade);
+  const current: Int = CS2.if_trans_get(wash);
+  if (current > fade) {
+    wash.transparency = Math.max(NexFade.FLOOR, current - 1);
+  } else if (current < fade) {
+    wash.transparency = Math.min(NexFade.CEILING, current + 1);
+  }
+}
+
+export function godwarsOverlayInit(
+  spine: ComponentId = dodger,
+  plate: ComponentId = killsLayer,
+  panel: ComponentId = contents,
+  wash: ComponentId = fader,
+): void {
+  overlayInit(spine, plate, GodwarsDodge.FLAGS, Anchor.LEFT, Anchor.TOP, 1);
+
+  const [, setDarkness] = useState(godwarsDarknessVarc);
+  setDarkness(Darkness.PARKED);
+  const [, setNexFade] = useState(nexOverlayFade);
+  setNexFade(NexFade.REST);
+
+  godwarsHideshow(panel, wash);
+  nexPlateHeight(plate);
+}

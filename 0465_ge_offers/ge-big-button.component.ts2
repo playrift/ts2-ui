@@ -1,0 +1,78 @@
+import { createRef, useInterval, useRef, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { BigButton, GeFonts, GeSounds } from './ge-offers.constants';
+
+const timerHost = createRef('0465_ge_offers_timer_host');
+
+export function GeBigButton({ label }: { label: String }): Component {
+  useInterval(() => {
+    if (clientClock() < pressedUntil) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
+  const text = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  const width: Int = textWidth(label, BigButton.MEASURE, GeFonts.BODY) + BigButton.PADDING;
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer w={width} h="fill" options={[label]} ref={timerHost}>
+        <ButtonBackgroundPressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={GeFonts.BODY}
+          color={BigButton.LABEL_LIT}
+          shadow
+          align="center"
+          valign="middle"
+          text={label}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w={width}
+      h="fill"
+      options={[label]}
+      onMouseRepeat={() => {
+        text.color = BigButton.LABEL_LIT;
+      }}
+      onMouseLeave={() => {
+        text.color = BigButton.LABEL;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(GeSounds.CLICK);
+        setPressedUntil(clientClock() + BigButton.PRESSED_CYCLES);
+      }}
+    >
+      <ButtonBackground />
+      <text
+        ref={text}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={GeFonts.BODY}
+        color={BigButton.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={label}
+      />
+    </layer>
+  );
+}

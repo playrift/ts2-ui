@@ -1,0 +1,270 @@
+import { createRef, predictServerState, useInventory, useServerState } from 'ts2';
+
+import { itemName, playSound, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import {
+  CellFrame,
+  Columns,
+  Copy,
+  Icon,
+  Layout,
+  PriceColors,
+  PriceFonts,
+  PriceInventories,
+  PriceScrollbar,
+  PriceSounds,
+  PriceSprites,
+  PriceVarbits,
+  Rows,
+  SEPARATOR,
+  TOGGLE_OP,
+} from './ge-pricelist.constants';
+
+const toggleCaption = createRef('ge_pricelist_toggle_caption');
+
+const priceListPane = createRef('ge_pricelist_list');
+
+export function togglePriceListMode(op: Int, mode: Int): void {
+  if (op === TOGGLE_OP) {
+    playSound(PriceSounds.TOGGLE);
+    predictServerState(PriceVarbits.MODE, 1 - mode);
+  }
+}
+
+export function coinsLabel(amount: Int): String {
+  if (amount === 1) {
+    return Copy.ONE_COIN;
+  }
+  return `${groupDigits(amount, SEPARATOR)} coins`;
+}
+
+export function coinsLabelWhite(amount: Int): String {
+  if (amount === 1) {
+    return Copy.ONE_COIN_WHITE;
+  }
+  return `<col=ffffff>${groupDigits(amount, SEPARATOR)} coins</col>`;
+}
+
+export function DisplayModeToggle(): Component {
+  const mode: Int = useServerState(PriceVarbits.MODE);
+  const width: Int = textWidth(Copy.TOGGLE, Layout.MEASURE_W, PriceFonts.LABEL) + Layout.TOGGLE_PAD;
+
+  return (
+    <layer
+      x={Layout.TOGGLE_X}
+      y={Layout.TOGGLE_Y}
+      w={width}
+      h={Layout.TOGGLE_H}
+      options={['Toggle']}
+      onOptionSelect={(event) => togglePriceListMode(event.option, mode)}
+      onMouseEnter={() => {
+        toggleCaption.color = PriceColors.LABEL_HOVER;
+      }}
+      onMouseLeave={() => {
+        toggleCaption.color = PriceColors.LABEL;
+      }}
+    >
+      <sprite
+        w={Layout.RADIO}
+        h={Layout.RADIO}
+        sprite={mode === 1 ? PriceSprites.RADIO_COLUMN : PriceSprites.RADIO_ROWS}
+      />
+
+      <text
+        ref={toggleCaption}
+        w={width}
+        h={Layout.TOGGLE_H}
+        text={Copy.TOGGLE}
+        font={PriceFonts.LABEL}
+        color={PriceColors.LABEL}
+        shadow
+        align="right"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function PriceRows(): Component {
+  const shop = useInventory(PriceInventories.SHOP);
+  const mode: Int = useServerState(PriceVarbits.MODE);
+
+  let lastRowY: Int = -1;
+  let slot: Int = 0;
+  while (slot < shop.size) {
+    if (shop[slot] !== -1) {
+      lastRowY = mode === 1 ? (slot / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP : (slot / 2) * Rows.ROW_H;
+    }
+    slot = slot + 1;
+  }
+
+  const pitch: Int = mode === 1 ? Columns.ROW_H : Rows.ROW_H;
+  const extent: Int = lastRowY >= 0 ? lastRowY + pitch : lastRowY;
+
+  return (
+    <>
+      <layer
+        ref={priceListPane}
+        x={Layout.PANE_X}
+        y={Layout.PANE_Y}
+        w={Layout.PANE_W}
+        h={Layout.PANE_H}
+        scrollHeight={extent > Layout.PANE_H ? extent : 0}
+      >
+        {shop.map(
+          (item, index) =>
+            item !== -1 && (
+              <>
+                {mode === 1 ? (
+                  <>
+                    <sprite
+                      x={Columns.INSET + (index % Columns.PER_ROW) * Columns.STRIDE + Columns.ICON_DX}
+                      y={(index / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP + Columns.ICON_DY}
+                      w={Icon.W}
+                      h={Icon.H}
+                      item={item}
+                      itemCount={1}
+                      itemCountMode="never"
+                      options={['', '', '', '', '', '', '', '', '', 'Examine']}
+                      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                    />
+
+                    <rect
+                      x={Columns.INSET + (index % Columns.PER_ROW) * Columns.STRIDE + 1}
+                      y={(index / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP + 1}
+                      w={Columns.CELL_W}
+                      h={Columns.CELL_H}
+                      color={CellFrame.INNER}
+                      fill={false}
+                    />
+                    <rect
+                      x={Columns.INSET + (index % Columns.PER_ROW) * Columns.STRIDE}
+                      y={(index / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP}
+                      w={Columns.CELL_W}
+                      h={Columns.CELL_H}
+                      color={CellFrame.OUTER}
+                      fill={false}
+                    />
+
+                    <sprite
+                      x={Columns.INSET + (index % Columns.PER_ROW) * Columns.STRIDE + Columns.ICON_DX}
+                      y={(index / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP + Columns.ICON_DY}
+                      w={Icon.W}
+                      h={Icon.H}
+                      item={item}
+                      itemCount={1}
+                      itemCountMode="never"
+                      outline={Icon.OUTLINE}
+                      shadowColor={Icon.SHADOW}
+                    />
+
+                    <text
+                      x={Columns.INSET + (index % Columns.PER_ROW) * Columns.STRIDE + Columns.PRICE_DX}
+                      y={(index / Columns.PER_ROW) * Columns.ROW_H + Columns.TOP + Columns.PRICE_DY}
+                      w={Columns.PRICE_W}
+                      h={Columns.PRICE_H}
+                      text={coinsLabel(shop.count(index))}
+                      font={PriceFonts.SMALL}
+                      color={PriceColors.LABEL}
+                      shadow
+                      align="center"
+                      valign="middle"
+                    />
+                  </>
+                ) : (
+                  <>
+                    {index % 2 === 0 && (
+                      <sprite
+                        x={0}
+                        y={(index / 2) * Rows.ROW_H}
+                        w={Rows.BACKING_W}
+                        h={Rows.ROW_H}
+                        sprite={PriceSprites.ROW_BACKING}
+                        tiling
+                        transparency={index % Rows.BAND_PERIOD < Rows.BAND_HALF ? Rows.BAND_OPAQUE : Rows.BAND_FADED}
+                      />
+                    )}
+
+                    <sprite
+                      x={index % 2 === 0 ? 0 : Rows.HALF}
+                      y={(index / 2) * Rows.ROW_H + Rows.ICON_DY}
+                      w={Icon.W}
+                      h={Icon.H}
+                      item={item}
+                      itemCount={1}
+                      itemCountMode="never"
+                      options={['', '', '', '', '', '', '', '', '', 'Examine']}
+                      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+                    />
+
+                    <sprite
+                      x={index % 2 === 0 ? 0 : Rows.HALF}
+                      y={(index / 2) * Rows.ROW_H + Rows.ICON_DY}
+                      w={Icon.W}
+                      h={Icon.H}
+                      item={item}
+                      itemCount={1}
+                      itemCountMode="never"
+                      outline={Icon.OUTLINE}
+                      shadowColor={Icon.SHADOW}
+                    />
+
+                    <text
+                      x={(index % 2 === 0 ? 0 : Rows.HALF) + Rows.LABEL_DX}
+                      y={(index / 2) * Rows.ROW_H + Rows.ICON_DY + Rows.LABEL_DY}
+                      w={Rows.LABEL_W}
+                      h={Rows.LABEL_H}
+                      text={itemName(item)}
+                      font={PriceFonts.SMALL}
+                      color={PriceColors.LABEL}
+                      shadow
+                      align="left"
+                      valign="top"
+                    />
+                    <text
+                      x={(index % 2 === 0 ? 0 : Rows.HALF) + Rows.LABEL_DX}
+                      y={(index / 2) * Rows.ROW_H + Rows.ICON_DY + Rows.LABEL_DY}
+                      w={Rows.LABEL_W}
+                      h={Rows.LABEL_H}
+                      text={coinsLabelWhite(shop.count(index))}
+                      font={PriceFonts.LABEL}
+                      color={PriceColors.LABEL}
+                      shadow
+                      align="left"
+                      valign="bottom"
+                    />
+                  </>
+                )}
+              </>
+            ),
+        )}
+      </layer>
+
+      <layer x={Layout.BAR_X} y={Layout.PANE_Y} w={Layout.BAR_W} h={Layout.PANE_H}>
+        <ScrollbarVertical
+          content={priceListPane}
+          track={PriceScrollbar.TRACK}
+          capTopSprite={PriceScrollbar.CAP_TOP}
+          thumbSprite={PriceScrollbar.THUMB}
+          capBottomSprite={PriceScrollbar.CAP_BOTTOM}
+          arrowUp={PriceScrollbar.ARROW_UP}
+          arrowDown={PriceScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function GePricelist(): Component {
+  return (
+    <>
+      <SteelBorderEntrypoint title={Copy.TITLE} />
+
+      <PriceRows />
+
+      <DisplayModeToggle />
+    </>
+  );
+}

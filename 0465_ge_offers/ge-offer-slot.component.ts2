@@ -1,0 +1,437 @@
+import { CS2, useDerived, useRef } from 'ts2';
+
+import { itemName } from '../lib/lib.engine';
+import {
+  Create,
+  CreateOp,
+  GeColors,
+  GeFonts,
+  GeSprites,
+  NEVER,
+  Slot,
+  TipSource,
+  TIP_STRIDE,
+} from './ge-offers.constants';
+import {
+  geBarColor,
+  geBarOverride,
+  geBarWidth,
+  geSinkItem,
+  geSinkPrice,
+  geTax,
+  ironmanAccount,
+  offerHeader,
+  priceText,
+  slotEnabled,
+  truncateToWidth,
+} from './ge-offers.helpers';
+import { hideGeTooltip, selectSlot, showGeTooltip } from './ge-offers.state';
+import { StonePanel } from './stone-panel.component';
+
+export function GeOfferSlot({
+  slot,
+  held0,
+  count0,
+  held1,
+  count1,
+}: {
+  slot: Int;
+  held0: Item;
+  count0: Int;
+  held1: Item;
+  count1: Int;
+}): Component {
+  const buyIcon = useRef();
+  const sellIcon = useRef();
+
+  const sink: Int = useDerived(() => geSinkItem(slot));
+  const sinkPaid: Int = useDerived(() => geSinkPrice(slot));
+  const tax: Int = useDerived(() => geTax(slot));
+
+  const empty: Boolean = CS2.stockmarket_offer_empty_is(slot);
+
+  const held: Item = held0 !== -1 ? held0 : held1;
+  const heldTotal: Int = held0 === -1 ? count1 : held1 === held0 ? count0 + count1 : count0;
+
+  let bare: Boolean = false;
+  if (empty) {
+    if (held === -1) {
+      bare = true;
+    }
+  }
+  let heldAny: Boolean = false;
+  if (held !== -1) {
+    heldAny = true;
+  }
+  let notBare: Boolean = true;
+  if (bare) {
+    notBare = false;
+  }
+  const ironman: Boolean = ironmanAccount();
+  const enabled: Boolean = slotEnabled(slot);
+  let hideSell: Boolean = true;
+  if (bare) {
+    if (!ironman) {
+      hideSell = false;
+    }
+  }
+
+  const shown: Item = empty ? (sink !== -1 ? (sink as Item) : held) : CS2.stockmarket_offer_item_get(slot);
+  const total: Int = empty ? (sink !== -1 ? 1 : heldTotal) : CS2.stockmarket_offer_count_get(slot);
+  const done: Int = empty ? (sink !== -1 ? 1 : 0) : CS2.stockmarket_offer_completed_count_get(slot);
+  const price: Int = empty ? (sink !== -1 ? sinkPaid : 0) : CS2.stockmarket_offer_price_get(slot);
+
+  let running: Boolean = false;
+  if (!empty) {
+    if (!CS2.stockmarket_offer_finished_is(slot)) {
+      running = true;
+    }
+  }
+  let abortable: Boolean = false;
+  if (empty) {
+    if (sink !== -1) {
+      if (tax >= NEVER) {
+        abortable = true;
+      }
+    }
+  }
+  let priceHidden: Boolean = true;
+  if (!bare) {
+    if (price > 0) {
+      priceHidden = false;
+    }
+  }
+
+  const tipOffer: Int = slot * TIP_STRIDE + TipSource.OFFER;
+  const tipBuy: Int = slot * TIP_STRIDE + TipSource.BUY;
+  const tipSell: Int = slot * TIP_STRIDE + TipSource.SELL;
+
+  const createY: Int = ironman ? Create.SOLO_Y : Create.PAIR_Y;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {notBare ? (
+        <rect x={0} y={0} w={0} h={0} color={GeColors.PLINTH_EDGE} hide />
+      ) : ironman ? (
+        <rect
+          x={{ center: Create.SOLO_PLINTH_OFFSET }}
+          y={createY + Create.SOLO_PLINTH_OFFSET}
+          w={Create.SOLO_SIZE}
+          h={Create.SOLO_SIZE}
+          color={GeColors.PLINTH_EDGE}
+        />
+      ) : (
+        <rect
+          x={Create.PLINTH_LEFT_X}
+          y={createY + 1}
+          w={Create.PAIR_W}
+          h={Create.PAIR_H}
+          color={GeColors.PLINTH_EDGE}
+        />
+      )}
+
+      {!hideSell ? (
+        <rect
+          x={Create.PLINTH_RIGHT_X}
+          y={createY + 1}
+          w={Create.PAIR_W}
+          h={Create.PAIR_H}
+          color={GeColors.PLINTH_EDGE}
+        />
+      ) : (
+        <rect x={0} y={0} w={Create.PAIR_W} h={Create.PAIR_H} color={GeColors.PLINTH_EDGE} hide />
+      )}
+
+      {bare ? (
+        <rect
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          fill
+          color={GeColors.CLICK}
+          transparency={GeColors.CLICK_REST}
+          hide
+          onOptionSelect={(event) => selectSlot(event.option, slot, -1, false)}
+        />
+      ) : running ? (
+        <rect
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          fill
+          color={GeColors.CLICK}
+          transparency={GeColors.CLICK_REST}
+          options={['View offer', 'Abort offer', 'Modify offer']}
+          onOptionSelect={(event) => selectSlot(event.option, slot, -1, heldAny)}
+          onMouseEnter={(event) => {
+            event.self.transparency = GeColors.CLICK_OVER;
+          }}
+          onMouseLeave={(event) => {
+            event.self.transparency = GeColors.CLICK_REST;
+            hideGeTooltip();
+          }}
+          onMouseRepeat={() => showGeTooltip(tipOffer)}
+        />
+      ) : abortable ? (
+        <rect
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          fill
+          color={GeColors.CLICK}
+          transparency={GeColors.CLICK_REST}
+          options={['View offer', 'Abort offer']}
+          onOptionSelect={(event) => selectSlot(event.option, slot, -1, heldAny)}
+          onMouseEnter={(event) => {
+            event.self.transparency = GeColors.CLICK_OVER;
+          }}
+          onMouseLeave={(event) => {
+            event.self.transparency = GeColors.CLICK_REST;
+            hideGeTooltip();
+          }}
+          onMouseRepeat={() => showGeTooltip(tipOffer)}
+        />
+      ) : (
+        <rect
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          fill
+          color={GeColors.CLICK}
+          transparency={GeColors.CLICK_REST}
+          options={['View offer']}
+          onOptionSelect={(event) => selectSlot(event.option, slot, -1, heldAny)}
+          onMouseEnter={(event) => {
+            event.self.transparency = GeColors.CLICK_OVER;
+          }}
+          onMouseLeave={(event) => {
+            event.self.transparency = GeColors.CLICK_REST;
+            hideGeTooltip();
+          }}
+          onMouseRepeat={() => showGeTooltip(tipOffer)}
+        />
+      )}
+
+      {notBare ? (
+        <rect x={0} y={0} w={0} h={0} color={GeColors.BUTTON_EDGE} hide />
+      ) : !enabled ? (
+        <rect
+          x={ironman ? Create.SOLO_X : Create.BUY_X}
+          y={createY}
+          w={ironman ? Create.SOLO_SIZE : Create.PAIR_W}
+          h={ironman ? Create.SOLO_SIZE : Create.PAIR_H}
+          color={GeColors.BUTTON_EDGE}
+        />
+      ) : (
+        <rect
+          x={ironman ? Create.SOLO_X : Create.BUY_X}
+          y={createY}
+          w={ironman ? Create.SOLO_SIZE : Create.PAIR_W}
+          h={ironman ? Create.SOLO_SIZE : Create.PAIR_H}
+          color={GeColors.BUTTON_EDGE}
+          options={[CreateOp.BUY]}
+          onOptionSelect={(event) => selectSlot(event.option, slot, 0, false)}
+          onMouseEnter={() => {
+            buyIcon.sprite = GeSprites.BUY_OVER;
+          }}
+          onMouseLeave={() => {
+            buyIcon.sprite = GeSprites.BUY;
+            hideGeTooltip();
+          }}
+          onMouseRepeat={() => showGeTooltip(tipBuy)}
+        />
+      )}
+
+      {hideSell ? (
+        <rect x={0} y={0} w={0} h={0} color={GeColors.BUTTON_EDGE} hide />
+      ) : !enabled ? (
+        <rect
+          x={{ right: Create.SELL_RIGHT }}
+          y={createY}
+          w={Create.PAIR_W}
+          h={Create.PAIR_H}
+          color={GeColors.BUTTON_EDGE}
+        />
+      ) : (
+        <rect
+          x={{ right: Create.SELL_RIGHT }}
+          y={createY}
+          w={Create.PAIR_W}
+          h={Create.PAIR_H}
+          color={GeColors.BUTTON_EDGE}
+          options={[CreateOp.SELL]}
+          onOptionSelect={(event) => selectSlot(event.option, slot, 1, false)}
+          onMouseEnter={() => {
+            sellIcon.sprite = GeSprites.SELL_OVER;
+          }}
+          onMouseLeave={() => {
+            sellIcon.sprite = GeSprites.SELL;
+            hideGeTooltip();
+          }}
+          onMouseRepeat={() => showGeTooltip(tipSell)}
+        />
+      )}
+
+      <StonePanel divider={Slot.DIVIDER} />
+
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h={Slot.HEADER_H}
+        font={GeFonts.HEADER}
+        color={GeColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={offerHeader(slot, held)}
+      />
+
+      <sprite
+        x={Slot.PLINTH_X}
+        y={Slot.PLINTH_Y}
+        w={Slot.PLINTH_W}
+        h={Slot.PLINTH_H}
+        sprite={GeSprites.ITEM_BACKDROP}
+        hide={bare}
+      />
+
+      {bare ? (
+        <sprite
+          x={Slot.ITEM_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          hide
+        />
+      ) : (
+        <sprite
+          x={Slot.ITEM_X}
+          y={Slot.ITEM_Y}
+          w={Slot.ITEM_W}
+          h={Slot.ITEM_H}
+          outline={Slot.ITEM_OUTLINE}
+          shadowColor={GeColors.ICON_SHADOW}
+          item={shown}
+          itemCount={total}
+        />
+      )}
+
+      {bare ? (
+        <text
+          x={{ right: Slot.NAME_RIGHT }}
+          y={Slot.NAME_Y}
+          w={{ fill: Slot.NAME_INSET_W }}
+          h={Slot.NAME_H}
+          font={GeFonts.BODY}
+          color={GeColors.ITEM}
+          shadow
+          align="left"
+          valign="top"
+          hide
+        />
+      ) : (
+        <text
+          x={{ right: Slot.NAME_RIGHT }}
+          y={Slot.NAME_Y}
+          w={{ fill: Slot.NAME_INSET_W }}
+          h={Slot.NAME_H}
+          font={GeFonts.BODY}
+          color={GeColors.ITEM}
+          shadow
+          align="left"
+          valign="top"
+          text={truncateToWidth(itemName(shown), Slot.W - Slot.NAME_INSET_W)}
+        />
+      )}
+
+      <rect
+        x={Slot.BAR_BORDER_X}
+        y={Slot.BAR_BORDER_Y}
+        w={Slot.BAR_BORDER_W}
+        h={Slot.BAR_BORDER_H}
+        color={GeColors.INK}
+        hide={bare}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        w={Slot.BAR_W}
+        h={Slot.BAR_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+        hide={bare}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        h={Slot.BAR_H}
+        fill
+        hide={bare}
+        w={geBarWidth(slot, total, done, geBarOverride(slot, empty), Slot.BAR_W)}
+        color={geBarColor(slot, total, done, geBarOverride(slot, empty))}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_Y}
+        w={Slot.BAR_W}
+        h={Slot.BAR_TOP_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+        hide={bare}
+      />
+      <rect
+        x={Slot.BAR_X}
+        y={Slot.BAR_LEFT_Y}
+        w={Slot.BAR_LEFT_W}
+        h={Slot.BAR_LEFT_H}
+        fill
+        color={GeColors.INK}
+        transparency={GeColors.FADE}
+        hide={bare}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: Slot.PRICE_BOTTOM }}
+        w={{ fill: Slot.PRICE_INSET_W }}
+        h={{ fill: Slot.PRICE_INSET_H }}
+        font={GeFonts.BODY}
+        color={GeColors.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        hide={priceHidden}
+        text={priceText(price)}
+      />
+
+      <sprite
+        ref={buyIcon}
+        x={ironman ? Create.SOLO_ICON_X : Create.ICON_BUY_X}
+        y={ironman ? createY + Create.SOLO_ICON_DY : createY + Create.ICON_DY}
+        w={Slot.ICON_W}
+        h={Slot.ICON_H}
+        hide={notBare}
+        sprite={enabled ? GeSprites.BUY : GeSprites.BUY_OVER}
+      />
+
+      <sprite
+        ref={sellIcon}
+        x={{ right: Create.ICON_SELL_RIGHT }}
+        y={createY + Create.ICON_DY}
+        w={Slot.ICON_W}
+        h={Slot.ICON_H}
+        hide={hideSell}
+        sprite={enabled ? GeSprites.SELL : GeSprites.SELL_OVER}
+      />
+    </layer>
+  );
+}

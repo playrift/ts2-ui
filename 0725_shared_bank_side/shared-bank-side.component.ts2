@@ -1,0 +1,116 @@
+import { useInventory, useServerState } from 'ts2';
+import { defaultQuantityLabel } from '../0012_bankmain/bankmain.helpers';
+import { flashFor } from '../lib/lib.components';
+import { itemName } from '../lib/lib.engine';
+import {
+  BLANK_ITEM,
+  Grid,
+  Quantity,
+  SharedBank,
+  SharedBankColor,
+  SharedBankVarbits,
+  Transparency,
+} from './shared-bank-side.constants';
+
+function SharedBankSlot({
+  item,
+  count,
+  slot,
+  quantityType,
+  requested,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  quantityType: Int;
+  requested: Int;
+}): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={SharedBankColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.REST}
+      options={[
+        `Deposit-${defaultQuantityLabel(quantityType, requested)}`,
+        quantityType === Quantity.ONE ? '' : 'Deposit-1',
+        quantityType === Quantity.FIVE ? '' : 'Deposit-5',
+        quantityType === Quantity.TEN ? '' : 'Deposit-10',
+        quantityType !== Quantity.X && requested > 0 ? `Deposit-${requested}` : '',
+        'Deposit-X',
+        quantityType === Quantity.ALL ? '' : 'Deposit-All',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Transparency.FLASH, Transparency.REST);
+      }}
+    />
+  );
+}
+
+function SharedBankBlank({ slot }: { slot: Int }): Component {
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BLANK_ITEM}
+      itemCount={1}
+      outline={Grid.OUTLINE}
+      shadowColor={SharedBankColor.SLOT_SHADOW}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      transparency={Transparency.BLANK}
+    />
+  );
+}
+
+function SharedBankCell({
+  item,
+  count,
+  slot,
+  quantityType,
+  requested,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  quantityType: Int;
+  requested: Int;
+}): Component {
+  if (item === -1) {
+    return <SharedBankBlank slot={slot} />;
+  }
+  return <SharedBankSlot item={item} count={count} slot={slot} quantityType={quantityType} requested={requested} />;
+}
+
+export function SharedBankSide(): Component {
+  const bag = useInventory(SharedBank.INV);
+  const quantityType: Int = useServerState(SharedBankVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(SharedBankVarbits.REQUESTED_QUANTITY);
+
+  return (
+    <layer w="fill" h="fill">
+      {bag.map((item, slot) => (
+        <SharedBankCell
+          item={item}
+          count={bag.count(slot)}
+          slot={slot}
+          quantityType={quantityType}
+          requested={requested}
+        />
+      ))}
+    </layer>
+  );
+}

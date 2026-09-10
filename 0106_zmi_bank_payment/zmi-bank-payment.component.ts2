@@ -1,0 +1,204 @@
+import { CS2, sessionState, useInterval, useState } from 'ts2';
+
+import { clientClock, itemName, playSound } from '../lib/lib.engine';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  CAPTION,
+  CHOOSE_OP,
+  Grid,
+  Layout,
+  MIN_RUNES,
+  PAYMENT_MODE,
+  Press,
+  RuneCells,
+  TITLE,
+  ZmiColors,
+  ZmiFonts,
+  ZmiSounds,
+} from './zmi-bank-payment.constants';
+import { runeTotal } from './zmi-bank-payment.helpers';
+
+const hoveredCell = sessionState(-1);
+
+const pressedCell = sessionState(-1);
+const pressedAt = sessionState(0);
+const pressPhase = sessionState(0);
+
+export function hoverRune(index: Int): void {
+  const [, setHovered] = useState(hoveredCell);
+  setHovered(index);
+}
+
+export function pressRune(index: Int): void {
+  playSound(ZmiSounds.CLICK);
+  const [, setCell] = useState(pressedCell);
+  const [, setAt] = useState(pressedAt);
+  const [, setPhase] = useState(pressPhase);
+  setCell(index);
+  setAt(clientClock());
+  setPhase(1);
+}
+
+export function pressTick(): void {
+  const [at] = useState(pressedAt);
+  const [phase, setPhase] = useState(pressPhase);
+  const [, setCell] = useState(pressedCell);
+  const now: Int = clientClock();
+  if (phase === 1) {
+    if (now >= at + Press.UNHIDE_AFTER) {
+      setPhase(2);
+    }
+  }
+  if (phase === 2) {
+    if (now >= at + Press.REDRAW_AFTER) {
+      setPhase(0);
+      setCell(-1);
+    }
+  }
+}
+
+export function RuneCell({
+  item,
+  index,
+  x,
+  y,
+  mode,
+}: {
+  item: ItemName;
+  index: Int;
+  x: Int;
+  y: Int;
+  mode: Int;
+}): Component {
+  const held: Int = runeTotal(item);
+  let live: Boolean = false;
+  if (mode === 0) {
+    live = true;
+  } else if (held >= MIN_RUNES) {
+    live = true;
+  }
+
+  const [hovered] = useState(hoveredCell);
+  const [pressed] = useState(pressedCell);
+  const [phase] = useState(pressPhase);
+
+  let skinHidden: Boolean = false;
+  if (phase === 1) {
+    if (pressed === index) {
+      skinHidden = true;
+    }
+  }
+  let listening: Boolean = live;
+  if (phase !== 0) {
+    if (pressed === index) {
+      listening = false;
+    }
+  }
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={Grid.CELL}
+      h={Grid.CELL}
+      options={[CHOOSE_OP]}
+      optionSubject={`<col=ff9040>${itemName(item as Item)}</col>`}
+      onMouseEnter={listening ? () => hoverRune(index) : undefined}
+      onMouseLeave={listening ? () => hoverRune(-1) : undefined}
+      onOptionSelect={(event) => {
+        pressRune(index);
+        CS2.if_resume_pausebutton(event.component);
+      }}
+    >
+      {!live ? (
+        <StoneButtonFilled hide={skinHidden}>
+          <sprite
+            x={{ center: Grid.ICON_DX }}
+            y="center"
+            w={Grid.ICON_W}
+            h={Grid.ICON_H}
+            item={item}
+            itemCount={held}
+            itemCountMode="always"
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+            transparency={Grid.DISABLED_FADE}
+          />
+        </StoneButtonFilled>
+      ) : hovered === index ? (
+        <StoneButtonPressedFilled hide={skinHidden}>
+          <sprite
+            x={{ center: Grid.ICON_DX }}
+            y="center"
+            w={Grid.ICON_W}
+            h={Grid.ICON_H}
+            item={item}
+            itemCount={held}
+            itemCountMode="always"
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+          />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonOutFilled hide={skinHidden}>
+          <sprite
+            x={{ center: Grid.ICON_DX }}
+            y="center"
+            w={Grid.ICON_W}
+            h={Grid.ICON_H}
+            item={item}
+            itemCount={held}
+            itemCountMode="always"
+            outline={Grid.OUTLINE}
+            shadowColor={Grid.SHADOW}
+          />
+        </StoneButtonOutFilled>
+      )}
+    </layer>
+  );
+}
+
+export function PaymentGrid(): Component {
+  const [phase] = useState(pressPhase);
+
+  useInterval(phase !== 0 ? () => pressTick() : undefined);
+
+  return (
+    <layer
+      x="center"
+      y={{ bottom: Layout.GRID_BOTTOM }}
+      w={{ fill: Layout.GRID_INSET_W }}
+      h={{ fill: Layout.GRID_INSET_H }}
+    >
+      {RuneCells.map((cell) => (
+        <RuneCell item={cell.item} index={cell.index} x={cell.x} y={cell.y} mode={PAYMENT_MODE} />
+      ))}
+    </layer>
+  );
+}
+
+export function ZmiBankPayment(): Component {
+  return (
+    <>
+      <SteelBorderEntrypoint title={TITLE} />
+
+      <PaymentGrid />
+
+      <layer y={{ bottom: Layout.CAPTION_BOTTOM }} w="fill" h={Layout.CAPTION_H}>
+        <text
+          w="fill"
+          h="fill"
+          text={CAPTION}
+          font={ZmiFonts.CAPTION}
+          color={ZmiColors.CAPTION}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+    </>
+  );
+}

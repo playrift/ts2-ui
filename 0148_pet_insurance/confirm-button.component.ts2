@@ -1,0 +1,94 @@
+import { useServerState, useState } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  CONFIRM_LINE_LIFT,
+  Copy,
+  Layout,
+  PetColor,
+  PetFonts,
+  PetSounds,
+  PetVars,
+  PetWash,
+} from './pet-insurance.constants';
+import { InsurablePets } from './pet-insurance.data';
+import { confirmNameFont } from './pet-insurance.helpers';
+
+export function ConfirmButton(): Component {
+  const mobile = onMobile();
+  const reclaim: Int = useServerState(PetVars.RECLAIM);
+  const [hovered, setHovered] = useState(0);
+
+  const reclaimItem: ItemName = InsurablePets.at(reclaim - 1) ?? -1;
+  const armed: Int = reclaim !== 0 && reclaimItem !== -1 ? 1 : 0;
+  const name: String = armed === 1 ? itemName(reclaimItem as Item) : '';
+
+  const raised: Int = armed === 1 && hovered === 0 ? 1 : 0;
+  const armedColor: Int = hovered === 0 ? PetColor.CONFIRM : PetColor.WHITE;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer x={0} y={0} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        {raised === 1 ? <StoneButtonOutFilled /> : <StoneButtonPressedFilled />}
+
+        <text
+          x="center"
+          y={armed === 1 ? { center: -CONFIRM_LINE_LIFT } : 'center'}
+          w="fill"
+          h="fill"
+          text={armed === 1 ? Copy.CONFIRM_ARMED : Copy.CONFIRM}
+          font={PetFonts.BODY}
+          color={armed === 1 ? armedColor : PetColor.DIM}
+          align="center"
+          valign="middle"
+          shadow
+        />
+
+        {armed === 1 && (
+          <text
+            x="center"
+            y={{ center: CONFIRM_LINE_LIFT }}
+            w="fill"
+            h="fill"
+            text={name}
+            font={confirmNameFont(name)}
+            color={armedColor}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+      </layer>
+
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={PetColor.BLACK}
+          transparency={PetWash.CLICK_ZONE}
+          options={[Copy.CONFIRM_OP]}
+          onOptionSelect={() => playSound(PetSounds.SELECT)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={PetColor.BLACK}
+          transparency={PetWash.CLICK_ZONE}
+          options={[Copy.CONFIRM_OP]}
+          onMouseRepeat={() => setHovered(1)}
+          onMouseLeave={() => setHovered(0)}
+          onOptionSelect={() => playSound(PetSounds.SELECT)}
+        />
+      )}
+    </layer>
+  );
+}

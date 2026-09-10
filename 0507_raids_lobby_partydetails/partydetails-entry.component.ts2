@@ -1,0 +1,179 @@
+import { CS2 } from 'ts2';
+
+import { friendschatSendKick } from '../0076_grouping/grouping.state';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import {
+  Copy,
+  Layout,
+  PartydetailsColor,
+  PartydetailsFonts,
+  PartydetailsSounds,
+  PartydetailsTransparency,
+} from './raids-lobby-partydetails.constants';
+import {
+  canKick,
+  keyBelow,
+  openStats,
+  rowField,
+  rowRank,
+  rowTop,
+  rowTransparency,
+} from './raids-lobby-partydetails.helpers';
+
+export function PartydetailsEntry({
+  line,
+  slot,
+  sort,
+  selected,
+  kickable,
+  nameW,
+  combatW,
+  skillW,
+  combatFloor,
+  skillFloor,
+}: {
+  line: String;
+  slot: Int;
+  sort: Int;
+  selected: Int;
+  kickable: Int;
+  nameW: Int;
+  combatW: Int;
+  skillW: Int;
+  combatFloor: String;
+  skillFloor: String;
+}): Component {
+  const top: Int = rowTop(slot, sort);
+  const rank: Int = rowRank(slot, sort);
+  const rest: Int = rowTransparency(slot, rank, selected);
+
+  const name: String = rowField(line, 0);
+  const combat: String = rowField(line, 1);
+  const skill: String = rowField(line, 2);
+  const kills: String = rowField(line, 3);
+  const plain: String = CS2.tags_remove(name);
+  const combatKey: String = `${combat.padStart(3, '0')}${slot}`;
+  const skillKey: String = `${skill.padStart(4, '0')}${slot}`;
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={Layout.ROW_H}
+        color={PartydetailsColor.ROW}
+        fill
+        transparency={rest}
+        options={kickable === 1 ? [Copy.STATS, '', '', '', '', Copy.KICK] : [Copy.STATS]}
+        optionSubject={`<col=ff9040>${plain}</col>`}
+        onMouseRepeat={(event) => {
+          event.self.transparency = PartydetailsTransparency.ROW_SELECTED;
+        }}
+        onMouseLeave={(event) => {
+          event.self.transparency = rest;
+        }}
+        onOptionSelect={(event) => {
+          if (event.option === 6) {
+            if (canKick()) {
+              playSound(PartydetailsSounds.CLICK);
+              friendschatSendKick(plain);
+            } else {
+              chatMessage(Copy.NO_PERMISSION);
+            }
+            return;
+          }
+          playSound(PartydetailsSounds.CLICK);
+          openStats(slot);
+        }}
+      />
+      <text
+        x={0}
+        y={top}
+        w={nameW}
+        h={Layout.ROW_H}
+        text={name}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={nameW}
+        y={top}
+        w={combatW}
+        h={Layout.ROW_H}
+        text={combat}
+        font={PartydetailsFonts.BODY}
+        color={keyBelow(combatKey, combatFloor) ? PartydetailsColor.FAIL : PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={nameW + combatW}
+        y={top}
+        w={skillW}
+        h={Layout.ROW_H}
+        text={skill}
+        font={PartydetailsFonts.BODY}
+        color={keyBelow(skillKey, skillFloor) ? PartydetailsColor.FAIL : PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        right={0}
+        y={top}
+        w={{ fill: Layout.ROW_KILL_INSET_W }}
+        h={Layout.ROW_H}
+        text={kills}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        hide
+        text={combatKey}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        hide
+        text={skillKey}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        hide
+        text={`${kills.padStart(4, '0')}${slot}`}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}

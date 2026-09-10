@@ -1,0 +1,66 @@
+import { useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { slidingCipherClientValue } from '../lib/game/varcs';
+import { playSound } from '../lib/lib.engine';
+import { CipherOuter } from './cipher-alphabets.data';
+import { CipherArt, CipherLimits, CipherSounds, CipherState, SlideDirection } from './sliding-cipher.constants';
+
+export function minmax(low: Int, high: Int, value: Int): Int {
+  if (high <= low) {
+    return Math.max(high, Math.min(low, value));
+  }
+  return Math.max(low, Math.min(high, value));
+}
+
+export function cipherCellCount(): Int {
+  return minmax(CipherLimits.MIN_CELLS, CipherLimits.MAX_CELLS, CipherOuter.length);
+}
+
+export function cipherPick(index: Int, offset: Int, size: Int): Int {
+  const at: Int = index + offset;
+  if (at >= size) {
+    return at - size;
+  }
+  return at;
+}
+
+export function cipherStrip(index: Int): Sprite {
+  if (index === 0) {
+    return CipherArt.STRIP_0;
+  }
+  if (index === 1) {
+    return CipherArt.STRIP_1;
+  }
+  if (index === 2) {
+    return CipherArt.STRIP_2;
+  }
+  if (index === 3) {
+    return CipherArt.STRIP_3;
+  }
+  return CipherArt.STRIP_4;
+}
+
+export function slideCipher(direction: SlideDirection): void {
+  playSound(CipherSounds.SLIDE);
+
+  const size: Int = cipherCellCount();
+  const server: Int = useServerState(Varbits.SLIDING_CIPHER_CURRENT_VALUE);
+  const [value, setValue] = useState(slidingCipherClientValue);
+
+  let next: Int = value;
+  if (next === CipherState.UNSET) {
+    next = server;
+  }
+  if (direction === SlideDirection.FORWARD) {
+    next = next + 1;
+  } else {
+    next = next - 1;
+  }
+  if (next >= size) {
+    next = 0;
+  } else if (next < 0) {
+    next = size - 1;
+  }
+  setValue(next);
+}

@@ -1,0 +1,163 @@
+import { useDerived, useOnResize, useServerState, useUniverse } from 'ts2';
+
+import { opsound } from '../lib/lib.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { Health, Layout, PartyStatus, TobHudColor, TobHudFonts, TobHudSprites } from './tob-hud.constants';
+import {
+  Slot,
+  inTobRaid,
+  isMyself,
+  myOrbHeight,
+  name0,
+  name1,
+  name2,
+  name3,
+  name4,
+  partyName,
+  slotHealth,
+} from './tob-hud.state';
+import { hideSlotTip, showSlotTip } from './tob-hud-tooltip.component';
+
+const EXIT_OP_MASK = 2;
+
+export function TobHudStatus(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+
+  const inRaid: Int = useDerived(() => inTobRaid());
+  const status: Int = useServerState(Varbits.TOB_CLIENT_PARTYSTATUS);
+  const mySlot: Int = useServerState(Varbits.TOB_CLIENT_PARTYSLOT);
+
+  if (inRaid === 0 || status !== PartyStatus.READY) {
+    return null;
+  }
+
+  const spectating: Int = mySlot === 0 ? 1 : 0;
+  const columnH: Int = spectating === 1 ? Layout.COLUMN_H_FULL : Layout.COLUMN_H_SHORT;
+
+  return (
+    <layer w="fill" h="fill">
+      {spectating === 1 && (
+        <layer x="center" y={{ bottom: Layout.CELL_BOTTOM_EXIT }} w={Layout.CELL} h={Layout.CELL} noClickThrough>
+          <sprite x={0} y={0} w={Layout.CELL} h={Layout.CELL} sprite={TobHudSprites.RING} />
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.EXIT_W}
+            h={Layout.EXIT_H}
+            sprite={TobHudSprites.EXIT}
+            hover={{ sprite: TobHudSprites.EXIT_HOVER }}
+            options={['Exit']}
+            onOptionSelect={(event) => opsound(event.option, EXIT_OP_MASK)}
+          />
+        </layer>
+      )}
+
+      <layer x="center" y={{ bottom: Layout.CELL_BOTTOM_0 }} w={Layout.CELL} h={Layout.CELL}>
+        <TobStatusCell0 top={columnH - Layout.CELL_BOTTOM_0 - Layout.CELL} />
+      </layer>
+      <layer x="center" y={{ bottom: Layout.CELL_BOTTOM_1 }} w={Layout.CELL} h={Layout.CELL}>
+        <TobStatusCell1 top={columnH - Layout.CELL_BOTTOM_1 - Layout.CELL} />
+      </layer>
+      <layer x="center" y={{ bottom: Layout.CELL_BOTTOM_2 }} w={Layout.CELL} h={Layout.CELL}>
+        <TobStatusCell2 top={columnH - Layout.CELL_BOTTOM_2 - Layout.CELL} />
+      </layer>
+      <layer x="center" y={{ bottom: Layout.CELL_BOTTOM_3 }} w={Layout.CELL} h={Layout.CELL}>
+        <TobStatusCell3 top={columnH - Layout.CELL_BOTTOM_3 - Layout.CELL} />
+      </layer>
+      <layer x="center" y="bottom" w={Layout.CELL} h={Layout.CELL}>
+        <TobStatusCell4 top={columnH - Layout.CELL_BOTTOM_4 - Layout.CELL} />
+      </layer>
+    </layer>
+  );
+}
+
+export function TobStatusCell({ slot, name, top }: { slot: Slot; name: String; top: Int }): Component {
+  const health: Int = useDerived(() => slotHealth(slot));
+  const me: Boolean = isMyself(slot);
+
+  let letter: String = partyName(name).substring(0, 1);
+  if (me) {
+    letter = 'Me';
+  }
+
+  let fill: Sprite = TobHudSprites.ORB_FILL;
+  let filled: Int = Math.min(Layout.ORB, health - 1);
+  let ink: Int = TobHudColor.LETTER;
+  if (me) {
+    filled = myOrbHeight();
+  }
+  if (health === Health.OUTSIDE) {
+    fill = TobHudSprites.ORB_FILL_OUT;
+    filled = Layout.ORB;
+    ink = TobHudColor.LETTER_OUTSIDE;
+  } else if (health === Health.DEAD) {
+    filled = 0;
+    ink = TobHudColor.LETTER_DEAD;
+  }
+
+  if (health === Health.EMPTY) {
+    return null;
+  }
+
+  return (
+    <layer w="fill" h="fill" onMouseRepeat={() => showSlotTip(name, top)} onMouseLeave={() => hideSlotTip()}>
+      <sprite x="center" y="center" w={Layout.CELL} h={Layout.CELL} sprite={TobHudSprites.RING} />
+      <sprite x="center" y="center" w={Layout.ORB} h={Layout.ORB} sprite={TobHudSprites.ORB_BASE} />
+      <layer x="center" y={{ bottom: Layout.ORB_BOTTOM }} w={Layout.ORB} h={filled}>
+        <sprite x="center" y="bottom" w={Layout.ORB} h={Layout.ORB} sprite={fill} tiling />
+      </layer>
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={TobHudFonts.ORB_LETTER}
+        text={letter}
+        align="center"
+        valign="middle"
+        color={ink}
+      />
+    </layer>
+  );
+}
+
+export function TobStatusCell0({ top }: { top: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <TobStatusCell slot={Slot.S0} name={name0()} top={top} />
+    </layer>
+  );
+}
+
+export function TobStatusCell1({ top }: { top: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <TobStatusCell slot={Slot.S1} name={name1()} top={top} />
+    </layer>
+  );
+}
+
+export function TobStatusCell2({ top }: { top: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <TobStatusCell slot={Slot.S2} name={name2()} top={top} />
+    </layer>
+  );
+}
+
+export function TobStatusCell3({ top }: { top: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <TobStatusCell slot={Slot.S3} name={name3()} top={top} />
+    </layer>
+  );
+}
+
+export function TobStatusCell4({ top }: { top: Int }): Component {
+  return (
+    <layer w="fill" h="fill">
+      <TobStatusCell slot={Slot.S4} name={name4()} top={top} />
+    </layer>
+  );
+}

@@ -1,0 +1,147 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import {
+  Build,
+  BuildColor,
+  BuildTrans,
+  BuiltCopy,
+  OverviewFonts,
+  OverviewSprites,
+  Rank,
+} from './collection-overview.constants';
+import { CollectionRankBadge, CollectionRankBadges } from './collection-overview.data';
+import { collectionRanks } from './collection-overview.state';
+
+export function RankLeftBadge(): Component {
+  const [reached, floor, next, ceiling] = collectionRanks();
+  return <RankBadge rank={reached} iconY={-1} />;
+}
+
+export function RankRightBadge(): Component {
+  const [reached, floor, next, ceiling] = collectionRanks();
+  return <RankBadge rank={next} iconY={Build.RANK_ICON_Y_RIGHT} />;
+}
+
+function RankBadge({ rank, iconY }: { rank: Int; iconY: Int }): Component {
+  const row = rankRow(rank);
+
+  return (
+    <>
+      <rect x="center" y="center" w="fill" h="fill" color={BuildColor.RANK_EDGE} />
+      <rect
+        x={Build.RANK_RING_XY}
+        y={Build.RANK_RING_XY}
+        w={{ fill: Build.RANK_RING_INSET }}
+        h={{ fill: Build.RANK_RING_INSET }}
+        color={row.color}
+      />
+      {iconY < 0 ? (
+        <sprite
+          x="center"
+          y="center"
+          w={Build.ICON_W}
+          h={Build.ICON_H}
+          item={row.icon}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+        />
+      ) : (
+        <sprite
+          x="center"
+          y={iconY}
+          w={Build.ICON_W}
+          h={Build.ICON_H}
+          item={row.icon}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+        />
+      )}
+    </>
+  );
+}
+
+export function CollectionBar(): Component {
+  const [reached, floor, next, ceiling] = collectionRanks();
+  const hasTarget: Boolean = next !== Rank.NONE;
+  const count: Int = useServerState(Varps.COLLECTION_COUNT);
+  const span: Int = Build.BAR_W - Build.BAR_TRACK_INSET;
+
+  let fill: Int = span;
+  if (ceiling !== -1 && ceiling > 0) {
+    fill = CS2.scale(count - floor, ceiling - floor, span);
+  }
+  if (fill > span) {
+    fill = span;
+  }
+
+  return (
+    <>
+      <rect
+        x={Build.BAR_TRACK_XY}
+        y={Build.BAR_TRACK_XY}
+        w={{ fill: Build.BAR_TRACK_INSET }}
+        h={Build.BAR_TRACK_H}
+        color={BuildColor.BAR_TRACK}
+      />
+      <sprite
+        x={Build.BAR_FILL_XY}
+        y={Build.BAR_FILL_XY}
+        w={{ fill: Build.BAR_FILL_INSET }}
+        h={Build.BAR_FILL_H}
+        sprite={OverviewSprites.BAR_TRACK}
+        tiling
+      />
+      <sprite
+        x={Build.BAR_FILL_XY}
+        y={Build.BAR_FILL_XY}
+        w={fill}
+        h={Build.BAR_FILL_H}
+        sprite={OverviewSprites.BAR_FILL}
+        tiling
+      />
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={barLabel(count, ceiling, hasTarget)}
+        font={OverviewFonts.BUILT}
+        color={BuildColor.BAR_TEXT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <rect x={0} y={0} w="fill" h="fill" color={BuildColor.BAR_RING} />
+      <rect
+        x={Build.BAR_RING_XY}
+        y={Build.BAR_RING_XY}
+        w={{ fill: Build.BAR_RING_INSET }}
+        h={Build.BAR_RING_H}
+        color={BuildColor.BAR_RING}
+      />
+    </>
+  );
+}
+
+function barLabel(count: Int, ceiling: Int, hasTarget: Boolean): String {
+  if (!hasTarget) {
+    return `${BuiltCopy.BAR_LABEL}${count}`;
+  }
+  const shown: Int = count < ceiling ? count : ceiling;
+  return `${BuiltCopy.BAR_LABEL}${shown}/${ceiling}`;
+}
+
+export function rankCaption(rank: Int): String {
+  if (rank === Rank.NONE) {
+    return '';
+  }
+  return rankRow(rank).caption;
+}
+
+function rankRow(rank: Int): CollectionRankBadge {
+  const row = CollectionRankBadges.at(rank);
+  return row === null ? CollectionRankBadges.at(0) : row;
+}

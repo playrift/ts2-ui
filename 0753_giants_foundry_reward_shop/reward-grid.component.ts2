@@ -1,0 +1,184 @@
+import { onMounted, onUpdated, useServerState, useUniverse } from 'ts2';
+
+import { BoxStyle, BoxStyles } from '../0718_giants_foundry_mould/box-styles.data';
+import { StructBoxFrame } from '../0718_giants_foundry_mould/struct-box-frame.component';
+import { onMobile } from '../lib/lib.helpers';
+import { Grid, ShopColor, ShopFont, ShopVars } from './giants-foundry-reward-shop.constants';
+import {
+  gridCellWidth,
+  gridCellX,
+  gridCellY,
+  gridColumns,
+  mouldIcon,
+  rewardRowName,
+  rewardRowVisible,
+  rewardShopSelect,
+  visibleRewardCount,
+} from './giants-foundry-reward-shop.helpers';
+import { RewardRow, RewardRows } from './reward-shop.data';
+import { list as listRef } from './giants-foundry-reward-shop.refs';
+
+export function RewardGrid(): Component {
+  const filter: Int = useServerState(ShopVars.FILTER);
+  const selected: Int = useServerState(ShopVars.SELECTED);
+  const mobile: Boolean = onMobile();
+
+  const pane = useUniverse();
+  const paneWidth: Int = pane.width;
+
+  const visible: Int = visibleRewardCount(filter);
+  const rows: Int = (visible - 1) / gridColumns(paneWidth) + 1;
+  const extent: Int = rows * (Grid.CELL_H + Grid.GUTTER) + Grid.GUTTER;
+
+  onMounted(() => {
+    listRef.scrollHeight = extent;
+  });
+  onUpdated(() => {
+    listRef.scrollHeight = extent;
+  });
+
+  return (
+    <layer x={0} y={0} w="fill" h={extent}>
+      {RewardRows.filter((row) => rewardRowVisible(row, filter)).map((row, key, index) => (
+        <RewardCell
+          row={row}
+          rowKey={key}
+          index={index}
+          paneWidth={paneWidth}
+          chosen={key === selected ? 1 : 0}
+          mobile={mobile ? 1 : 0}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function RewardCell({
+  row,
+  rowKey,
+  index,
+  paneWidth,
+  chosen,
+  mobile,
+}: {
+  row: RewardRow;
+  rowKey: Int;
+  index: Int;
+  paneWidth: Int;
+  chosen: Int;
+  mobile: Int;
+}): Component {
+  const cellW: Int = gridCellWidth(paneWidth);
+  const x: Int = gridCellX(index, paneWidth);
+  const y: Int = gridCellY(index, paneWidth);
+  const shade: Int = chosen === 1 ? ShopColor.ACCENT : ShopColor.CELL;
+  const label: String = rewardRowName(row);
+
+  return (
+    <>
+      {row.item === -1 ? (
+        <rect
+          x={x + 1}
+          y={y + 1}
+          w={cellW - 2}
+          h={Grid.CELL_H - 2}
+          fill
+          color={shade}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          options={['Select', 'Unlock']}
+          onClick={() => rewardShopSelect(chosen === 1 ? 0 : rowKey)}
+          onMouseEnter={
+            mobile === 1 || chosen === 1
+              ? undefined
+              : (event) => {
+                  event.self.color = ShopColor.CELL_HOVER;
+                }
+          }
+          onMouseLeave={
+            mobile === 1 || chosen === 1
+              ? undefined
+              : (event) => {
+                  event.self.color = ShopColor.CELL;
+                }
+          }
+        />
+      ) : (
+        <rect
+          x={x + 1}
+          y={y + 1}
+          w={cellW - 2}
+          h={Grid.CELL_H - 2}
+          fill
+          color={shade}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          options={['Select', 'Buy 1', 'Buy 5', 'Buy 10']}
+          onClick={() => rewardShopSelect(chosen === 1 ? 0 : rowKey)}
+          onMouseEnter={
+            mobile === 1 || chosen === 1
+              ? undefined
+              : (event) => {
+                  event.self.color = ShopColor.CELL_HOVER;
+                }
+          }
+          onMouseLeave={
+            mobile === 1 || chosen === 1
+              ? undefined
+              : (event) => {
+                  event.self.color = ShopColor.CELL;
+                }
+          }
+        />
+      )}
+
+      <StructBoxFrame x={x} y={y} w={cellW} h={Grid.CELL_H} style={BoxStyles.at(BoxStyle.ACTIVE)} />
+
+      {row.item === -1 ? (
+        <sprite
+          x={x + cellW / 2 - Grid.MOULD_W / 2}
+          y={y + Grid.ICON_Y}
+          w={Grid.MOULD_W}
+          h={Grid.MOULD_H}
+          sprite={mouldIcon(row.mould)}
+        />
+      ) : (
+        <sprite
+          x={x + cellW / 2 - Grid.ITEM_W / 2}
+          y={y + Grid.ICON_Y}
+          w={Grid.ITEM_W}
+          h={Grid.ITEM_H}
+          item={row.item}
+          itemCount={-1}
+          outline={1}
+          shadowColor={ShopColor.ICON_SHADOW}
+        />
+      )}
+
+      <text
+        x={x + Grid.NAME_X}
+        y={y + Grid.NAME_Y + Grid.ICON_Y + Grid.LABEL_DROP}
+        w={cellW - Grid.NAME_INSET_W}
+        h={Grid.NAME_H}
+        font={ShopFont.BODY}
+        text={label}
+        align="center"
+        valign="middle"
+        lineHeight={Grid.NAME_LINE_H}
+        shadow
+        color={ShopColor.ACCENT}
+      />
+
+      <text
+        x={x + Grid.PRICE_X}
+        y={y + Grid.PRICE_Y + Grid.ICON_Y + Grid.LABEL_DROP * 2}
+        w={cellW - Grid.PRICE_INSET_W}
+        h={Grid.PRICE_H}
+        font={ShopFont.BOLD}
+        text={stringOf(row.cost)}
+        align="center"
+        valign="middle"
+        shadow
+        color={ShopColor.ACCENT}
+      />
+    </>
+  );
+}

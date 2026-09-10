@@ -1,0 +1,103 @@
+import { predictServerState, useDerived, useInventory, useServerState, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  OP_SOUND_MASK,
+  TabletSkin,
+  TeletabColor,
+  TeletabFonts,
+  TeletabInventories,
+  TeletabSounds,
+  TeletabVarbits,
+  WornSlot,
+} from './teletabs-craft-if.constants';
+import { tabletName, tabletReady, teletabTablet } from './teletabs-craft-if.helpers';
+
+export function TabletButton({ slot, table }: { slot: Int; table: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+
+  if (table === -1) {
+    return <layer w="fill" h="fill" options={['Select']} />;
+  }
+
+  const tablet: Item = teletabTablet(table, slot - 1);
+  if (tablet === -1) {
+    return null;
+  }
+
+  const spell: Item = tablet.teletabSpell ?? -1;
+  if (spell === -1) {
+    return <layer w="fill" h="fill" options={['Select']} />;
+  }
+
+  const label: String = tabletName(tablet);
+  const chosen: Int = useServerState(TeletabVarbits.CHOSEN);
+
+  const worn = useInventory(TeletabInventories.WORN);
+  const weapon: Item = worn[WornSlot.WEAPON];
+  const shield: Item = worn[WornSlot.SHIELD];
+  const ready: Int = useDerived(() => tabletReady(spell, weapon, shield));
+
+  const pressed: Boolean = chosen === slot || hovered === 1 ? true : false;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Select']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onMouseRepeat={chosen === slot ? undefined : () => setHovered(1)}
+      onMouseLeave={chosen === slot ? undefined : () => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        if (chosen === slot) {
+          opsound(event.option, OP_SOUND_MASK);
+          return;
+        }
+        playSound(TeletabSounds.SELECT);
+        setHovered(0);
+        predictServerState(TeletabVarbits.CHOSEN, slot);
+      }}
+    >
+      {pressed ? (
+        <>
+          <StoneButtonPressedFilled />
+        </>
+      ) : (
+        <>
+          <StoneButtonOutFilled />
+        </>
+      )}
+
+      <sprite
+        x={TabletSkin.ICON_X}
+        y="center"
+        w={TabletSkin.ICON_W}
+        h={TabletSkin.ICON_H}
+        item={tablet}
+        itemCount={1}
+        itemCountMode="never"
+        outline={1}
+        shadowColor={TeletabColor.ICON_SHADOW}
+      />
+
+      <text
+        x={{ right: TabletSkin.LABEL_RIGHT }}
+        y="center"
+        w={{ fill: TabletSkin.LABEL_W_INSET }}
+        h="fill"
+        text={label}
+        font={TeletabFonts.BODY}
+        color={ready === 1 ? TeletabColor.LABEL : TeletabColor.DIM}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

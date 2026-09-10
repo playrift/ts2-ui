@@ -1,0 +1,272 @@
+import { createRef, intArray, param, useServerState } from 'ts2';
+
+import { itemName } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { LeagueNames, TROPHY_SLOTS, Trophies } from './league-trophies.data';
+import {
+  Claimed,
+  Copy,
+  Extent,
+  FALLBACK_LEAGUE,
+  Grid,
+  Layout,
+  NOTICE_LINE_HEIGHT,
+  Sections,
+  TrophyColors,
+  TrophyFade,
+  TrophyFonts,
+  TrophyParams,
+  TrophyScrollbar,
+  TrophyVarbits,
+} from './league-trophies.constants';
+import { leagueWorld, trophyClaimed, trophyEarned } from './league-trophies.helpers';
+
+const trophyPane = createRef('league_trophies_items');
+
+export function LeagueTrophies(): Component {
+  const onLeagueWorld: Boolean = leagueWorld();
+
+  const leagueType: Int = useServerState(TrophyVarbits.LEAGUE_TYPE);
+
+  const count: Int = Trophies.length;
+
+  const rowY = intArray(TROPHY_SLOTS);
+  const column = intArray(TROPHY_SLOTS);
+  const leagueShown = intArray(Sections.LEAGUE_SLOTS);
+  const headingY = intArray(Sections.LEAGUE_SLOTS);
+
+  let slot: Int = 0;
+  while (slot < Sections.LEAGUE_SLOTS) {
+    leagueShown[slot] = 1;
+    headingY[slot] = 0;
+    slot = slot + 1;
+  }
+
+  let y: Int = 0;
+  let col: Int = 0;
+  let previousLeague: Int = 0;
+  let boundaries: Int = 0;
+  let leagueWorldTrophy: Int = 0;
+  let index: Int = 0;
+  while (index < count) {
+    const trophy: ItemName = Trophies.at(index) ?? -1;
+    const league: Int = param(trophy as Item, TrophyParams.LEAGUE);
+    if (league !== previousLeague) {
+      if (index + 1 < count) {
+        col = 0;
+        previousLeague = league;
+        if (param(trophy as Item, TrophyParams.SECTION_HEAD) === 1) {
+          if (trophyEarned(trophy)) {
+            if (onLeagueWorld) {
+              leagueWorldTrophy = 1;
+            }
+            leagueShown[league] = 0;
+            if (y === 0) {
+              y = y + Sections.FIRST_GAP;
+            } else {
+              y = y + Sections.GAP;
+            }
+          } else {
+            leagueShown[league] = 1;
+          }
+        }
+        boundaries = boundaries + 1;
+      }
+    }
+    column[index] = col;
+    rowY[index] = y;
+    col = col + 1;
+    index = index + 1;
+  }
+
+  let extent: Int = y;
+  if (col > 0) {
+    extent = y + Extent.ROW;
+  } else if (y > 0) {
+    extent = y - Extent.TRIM;
+  }
+
+  let headingCursor: Int = 0;
+  let anyHeading: Int = 0;
+  let league: Int = 0;
+  while (league < boundaries) {
+    if (leagueShown[league + 1] === 0) {
+      anyHeading = 1;
+      headingY[league + 1] = headingCursor;
+      headingCursor = headingCursor + Sections.GAP;
+    }
+    league = league + 1;
+  }
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={Layout.PANEL_H}>
+      <SteelBorderEntrypoint title={Copy.TITLE} />
+
+      <layer
+        ref={trophyPane}
+        x={Layout.PANE_X}
+        y={Layout.PANE_Y}
+        w={Layout.PANE_W}
+        h={Layout.PANE_H}
+        scrollHeight={extent > Layout.PANE_H ? extent : 0}
+      >
+        {Trophies.map((trophy, slotIndex) =>
+          !trophyEarned(trophy) ? (
+            <sprite
+              x={column[slotIndex] * Grid.STRIDE + Grid.INSET_X}
+              y={rowY[slotIndex]}
+              w={Grid.ITEM_W}
+              h={Grid.ITEM_H}
+              item={trophy}
+              itemCount={1}
+              outline={Grid.OUTLINE}
+              shadowColor={Grid.SHADOW}
+              options={['', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(trophy as Item)}`}
+              hide
+            />
+          ) : trophyClaimed(
+              Claimed.WORD_0,
+              Claimed.WORD_1,
+              Claimed.WORD_2,
+              Claimed.WORD_3,
+              Claimed.WORD_4,
+              slotIndex,
+            ) ? (
+            <sprite
+              x={column[slotIndex] * Grid.STRIDE + Grid.INSET_X}
+              y={rowY[slotIndex]}
+              w={Grid.ITEM_W}
+              h={Grid.ITEM_H}
+              item={trophy}
+              itemCount={1}
+              outline={Grid.OUTLINE}
+              shadowColor={Grid.SHADOW}
+              transparency={TrophyFade.CLAIMED}
+              options={['Take', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(trophy as Item)}`}
+            />
+          ) : (
+            <sprite
+              x={column[slotIndex] * Grid.STRIDE + Grid.INSET_X}
+              y={rowY[slotIndex]}
+              w={Grid.ITEM_W}
+              h={Grid.ITEM_H}
+              item={trophy}
+              itemCount={1}
+              outline={Grid.OUTLINE}
+              shadowColor={Grid.SHADOW}
+              transparency={TrophyFade.UNCLAIMED}
+              options={['Store', '', '', '', '', '', '', '', '', 'Examine']}
+              optionSubject={`<col=ff9040>${itemName(trophy as Item)}`}
+            />
+          ),
+        )}
+
+        {onLeagueWorld ? (
+          <>
+            {leagueWorldTrophy === 1 ? (
+              <>
+                <text
+                  x={Grid.INSET_X}
+                  y={Sections.HEADING_DY}
+                  w={{ fill: Sections.HEADING_INSET_W }}
+                  h={Sections.HEADING_H}
+                  text={LeagueNames.get(leagueType) ?? LeagueNames.get(FALLBACK_LEAGUE)}
+                  font={TrophyFonts.TEXT}
+                  color={TrophyColors.TEXT}
+                  shadow
+                  align="left"
+                  valign="middle"
+                />
+                <text
+                  x={Grid.INSET_X}
+                  y={Sections.LEAGUE_NOTICE_Y}
+                  w={{ fill: Sections.HEADING_INSET_W }}
+                  h={Sections.HEADING_H}
+                  text={`You can only claim ${LeagueNames.get(leagueType) ?? LeagueNames.get(FALLBACK_LEAGUE)} trophies on a this world.<br>Hop to a Non-League world to claim them on your main game save.`}
+                  font={TrophyFonts.TEXT}
+                  color={TrophyColors.TEXT}
+                  shadow
+                  align="center"
+                  valign="middle"
+                  lineHeight={NOTICE_LINE_HEIGHT}
+                />
+              </>
+            ) : (
+              <text
+                x={Grid.INSET_X}
+                y={Grid.INSET_X}
+                w={{ fill: Sections.HEADING_INSET_W }}
+                h={Sections.HEADING_H}
+                text={Copy.NOT_ENOUGH}
+                font={TrophyFonts.TEXT}
+                color={TrophyColors.TEXT}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={NOTICE_LINE_HEIGHT}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {leagueShown.map((flag, leagueKey) =>
+              leagueKey >= 1 && leagueKey <= boundaries && flag === 0 ? (
+                <>
+                  <text
+                    x={Grid.INSET_X}
+                    y={headingY[leagueKey] + Sections.HEADING_DY}
+                    w={{ fill: Sections.HEADING_INSET_W }}
+                    h={Sections.HEADING_H}
+                    text={LeagueNames.get(leagueKey) ?? ''}
+                    font={TrophyFonts.TEXT}
+                    color={TrophyColors.TEXT}
+                    shadow
+                    align="left"
+                    valign="middle"
+                  />
+                  <line
+                    x={Grid.INSET_X}
+                    y={headingY[leagueKey] + Sections.RULE_DY}
+                    w={{ fill: Sections.HEADING_INSET_W }}
+                    h={0}
+                  />
+                </>
+              ) : null,
+            )}
+
+            {anyHeading === 0 && (
+              <text
+                x={Grid.INSET_X}
+                y={Grid.INSET_X}
+                w={{ fill: Sections.HEADING_INSET_W }}
+                h={Sections.HEADING_H}
+                text={Copy.NOT_ENOUGH}
+                font={TrophyFonts.TEXT}
+                color={TrophyColors.TEXT}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={NOTICE_LINE_HEIGHT}
+              />
+            )}
+          </>
+        )}
+      </layer>
+
+      <layer x={Layout.BAR_X} y={Layout.PANE_Y} w={Layout.BAR_W} h={Layout.PANE_H}>
+        <ScrollbarVertical
+          content={trophyPane}
+          track={TrophyScrollbar.TRACK}
+          capTopSprite={TrophyScrollbar.CAP_TOP}
+          thumbSprite={TrophyScrollbar.THUMB}
+          capBottomSprite={TrophyScrollbar.CAP_BOTTOM}
+          arrowUp={TrophyScrollbar.ARROW_UP}
+          arrowDown={TrophyScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </layer>
+  );
+}

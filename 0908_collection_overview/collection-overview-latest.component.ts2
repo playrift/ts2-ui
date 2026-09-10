@@ -1,0 +1,67 @@
+import { ThinBox } from '../lib/thin-box.component';
+import { itemName } from '../lib/lib.engine';
+import { Build, BuildColor, BuiltCopy, OverviewFonts } from './collection-overview.constants';
+import { latestItem, latestItemDate, latestItemShown } from './collection-overview.state';
+
+export function LatestCells(): Component {
+  return (
+    <layer w="fill" h="fill">
+      <ThinBox />
+
+      {LatestSlots.scan(
+        (slot, index, left) => latestItemShown(slot) && <LatestCell slot={slot} left={left} />,
+        (slot) => (latestItemShown(slot) ? Build.ITEM_STRIDE : 0),
+        Build.ITEM_X0,
+      )}
+
+      {latestItemsShown() === 0 && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={BuiltCopy.ITEMS_EMPTY}
+          font={OverviewFonts.BUILT}
+          color={BuildColor.BAR_TEXT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+    </layer>
+  );
+}
+
+function LatestCell({ slot, left }: { slot: Int; left: Int }): Component {
+  const item: Item = latestItem(slot);
+
+  return (
+    <sprite
+      x={left}
+      y="center"
+      w={Build.ICON_W}
+      h={Build.ICON_H}
+      item={item}
+      itemCount={1}
+      itemCountMode="never"
+      outline={1}
+      options={[BuiltCopy.ITEM_OP]}
+      optionSubject={`${BuiltCopy.ITEM_OPBASE_OPEN}${itemName(item)}${BuiltCopy.ITEM_OPBASE_CLOSE}`}
+      onOptionSelect={() => latestItemDate(slot)}
+    />
+  );
+}
+
+const LatestSlots = listOf<Int>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+
+function latestItemsShown(): Int {
+  let shown: Int = 0;
+  let slot: Int = 0;
+  while (slot < Build.ITEM_COUNT) {
+    if (latestItemShown(slot)) {
+      shown = shown + 1;
+    }
+    slot = slot + 1;
+  }
+  return shown;
+}

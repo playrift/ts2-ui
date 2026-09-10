@@ -1,0 +1,262 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { MouldCategory, MouldKeyword, MouldKeywords, MouldRow, Moulds } from '../0718_giants_foundry_mould/moulds.data';
+import { mouldUnlocked } from '../0718_giants_foundry_mould/giants-foundry-mould.helpers';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  BreakpointGates,
+  Copy,
+  Grid,
+  Layout,
+  RightColumn,
+  ShopSounds,
+  ShopVars,
+} from './giants-foundry-reward-shop.constants';
+import { RewardRow, RewardRows, ShopFilter, categoryFilter } from './reward-shop.data';
+
+export const enum SizeMode {
+  ABS = 0,
+  MINUS = 1,
+}
+
+export function mouldName(index: Int): String {
+  if (index < 0) {
+    return '';
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? '' : row.name;
+}
+
+export function mouldLevel(index: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? 0 : row.level;
+}
+
+export function mouldIcon(index: Int): Sprite {
+  if (index < 0) {
+    return -1;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? -1 : row.icon;
+}
+
+export function mouldCategory(index: Int): Int {
+  if (index < 0) {
+    return -1;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? -1 : row.category;
+}
+
+export function mouldNarrowBroad(index: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? 0 : row.narrowBroad;
+}
+
+export function mouldLightHeavy(index: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? 0 : row.lightHeavy;
+}
+
+export function mouldFlatSpiked(index: Int): Int {
+  if (index < 0) {
+    return 0;
+  }
+  const row: MouldRow | null = Moulds.at(index);
+  return row === null ? 0 : row.flatSpiked;
+}
+
+export function axisKeyword(axis: Int, value: Int): String {
+  let key: Int = axis + 1;
+  if (value >= 0) {
+    key = key + 3;
+  }
+  return MouldKeywords.get(key as MouldKeyword) ?? '';
+}
+
+export function axisMagnitude(value: Int): Int {
+  if (value < 0) {
+    return 0 - value;
+  }
+  return value;
+}
+
+export function rewardRowVisible(row: RewardRow, filter: Int): Boolean {
+  if (row.mould >= 0 && mouldUnlocked(row.mould) !== 0) {
+    return false;
+  }
+  if (filter === ShopFilter.ITEMS && row.item === -1) {
+    return false;
+  }
+  if (filter === ShopFilter.MOULDS && row.mould < 0) {
+    return false;
+  }
+  if (filter >= ShopFilter.FORTE && filter !== categoryFilter(mouldCategory(row.mould))) {
+    return false;
+  }
+  return true;
+}
+
+export function rewardRowName(row: RewardRow): String {
+  if (row.item === -1) {
+    return mouldName(row.mould);
+  }
+  return itemName(row.item);
+}
+
+export function mouldTypeLabel(index: Int): String {
+  const category: Int = mouldCategory(index);
+  if (category === MouldCategory.RICASSO) {
+    return 'Type: Forte';
+  }
+  if (category === MouldCategory.BLADE) {
+    return 'Type: Blade';
+  }
+  if (category === MouldCategory.TIP) {
+    return 'Type: Tip';
+  }
+  return '';
+}
+
+export function buyButtonLabel(mould: Int): String {
+  if (mould >= 0) {
+    return Copy.UNLOCK;
+  }
+  return Copy.BUY;
+}
+
+export function gridColumns(paneWidth: Int): Int {
+  return paneWidth / Grid.COLUMN_DIVISOR;
+}
+
+export function gridCellWidth(paneWidth: Int): Int {
+  const columns: Int = gridColumns(paneWidth);
+  return (paneWidth - (columns + 1) * Grid.GUTTER) / columns;
+}
+
+export function gridCellX(index: Int, paneWidth: Int): Int {
+  return (index % gridColumns(paneWidth)) * (gridCellWidth(paneWidth) + Grid.GUTTER) + Grid.GUTTER;
+}
+
+export function gridCellY(index: Int, paneWidth: Int): Int {
+  return (index / gridColumns(paneWidth)) * (Grid.CELL_H + Grid.GUTTER) + Grid.GUTTER;
+}
+
+export function rewardShopPoints(): String {
+  return stringOf(useServerState(ShopVars.POINTS));
+}
+
+export function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > BreakpointGates.W1 && height > BreakpointGates.H1) {
+    level = 1;
+  }
+  if (width > BreakpointGates.W2 && height > BreakpointGates.H2) {
+    level = 2;
+  }
+  if (width > BreakpointGates.W3 && height > BreakpointGates.H3) {
+    level = 3;
+  }
+  return level;
+}
+
+export function rewardShopBreakpoint(root: ComponentId): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpointOf(CS2.if_width_get(root), CS2.if_height_get(root)));
+}
+
+export function rewardShopLayout(
+  root: ComponentId,
+  panel: ComponentId,
+  listBox: ComponentId,
+  infoBox: ComponentId,
+  points: ComponentId,
+  buy: ComponentId,
+  filter: ComponentId,
+): void {
+  CS2.if_size_set(Layout.ROOT_W, Layout.ROOT_H, SizeMode.ABS, SizeMode.ABS, root);
+
+  CS2.if_position_set(0, Layout.CONTENT_Y, SizeMode.MINUS, SizeMode.ABS, panel);
+  CS2.if_size_set(Layout.CONTENT_INSET_W, Layout.CONTENT_Y + 6, SizeMode.MINUS, SizeMode.MINUS, panel);
+
+  CS2.if_size_set(
+    RightColumn.BASE + RightColumn.LIST_EXTRA,
+    RightColumn.LIST_INSET_H,
+    SizeMode.MINUS,
+    SizeMode.MINUS,
+    listBox,
+  );
+  CS2.if_size_set(RightColumn.BASE, RightColumn.INFO_INSET_H, SizeMode.ABS, SizeMode.MINUS, infoBox);
+  CS2.if_size_set(RightColumn.BASE, RightColumn.PLATE_H, SizeMode.ABS, SizeMode.ABS, points);
+  CS2.if_size_set(RightColumn.BASE, RightColumn.PLATE_H, SizeMode.ABS, SizeMode.ABS, buy);
+
+  CS2.if_position_set(
+    RightColumn.FILTER_X + CS2.if_width_get(listBox) / 2 - CS2.if_width_get(filter) / 2,
+    RightColumn.FILTER_Y,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    filter,
+  );
+}
+
+export function visibleRewardCount(filter: Int): Int {
+  let seen: Int = 0;
+  let key: Int = 1;
+  while (key <= RewardRows.length) {
+    const row: RewardRow | null = RewardRows.get(key);
+    if (row !== null) {
+      if (rewardRowVisible(row, filter)) {
+        seen = seen + 1;
+      }
+    }
+    key = key + 1;
+  }
+  return seen;
+}
+
+export function rewardShopSelect(key: Int): void {
+  playSound(ShopSounds.SELECT);
+  predictServerState(ShopVars.SELECTED, key);
+}
+
+export function rewardItem(key: Int): Item {
+  const row: RewardRow | null = RewardRows.get(key);
+  return row === null ? -1 : row.item;
+}
+
+export function rewardMould(key: Int): Int {
+  const row: RewardRow | null = RewardRows.get(key);
+  return row === null ? -1 : row.mould;
+}
+
+export function rewardCost(key: Int): Int {
+  const row: RewardRow | null = RewardRows.get(key);
+  return row === null ? 0 : row.cost;
+}
+
+export function rewardDescription(key: Int): String {
+  const row: RewardRow | null = RewardRows.get(key);
+  return row === null ? '0' : row.description;
+}
+
+export function rewardHeading(key: Int): String {
+  const item: Item = rewardItem(key);
+  if (item !== -1) {
+    return itemName(item);
+  }
+  const mould: Int = rewardMould(key);
+  if (mould >= 0) {
+    return mouldName(mould);
+  }
+  return Copy.WELCOME;
+}

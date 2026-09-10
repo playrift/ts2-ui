@@ -1,0 +1,71 @@
+import { param, useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import { LeaguePointVarps, TrophyParams, TrophyVarps } from './league-trophies.constants';
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(TrophyVarps.MAP_FLAGS);
+  if (hasBit(flags, 29)) {
+    return false;
+  }
+  return hasBit(flags, 30);
+}
+
+export function leaguePoints(league: Int): Int {
+  if (league === 1) {
+    return useServerState(LeaguePointVarps.ONE);
+  }
+  if (league === 2) {
+    return useServerState(LeaguePointVarps.TWO);
+  }
+  if (league === 3) {
+    return useServerState(LeaguePointVarps.THREE);
+  }
+  if (league === 4) {
+    return useServerState(LeaguePointVarps.FOUR);
+  }
+  if (league === 5) {
+    return useServerState(LeaguePointVarps.FIVE);
+  }
+  if (league === 6) {
+    return useServerState(LeaguePointVarps.SIX);
+  }
+  return 0;
+}
+
+export function trophyEarned(trophy: ItemName): Boolean {
+  if (trophy === -1) {
+    return false;
+  }
+  const league: Int = param(trophy as Item, TrophyParams.LEAGUE);
+  const needed: Int = param(trophy as Item, TrophyParams.POINTS);
+  if (leagueWorld()) {
+    if (needed > useServerState(TrophyVarps.POINTS_COMPLETED)) {
+      return false;
+    }
+    return true;
+  }
+  if (needed > leaguePoints(league)) {
+    return false;
+  }
+  return true;
+}
+
+export function trophyClaimed(word0: Int, word1: Int, word2: Int, word3: Int, word4: Int, index: Int): Boolean {
+  if (index < 32) {
+    return hasBit(word0, index);
+  }
+  if (index < 64) {
+    return hasBit(word1, index - 32);
+  }
+  if (index < 96) {
+    return hasBit(word2, index - 64);
+  }
+  if (index < 128) {
+    return hasBit(word3, index - 96);
+  }
+  if (index < 160) {
+    return hasBit(word4, index - 128);
+  }
+  return false;
+}

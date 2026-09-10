@@ -1,0 +1,69 @@
+import { useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { Layout } from './clanwars-setup.constants';
+import { optionDescription, optionSetTip } from './clanwars-setup.helpers';
+import { TIP_SET_BASE, tooltipHeight, tooltipKey, tooltipLeft, tooltipTop } from './clanwars-setup.state';
+
+export function ClanWarsTooltip(): Component {
+  const [key] = useState(tooltipKey);
+  const [left] = useState(tooltipLeft);
+  const [top] = useState(tooltipTop);
+  const [box] = useState(tooltipHeight);
+
+  let text: String = '';
+  if (tooltipUp() && key >= TIP_SET_BASE) {
+    text = optionSetTip(key - TIP_SET_BASE);
+  }
+  if (tooltipUp() && key >= 0 && key < TIP_SET_BASE) {
+    text = optionDescription(key);
+  }
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+
+  const anchorX: Int = (hostW - Layout.panel.w) / 2 + Layout.bodyX + left;
+  const anchorY: Int = (hostH - Layout.panel.h) / 2 + Layout.bodyY + top;
+
+  let measure: Int = Layout.tooltip.wrap;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + box + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer x={Layout.tip.x} y={Layout.tip.y} w={Layout.tip.w} h={Layout.tip.h} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: TooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={text}
+        align="left"
+        valign="top"
+        lineHeight={0}
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

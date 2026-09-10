@@ -1,0 +1,83 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { hasBit } from '../lib/lib.engine';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import {
+  ConfirmBit,
+  ConfirmTab,
+  ConfirmVarps,
+  Copy,
+  confirmTab,
+  noticeRef,
+  otherInvRef,
+  otherWornRef,
+} from './pvp-arena-legacyduel-confirm.constants';
+import { ConfirmTips } from './pvp-arena-legacyduel-confirm.data';
+
+export function refreshConfirmPanes(): void {
+  const options: Int = useServerState(ConfirmVarps.OPTIONS);
+  const [tab] = useState(confirmTab);
+
+  if (hasBit(options, ConfirmBit.SHOW_INVENTORIES)) {
+    noticeRef.text = '';
+    if (tab === ConfirmTab.INVENTORY) {
+      otherInvRef.hide = false;
+      otherWornRef.hide = true;
+    } else {
+      otherInvRef.hide = true;
+      otherWornRef.hide = false;
+    }
+    return;
+  }
+  noticeRef.text = Copy.NOT_SHOWN;
+  otherInvRef.hide = true;
+  otherWornRef.hide = true;
+}
+
+export function selectConfirmTab(tab: Int): void {
+  const [, setTab] = useState(confirmTab);
+  setTab(tab);
+  refreshConfirmPanes();
+}
+
+export const confirmTip = sessionState(-1);
+
+export function showConfirmTip(slot: Int): void {
+  const [, setTip] = useState(confirmTip);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  const row = ConfirmTips.get(slot);
+  if (row === null) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(row.dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setTip(slot);
+  tooltipRaise();
+}
+
+export function hideConfirmTip(): void {
+  const [, setTip] = useState(confirmTip);
+  tooltipHide();
+  setTip(-1);
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}

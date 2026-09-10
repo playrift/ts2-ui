@@ -1,0 +1,75 @@
+import { onMounted, onUpdated, useDerived } from 'ts2';
+
+import { membersWorld } from '../lib/lib.engine';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import {
+  ClanWarsColor,
+  ClanWarsFonts,
+  ClanWarsSprites,
+  ClanWarsWash,
+  Layout,
+  OptionSet,
+} from './clanwars-setup.constants';
+import { ClanWarsOptions } from './clanwars-setup.data';
+import { optionSetting } from './clanwars-setup.helpers';
+import { revealSelected } from './clanwars-setup.panes';
+import { chooseOption, clanWarsRowLeave, showRowTooltip } from './clanwars-setup.state';
+
+export function OptionRows({ set, pane }: { set: OptionSet; pane: Ref }): Component {
+  const selected: Int = useDerived(() => optionSetting(set));
+  let free: Boolean = false;
+  if (!membersWorld()) {
+    free = true;
+  }
+
+  onMounted(() => {
+    revealSelected(set, selected, pane);
+  });
+  onUpdated(() => {
+    revealSelected(set, selected, pane);
+  });
+
+  return (
+    <layer w="fill" h="fill">
+      {ClanWarsOptions.filter((row) => row.set === set).map((row, key, index) => (
+        <>
+          <rect
+            x="center"
+            y={index * Layout.row.h}
+            w="fill"
+            h={Layout.row.h}
+            fill
+            color={ClanWarsColor.WASH}
+            transparency={ClanWarsWash.CLEAR}
+            options={[row.label]}
+            onMouseEnter={(event) => ccSetTrans(event.self, ClanWarsWash.ROW_HOVER)}
+            onMouseRepeat={() => showRowTooltip(key, pane)}
+            onMouseLeave={(event) => clanWarsRowLeave(event.self)}
+            onOptionSelect={() => chooseOption(key)}
+          />
+
+          <sprite
+            x={0}
+            y={index * Layout.row.h}
+            w={Layout.row.iconW}
+            h={Layout.row.iconW}
+            sprite={index === selected ? ClanWarsSprites.RADIO_ON : ClanWarsSprites.RADIO_OFF}
+          />
+
+          <text
+            x="right"
+            y={index * Layout.row.h + Layout.row.textDrop}
+            w={{ fill: Layout.row.iconW }}
+            h={Layout.row.textH}
+            text={row.members && free ? `<str>${row.label}</str>` : row.label}
+            font={ClanWarsFonts.ROW}
+            color={index === selected ? ClanWarsColor.SELECTED : ClanWarsColor.LABEL}
+            align="left"
+            valign="middle"
+            shadow
+          />
+        </>
+      ))}
+    </layer>
+  );
+}

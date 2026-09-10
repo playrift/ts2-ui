@@ -1,0 +1,74 @@
+import { useInterval, useRef, useServerState } from 'ts2';
+
+import {
+  Layout,
+  Palette,
+  PvpArenaHudFonts,
+  PvpArenaHudSprites,
+  PvpArenaHudVarbits,
+  ThinStoneBoxColor,
+  Wash,
+} from './pvp-arena-hud.constants';
+import { pvpArenaHudWriteTime } from './pvp-arena-hud.helpers';
+import { timerBox } from './pvp-arena-hud.refs';
+
+export function PvpArenaHudTimer(): Component {
+  const status: Int = useServerState(PvpArenaHudVarbits.STATUS);
+  const remaining: Int = useServerState(PvpArenaHudVarbits.TIME_REMAINING);
+  const clock = useRef();
+
+  let running: Int = 0;
+  if (status !== 0) {
+    if (remaining > 0) {
+      running = 1;
+    }
+  }
+
+  if (running === 1) {
+    timerBox.width = status === 1 ? Layout.TIMER_NARROW_W : Layout.TIMER_W;
+    timerBox.height = status === 1 ? Layout.TIMER_NARROW_H : Layout.TIMER_H;
+  }
+
+  useInterval(running === 1 ? () => pvpArenaHudWriteTime(clock) : undefined, clock);
+
+  if (running === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.TIMER_INSET }}
+        h={{ fill: Layout.TIMER_INSET }}
+        sprite={PvpArenaHudSprites.BACKING}
+        tiling
+        transparency={Wash.BACKING}
+      />
+
+      <rect x="center" y="center" w="fill" h="fill" color={ThinStoneBoxColor.OUTER} />
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: Layout.TIMER_INSET }}
+        h={{ fill: Layout.TIMER_INSET }}
+        color={ThinStoneBoxColor.INNER}
+      />
+
+      <text
+        ref={clock}
+        x="center"
+        y="center"
+        w={{ fill: Layout.TIMER_INSET }}
+        h={{ fill: Layout.TIMER_INSET }}
+        font={status === 1 ? PvpArenaHudFonts.TIMER_NARROW : PvpArenaHudFonts.TIMER_WIDE}
+        text=""
+        align="center"
+        valign="middle"
+        shadow
+        color={Palette.TIMER_TEXT}
+      />
+    </>
+  );
+}

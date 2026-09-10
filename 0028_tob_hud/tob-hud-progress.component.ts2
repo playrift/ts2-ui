@@ -1,0 +1,93 @@
+import { CS2, useDerived, useInterval, useOnResize, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { Varbits } from '../lib/game/varbits';
+import { tobClientLastprogress } from '../lib/game/varcs';
+import { Layout, PartyStatus, Progress, TobHudColor, TobHudFonts, WaveProgress } from './tob-hud.constants';
+import {
+  inTobRaid,
+  resetWaveProgress,
+  stepWaveProgress,
+  waveProportion,
+  waveTenths,
+  wavePercentText,
+} from './tob-hud.state';
+
+function fillWidth(hostWidth: Int, proportion: Int): Int {
+  return CS2.scale(proportion, Progress.PROPORTION, hostWidth);
+}
+
+function barBack(type: Int): Int {
+  if (type === WaveProgress.ROOM) {
+    return TobHudColor.LETTER_DEAD;
+  }
+  if (type === WaveProgress.SPECIAL) {
+    return TobHudColor.BAR_SPECIAL_BACK;
+  }
+  return TobHudColor.BAR_IDLE_BACK;
+}
+
+function barFront(type: Int): Int {
+  if (type === WaveProgress.ROOM) {
+    return TobHudColor.BAR_ROOM;
+  }
+  if (type === WaveProgress.SPECIAL) {
+    return TobHudColor.BAR_SPECIAL;
+  }
+  return TobHudColor.BAR_IDLE;
+}
+
+function barLabel(type: Int, tenths: Int): String {
+  if (type === WaveProgress.ROOM) {
+    return wavePercentText(tenths);
+  }
+  if (type === WaveProgress.SPECIAL) {
+    return `<col=ff0000>${wavePercentText(tenths)}</col>`;
+  }
+  return '';
+}
+
+export function TobHudProgress(): Component {
+  const bar = useRef();
+  const universe = useUniverse();
+  useOnResize(universe);
+
+  const inRaid: Int = useDerived(() => inTobRaid());
+  const status: Int = useServerState(Varbits.TOB_CLIENT_PARTYSTATUS);
+  const type: Int = useServerState(Varbits.TOB_CLIENT_WAVEPROGRESS_TYPE);
+  const target: Int = useDerived(() => waveProportion());
+  const [eased] = useState(tobClientLastprogress);
+  const tenths: Int = useDerived(() => waveTenths());
+
+  useInterval(() => stepWaveProgress(target), bar);
+
+  if (inRaid === 0 || status !== PartyStatus.READY || type === WaveProgress.NONE) {
+    resetWaveProgress();
+    return null;
+  }
+
+  const shown: Int = eased === -1 ? target : eased;
+  const back: Int = barBack(type);
+  const front: Int = barFront(type);
+  const label: String = barLabel(type, tenths);
+
+  return (
+    <layer w="fill" h="fill">
+      <layer ref={bar} x="center" y="center" w={{ fill: Layout.PROGRESS_INSET }} h={{ fill: Layout.PROGRESS_INSET }}>
+        <rect x="center" y="center" w="fill" h="fill" color={back} fill />
+        <rect x={0} y="center" w={fillWidth(bar.width, shown)} h="fill" color={front} fill />
+      </layer>
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Layout.PROGRESS_INSET }}
+        h={{ fill: Layout.PROGRESS_INSET }}
+        text={label}
+        font={TobHudFonts.PROGRESS}
+        align="center"
+        valign="middle"
+      />
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}

@@ -1,0 +1,77 @@
+import { CS2, useState, useUniverse } from 'ts2';
+
+import { ThinBox } from '../lib/thin-box.component';
+import { playSound } from '../lib/lib.engine';
+import {
+  Layout,
+  PartydetailsColor,
+  PartydetailsFonts,
+  PartydetailsSounds,
+  PartydetailsSprites,
+  statsSlot,
+} from './raids-lobby-partydetails.constants';
+import { StatsGrid } from './raids-lobby-partydetails.data';
+import { rowField, rowLine, rowTail } from './raids-lobby-partydetails.helpers';
+
+export function PartydetailsStats(): Component {
+  const board = useUniverse();
+  const [selected, setSelected] = useState(statsSlot);
+
+  if (selected < 0) {
+    return null;
+  }
+
+  const line: String = rowLine(selected);
+  const name: String = CS2.tags_remove(rowField(line, 0));
+  const levels: String = rowTail(line);
+  const left: Int = (board.width - Layout.STATS_GRID_W) / 2;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onClick={() => {
+        playSound(PartydetailsSounds.CLICK);
+        setSelected(-1);
+      }}
+    >
+      <sprite x="center" y={0} w="fill" h="fill" sprite={PartydetailsSprites.STATS_BACKING} tiling />
+      <ThinBox />
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={Layout.STATS_NAME_H}
+        text={name}
+        font={PartydetailsFonts.BODY}
+        color={PartydetailsColor.LABEL}
+        align="center"
+        valign="bottom"
+        shadow
+      />
+      {StatsGrid.map((cell, index) => (
+        <>
+          <sprite
+            x={left + (index / Layout.STATS_ROWS) * Layout.STATS_COL_STEP}
+            y={Layout.STATS_GRID_TOP + (index % Layout.STATS_ROWS) * Layout.STATS_ROW_STEP}
+            w={Layout.STATS_ICON}
+            h={Layout.STATS_ICON}
+            sprite={cell.icon}
+          />
+          <text
+            x={left + (index / Layout.STATS_ROWS) * Layout.STATS_COL_STEP}
+            y={Layout.STATS_GRID_TOP + (index % Layout.STATS_ROWS) * Layout.STATS_ROW_STEP}
+            w={Layout.STATS_LEVEL_W}
+            h={Layout.STATS_ICON}
+            text={rowField(levels, index)}
+            font={PartydetailsFonts.BODY}
+            color={PartydetailsColor.LABEL}
+            align="right"
+            valign="middle"
+            shadow
+          />
+        </>
+      ))}
+    </layer>
+  );
+}

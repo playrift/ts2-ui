@@ -1,0 +1,305 @@
+import { CS2, useInterval, useOnResize, useState, useUniverse } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { onMobile } from '../lib/lib.helpers';
+import { collectionOverviewX, collectionOverviewY } from '../lib/game/varcs';
+import { CollectionOverviewClose } from './collection-overview-close.component';
+import { BurgerButton, BurgerMenu, closeBurgerMenu } from './collection-overview-burger.component';
+import { LatestCells } from './collection-overview-latest.component';
+import { CollectionBar, RankLeftBadge, RankRightBadge, rankCaption } from './collection-overview-progress.component';
+import { OverviewSteelBorder } from './collection-overview-title.component';
+import {
+  SubsectionButtons,
+  SubsectionClickMasks,
+  SubsectionIcons,
+  SubsectionNames,
+  SubsectionOutlines,
+  SubsectionProgress,
+} from './collection-overview-tiles.component';
+import {
+  Build,
+  Copy,
+  Layout,
+  OverviewColor,
+  OverviewFonts,
+  Rank,
+  burgerButtonRef,
+  burgerFrameRef,
+  burgerOverlayRef,
+  contentRef,
+  frameRef,
+  infinityRef,
+  latestItemsRef,
+  progressBarRef,
+  rankLeftRef,
+  rankLeftTextRef,
+  rankRightRef,
+  rankRightTextRef,
+  resizePreviewRef,
+  subsectionIconRef,
+  subsectionNameRef,
+  universeRef,
+} from './collection-overview.constants';
+import { collectionOverviewInit, publishBreakpoint } from './collection-overview.helpers';
+import { collectionRanks, overviewAtDefaultPosition } from './collection-overview.state';
+
+export const collectionOverviewUi = (): UI => (
+  <ui ref={infinityRef}>
+    <CollectionOverview />
+  </ui>
+);
+
+function CollectionOverview(): Component {
+  return (
+    <>
+      <layer
+        ref={universeRef}
+        x="center"
+        y="center"
+        w={Layout.PANEL_W}
+        h={{ fill: Layout.PANEL_INSET_H }}
+        noClickThrough
+      >
+        <layer ref={frameRef} x="center" y="center" w="fill" h="fill" onLoad={() => collectionOverviewInit()}>
+          <layer x={0} y={0} w="fill" h="fill">
+            <OverviewSteelBorder />
+          </layer>
+        </layer>
+
+        <layer ref={contentRef} x={0} y={Layout.CONTENT_Y} w="fill" h="fill">
+          <layer x="center" y={Layout.SUBSECTIONS_Y} w={{ fill: Layout.STRIP_INSET_W }} h={Layout.SUBSECTIONS_H}>
+            <layer x={0} y={{ center: Layout.BUTTONS_Y }} w="fill" h="fill">
+              <SubsectionButtons />
+            </layer>
+            <layer x={0} y="center" w="fill" h="fill">
+              <SubsectionClickMasks />
+            </layer>
+            <layer x={0} y="center" w="fill" h="fill">
+              <SubsectionOutlines />
+            </layer>
+            <layer ref={subsectionNameRef} x={0} y="center" w="fill" h="fill">
+              <SubsectionNames />
+            </layer>
+            <layer ref={subsectionIconRef} x={0} y="center" w="fill" h="fill">
+              <SubsectionIcons />
+            </layer>
+            <layer x={0} y={0} w="fill" h="fill">
+              <SubsectionProgress />
+            </layer>
+          </layer>
+
+          <layer x="center" y={Layout.PROGRESS_Y} w={{ fill: Layout.STRIP_INSET_W }} h={Layout.PROGRESS_H}>
+            <layer ref={rankLeftRef} x={Build.RANK_X} y={Build.RANK_Y} w={Layout.RANK_BOX} h={Layout.RANK_BOX}>
+              <rect x={0} y={0} w="fill" h="fill" fill transparency={Layout.PLATE_TRANSPARENCY} />
+              <RankLeftBadge />
+            </layer>
+            <text
+              ref={rankLeftTextRef}
+              x={Build.RANK_X}
+              y={Build.RANK_TEXT_Y}
+              w={Layout.RANK_TEXT_W}
+              h={Layout.RANK_TEXT_H}
+              text=""
+              font={OverviewFonts.RANK}
+              color={OverviewColor.LABEL}
+              align="left"
+              valign="middle"
+              shadow
+            />
+            <layer
+              ref={progressBarRef}
+              x="center"
+              y={Layout.BAR_Y}
+              w={{ fill: Layout.BAR_INSET_W }}
+              h={Layout.BAR_H}
+              options={[PLACEHOLDER_OP]}
+              optionSubject={PLACEHOLDER_OP}
+            >
+              <CollectionBar />
+            </layer>
+            <layer ref={rankRightRef} right={Build.RANK_X} y={Build.RANK_Y} w={Layout.RANK_BOX} h={Layout.RANK_BOX}>
+              <rect x={0} y={0} w="fill" h="fill" fill transparency={Layout.PLATE_TRANSPARENCY} />
+              <RankRightBadge />
+            </layer>
+            <text
+              ref={rankRightTextRef}
+              right={Build.RANK_X}
+              y={Build.RANK_TEXT_Y}
+              w={Layout.RANK_TEXT_W}
+              h={Layout.RANK_TEXT_H}
+              text=""
+              font={OverviewFonts.RANK}
+              color={OverviewColor.LABEL}
+              align="right"
+              valign="middle"
+              shadow
+            />
+          </layer>
+
+          <layer x="center" y={Layout.LATEST_Y} w={{ fill: Layout.STRIP_INSET_W }} h={Layout.LATEST_H}>
+            <text
+              x="center"
+              y={Layout.HEADING_Y}
+              w={Layout.HEADING_W}
+              h={Layout.HEADING_H}
+              text={Copy.LATEST}
+              font={OverviewFonts.HEADING}
+              color={OverviewColor.LABEL}
+              align="center"
+              valign="middle"
+              shadow
+            />
+            <layer
+              ref={latestItemsRef}
+              x="center"
+              y={Layout.ITEMS_Y}
+              w={{ fill: Layout.STRIP_INSET_W }}
+              h={Layout.ITEMS_H}
+            >
+              <rect x={0} y={0} w="fill" h="fill" fill transparency={Layout.PLATE_TRANSPARENCY} />
+              <LatestCells />
+            </layer>
+          </layer>
+
+          <layer
+            ref={burgerOverlayRef}
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            hide
+            noClickThrough
+            onClick={() => closeBurgerMenu()}
+          />
+        </layer>
+
+        <BurgerButton />
+        <layer ref={burgerFrameRef} x={0} y={Layout.MENU_Y} w={Layout.MENU_W} h={Layout.MENU_H} hide>
+          <BurgerMenu />
+        </layer>
+        <CollectionOverviewClose />
+      </layer>
+
+      <layer ref={resizePreviewRef} x="center" y="center" w={Layout.PREVIEW_W} h={Layout.PREVIEW_H} hide>
+        {PreviewRings.map((ring) => (
+          <rect
+            x="center"
+            y="center"
+            w={{ fill: ring * Layout.PREVIEW_INSET_STEP }}
+            h={{ fill: ring * Layout.PREVIEW_INSET_STEP }}
+            color={OverviewColor.RESIZE_PREVIEW}
+            transparency={Layout.PREVIEW_BASE_TRANSPARENCY + ring * Layout.PREVIEW_TRANSPARENCY_STEP}
+          />
+        ))}
+      </layer>
+
+      <CollectionOverviewChrome />
+    </>
+  );
+}
+
+function CollectionOverviewChrome(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  collectionOverviewLayout();
+  useInterval(() => publishBreakpoint());
+
+  return (
+    <sprite
+      x={0}
+      y={0}
+      w={0}
+      h={0}
+      tiling
+      transparency={Layout.HANDLE_REST}
+      draggable={universe}
+      dragDeadZone={Layout.DRAG_DEAD_ZONE}
+      dragDeadTime={Layout.DRAG_DEAD_TIME}
+      onMouseRepeat={(event) => ccSetTrans(event.self, Layout.HANDLE_HOVER)}
+      onMouseLeave={(event) => ccSetTrans(event.self, Layout.HANDLE_REST)}
+    />
+  );
+}
+
+function collectionOverviewLayout(): void {
+  placePanel();
+  placeRankBadges();
+  placeBurger();
+
+  latestItemsRef.width = Build.ITEMS_W;
+  latestItemsRef.height = Layout.ITEMS_H;
+}
+
+function placePanel(): void {
+  universeRef.width = Build.PANEL_W;
+  universeRef.height = Build.PANEL_H;
+
+  if (onMobile()) {
+    return;
+  }
+
+  const slot: ComponentId = gameframeSlot(GameframeSlot.VIEWPORT);
+  if (slot === -1) {
+    return;
+  }
+
+  let x: Int = CS2.if_x_get(slot);
+  let y: Int = CS2.if_y_get(slot);
+
+  if (!overviewAtDefaultPosition()) {
+    const top: Int = 0;
+    const room: Int = infinityRef.height - top;
+    x = clamp(0, storedX(), infinityRef.width - Build.PANEL_W);
+    y = clamp(top, storedY(), top + room - Build.PANEL_H);
+  }
+
+  universeRef.x = x;
+  universeRef.y = y;
+}
+
+function placeRankBadges(): void {
+  const [reached, floor, next, ceiling] = collectionRanks();
+
+  rankLeftRef.hide = reached === Rank.NONE;
+  rankRightRef.hide = next === Rank.NONE;
+  rankLeftTextRef.text = rankCaption(reached);
+  rankRightTextRef.text = rankCaption(next);
+}
+
+function placeBurger(): void {
+  const mobile: Boolean = onMobile();
+
+  burgerButtonRef.width = mobile ? Layout.BURGER_MOBILE : Layout.BURGER;
+  burgerButtonRef.height = mobile ? Layout.BURGER_MOBILE : Layout.BURGER;
+  burgerButtonRef.x = mobile ? Layout.BURGER_MOBILE_XY : Layout.BURGER_XY;
+  burgerButtonRef.y = mobile ? Layout.BURGER_MOBILE_XY : Layout.BURGER_XY;
+
+  burgerFrameRef.width = mobile ? Build.MENU_W_MOBILE : Build.MENU_W;
+  burgerFrameRef.height = (mobile ? Build.MENU_ROWS_H_MOBILE : Build.MENU_ROWS_H) + Build.MENU_PAD;
+}
+
+function clamp(lo: Int, value: Int, hi: Int): Int {
+  let v: Int = value;
+  if (v > hi) {
+    v = hi;
+  }
+  if (v < lo) {
+    v = lo;
+  }
+  return v;
+}
+
+function storedX(): Int {
+  const [x] = useState(collectionOverviewX);
+  return x;
+}
+
+function storedY(): Int {
+  const [y] = useState(collectionOverviewY);
+  return y;
+}
+
+const PLACEHOLDER_OP = '*';
+
+const PreviewRings = [0, 1, 2, 3];

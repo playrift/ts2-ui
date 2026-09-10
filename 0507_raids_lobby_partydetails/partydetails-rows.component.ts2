@@ -1,0 +1,53 @@
+import { useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { raidsListsortDetails } from '../lib/game/varcs';
+import { PartydetailsEntry } from './partydetails-entry.component';
+import {
+  Layout,
+  listRef,
+  sortComlevelRef,
+  sortNameRef,
+  sortSkilltotalRef,
+  statsSlot,
+} from './raids-lobby-partydetails.constants';
+import { PartydetailsRowLines } from './raids-lobby-partydetails.data';
+import { canKick, listScrollHeight, normalisedSort, rowCount } from './raids-lobby-partydetails.helpers';
+
+export function PartydetailsRows(): Component {
+  const pane = useUniverse();
+  const [sortSetting] = useState(raidsListsortDetails);
+  const sort: Int = normalisedSort(sortSetting);
+  const [selected] = useState(statsSlot);
+  const channelMember: Int = useServerState(Varbits.RAIDS_CLIENT_CHANNELMEMBER);
+  const minCombat: Int = useServerState(Varbits.RAIDS_LOBBY_MINCOMBAT);
+  const minSkillTotal: Int = useServerState(Varbits.RAIDS_LOBBY_MINSKILLTOTAL);
+  const combatFloor: String = stringOf(minCombat).padStart(3, '0');
+  const skillFloor: String = stringOf(minSkillTotal).padStart(4, '0');
+  const kickable: Int = channelMember === 1 && canKick() ? 1 : 0;
+
+  const nameW: Int = sortNameRef.width;
+  const combatW: Int = sortComlevelRef.width;
+  const skillW: Int = sortSkilltotalRef.width;
+
+  listRef.scrollHeight = listScrollHeight(pane.height);
+
+  return (
+    <layer x="center" y={0} w="fill" h={Math.max(pane.height, rowCount() * Layout.ROW_H)}>
+      {PartydetailsRowLines.map((line, slot) => (
+        <PartydetailsEntry
+          line={line}
+          slot={slot}
+          sort={sort}
+          selected={selected}
+          kickable={kickable}
+          nameW={nameW}
+          combatW={combatW}
+          skillW={skillW}
+          combatFloor={combatFloor}
+          skillFloor={skillFloor}
+        />
+      ))}
+    </layer>
+  );
+}

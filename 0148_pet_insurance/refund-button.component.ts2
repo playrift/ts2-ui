@@ -1,0 +1,79 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Copy, Layout, PetColor, PetFonts, PetSounds, PetVars, PetWash } from './pet-insurance.constants';
+
+export function RefundButton(): Component {
+  const mobile = onMobile();
+
+  const credits: Int = useServerState(PetVars.CREDITS);
+  const discounted: Int = useServerState(PetVars.DISCOUNTED);
+  const processed: Int = useServerState(PetVars.CREDITS_PROCESSED);
+
+  const [hovered, setHovered] = useState(0);
+
+  const live: Int = credits > 0 || discounted > 0 ? 1 : 0;
+
+  const dead: Int = processed === 0 && discounted === 0 ? 1 : 0;
+
+  const raised: Int = hovered === 0 && dead === 0 ? 1 : 0;
+
+  const desktop: Int = mobile ? 0 : 1;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer x={0} y={0} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        {raised === 1 ? <StoneButtonOutFilled /> : <StoneButtonPressedFilled />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={Copy.REFUND}
+          font={PetFonts.BODY}
+          color={raised === 1 ? PetColor.ACCENT : dead === 1 ? PetColor.DIM : PetColor.WHITE}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      {live === 1 && desktop === 0 && (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={PetColor.BLACK}
+          transparency={PetWash.CLICK_ZONE}
+          options={[Copy.REFUND_OP]}
+          onOptionSelect={() => {
+            predictServerState(PetVars.RECLAIM, 0);
+            playSound(PetSounds.SELECT);
+          }}
+        />
+      )}
+      {live === 1 && desktop === 1 && (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={PetColor.BLACK}
+          transparency={PetWash.CLICK_ZONE}
+          options={[Copy.REFUND_OP]}
+          onMouseRepeat={() => setHovered(1)}
+          onMouseLeave={() => setHovered(0)}
+          onOptionSelect={() => {
+            predictServerState(PetVars.RECLAIM, 0);
+            playSound(PetSounds.SELECT);
+          }}
+        />
+      )}
+    </layer>
+  );
+}

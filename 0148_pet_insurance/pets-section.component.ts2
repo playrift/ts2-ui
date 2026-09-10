@@ -1,0 +1,236 @@
+import { CS2, useRef, useServerState } from 'ts2';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  Copy,
+  Layout,
+  PaneLayout,
+  PetColor,
+  PetFonts,
+  PetScrollbarArt,
+  PetVars,
+  PetWash,
+} from './pet-insurance.constants';
+import { InsurablePets } from './pet-insurance.data';
+import { PetList, petLocation, petRowAdvance, petShown, petStripeAdvance } from './pet-insurance.helpers';
+import { PetInsuranceRow } from './pet-row.component';
+
+export function PetsMessage(): Component {
+  const found1: Int = useServerState(PetVars.FOUND_1);
+  const found2: Int = useServerState(PetVars.FOUND_2);
+  const found3: Int = useServerState(PetVars.FOUND_3);
+  const foundCount: Int = CS2.bitcount(found1) + CS2.bitcount(found2) + CS2.bitcount(found3);
+
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text={foundCount === 0 ? Copy.NO_PETS : ''}
+      font={PetFonts.BODY}
+      color={PetColor.DIM}
+      align="center"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+export function PetsSection({
+  location0 = 0,
+  location1 = 0,
+  location2 = 0,
+  location3 = 0,
+  location4 = 0,
+  location5 = 0,
+  location6 = 0,
+  location7 = 0,
+  location8 = 0,
+}: {
+  location0?: Int;
+  location1?: Int;
+  location2?: Int;
+  location3?: Int;
+  location4?: Int;
+  location5?: Int;
+  location6?: Int;
+  location7?: Int;
+  location8?: Int;
+}): Component {
+  const found1: Int = useServerState(PetVars.FOUND_1);
+  const found2: Int = useServerState(PetVars.FOUND_2);
+  const found3: Int = useServerState(PetVars.FOUND_3);
+  const owned1: Int = useServerState(PetVars.OWNED_1);
+  const owned2: Int = useServerState(PetVars.OWNED_2);
+  const owned3: Int = useServerState(PetVars.OWNED_3);
+
+  const pane = useRef();
+
+  const foundCount: Int = CS2.bitcount(found1) + CS2.bitcount(found2) + CS2.bitcount(found3);
+  const insuredCount: Int = CS2.bitcount(owned1) + CS2.bitcount(owned2) + CS2.bitcount(owned3);
+  const reclaimCount: Int = foundCount - insuredCount;
+
+  const reclaimBodyH: Int = reclaimCount > 0 ? PaneLayout.ROW_H * reclaimCount : PaneLayout.HEADING_H;
+  const insuredHeadingY: Int = PaneLayout.HEADING_H + reclaimBodyH;
+  const insuredBodyY: Int = insuredHeadingY + PaneLayout.HEADING_H;
+  const insuredBodyH: Int = insuredCount > 0 ? PaneLayout.ROW_H * insuredCount : PaneLayout.HEADING_H;
+  const contentH: Int = insuredBodyY + insuredBodyH;
+
+  const extent: Int = foundCount > 0 && contentH > Layout.PANE_H ? contentH : 0;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer ref={pane} x={0} y={0} w={Layout.PANE_W} h={Layout.PANE_H} scrollY={0} scrollHeight={extent}>
+        {foundCount > 0 && (
+          <rect
+            x={0}
+            y={0}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            fill
+            color={PetColor.BLACK}
+            transparency={PetWash.HEADING}
+          />
+        )}
+        {foundCount > 0 && (
+          <text
+            x={0}
+            y={0}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            text={Copy.RECLAIMABLE_HEADING}
+            font={PetFonts.BOLD}
+            color={PetColor.ACCENT}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {foundCount > 0 && reclaimCount <= 0 && (
+          <text
+            x={0}
+            y={PaneLayout.HEADING_H}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            text={Copy.NO_RECLAIMABLE}
+            font={PetFonts.BODY}
+            color={PetColor.DIM}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {InsurablePets.scan(
+          (pet, index, top, stripe) =>
+            petShown(index, PetList.RECLAIMABLE, found1, found2, found3, owned1, owned2, owned3) && (
+              <PetInsuranceRow pet={pet} top={top} stripe={stripe} list={PetList.RECLAIMABLE} location={0} />
+            ),
+          [
+            (pet, index) =>
+              petRowAdvance(
+                index,
+                PetList.RECLAIMABLE,
+                PaneLayout.ROW_H,
+                found1,
+                found2,
+                found3,
+                owned1,
+                owned2,
+                owned3,
+              ),
+            (pet, index) =>
+              petStripeAdvance(index, PetList.RECLAIMABLE, found1, found2, found3, owned1, owned2, owned3),
+          ],
+          [PaneLayout.HEADING_H, 0],
+        )}
+
+        {foundCount > 0 && (
+          <rect
+            x={0}
+            y={insuredHeadingY}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            fill
+            color={PetColor.BLACK}
+            transparency={PetWash.HEADING}
+          />
+        )}
+        {foundCount > 0 && (
+          <text
+            x={0}
+            y={insuredHeadingY}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            text={Copy.INSURED_HEADING}
+            font={PetFonts.BOLD}
+            color={PetColor.ACCENT}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {foundCount > 0 && insuredCount <= 0 && (
+          <text
+            x={0}
+            y={insuredBodyY}
+            w={PaneLayout.CONTENT_W}
+            h={PaneLayout.HEADING_H}
+            text={Copy.NO_OTHER}
+            font={PetFonts.BODY}
+            color={PetColor.DIM}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+
+        {InsurablePets.scan(
+          (pet, index, top, stripe) =>
+            petShown(index, PetList.INSURED, found1, found2, found3, owned1, owned2, owned3) && (
+              <PetInsuranceRow
+                pet={pet}
+                top={top}
+                stripe={stripe}
+                list={PetList.INSURED}
+                location={petLocation(
+                  index,
+                  location0,
+                  location1,
+                  location2,
+                  location3,
+                  location4,
+                  location5,
+                  location6,
+                  location7,
+                  location8,
+                )}
+              />
+            ),
+          [
+            (pet, index) =>
+              petRowAdvance(index, PetList.INSURED, PaneLayout.ROW_H, found1, found2, found3, owned1, owned2, owned3),
+            (pet, index) => petStripeAdvance(index, PetList.INSURED, found1, found2, found3, owned1, owned2, owned3),
+          ],
+          [insuredBodyY, reclaimCount > 0 ? reclaimCount : 0],
+        )}
+      </layer>
+
+      <layer x={Layout.BAR_X} y={Layout.BAR_Y} w={Layout.BAR_W} h={Layout.BAR_H}>
+        {foundCount > 0 && (
+          <ScrollbarVertical
+            content={pane}
+            track={PetScrollbarArt.TRACK}
+            capTopSprite={PetScrollbarArt.CAP_TOP}
+            thumbSprite={PetScrollbarArt.THUMB}
+            capBottomSprite={PetScrollbarArt.CAP_BOTTOM}
+            arrowUp={PetScrollbarArt.ARROW_UP}
+            arrowDown={PetScrollbarArt.ARROW_DOWN}
+          />
+        )}
+      </layer>
+    </layer>
+  );
+}

@@ -1,0 +1,167 @@
+import { predictServerState, useRef } from 'ts2';
+import { itemName, playSound } from '../lib/lib.engine';
+import {
+  Copy,
+  OP_BASE_COLOR,
+  PaneLayout,
+  PetColor,
+  PetFonts,
+  PetSounds,
+  PetVars,
+  RowShade,
+} from './pet-insurance.constants';
+import {
+  PetList,
+  enterPetRow,
+  leavePetRow,
+  petLocationName,
+  pressPetRow,
+  tellPetLocation,
+} from './pet-insurance.helpers';
+
+export function PetInsuranceRow({
+  pet,
+  top,
+  stripe,
+  list,
+  location,
+}: {
+  pet: ItemName;
+  top: Int;
+  stripe: Int;
+  list: PetList;
+  location: Int;
+}): Component {
+  const icon = useRef();
+  const label = useRef();
+
+  const shade: Int = stripe % 2 === 0 ? RowShade.EVEN : RowShade.ODD;
+
+  const name: String = itemName(pet as Item);
+  const subject: String = `<col=${OP_BASE_COLOR}>${name}</col>`;
+
+  const inner: Int = top + PaneLayout.INSET;
+  const subLineY: Int = inner - PaneLayout.SUBLINE_LIFT;
+
+  return (
+    <>
+      {list === PetList.RECLAIMABLE ? (
+        <rect
+          x={0}
+          y={top}
+          w={PaneLayout.CONTENT_W}
+          h={PaneLayout.ROW_H}
+          fill
+          color={PetColor.WHITE}
+          transparency={shade}
+          optionSubject={subject}
+          options={[Copy.OP_RECLAIM, '', '', '', '', '', '', '', '', Copy.OP_EXAMINE]}
+          onMouseRepeat={(event) => {
+            enterPetRow(event.self, icon, label);
+          }}
+          onMouseLeave={(event) => {
+            leavePetRow(event.self, icon, label, shade);
+          }}
+          onOptionSelect={(event) => {
+            playSound(PetSounds.SELECT);
+            pressPetRow(event.self, icon, label, shade);
+          }}
+        />
+      ) : (
+        <rect
+          x={0}
+          y={top}
+          w={PaneLayout.CONTENT_W}
+          h={PaneLayout.ROW_H}
+          fill
+          color={PetColor.WHITE}
+          transparency={shade}
+          optionSubject={subject}
+          options={[Copy.OP_LOCATION, '', '', '', '', '', '', '', '', Copy.OP_EXAMINE]}
+          onMouseRepeat={(event) => {
+            enterPetRow(event.self, icon, label);
+          }}
+          onMouseLeave={(event) => {
+            leavePetRow(event.self, icon, label, shade);
+          }}
+          onOptionSelect={(event) => {
+            predictServerState(PetVars.RECLAIM, 0);
+            playSound(PetSounds.SELECT);
+            pressPetRow(event.self, icon, label, shade);
+            if (event.option === 1) {
+              tellPetLocation(name, location);
+            }
+          }}
+        />
+      )}
+
+      <sprite
+        ref={icon}
+        x={PaneLayout.ICON_X}
+        y={inner}
+        w={PaneLayout.ICON_W}
+        h={PaneLayout.ICON_H}
+        item={pet}
+        itemCount={1}
+        shadowColor={PetColor.ICON_SHADOW}
+        outline={1}
+      />
+
+      <text
+        ref={label}
+        x={PaneLayout.TEXT_X}
+        y={inner}
+        w={PaneLayout.TEXT_W}
+        h={PaneLayout.ROW_H}
+        text={name}
+        font={PetFonts.BODY}
+        color={PetColor.DIM}
+        align="left"
+        valign="top"
+        shadow
+      />
+
+      {list === PetList.RECLAIMABLE ? (
+        <text
+          x={PaneLayout.TEXT_X}
+          y={subLineY}
+          w={PaneLayout.TEXT_W}
+          h={PaneLayout.ROW_H}
+          text={Copy.ROW_RECLAIMABLE}
+          font={PetFonts.SMALL}
+          color={PetColor.WHITE}
+          align="left"
+          valign="bottom"
+          shadow
+        />
+      ) : (
+        <>
+          <text
+            x={PaneLayout.TEXT_X}
+            y={subLineY}
+            w={PaneLayout.TEXT_W}
+            h={PaneLayout.ROW_H}
+            text={Copy.ROW_LOCATION}
+            font={PetFonts.SMALL}
+            color={PetColor.ACCENT}
+            align="left"
+            valign="bottom"
+            shadow
+          />
+          <text
+            x={PaneLayout.TEXT_X + PaneLayout.LOCATION_VALUE_DX}
+            y={subLineY}
+            w={PaneLayout.TEXT_W}
+            h={PaneLayout.ROW_H}
+            text={petLocationName(location)}
+            font={PetFonts.SMALL}
+            color={PetColor.WHITE}
+            align="left"
+            valign="bottom"
+            shadow
+          />
+        </>
+      )}
+    </>
+  );
+}

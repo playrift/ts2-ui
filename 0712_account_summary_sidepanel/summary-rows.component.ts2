@@ -1,0 +1,225 @@
+import { useServerState, useState } from 'ts2';
+
+import { speedrunningWorld } from '../0134_settings/settings.helpers';
+import { minutesAsText } from '../0378_welcome_screen/welcome-screen.helpers';
+import { groupDigits } from '../lib/lib.format';
+import { buttonSelectSound } from '../0656_league_side_panel/league-side-panel.state';
+import { onMobile } from '../lib/lib.helpers';
+import { accountSummaryPlaytime, combatLevel } from '../lib/game/varcs';
+import { Copy, Layout, Ops, SummaryIcons, SummaryVarbits, SummaryVarps } from './account-summary-sidepanel.constants';
+import {
+  combatTasksCompleted,
+  combatTasksTotal,
+  diariesCompleted,
+  diariesTotal,
+  totalLevel,
+  totalXpText,
+} from './account-summary-sidepanel.helpers';
+import { SummaryRow } from './summary-row.component';
+import { SummaryTile } from './summary-tile.component';
+
+export function CombatLevelTile(): Component {
+  const [combat] = useState(combatLevel);
+  return (
+    <layer w="fill" h="fill">
+      <SummaryTile
+        label={Copy.COMBAT_LEVEL}
+        value={`<col=0dc10d>${combat}</col>`}
+        icon={SummaryIcons.COMBAT}
+        height={Layout.ROW1_H}
+      />
+    </layer>
+  );
+}
+
+export function TotalLevelTile(): Component {
+  const total: Int = totalLevel();
+  const value: String = `<col=0dc10d>${total}</col>`;
+  return (
+    <layer w="fill" h="fill">
+      <SummaryTile label={Copy.TOTAL_LEVEL} value={value} icon={SummaryIcons.TOTAL_LEVEL} height={Layout.ROW1_H} />
+    </layer>
+  );
+}
+
+export function TotalXpRow(): Component {
+  const xp: String = totalXpText();
+  return (
+    <layer w="fill" h="fill">
+      <SummaryRow
+        text={`${Copy.TOTAL_XP} <col=0dc10d>${xp}</col>`}
+        icon={SummaryIcons.TOTAL_XP}
+        height={Layout.ROW2_H}
+      />
+    </layer>
+  );
+}
+
+export function QuestsTile(): Component {
+  const [hovered, setHovered] = useState(0);
+  const speedrun: Boolean = speedrunningWorld();
+  const points: Int = Math.min(useServerState(SummaryVarps.SPEEDRUN_POINTS), Layout.SPEEDRUN_CAP);
+  const done: Int = useServerState(SummaryVarbits.QUESTS_COMPLETED);
+  const outOf: Int = useServerState(SummaryVarbits.QUESTS_TOTAL);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+    >
+      <SummaryTile
+        label={speedrun ? Copy.SPEEDRUN_POINTS : Copy.QUESTS}
+        value={
+          speedrun ? `<col=0dc10d>${groupDigits(points, Copy.SEPARATOR)}</col>` : `<col=0dc10d>${done}/${outOf}</col>`
+        }
+        icon={SummaryIcons.QUESTS}
+        height={Layout.ROW3_H}
+        hovered={hovered}
+      />
+    </layer>
+  );
+}
+
+export function DiariesTile(): Component {
+  const [hovered, setHovered] = useState(0);
+  const done: Int = diariesCompleted();
+  const outOf: Int = diariesTotal();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+    >
+      <SummaryTile
+        label={Copy.ACHIEVEMENTS}
+        value={`<col=0dc10d>${done}/${outOf}</col>`}
+        icon={SummaryIcons.DIARIES}
+        height={Layout.ROW3_H}
+        hovered={hovered}
+      />
+    </layer>
+  );
+}
+
+export function CombatTasksTile(): Component {
+  const [hovered, setHovered] = useState(0);
+  const done: Int = combatTasksCompleted();
+  const outOf: Int = combatTasksTotal();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+    >
+      <SummaryTile
+        label={Copy.COMBAT_TASKS}
+        value={`<col=0dc10d>${done}/${outOf}</col>`}
+        icon={SummaryIcons.COMBAT_TASKS}
+        height={Layout.ROW4_H}
+        hovered={hovered}
+      />
+    </layer>
+  );
+}
+
+export function CollectionsTile(): Component {
+  const [hovered, setHovered] = useState(0);
+  const done: Int = useServerState(SummaryVarps.COLLECTION_COUNT);
+  const outOf: Int = useServerState(SummaryVarps.COLLECTION_COUNT_MAX);
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+    >
+      <SummaryTile
+        label={Copy.COLLECTIONS}
+        value={`<col=0dc10d>${done}/${outOf}</col>`}
+        icon={SummaryIcons.COLLECTIONS}
+        height={Layout.ROW4_H}
+        hovered={hovered}
+      />
+    </layer>
+  );
+}
+
+export function TimePlayedRow(): Component {
+  const [hovered, setHovered] = useState(0);
+  const [playtime] = useState(accountSummaryPlaytime);
+  const shown: Int = useServerState(SummaryVarbits.DISPLAY_PLAYTIME);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        setHovered(0);
+      }}
+    >
+      <SummaryRow
+        text={
+          shown === 1
+            ? `${Copy.TIME_PLAYED} <col=0dc10d>${minutesAsText(playtime, 1)}</col>`
+            : mobile
+              ? `${Copy.TIME_PLAYED} ${Copy.REVEAL_MOBILE}`
+              : `${Copy.TIME_PLAYED} ${Copy.REVEAL_DESKTOP}`
+        }
+        height={Layout.ROW5_H}
+        hovered={hovered}
+      />
+    </layer>
+  );
+}
+
+export function TimePlayedClick(): Component {
+  const shown: Int = useServerState(SummaryVarbits.DISPLAY_PLAYTIME);
+  return (
+    <rect
+      w="fill"
+      h="fill"
+      transparency={CLICK_TRANSPARENCY}
+      options={[shown === 1 ? Ops.HIDE : Ops.REVEAL]}
+      onOptionSelect={() => buttonSelectSound()}
+    />
+  );
+}
+
+export const CLICK_TRANSPARENCY = 255;

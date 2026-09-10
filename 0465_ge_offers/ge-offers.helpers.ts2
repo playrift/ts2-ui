@@ -1,0 +1,324 @@
+import { CS2, useInventory, useServerState, useState } from 'ts2';
+
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { playermember } from '../lib/game/varcs';
+import { itemName, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Bar, CreateTip, GeColors, GeFonts, NEVER, SinkColors, Slot, Slots } from './ge-offers.constants';
+
+export function enhancedFlags(flags: Int): Boolean {
+  if (CS2.testbit(flags, 27)) {
+    return true;
+  }
+  return false;
+}
+
+export function enhancedClient(): Boolean {
+  return enhancedFlags(useServerState(Varps.MAP_FLAGS_CACHED));
+}
+
+export function ironmanAccount(): Boolean {
+  if (useServerState(Varbits.IRONMAN) === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function commas(value: Int): String {
+  return groupDigits(value, ',');
+}
+
+export function slotEnabled(slot: Int): Boolean {
+  const [member] = useState(playermember);
+  if (deadmanWorld() !== 0) {
+    if (slot < Slots.COUNT) {
+      return true;
+    }
+    return false;
+  }
+  if (slot < Slots.FREE) {
+    return true;
+  }
+  if (member === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function geSinkItem(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_0);
+    case 1:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_1);
+    case 2:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_2);
+    case 3:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_3);
+    case 4:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_4);
+    case 5:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_5);
+    case 6:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_6);
+    case 7:
+      return useServerState(Varps.GE_ITEMSINK_OBJ_7);
+  }
+  return -1;
+}
+
+export function geSinkPrice(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_0));
+    case 1:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_1));
+    case 2:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_2));
+    case 3:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_3));
+    case 4:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_4));
+    case 5:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_5));
+    case 6:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_6));
+    case 7:
+      return Math.max(0, useServerState(Varps.GE_ITEMSINK_PRICE_7));
+  }
+  return 0;
+}
+
+export function geTax(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_0));
+    case 1:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_1));
+    case 2:
+      return Math.max(0, useServerState(Varps.MUSICLENGTH));
+    case 3:
+      return Math.max(0, useServerState(Varps.LAST_MUSICLENGTH));
+    case 4:
+      return Math.max(0, useServerState(Varps.LAST_SONG));
+    case 5:
+      return Math.max(0, useServerState(Varps.CURRENTSONG));
+    case 6:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_6));
+    case 7:
+      return Math.max(0, useServerState(Varps.GE_TAX_SLOT_7));
+  }
+  return 0;
+}
+
+export function geBarWidth(slot: Int, total: Int, done: Int, colour: Int, span: Int): Int {
+  if (colour !== -1) {
+    return span;
+  }
+  let most: Int = total;
+  if (most <= 0) {
+    most = 1;
+  }
+  if (most < done) {
+    most = done;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return span;
+  }
+  if (most < Bar.SAFE) {
+    return CS2.interpolate(0, done, 0, most, span);
+  }
+  const unit: Int = most / Bar.SCALE;
+  return CS2.interpolate(0, done / unit, 0, most / unit, span);
+}
+
+export function geBarColor(slot: Int, total: Int, done: Int, colour: Int): Int {
+  if (colour !== -1) {
+    return colour;
+  }
+  let most: Int = total;
+  if (most <= 0) {
+    most = 1;
+  }
+  if (most < done) {
+    most = done;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return done < most ? GeColors.SHORT : GeColors.DONE;
+  }
+  return GeColors.RUNNING;
+}
+
+export function geBarOverride(slot: Int, collecting: Boolean): Int {
+  if (!collecting) {
+    return -1;
+  }
+  if (geSinkItem(slot) === -1) {
+    return SinkColors.UNSOLD;
+  }
+  return geTax(slot) >= NEVER ? SinkColors.UNSETTLED : SinkColors.SETTLED;
+}
+
+export function truncateToWidth(text: String, width: Int): String {
+  let cut: Int = CS2.string_length(text);
+  if (cut <= 0) {
+    return text;
+  }
+  if (textWidth(text, width, GeFonts.BODY) <= width) {
+    return text;
+  }
+  let shown: String = text;
+  let done: Boolean = false;
+  while (cut > 1 && !done) {
+    cut = cut - 1;
+    const trial: String = `${CS2.substring(text, 0, cut)}...`;
+    if (textWidth(trial, width, GeFonts.BODY) <= width) {
+      shown = trial;
+      done = true;
+    }
+  }
+  return shown;
+}
+
+export function offerHeader(slot: Int, held: Item): String {
+  if (!CS2.stockmarket_offer_empty_is(slot)) {
+    return CS2.stockmarket_offer_type_get(slot) === 1 ? 'Sell' : 'Buy';
+  }
+  if (held === -1) {
+    return 'Empty';
+  }
+  if (geSinkItem(slot) !== -1) {
+    return 'Sell';
+  }
+  return 'Cancelled';
+}
+
+export function offerTipShown(slot: Int, held: Item): Boolean {
+  if (!CS2.stockmarket_offer_empty_is(slot)) {
+    return true;
+  }
+  if (geSinkItem(slot) !== -1) {
+    return true;
+  }
+  if (held !== -1) {
+    return true;
+  }
+  return false;
+}
+
+export function offerTip(slot: Int, held: Item, heldCount: Int): String {
+  if (CS2.stockmarket_offer_empty_is(slot)) {
+    const sink: Int = geSinkItem(slot);
+    if (sink !== -1) {
+      if (geTax(slot) >= NEVER) {
+        return `Selling: ${itemName(sink as Item)}<br>1 / 1`;
+      }
+      return `Sold: ${itemName(sink as Item)}<br>1 / 1`;
+    }
+    if (held === -1) {
+      return '';
+    }
+    return heldCount === 1 ? 'Collect your item.' : 'Collect your items.';
+  }
+  const item: Item = CS2.stockmarket_offer_item_get(slot);
+  const counts: String =
+    `${commas(CS2.stockmarket_offer_completed_count_get(slot))}` +
+    ` / ${commas(CS2.stockmarket_offer_count_get(slot))}`;
+  if (CS2.stockmarket_offer_type_get(slot) === 1) {
+    if (CS2.stockmarket_offer_finished_is(slot)) {
+      return `Sold: ${itemName(item)}<br>${counts}`;
+    }
+    return `Selling: ${itemName(item)}<br>${counts}`;
+  }
+  if (CS2.stockmarket_offer_finished_is(slot)) {
+    return `Bought: ${itemName(item)}<br>${counts}`;
+  }
+  return `Buying: ${itemName(item)}<br>${counts}`;
+}
+
+export function createTip(bond: Boolean): String {
+  return bond ? CreateTip.BOND : CreateTip.BUY;
+}
+
+export function priceText(price: Int): String {
+  return price === 1 ? '1 coin' : `${commas(price)} coins`;
+}
+
+export function cellItem(slot: Int, cell: Int): Item {
+  switch (slot) {
+    case 0: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_0);
+      return held[cell];
+    }
+    case 1: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_1);
+      return held[cell];
+    }
+    case 2: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_2);
+      return held[cell];
+    }
+    case 3: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_3);
+      return held[cell];
+    }
+    case 4: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_4);
+      return held[cell];
+    }
+    case 5: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_5);
+      return held[cell];
+    }
+    case 6: {
+      const held = useInventory(Inventories.GE_COLLECT_6);
+      return held[cell];
+    }
+    case 7: {
+      const held = useInventory(Inventories.GE_COLLECT_7);
+      return held[cell];
+    }
+  }
+  return -1;
+}
+
+export function cellCount(slot: Int, cell: Int): Int {
+  switch (slot) {
+    case 0: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_0);
+      return held.count(cell);
+    }
+    case 1: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_1);
+      return held.count(cell);
+    }
+    case 2: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_2);
+      return held.count(cell);
+    }
+    case 3: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_3);
+      return held.count(cell);
+    }
+    case 4: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_4);
+      return held.count(cell);
+    }
+    case 5: {
+      const held = useInventory(Inventories.TRADINGPOST_SELL_5);
+      return held.count(cell);
+    }
+    case 6: {
+      const held = useInventory(Inventories.GE_COLLECT_6);
+      return held.count(cell);
+    }
+    case 7: {
+      const held = useInventory(Inventories.GE_COLLECT_7);
+      return held.count(cell);
+    }
+  }
+  return 0;
+}
