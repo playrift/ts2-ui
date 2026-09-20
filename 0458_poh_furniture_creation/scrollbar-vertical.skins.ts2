@@ -1,0 +1,155 @@
+import { CS2, useState } from 'ts2';
+
+import { pohCostumeRoomScroll } from '../lib/game/varcs';
+
+export const enum BarSprite {
+  PARCHMENT_TRACK = 798,
+  PARCHMENT_CAP_TOP = 795,
+  PARCHMENT_THUMB = 796,
+  PARCHMENT_CAP_BOTTOM = 797,
+  PARCHMENT_UP = 793,
+  PARCHMENT_DOWN = 794,
+  STEEL_TRACK = 792,
+  STEEL_CAP_TOP = 789,
+  STEEL_THUMB = 790,
+  STEEL_CAP_BOTTOM = 791,
+  STEEL_UP = 773,
+  STEEL_DOWN = 788,
+}
+
+export function scrollbarVertical(
+  bar: ComponentId,
+  content: ComponentId,
+  track: Sprite,
+  capTop: Sprite,
+  thumb: Sprite,
+  capBottom: Sprite,
+  up: Sprite,
+  down: Sprite,
+  remember: Int,
+): void {
+  CS2.cc_create(bar, 5, 0, false);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_size_set(0, 32, 1, 1);
+  CS2.cc_sprite_set(track);
+  CS2.cc_tiling_set(false);
+  CS2.cc_on_click_set(() => grabThumb(bar));
+  CS2.cc_on_scrollwheel_set((event) => wheel(bar, content, event.mouseY, remember));
+  CS2.cc_no_click_through_set(true);
+
+  let extent: Int = CS2.if_scroll_height_get(content);
+  if (extent <= 0) {
+    extent = CS2.if_height_get(content);
+  }
+  let span: Int = 0;
+  if (extent > 0) {
+    span = ((CS2.if_height_get(bar) - 32) * CS2.if_height_get(content)) / extent;
+  } else {
+    span = CS2.if_height_get(bar) - 32;
+  }
+  if (span < 10) {
+    span = 10;
+  }
+  CS2.cc_create(bar, 5, 1, false);
+  CS2.cc_position_set(0, 16, 1, 0);
+  CS2.cc_size_set(0, span, 1, 0);
+  CS2.cc_sprite_set(thumb);
+  CS2.cc_tiling_set(false);
+  CS2.cc_draggable_set(bar, 0);
+  CS2.cc_on_drag_set((event) => drag(bar, content, event.mouseY, 0, remember));
+  CS2.cc_on_drag_complete_set((event) => drag(bar, content, event.mouseY, 1, remember));
+  CS2.cc_drag_render_behaviour_set(1);
+  const thumbY: Int = CS2.cc_y_get();
+  const thumbH: Int = CS2.cc_height_get();
+
+  CS2.cc_create(bar, 5, 2, false);
+  CS2.cc_position_set(0, thumbY, 1, 0);
+  CS2.cc_size_set(0, 5, 1, 0);
+  CS2.cc_sprite_set(capTop);
+  CS2.cc_tiling_set(false);
+  CS2.cc_create(bar, 5, 3, false);
+  CS2.cc_position_set(0, thumbY + thumbH - 5, 1, 0);
+  CS2.cc_size_set(0, 5, 1, 0);
+  CS2.cc_sprite_set(capBottom);
+  CS2.cc_tiling_set(false);
+  CS2.cc_create(bar, 5, 4, false);
+  CS2.cc_position_set(0, 0, 1, 0);
+  CS2.cc_size_set(0, 16, 1, 0);
+  CS2.cc_sprite_set(up);
+  CS2.cc_tiling_set(false);
+  CS2.cc_on_hold_set(() => hold(bar, content, -4, remember));
+  CS2.cc_no_click_through_set(true);
+  CS2.cc_create(bar, 5, 5, false);
+  CS2.cc_position_set(0, 0, 1, 2);
+  CS2.cc_size_set(0, 16, 1, 0);
+  CS2.cc_sprite_set(down);
+  CS2.cc_tiling_set(false);
+  CS2.cc_on_hold_set(() => hold(bar, content, 4, remember));
+  CS2.cc_no_click_through_set(true);
+  CS2.if_on_scrollwheel_set((event) => wheel(bar, content, event.mouseY, remember), content);
+}
+
+export function scrollTo(bar: ComponentId, content: ComponentId, to: Int, settle: Int, remember: Int): Int {
+  const range: Int = Math.max(CS2.if_scroll_height_get(content) - CS2.if_height_get(content), 1);
+  const at: Int = Math.max(Math.min(to, range), 0);
+  CS2.if_scroll_pos_set(CS2.if_scroll_x_get(content), at, content);
+  if (remember === 1) {
+    const [, setRemembered] = useState(pohCostumeRoomScroll);
+    setRemembered(CS2.if_scroll_y_get(content));
+  }
+  if (settle === 1) {
+    setDragger(bar, content);
+  }
+  return CS2.if_scroll_y_get(content);
+}
+
+export function setDragger(bar: ComponentId, content: ComponentId): void {
+  const range: Int = Math.max(CS2.if_scroll_height_get(content) - CS2.if_height_get(content), 1);
+  if (CS2.cc_find(bar, 1)) {
+    const travel: Int = CS2.if_height_get(bar) - 32 - CS2.cc_height_get();
+    CS2.cc_position_set(0, 16 + (travel * CS2.if_scroll_y_get(content)) / range, 1, 0);
+    const at: Int = CS2.cc_y_get();
+    const h: Int = CS2.cc_height_get();
+    if (CS2.cc_find(bar, 2)) {
+      CS2.cc_position_set(0, at, 1, 0);
+    }
+    if (CS2.cc_find(bar, 3)) {
+      CS2.cc_position_set(0, at + h - 5, 1, 0);
+    }
+  }
+}
+
+function hold(bar: ComponentId, content: ComponentId, delta: Int, remember: Int): void {
+  const to: Int = CS2.if_scroll_y_get(content) + delta;
+  if (CS2.cc_find(bar, 1)) {
+    scrollTo(bar, content, to, 1, remember);
+  }
+}
+
+function grabThumb(bar: ComponentId): void {
+  if (CS2.cc_find(bar, 1)) {
+    CS2.cc_dragpickup(0, CS2.cc_height_get() / 2);
+  }
+}
+
+function wheel(bar: ComponentId, content: ComponentId, notches: Int, remember: Int): void {
+  const to: Int = CS2.if_scroll_y_get(content) + notches * 45;
+  if (CS2.cc_find(bar, 1)) {
+    scrollTo(bar, content, to, 1, remember);
+  }
+}
+
+function drag(bar: ComponentId, content: ComponentId, offset: Int, settle: Int, remember: Int): void {
+  if (CS2.cc_find(bar, 1)) {
+    const h: Int = CS2.cc_height_get();
+    if (CS2.cc_find(bar, 2)) {
+      CS2.cc_position_set(0, offset + 16, 1, 0);
+    }
+    if (CS2.cc_find(bar, 3)) {
+      CS2.cc_position_set(0, offset + 16 + h - 5, 1, 0);
+    }
+    const travel: Int = CS2.if_height_get(bar) - 32 - h;
+    const range: Int = CS2.if_scroll_height_get(content) - CS2.if_height_get(content);
+    scrollTo(bar, content, (offset * range) / Math.max(1, travel), settle, remember);
+  }
+}

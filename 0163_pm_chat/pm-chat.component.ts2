@@ -1,0 +1,441 @@
+import { CS2, intArray, onMounted, onUpdated, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  broadcastClearedTime,
+  chatLastbroadcastTime,
+  chatView,
+  osmChatboxDisabled,
+  privateChatClearedTime,
+} from '../lib/game/varcs';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { chatboxOpen, mobileGameframe } from '../lib/lib.overlay';
+import { OverlayInsetBottom, OverlayInsetLeft } from '../lib/lib.overlay.data';
+import { chatboxPermitTransparent } from '../0162_chatbox/chatbox-chrome';
+import { newestChatUid } from '../0162_chatbox/chatout';
+import { hasModCrown } from '../0162_chatbox/chatbox.strings';
+import {
+  BROADCAST_LIFETIME,
+  BROADCAST_OPTION_SUBJECT,
+  ChatType,
+  NOTICE_REBUILD_AFTER,
+  NoticeMode,
+  PM_FONT,
+  PM_LINES,
+  PmColour,
+  PmLayout,
+  PmOp,
+  UPDATE_BROADCAST_LINK,
+} from './pm-chat.constants';
+import {
+  broadcastColourTag,
+  broadcastLine,
+  broadcastLink,
+  broadcastOp,
+  broadcastUrl,
+  isSplitRow,
+  messageBody,
+  messageHeight,
+  messageInked,
+  messagePrefix,
+  noticeMode,
+  pmColourTag,
+  pmFilterTest,
+  pmShownOnDevice,
+  prefixWidth,
+  privateOp,
+  publishPaneFacts,
+  rebootLine,
+  singleHeight,
+  splitHeight,
+  timestampsShown,
+} from './pm-chat.helpers';
+
+const ROW_NONE = -1;
+const ROW_REBOOT = 0;
+const ROW_BROADCAST = 1;
+const ROW_MESSAGE = 2;
+
+export function PmChat(): Component {
+  const newest: Int = newestChatUid();
+
+  const pane = useUniverse();
+  const splitPm: Int = useServerState(Varps.OPTION_PM);
+  const pmOption: Int = useServerState(Varps.OPTION_CHAT_COLOUR_PRIVATE_SPLIT);
+  const broadcastOption: Int = useServerState(Varps.OPTION_CHAT_COLOUR_BROADCAST_SPLIT);
+  const hideAlongside: Int = useServerState(Varbits.HIDE_PM_ALONGSIDE_CHATBOX);
+  const mode: Int = noticeMode(
+    useServerState(Varbits.LOGINLOGOUT_PERMANENT),
+    useServerState(Varbits.LOGINLOGOUT_SETTING),
+  );
+  const [view] = useState(chatView);
+  const [chatDisabled] = useState(osmChatboxDisabled);
+  const [clearedAt] = useState(privateChatClearedTime);
+  const [broadcastAt] = useState(chatLastbroadcastTime);
+  const [broadcastClearedAt] = useState(broadcastClearedTime);
+
+  const layout: Int = toplevelComponents();
+  let x: Int = 0;
+  let fromTop: Boolean = false;
+  let step: Int = PmLayout.SEE_THROUGH_STEP;
+  let base: Int = PmLayout.BASE_Y;
+  if ((OverlayInsetBottom.get(layout) ?? 0) > 0) {
+    if (mobileGameframe(layout)) {
+      fromTop = true;
+      x = OverlayInsetLeft.get(layout) ?? 0;
+      step = PmLayout.MOBILE_STEP;
+    }
+    if (mobileGameframe(layout) && chatDisabled === 1) {
+      base = PmLayout.BASE_Y;
+      if (chatboxOpen() === 1) {
+        base = base + PmLayout.MOBILE_OPEN_STEP;
+      }
+    } else if (view === 1337 && chatboxPermitTransparent()) {
+      base = base + step;
+    } else {
+      base = base + CS2.if_height_get(gameframeSlot(GameframeSlot.CHAT_CONTAINER));
+    }
+  }
+  const lineWidth: Int = pane.width - x;
+  const pmColour: String = pmColourTag(pmOption);
+  const broadcastColour: String = broadcastColourTag(broadcastOption);
+  const timestamped: Boolean = timestampsShown();
+
+  const kinds = intArray(PM_LINES);
+  const uids = intArray(PM_LINES);
+  const ys = intArray(PM_LINES);
+  let row: Int = 0;
+  while (row < PM_LINES) {
+    kinds[row] = ROW_NONE;
+    row = row + 1;
+  }
+  row = 0;
+  let y: Int = base;
+  let noticeDeadline: Int = -1;
+  let linesHeight: Int = 0;
+
+  const reboot: Int = CS2.reboottimer();
+  if (reboot > 0) {
+    kinds[row] = ROW_REBOOT;
+    uids[row] = -1;
+    ys[row] = y;
+    y = y + singleHeight(rebootLine(reboot), lineWidth);
+    row = row + 1;
+  }
+
+  if (
+    broadcastAt >= broadcastClearedAt &&
+    broadcastAt > CS2.clientclock() - BROADCAST_LIFETIME &&
+    CS2.chat_history_length_get(ChatType.BROADCAST) > 0
+  ) {
+    const [uid, _cycle, _sender, _clan, body, _friend, timestamp, _mode] = CS2.chat_history_by_type_and_line_get(
+      ChatType.BROADCAST,
+      0,
+    );
+    if (uid !== -1) {
+      if (broadcastLink(body) !== UPDATE_BROADCAST_LINK || reboot <= 0) {
+        kinds[row] = ROW_BROADCAST;
+        uids[row] = uid;
+        ys[row] = y;
+        const broadcastHeight: Int = singleHeight(
+          broadcastLine(timestamped, body, timestamp, broadcastColour),
+          lineWidth,
+        );
+        y = y + broadcastHeight;
+        linesHeight = linesHeight + broadcastHeight;
+        row = row + 1;
+      }
+    }
+  }
+
+  if (splitPm === 1 && (view !== 1337 || hideAlongside === 0) && pmShownOnDevice(chatDisabled, hideAlongside)) {
+    let uid: Int = newest;
+    while (uid !== -1 && row < PM_LINES && y - base < PmLayout.PANE_LIMIT) {
+      const [type, cycle, _sender, _clan, _text, friend, _timestamp, _mode] = CS2.chat_history_by_uid_get(uid);
+      if (pmFilterTest(type, cycle, friend, clearedAt, mode)) {
+        kinds[row] = ROW_MESSAGE;
+        uids[row] = uid;
+        ys[row] = y;
+        const height: Int = messageHeight(timestamped, uid, pmColour, lineWidth);
+        y = y + height;
+        if (messageInked(timestamped, uid, pmColour)) {
+          linesHeight = linesHeight + height;
+        }
+        if (type === ChatType.LOGIN_NOTICE && mode === NoticeMode.TIMED) {
+          noticeDeadline = cycle + NOTICE_REBUILD_AFTER;
+        }
+        row = row + 1;
+      }
+      uid = CS2.chat_prev_uid_get(uid);
+    }
+  }
+
+  if (linesHeight > 0) {
+    linesHeight = linesHeight + PmLayout.LINES_GAP;
+  }
+
+  onMounted(() => publishPaneFacts(noticeDeadline, linesHeight));
+  onUpdated(() => publishPaneFacts(noticeDeadline, linesHeight));
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {kinds.map(
+        (kind, index) =>
+          kind !== ROW_NONE && (
+            <>
+              {kind === ROW_REBOOT && (
+                <RebootRow timer={reboot} y={ys[index]} x={x} width={lineWidth} fromTop={fromTop} />
+              )}
+              {kind === ROW_BROADCAST && (
+                <BroadcastRow
+                  uid={uids[index]}
+                  y={ys[index]}
+                  x={x}
+                  width={lineWidth}
+                  fromTop={fromTop}
+                  colour={broadcastColour}
+                  timestamped={timestamped}
+                />
+              )}
+              {kind === ROW_MESSAGE && (
+                <MessageRow
+                  uid={uids[index]}
+                  y={ys[index]}
+                  x={x}
+                  width={lineWidth}
+                  fromTop={fromTop}
+                  colour={pmColour}
+                  timestamped={timestamped}
+                />
+              )}
+            </>
+          ),
+      )}
+    </layer>
+  );
+}
+
+function RebootRow({
+  timer,
+  y,
+  x,
+  width,
+  fromTop,
+}: {
+  timer: Int;
+  y: Int;
+  x: Int;
+  width: Int;
+  fromTop: Boolean;
+}): Component {
+  const line: String = rebootLine(timer);
+  return (
+    <text
+      x={x}
+      y={fromTop ? y : { bottom: y }}
+      w={width}
+      h={singleHeight(line, width)}
+      text={line}
+      font={PM_FONT}
+      color={PmColour.BROADCAST}
+      lineHeight={PmLayout.LINE_HEIGHT}
+      align="left"
+      valign="top"
+      shadow
+    />
+  );
+}
+
+function BroadcastRow({
+  uid,
+  y,
+  x,
+  width,
+  fromTop,
+  colour,
+  timestamped,
+}: {
+  uid: Int;
+  y: Int;
+  x: Int;
+  width: Int;
+  fromTop: Boolean;
+  colour: String;
+  timestamped: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const [_type, _cycle, _sender, _clan, body, _friend, timestamp, _mode] = CS2.chat_history_by_uid_get(uid);
+  const line: String = broadcastLine(timestamped, body, timestamp, colour);
+  const url: String = broadcastUrl(body);
+  const link: Int = broadcastLink(body);
+  const height: Int = singleHeight(line, width);
+  const linked: Boolean = CS2.string_length(url) > 0 && link !== -1;
+  return (
+    <>
+      <text
+        x={x}
+        y={fromTop ? y : { bottom: y }}
+        w={width}
+        h={height}
+        text={line}
+        font={PM_FONT}
+        color={hovered === 1 ? PmColour.HOVER : PmColour.BROADCAST}
+        lineHeight={PmLayout.LINE_HEIGHT}
+        align="left"
+        valign="top"
+        shadow
+      />
+      {linked && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', 'Open', 'Check', '', '', 'Clear history']}
+          optionSubject={BROADCAST_OPTION_SUBJECT}
+          onOptionSelect={(event) => broadcastOp(event.option, PmOp.CLEAR_HISTORY, url, link)}
+          onMouseRepeat={() => setHovered(1)}
+          onMouseLeave={() => setHovered(0)}
+        />
+      )}
+      {!linked && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', '', '', '', '', 'Clear history']}
+          optionSubject={BROADCAST_OPTION_SUBJECT}
+          onOptionSelect={(event) => broadcastOp(event.option, PmOp.CLEAR_HISTORY, url, link)}
+        />
+      )}
+    </>
+  );
+}
+
+function MessageRow({
+  uid,
+  y,
+  x,
+  width,
+  fromTop,
+  colour,
+  timestamped,
+}: {
+  uid: Int;
+  y: Int;
+  x: Int;
+  width: Int;
+  fromTop: Boolean;
+  colour: String;
+  timestamped: Boolean;
+}): Component {
+  const [type, _cycle, sender, _clan, text, friend, timestamp, _mode] = CS2.chat_history_by_uid_get(uid);
+  const body: String = messageBody(timestamped, type, text, timestamp, colour);
+  const split: Boolean = isSplitRow(type);
+  const prefix: String = messagePrefix(timestamped, type, sender, timestamp, colour);
+  const inset: Int = split ? prefixWidth(prefix) : 0;
+  const height: Int = split ? splitHeight(prefix, body, width) : singleHeight(body, width);
+  const crown: Boolean = hasModCrown(sender);
+  return (
+    <>
+      {split && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          text={prefix}
+          font={PM_FONT}
+          color={PmColour.PM}
+          lineHeight={PmLayout.LINE_HEIGHT}
+          align="left"
+          valign="top"
+          shadow
+        />
+      )}
+      {split && (
+        <text
+          x={x + inset}
+          y={fromTop ? y : { bottom: y }}
+          w={width - inset}
+          h={height}
+          text={body}
+          font={PM_FONT}
+          color={PmColour.PM}
+          lineHeight={PmLayout.LINE_HEIGHT}
+          align="left"
+          valign="top"
+          shadow
+        />
+      )}
+      {!split && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          text={body}
+          font={PM_FONT}
+          color={PmColour.PM}
+          lineHeight={PmLayout.LINE_HEIGHT}
+          align="left"
+          valign="top"
+          shadow
+        />
+      )}
+      {split && friend === 1 && crown && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', '', 'Message', '', 'Report', 'Crown Info']}
+          optionSubject={`<col=ffffff>${sender}</col>`}
+          onOptionSelect={(event) => privateOp(event.option, event.optionSubject)}
+        />
+      )}
+      {split && friend === 1 && !crown && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', '', 'Message', '', 'Report']}
+          optionSubject={`<col=ffffff>${sender}</col>`}
+          onOptionSelect={(event) => privateOp(event.option, event.optionSubject)}
+        />
+      )}
+      {split && friend !== 1 && crown && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', '', 'Add friend', 'Add ignore', 'Report', 'Crown Info']}
+          optionSubject={`<col=ffffff>${sender}</col>`}
+          onOptionSelect={(event) => privateOp(event.option, event.optionSubject)}
+        />
+      )}
+      {split && friend !== 1 && !crown && (
+        <text
+          x={x}
+          y={fromTop ? y : { bottom: y }}
+          w={width}
+          h={height}
+          font={PM_FONT}
+          options={['', '', '', '', '', '', 'Add friend', 'Add ignore', 'Report']}
+          optionSubject={`<col=ffffff>${sender}</col>`}
+          onOptionSelect={(event) => privateOp(event.option, event.optionSubject)}
+        />
+      )}
+    </>
+  );
+}

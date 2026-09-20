@@ -1,0 +1,1040 @@
+import { CS2, sessionState, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { hasBit, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { ballotVotePaneRef } from './ballot.constants';
+import { ballotNameSeed } from './ballot.helpers';
+
+const VOTE_SMALL = Fonts.P11_FULL;
+const VOTE_INT_ARRAY = 105;
+
+const VOTE_BODY = Fonts.P12_FULL;
+
+export const VoteMetric = {
+  LABEL_INSET_X: 21,
+  ROW_PAD: 2,
+  LINE_H: 16,
+  ROW_GAP: 4,
+  FIELD_LINES: 1,
+  FIELD_LINES_MULTI: 3,
+  FIELD_PAD: 8,
+  GRID_COLUMN_PERCENT: 65,
+  CELL_PAD: 4,
+  CELL_GAP: 1,
+  GRID_HEADER_LINE_H: 13,
+  GRID_ROW_LINE_H: 15,
+  RANK_ROW_H: 24,
+} as const;
+
+export const VOTE_SKIP_COLUMN_LABEL = 'Skip';
+export const VOTE_SKIP_ROW_LABEL = 'Skip question';
+
+export const voteTextDirty = sessionState(0);
+
+export const voteGridHoverQuestion = sessionState(-1);
+export const voteGridHoverItem = sessionState(-1);
+export const voteGridHoverColumn = sessionState(-2);
+
+export const VoteServerScript = {
+  SELECT: -1686257893,
+  TEXT: -880770536,
+  MATRIX: 667475298,
+  RANK: 1137418264,
+  MULTI_SELECT: -1221106738,
+} as const;
+
+export const VoteTextMode = {
+  COMMIT: 0,
+  SKIP: 1,
+  UNSKIP: 2,
+} as const;
+
+export const VOTE_NULL_TEXT = 'null';
+
+export function voteRowHeight(label: String, width: Int): Int {
+  const lines: Int =
+    CS2.string_length(label) === 0 ? 1 : textLineCount(label, width - VoteMetric.LABEL_INSET_X, VOTE_BODY);
+  return VoteMetric.ROW_PAD + lines * VoteMetric.LINE_H;
+}
+
+function voteStackHeight(labels: Strings, allowSkip: Boolean, width: Int): Int {
+  let y: Int = 0;
+  let i: Int = 0;
+  while (i < labels.length) {
+    if (y > 0) {
+      y = y + VoteMetric.ROW_GAP;
+    }
+    y = y + voteRowHeight(labels[i], width);
+    i = i + 1;
+  }
+  if (allowSkip) {
+    if (y > 0) {
+      y = y + VoteMetric.ROW_GAP;
+    }
+    y = y + voteRowHeight(VOTE_SKIP_ROW_LABEL, width);
+  }
+  return y;
+}
+
+export function voteRadioHeight(labels: Strings, allowSkip: Boolean, width: Int): Int {
+  return voteStackHeight(labels, allowSkip, width);
+}
+
+export function voteCheckHeight(labels: Strings, allowSkip: Boolean, width: Int): Int {
+  return voteStackHeight(labels, allowSkip, width);
+}
+
+export function voteTextHeight(flags: Int, width: Int): Int {
+  const lines: Int = hasBit(flags, 3) ? VoteMetric.FIELD_LINES_MULTI : VoteMetric.FIELD_LINES;
+  return lines * VoteMetric.LINE_H + VoteMetric.FIELD_PAD;
+}
+
+export function voteGridHeight(items: Strings, columns: Strings, flags: Int, allowSkipRow: Boolean, width: Int): Int {
+  const allowSkip: Boolean = hasBit(flags, 2);
+
+  let columnsWidth: Int = scaled(width, 100, VoteMetric.GRID_COLUMN_PERCENT);
+  let skipWidth: Int = 0;
+  let skipStride: Int = 0;
+  if (allowSkip) {
+    const label: Int = textWidth(VOTE_SKIP_COLUMN_LABEL, columnsWidth, VOTE_SMALL);
+    skipWidth = label + VoteMetric.CELL_PAD;
+    skipStride = skipWidth + VoteMetric.CELL_GAP;
+    columnsWidth = columnsWidth - skipStride;
+  }
+
+  const columnCount: Int = columns.length;
+  const stride: Int = columnsWidth / columnCount;
+  const cellTextW: Int = stride - VoteMetric.CELL_GAP - VoteMetric.CELL_PAD;
+  const gutterW: Int = width - stride * columnCount - skipStride;
+  const gutterTextW: Int = gutterW - VoteMetric.CELL_PAD;
+
+  let headerLines: Int = 1;
+  let c: Int = 0;
+  while (c < columnCount) {
+    headerLines = CS2.max(headerLines, textLineCount(columns[c], cellTextW, VOTE_SMALL));
+    c = c + 1;
+  }
+  if (allowSkip) {
+    headerLines = CS2.max(headerLines, textLineCount(VOTE_SKIP_COLUMN_LABEL, cellTextW, VOTE_SMALL));
+  }
+
+  let y: Int = headerLines * VoteMetric.GRID_HEADER_LINE_H + VoteMetric.CELL_PAD;
+
+  let i: Int = 0;
+  while (i < items.length) {
+    y = y + VoteMetric.CELL_GAP;
+    const rowLines: Int = textLineCount(items[i], gutterTextW, VOTE_SMALL);
+    y = y + rowLines * VoteMetric.GRID_ROW_LINE_H + VoteMetric.CELL_PAD;
+    i = i + 1;
+  }
+
+  if (allowSkipRow) {
+    y = y + VoteMetric.ROW_GAP + voteRowHeight(VOTE_SKIP_ROW_LABEL, width);
+  }
+  return y;
+}
+
+export function voteRankHeight(rowCount: Int, allowSkipRow: Boolean, width: Int): Int {
+  let y: Int = rowCount * VoteMetric.RANK_ROW_H;
+  if (allowSkipRow) {
+    y = y + VoteMetric.ROW_GAP + voteRowHeight(VOTE_SKIP_ROW_LABEL, width);
+  }
+  return y;
+}
+
+export function voteTextCommit(question: Int, text: String, host: ComponentId, hostSub: Int): void {
+  const [dirty, setDirty] = useState(voteTextDirty);
+  if (!hasBit(dirty, question)) {
+    return;
+  }
+  setDirty(CS2.bit_clear(dirty, question));
+  CS2.if_runscript(VoteServerScript.TEXT, host, hostSub, question, 0, text, 'iis');
+}
+
+export function voteCommitPendingAnswers(): void {
+  const [dirty, setDirty] = useState(voteTextDirty);
+  if (dirty === 0) {
+    return;
+  }
+
+  let left: Int = dirty;
+  let question: Int = 0;
+  while (question < VOTE_MAX_QUESTIONS) {
+    if (hasBit(left, question) && voteShapeKind(voteReadShape(question)) === VoteKind.TEXT) {
+      left = CS2.bit_clear(left, question);
+      CS2.if_runscript(VoteServerScript.TEXT, ballotVotePaneRef, -1, question, 0, voteReadBlob(question), 'iis');
+    }
+    question = question + 1;
+  }
+  setDirty(left);
+}
+
+export function voteShuffleOrder(seed: Int, nameHash: Int, count: Int, firstMask: Int, lastMask: Int): Ints {
+  const pinned: Int = firstMask | lastMask;
+  const order: AnyArray = CS2.array_create(VOTE_INT_ARRAY, 0, count);
+
+  let i: Int = 0;
+  while (i < count) {
+    if (!hasBit(pinned, i)) {
+      CS2.array_push(i, order);
+    }
+    i = i + 1;
+  }
+
+  CS2.array_randomise(order, seed, nameHash);
+
+  i = 0;
+  let at: Int = 0;
+  while (i < count) {
+    if (hasBit(firstMask, i)) {
+      CS2.array_insert(i, at, order);
+      at = at + 1;
+    }
+    if (hasBit(lastMask, i)) {
+      CS2.array_push(i, order);
+    }
+    i = i + 1;
+  }
+  return order as unknown as Ints;
+}
+
+export const VOTE_MAX_ANSWERS = 32;
+
+export const VOTE_MAX_QUESTIONS = 8;
+
+const VOTE_STRING_ARRAY = 115;
+
+const VOTE_FIELD = 4;
+const VOTE_RECORD_HEADER = 8;
+
+function voteField(value: Int): String {
+  return CS2.tostring(value).padStart(VOTE_FIELD, '0');
+}
+
+function voteSeekFrom(blob: String, start: Int, k: Int): Int {
+  let at: Int = start;
+  let i: Int = 0;
+  while (i < k) {
+    at = at + VOTE_RECORD_HEADER + CS2.parseint(blob.substring(at + VOTE_FIELD, at + VOTE_RECORD_HEADER));
+    i = i + 1;
+  }
+  return at;
+}
+
+function voteSeek(blob: String, k: Int): Int {
+  return voteSeekFrom(blob, 0, k);
+}
+
+function voteRecordText(blob: String, at: Int): String {
+  const len: Int = CS2.parseint(blob.substring(at + VOTE_FIELD, at + VOTE_RECORD_HEADER));
+  return blob.substring(at + VOTE_RECORD_HEADER, at + VOTE_RECORD_HEADER + len);
+}
+
+function voteRecordHead(blob: String, at: Int): Int {
+  return CS2.parseint(blob.substring(at, at + VOTE_FIELD));
+}
+
+export function voteBlobLabel(blob: String, k: Int): String {
+  return voteRecordText(blob, voteSeek(blob, k));
+}
+
+export function voteBlobAnswer(blob: String, k: Int): Int {
+  return voteRecordHead(blob, voteSeek(blob, k));
+}
+
+export function voteAnswerOrder(seed: Int, count: Int, firstMask: Int, lastMask: Int): Ints {
+  if (seed !== 0) {
+    return voteShuffleOrder(seed, ballotNameSeed(), count, firstMask, lastMask);
+  }
+  const order: AnyArray = CS2.array_create(VOTE_INT_ARRAY, count, count);
+  CS2.array_generaterange(order, 0, 0, -1);
+  return order as unknown as Ints;
+}
+
+function voteBlobEncode(labels: Strings, order: Ints, count: Int): String {
+  let blob: String = '';
+  let k: Int = 0;
+  while (k < count) {
+    const answer: Int = order[k];
+    const label: String = labels[answer];
+    blob = `${blob}${voteField(answer)}${voteField(CS2.string_length(label))}${label}`;
+    k = k + 1;
+  }
+  return blob;
+}
+
+const VoteShape = {
+  KIND_START: 0,
+  KIND_END: 3,
+  SKIP_BIT: 4,
+  COUNT_START: 5,
+  COUNT_END: 10,
+  SKIPPED_BIT: 11,
+  READONLY_BIT: 12,
+  MULTILINE_BIT: 13,
+  GRID_SKIP_COLUMN_BIT: 14,
+} as const;
+
+export const VoteKind = {
+  NONE: 0,
+  RADIO: 1,
+  CHECK: 2,
+  TEXT: 3,
+  GRID: 4,
+  RANK: 5,
+} as const;
+
+function voteShapePack(
+  kind: Int,
+  allowSkip: Boolean,
+  count: Int,
+  flags: Int,
+  multiline: Boolean,
+  gridSkipColumn: Boolean,
+): Int {
+  let shape: Int = CS2.bit_range_to_int_set(0, kind, VoteShape.KIND_START, VoteShape.KIND_END);
+  shape = CS2.bit_range_to_int_set(shape, count, VoteShape.COUNT_START, VoteShape.COUNT_END);
+  if (allowSkip) {
+    shape = CS2.bit_set(shape, VoteShape.SKIP_BIT);
+  }
+  if (hasBit(flags, 1)) {
+    shape = CS2.bit_set(shape, VoteShape.SKIPPED_BIT);
+  }
+  if (hasBit(flags, 2)) {
+    shape = CS2.bit_set(shape, VoteShape.READONLY_BIT);
+  }
+  if (multiline) {
+    shape = CS2.bit_set(shape, VoteShape.MULTILINE_BIT);
+  }
+  if (gridSkipColumn) {
+    shape = CS2.bit_set(shape, VoteShape.GRID_SKIP_COLUMN_BIT);
+  }
+  return shape;
+}
+
+function voteShapeReflag(shape: Int, flags: Int): Int {
+  return voteShapePack(
+    voteShapeKind(shape),
+    CS2.testbit(shape, VoteShape.SKIP_BIT),
+    voteShapeCount(shape),
+    flags,
+    voteShapeMultiline(shape),
+    voteShapeGridSkipColumn(shape),
+  );
+}
+
+export function voteShapeKind(shape: Int): Int {
+  return CS2.bit_range_get(shape, VoteShape.KIND_START, VoteShape.KIND_END);
+}
+
+export function voteShapeCount(shape: Int): Int {
+  return CS2.bit_range_get(shape, VoteShape.COUNT_START, VoteShape.COUNT_END);
+}
+
+export function voteShapeSkip(shape: Int): Boolean {
+  return CS2.testbit(shape, VoteShape.SKIP_BIT);
+}
+
+export function voteShapeSkipped(shape: Int): Boolean {
+  return CS2.testbit(shape, VoteShape.SKIPPED_BIT);
+}
+
+export function voteShapeReadOnly(shape: Int): Boolean {
+  return CS2.testbit(shape, VoteShape.READONLY_BIT);
+}
+
+export function voteShapeMultiline(shape: Int): Boolean {
+  return CS2.testbit(shape, VoteShape.MULTILINE_BIT);
+}
+
+export function voteShapeGridSkipColumn(shape: Int): Boolean {
+  return CS2.testbit(shape, VoteShape.GRID_SKIP_COLUMN_BIT);
+}
+
+export function voteContainerFlags(shape: Int): Int {
+  let flags: Int = 0;
+  if (voteShapeSkip(shape)) {
+    flags = CS2.bit_set(flags, 1);
+  }
+  if (voteShapeGridSkipColumn(shape)) {
+    flags = CS2.bit_set(flags, 2);
+  }
+  if (voteShapeMultiline(shape)) {
+    flags = CS2.bit_set(flags, 3);
+  }
+  return flags;
+}
+
+export const voteQ0Shape = sessionState(0);
+export const voteQ1Shape = sessionState(0);
+export const voteQ2Shape = sessionState(0);
+export const voteQ3Shape = sessionState(0);
+export const voteQ4Shape = sessionState(0);
+export const voteQ5Shape = sessionState(0);
+export const voteQ6Shape = sessionState(0);
+export const voteQ7Shape = sessionState(0);
+
+export const voteQ0Answer = sessionState(-1);
+export const voteQ1Answer = sessionState(-1);
+export const voteQ2Answer = sessionState(-1);
+export const voteQ3Answer = sessionState(-1);
+export const voteQ4Answer = sessionState(-1);
+export const voteQ5Answer = sessionState(-1);
+export const voteQ6Answer = sessionState(-1);
+export const voteQ7Answer = sessionState(-1);
+
+export const voteQ0Blob = sessionState('');
+export const voteQ1Blob = sessionState('');
+export const voteQ2Blob = sessionState('');
+export const voteQ3Blob = sessionState('');
+export const voteQ4Blob = sessionState('');
+export const voteQ5Blob = sessionState('');
+export const voteQ6Blob = sessionState('');
+export const voteQ7Blob = sessionState('');
+
+function voteStore(question: Int, shape: Int, answer: Int): void {
+  const [, setShape0] = useState(voteQ0Shape);
+  const [, setShape1] = useState(voteQ1Shape);
+  const [, setShape2] = useState(voteQ2Shape);
+  const [, setShape3] = useState(voteQ3Shape);
+  const [, setShape4] = useState(voteQ4Shape);
+  const [, setShape5] = useState(voteQ5Shape);
+  const [, setShape6] = useState(voteQ6Shape);
+  const [, setShape7] = useState(voteQ7Shape);
+  const [, setAnswer0] = useState(voteQ0Answer);
+  const [, setAnswer1] = useState(voteQ1Answer);
+  const [, setAnswer2] = useState(voteQ2Answer);
+  const [, setAnswer3] = useState(voteQ3Answer);
+  const [, setAnswer4] = useState(voteQ4Answer);
+  const [, setAnswer5] = useState(voteQ5Answer);
+  const [, setAnswer6] = useState(voteQ6Answer);
+  const [, setAnswer7] = useState(voteQ7Answer);
+
+  if (question === 0) {
+    setShape0(shape);
+    setAnswer0(answer);
+  } else if (question === 1) {
+    setShape1(shape);
+    setAnswer1(answer);
+  } else if (question === 2) {
+    setShape2(shape);
+    setAnswer2(answer);
+  } else if (question === 3) {
+    setShape3(shape);
+    setAnswer3(answer);
+  } else if (question === 4) {
+    setShape4(shape);
+    setAnswer4(answer);
+  } else if (question === 5) {
+    setShape5(shape);
+    setAnswer5(answer);
+  } else if (question === 6) {
+    setShape6(shape);
+    setAnswer6(answer);
+  } else if (question === 7) {
+    setShape7(shape);
+    setAnswer7(answer);
+  }
+}
+
+function voteStoreShape(question: Int, shape: Int): void {
+  const [, setShape0] = useState(voteQ0Shape);
+  const [, setShape1] = useState(voteQ1Shape);
+  const [, setShape2] = useState(voteQ2Shape);
+  const [, setShape3] = useState(voteQ3Shape);
+  const [, setShape4] = useState(voteQ4Shape);
+  const [, setShape5] = useState(voteQ5Shape);
+  const [, setShape6] = useState(voteQ6Shape);
+  const [, setShape7] = useState(voteQ7Shape);
+
+  if (question === 0) {
+    setShape0(shape);
+  } else if (question === 1) {
+    setShape1(shape);
+  } else if (question === 2) {
+    setShape2(shape);
+  } else if (question === 3) {
+    setShape3(shape);
+  } else if (question === 4) {
+    setShape4(shape);
+  } else if (question === 5) {
+    setShape5(shape);
+  } else if (question === 6) {
+    setShape6(shape);
+  } else if (question === 7) {
+    setShape7(shape);
+  }
+}
+
+function voteReadShape(question: Int): Int {
+  const [shape0] = useState(voteQ0Shape);
+  const [shape1] = useState(voteQ1Shape);
+  const [shape2] = useState(voteQ2Shape);
+  const [shape3] = useState(voteQ3Shape);
+  const [shape4] = useState(voteQ4Shape);
+  const [shape5] = useState(voteQ5Shape);
+  const [shape6] = useState(voteQ6Shape);
+  const [shape7] = useState(voteQ7Shape);
+
+  if (question === 1) {
+    return shape1;
+  } else if (question === 2) {
+    return shape2;
+  } else if (question === 3) {
+    return shape3;
+  } else if (question === 4) {
+    return shape4;
+  } else if (question === 5) {
+    return shape5;
+  } else if (question === 6) {
+    return shape6;
+  } else if (question === 7) {
+    return shape7;
+  }
+  return shape0;
+}
+
+function voteReadBlob(question: Int): String {
+  const [blob0] = useState(voteQ0Blob);
+  const [blob1] = useState(voteQ1Blob);
+  const [blob2] = useState(voteQ2Blob);
+  const [blob3] = useState(voteQ3Blob);
+  const [blob4] = useState(voteQ4Blob);
+  const [blob5] = useState(voteQ5Blob);
+  const [blob6] = useState(voteQ6Blob);
+  const [blob7] = useState(voteQ7Blob);
+
+  if (question === 1) {
+    return blob1;
+  } else if (question === 2) {
+    return blob2;
+  } else if (question === 3) {
+    return blob3;
+  } else if (question === 4) {
+    return blob4;
+  } else if (question === 5) {
+    return blob5;
+  } else if (question === 6) {
+    return blob6;
+  } else if (question === 7) {
+    return blob7;
+  }
+  return blob0;
+}
+
+function voteStoreBlob(question: Int, blob: String): void {
+  const [, setBlob0] = useState(voteQ0Blob);
+  const [, setBlob1] = useState(voteQ1Blob);
+  const [, setBlob2] = useState(voteQ2Blob);
+  const [, setBlob3] = useState(voteQ3Blob);
+  const [, setBlob4] = useState(voteQ4Blob);
+  const [, setBlob5] = useState(voteQ5Blob);
+  const [, setBlob6] = useState(voteQ6Blob);
+  const [, setBlob7] = useState(voteQ7Blob);
+
+  if (question === 0) {
+    setBlob0(blob);
+  } else if (question === 1) {
+    setBlob1(blob);
+  } else if (question === 2) {
+    setBlob2(blob);
+  } else if (question === 3) {
+    setBlob3(blob);
+  } else if (question === 4) {
+    setBlob4(blob);
+  } else if (question === 5) {
+    setBlob5(blob);
+  } else if (question === 6) {
+    setBlob6(blob);
+  } else if (question === 7) {
+    setBlob7(blob);
+  }
+}
+
+function voteBuild(
+  kind: Int,
+  question: Int,
+  flags: Int,
+  answer: Int,
+  allowSkip: Boolean,
+  seed: Int,
+  firstMask: Int,
+  lastMask: Int,
+  labels: Strings,
+): void {
+  const count: Int = CS2.min(labels.length, VOTE_MAX_ANSWERS);
+  const order: Ints = voteAnswerOrder(seed, labels.length, firstMask, lastMask);
+  voteStoreBlob(question, voteBlobEncode(labels, order, count));
+  voteStore(question, voteShapePack(kind, allowSkip, count, flags, false, false), answer);
+}
+
+export function voteBuildRadio(
+  question: Int,
+  flags: Int,
+  answer: Int,
+  allowSkip: Boolean,
+  seed: Int,
+  firstMask: Int,
+  lastMask: Int,
+  labels: Strings,
+): void {
+  voteBuild(VoteKind.RADIO, question, flags, answer, allowSkip, seed, firstMask, lastMask, labels);
+}
+
+export function voteBuildCheck(
+  question: Int,
+  flags: Int,
+  answer: Int,
+  allowSkip: Boolean,
+  seed: Int,
+  firstMask: Int,
+  lastMask: Int,
+  labels: Strings,
+): void {
+  voteBuild(VoteKind.CHECK, question, flags, answer, allowSkip, seed, firstMask, lastMask, labels);
+}
+
+function voteSelect(question: Int, flags: Int, answer: Int, empty: Int): void {
+  const [shape0] = useState(voteQ0Shape);
+  const [shape1] = useState(voteQ1Shape);
+  const [shape2] = useState(voteQ2Shape);
+  const [shape3] = useState(voteQ3Shape);
+  const [shape4] = useState(voteQ4Shape);
+  const [shape5] = useState(voteQ5Shape);
+  const [shape6] = useState(voteQ6Shape);
+  const [shape7] = useState(voteQ7Shape);
+
+  let shape: Int = shape0;
+  if (question === 1) {
+    shape = shape1;
+  } else if (question === 2) {
+    shape = shape2;
+  } else if (question === 3) {
+    shape = shape3;
+  } else if (question === 4) {
+    shape = shape4;
+  } else if (question === 5) {
+    shape = shape5;
+  } else if (question === 6) {
+    shape = shape6;
+  } else if (question === 7) {
+    shape = shape7;
+  }
+  if (voteShapeKind(shape) === VoteKind.NONE) {
+    return;
+  }
+  voteStore(question, voteShapeReflag(shape, flags), hasBit(flags, 1) ? empty : answer);
+}
+
+export function voteSelectRadio(question: Int, flags: Int, answer: Int): void {
+  voteSelect(question, flags, answer, -1);
+}
+
+export function voteSelectCheck(question: Int, flags: Int, mask: Int): void {
+  voteSelect(question, flags, mask, 0);
+}
+
+export const VOTE_MAX_GRID_ITEMS = 32;
+
+export const VOTE_MAX_GRID_COLUMNS = 8;
+
+const VOTE_GRID_HEADER = 8;
+
+const VoteGridItemWord = {
+  INDEX_START: 0,
+  INDEX_END: 4,
+  CHOICE_START: 5,
+  CHOICE_END: 10,
+  SKIP_BIT: 11,
+} as const;
+
+function voteGridPack(item: Int, choice: Int, skippable: Boolean): Int {
+  let word: Int = CS2.bit_range_to_int_set(0, item, VoteGridItemWord.INDEX_START, VoteGridItemWord.INDEX_END);
+  word = CS2.bit_range_to_int_set(word, choice + 1, VoteGridItemWord.CHOICE_START, VoteGridItemWord.CHOICE_END);
+  if (skippable) {
+    word = CS2.bit_set(word, VoteGridItemWord.SKIP_BIT);
+  }
+  return word;
+}
+
+function voteGridEncode(
+  items: Strings,
+  columns: Strings,
+  choices: Ints,
+  order: Ints,
+  skipMask: Int,
+  mirror: Boolean,
+): String {
+  const itemCount: Int = CS2.min(items.length, VOTE_MAX_GRID_ITEMS);
+  const columnCount: Int = CS2.min(columns.length, VOTE_MAX_GRID_COLUMNS);
+
+  let blob: String = `${voteField(itemCount)}${voteField(columnCount)}`;
+
+  let i: Int = 0;
+  while (i < itemCount) {
+    const item: Int = order[i];
+    const label: String = items[item];
+    const word: Int = voteGridPack(item, choices[item], CS2.testbit(skipMask, item));
+    blob = `${blob}${voteField(word)}${voteField(CS2.string_length(label))}${label}`;
+    i = i + 1;
+  }
+
+  let c: Int = 0;
+  while (c < columnCount) {
+    const column: Int = mirror ? columnCount - (c + 1) : c;
+    const label: String = columns[column];
+    blob = `${blob}${voteField(column)}${voteField(CS2.string_length(label))}${label}`;
+    c = c + 1;
+  }
+  return blob;
+}
+
+export function voteGridItemCount(blob: String): Int {
+  return CS2.string_length(blob) === 0 ? 0 : voteRecordHead(blob, 0);
+}
+
+export function voteGridColumnCount(blob: String): Int {
+  return CS2.string_length(blob) === 0 ? 0 : voteRecordHead(blob, VOTE_FIELD);
+}
+
+function voteGridItemAt(blob: String, i: Int): Int {
+  return voteSeekFrom(blob, VOTE_GRID_HEADER, i);
+}
+
+function voteGridColumnAt(blob: String, c: Int): Int {
+  return voteSeekFrom(blob, VOTE_GRID_HEADER, voteGridItemCount(blob) + c);
+}
+
+export function voteGridItemLabel(blob: String, i: Int): String {
+  return voteRecordText(blob, voteGridItemAt(blob, i));
+}
+
+export function voteGridItemIndex(blob: String, i: Int): Int {
+  return CS2.bit_range_get(
+    voteRecordHead(blob, voteGridItemAt(blob, i)),
+    VoteGridItemWord.INDEX_START,
+    VoteGridItemWord.INDEX_END,
+  );
+}
+
+export function voteGridItemChoice(blob: String, i: Int): Int {
+  return (
+    CS2.bit_range_get(
+      voteRecordHead(blob, voteGridItemAt(blob, i)),
+      VoteGridItemWord.CHOICE_START,
+      VoteGridItemWord.CHOICE_END,
+    ) - 1
+  );
+}
+
+export function voteGridItemSkippable(blob: String, i: Int): Boolean {
+  return CS2.testbit(voteRecordHead(blob, voteGridItemAt(blob, i)), VoteGridItemWord.SKIP_BIT);
+}
+
+export function voteGridColumnLabel(blob: String, c: Int): String {
+  return voteRecordText(blob, voteGridColumnAt(blob, c));
+}
+
+export function voteGridColumnIndex(blob: String, c: Int): Int {
+  return voteRecordHead(blob, voteGridColumnAt(blob, c));
+}
+
+function voteGridReChoose(blob: String, choices: Ints): String {
+  const itemCount: Int = voteGridItemCount(blob);
+  const columnCount: Int = voteGridColumnCount(blob);
+
+  let out: String = `${voteField(itemCount)}${voteField(columnCount)}`;
+
+  let i: Int = 0;
+  while (i < itemCount) {
+    const at: Int = voteGridItemAt(blob, i);
+    const head: Int = voteRecordHead(blob, at);
+    const label: String = voteRecordText(blob, at);
+    const item: Int = CS2.bit_range_get(head, VoteGridItemWord.INDEX_START, VoteGridItemWord.INDEX_END);
+    const word: Int = voteGridPack(item, choices[item], CS2.testbit(head, VoteGridItemWord.SKIP_BIT));
+    out = `${out}${voteField(word)}${voteField(CS2.string_length(label))}${label}`;
+    i = i + 1;
+  }
+
+  let c: Int = 0;
+  while (c < columnCount) {
+    const at: Int = voteGridColumnAt(blob, c);
+    const span: Int = VOTE_RECORD_HEADER + CS2.parseint(blob.substring(at + VOTE_FIELD, at + VOTE_RECORD_HEADER));
+    out = `${out}${blob.substring(at, at + span)}`;
+    c = c + 1;
+  }
+  return out;
+}
+
+export function voteBuildGrid(
+  question: Int,
+  flags: Int,
+  choices: Ints,
+  items: Strings,
+  columns: Strings,
+  skipMask: Int,
+  allowSkipRow: Boolean,
+  seed: Int,
+  firstMask: Int,
+  lastMask: Int,
+): void {
+  const order: Ints = voteAnswerOrder(seed, items.length, firstMask, lastMask);
+  const mirror: Boolean = ballotNameSeed() % 2 === 1;
+
+  voteStoreBlob(question, voteGridEncode(items, columns, choices, order, skipMask, mirror));
+  voteStore(
+    question,
+    voteShapePack(
+      VoteKind.GRID,
+      allowSkipRow,
+      CS2.min(items.length, VOTE_MAX_GRID_ITEMS),
+      flags,
+      false,
+      skipMask !== 0,
+    ),
+    skipMask,
+  );
+}
+
+export function voteUpdateGrid(question: Int, flags: Int, choices: Ints): void {
+  const shape: Int = voteReadShape(question);
+  if (voteShapeKind(shape) !== VoteKind.GRID) {
+    return;
+  }
+  voteStoreBlob(question, voteGridReChoose(voteReadBlob(question), choices));
+  voteStoreShape(question, voteShapeReflag(shape, flags));
+}
+
+export function voteBuildText(
+  question: Int,
+  flags: Int,
+  allowSkip: Boolean,
+  limit: Int,
+  multiline: Boolean,
+  text: String,
+): void {
+  voteStoreBlob(question, text);
+  voteStore(question, voteShapePack(VoteKind.TEXT, allowSkip, 0, flags, multiline, false), limit);
+}
+
+export function voteUpdateText(question: Int, flags: Int, text: String): void {
+  const shape: Int = voteReadShape(question);
+  if (voteShapeKind(shape) !== VoteKind.TEXT) {
+    return;
+  }
+  voteStoreBlob(question, text);
+  voteStoreShape(question, voteShapeReflag(shape, flags));
+}
+
+export function voteStackHeightBlob(blob: String, count: Int, allowSkip: Boolean, width: Int): Int {
+  let y: Int = 0;
+  let k: Int = 0;
+  while (k < count) {
+    if (y > 0) {
+      y = y + VoteMetric.ROW_GAP;
+    }
+    y = y + voteRowHeight(voteBlobLabel(blob, k), width);
+    k = k + 1;
+  }
+  if (allowSkip) {
+    if (y > 0) {
+      y = y + VoteMetric.ROW_GAP;
+    }
+    y = y + voteRowHeight(VOTE_SKIP_ROW_LABEL, width);
+  }
+  return y;
+}
+
+export const VOTE_RANK_DRAG_MAX = 30;
+
+export const voteRankQuestion = sessionState(-1);
+export const voteRankFrom = sessionState(-1);
+export const voteRankTo = sessionState(-1);
+export const voteRankDragging = sessionState(0);
+export const voteRankDragX = sessionState(0);
+export const voteRankDragY = sessionState(0);
+
+export const voteRankHoverQuestion = sessionState(-1);
+export const voteRankHoverSlot = sessionState(-1);
+
+export function voteRankShift(mouseY: Int, rowY: Int): Int {
+  const d: Int = mouseY - rowY;
+  if (d < 0) {
+    return (d - VoteMetric.RANK_ROW_H / 2) / VoteMetric.RANK_ROW_H;
+  }
+  return (d + VoteMetric.RANK_ROW_H / 2) / VoteMetric.RANK_ROW_H;
+}
+
+function voteRankLockedLead(mask: Int, rows: Int): Int {
+  let n: Int = 0;
+  let i: Int = 0;
+  let lead: Boolean = true;
+  while (i < rows) {
+    if (hasBit(mask, i)) {
+      if (lead) {
+        n = n + 1;
+      }
+    } else {
+      lead = false;
+    }
+    i = i + 1;
+  }
+  return n;
+}
+
+function voteRankLockedTail(mask: Int, rows: Int): Int {
+  let n: Int = 0;
+  let i: Int = 0;
+  let lead: Boolean = true;
+  while (i < rows) {
+    if (hasBit(mask, i)) {
+      if (!lead) {
+        n = n + 1;
+      }
+    } else {
+      lead = false;
+    }
+    i = i + 1;
+  }
+  return n;
+}
+
+export function voteRankTargetSlot(from: Int, delta: Int, rows: Int, mask: Int): Int {
+  const n: Int = CS2.min(VOTE_RANK_DRAG_MAX, rows);
+  if (delta < 0) {
+    return CS2.max(voteRankLockedLead(mask, n), from + delta);
+  }
+  if (delta > 0) {
+    return CS2.min(n - 1 - voteRankLockedTail(mask, n), from + delta);
+  }
+  return from;
+}
+
+export function voteRankDrawSlot(k: Int, from: Int, to: Int): Int {
+  if (from === -1 || to === from) {
+    return k;
+  }
+  if (to < from) {
+    if (k === from) {
+      return to;
+    }
+    if (k >= to && k < from) {
+      return k + 1;
+    }
+    return k;
+  }
+  if (k === from) {
+    return to;
+  }
+  if (k > from && k <= to) {
+    return k - 1;
+  }
+  return k;
+}
+
+export function voteRankSourceAt(p: Int, from: Int, to: Int): Int {
+  if (from === -1 || to === from) {
+    return p;
+  }
+  if (to < from) {
+    if (p === to) {
+      return from;
+    }
+    if (p > to && p <= from) {
+      return p - 1;
+    }
+    return p;
+  }
+  if (p === to) {
+    return from;
+  }
+  if (p >= from && p < to) {
+    return p + 1;
+  }
+  return p;
+}
+
+export function voteRankOrder(blob: String, rows: Int): Ints {
+  const order: AnyArray = CS2.array_create(VOTE_INT_ARRAY, 0, rows);
+  let k: Int = 0;
+  while (k < rows) {
+    CS2.array_push(voteBlobAnswer(blob, k), order);
+    k = k + 1;
+  }
+  return order as unknown as Ints;
+}
+
+export function voteRankOrderShifted(blob: String, rows: Int, from: Int, to: Int): Ints {
+  const order: AnyArray = CS2.array_create(VOTE_INT_ARRAY, 0, rows);
+  let p: Int = 0;
+  while (p < rows) {
+    CS2.array_push(voteBlobAnswer(blob, voteRankSourceAt(p, from, to)), order);
+    p = p + 1;
+  }
+  return order as unknown as Ints;
+}
+
+export function voteRankSend(question: Int, order: Ints, host: ComponentId, hostSub: Int): void {
+  CS2.if_runscript(VoteServerScript.RANK, host, hostSub, question, order as unknown as Int, 'i*');
+}
+
+export function voteBuildRank(
+  question: Int,
+  flags: Int,
+  lockedMask: Int,
+  allowSkipRow: Boolean,
+  order: Ints,
+  labels: Strings,
+): void {
+  const rows: Int = CS2.min(order.length, VOTE_MAX_ANSWERS);
+
+  voteStoreBlob(question, voteBlobEncode(labels, order, rows));
+  voteStore(question, voteShapePack(VoteKind.RANK, allowSkipRow, rows, flags, false, false), lockedMask);
+}
+
+export function voteUpdateRank(question: Int, flags: Int, order: Ints): void {
+  const [rankQuestion, setRankQuestion] = useState(voteRankQuestion);
+  const [, setRankFrom] = useState(voteRankFrom);
+  const [, setRankTo] = useState(voteRankTo);
+  const [, setDragging] = useState(voteRankDragging);
+
+  const shape: Int = voteReadShape(question);
+  if (voteShapeKind(shape) !== VoteKind.RANK) {
+    return;
+  }
+
+  voteStoreBlob(question, voteRankApply(voteReadBlob(question), voteShapeCount(shape), order));
+  voteStoreShape(question, voteShapeReflag(shape, flags));
+
+  if (rankQuestion === question) {
+    setRankQuestion(-1);
+    setRankFrom(-1);
+    setRankTo(-1);
+    setDragging(0);
+  }
+}
+
+function voteRankApply(blob: String, rows: Int, order: Ints): String {
+  let out: String = '';
+  let k: Int = 0;
+  while (k < rows && k < order.length) {
+    const at: Int = voteRankSeekHead(blob, rows, order[k]);
+    if (at !== -1) {
+      const span: Int = VOTE_RECORD_HEADER + CS2.parseint(blob.substring(at + VOTE_FIELD, at + VOTE_RECORD_HEADER));
+      out = `${out}${blob.substring(at, at + span)}`;
+    }
+    k = k + 1;
+  }
+  return out;
+}
+
+function voteRankSeekHead(blob: String, rows: Int, head: Int): Int {
+  let k: Int = 0;
+  while (k < rows) {
+    const at: Int = voteSeek(blob, k);
+    if (voteRecordHead(blob, at) === head) {
+      return at;
+    }
+    k = k + 1;
+  }
+  return -1;
+}

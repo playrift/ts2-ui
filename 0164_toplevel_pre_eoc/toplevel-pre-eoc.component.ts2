@@ -1,0 +1,980 @@
+import {
+  CS2,
+  Engine,
+  onMounted,
+  onUpdated,
+  useOnResize,
+  useRerenderOn,
+  useServerState,
+  useState,
+  useUniverse,
+} from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { cameraZoom } from '../0016_oculus/oculus.camera';
+import { CompassOps, EhcHooks, GravestoneTimer } from '../0548_toplevel/toplevel.component';
+import { NoSprite, Panel, Resize } from '../0548_toplevel/toplevel.constants';
+import { desktopFov } from '../0548_toplevel/toplevel.helpers';
+import {
+  applyClientSettings,
+  applySavedZoom,
+  cutsceneHidesSide,
+  touchBuffBarDodgers,
+} from '../0601_toplevel_osm/toplevel-osm.helpers';
+import {
+  JournalTabIcons,
+  JournalTabLabels,
+  LeagueJournalIcons,
+  SidePanelOps,
+} from '../0601_toplevel_osm/toplevel-osm.data';
+import { FifthTab } from '../0629_side_journal/side-journal.constants';
+import { fifthTab } from '../0629_side_journal/side-journal.helpers';
+import { StoneBoxSkin } from '../0721_gim_limited_sidepanel/gim-limited-sidepanel.constants';
+import { StoneBox } from '../0721_gim_limited_sidepanel/stone-box.component';
+import { SideChannelIcons, SideChannelLabels } from '../0892_osm_hotkeys/side-channels.data';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { toplevelMainmodalBgColour, toplevelMainmodalBgTrans, toplevelPanel } from '../lib/game/varcs';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ChatDrop,
+  Customise,
+  PreEocStone,
+  SideSlots,
+  buffBarRef,
+  chatContainerRef,
+  compassclickRef,
+  controlRef,
+  debugRef,
+  ehcListenerRef,
+  floaterRef,
+  gameframeRef,
+  gravestoneRef,
+  helperContentRef,
+  helperDodgerRef,
+  helperRef,
+  hpbarHudRef,
+  hudContainerBackRef,
+  hudContainerFrontRef,
+  icon10Ref,
+  mainmodalBackgroundsRef,
+  mainmodalRef,
+  maincrmRef,
+  mapContainerRef,
+  mapMinimapRef,
+  mapNoclick0Ref,
+  mapNoclick1Ref,
+  mapNoclick2Ref,
+  mapNoclick3Ref,
+  mapNoclick4Ref,
+  mapNoclick5Ref,
+  minimapRef,
+  mouseoverRef,
+  multiwayIconRef,
+  notificationsRef,
+  orbsRef,
+  overlayAtmosphereRef,
+  overlayHudRef,
+  pmContainerRef,
+  popoutRef,
+  pvpIconsRef,
+  side0Ref,
+  side10Ref,
+  side11Ref,
+  side12Ref,
+  side13Ref,
+  side1Ref,
+  side2Ref,
+  side3Ref,
+  side4Ref,
+  side5Ref,
+  side6Ref,
+  side7Ref,
+  side8Ref,
+  side9Ref,
+  sideBackgroundRef,
+  sideContainerRef,
+  sideMovableBackgroundRef,
+  sideMovableLayerRef,
+  sideMovableRef,
+  sidePanelsRef,
+  sideStaticBackgroundRef,
+  sideStaticLayerRef,
+  sideStaticRef,
+  sidecrmRef,
+  sidemodalRef,
+  statBoostsHudRef,
+  stone10Ref,
+  uiHighlightsRef,
+  viewportRef,
+  viewportTrackerBackRef,
+  viewportTrackerFrontRef,
+  xpDropsRef,
+  zeahRef,
+} from './toplevel-pre-eoc.constants';
+import {
+  preEocHelperInit,
+  preEocInsetBottom,
+  preEocInsetRight,
+  preEocLogoutOp,
+  preEocTabOp,
+  preEocToplevelInit,
+} from './toplevel-pre-eoc.helpers';
+
+export function ToplevelPreEoc(): Component {
+  return (
+    <>
+      <layer static ref={gameframeRef} x={0} y={0} w="fill" h="fill" onLoad={() => preEocToplevelInit()}>
+        <layer static ref={viewportRef} x={0} y={0} w="fill" h="fill" contentType="worldView" />
+
+        <layer static ref={viewportTrackerBackRef} x="center" y="center" w="fill" h="fill">
+          <layer
+            static
+            ref={overlayAtmosphereRef}
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            onScrollWheel={(event) => cameraZoom(event.mouseY)}
+          />
+          <layer static ref={hpbarHudRef} x="center" y="center" w="fill" h="fill" />
+          <layer static ref={pvpIconsRef} x="center" y="center" w="fill" h="fill" />
+          <layer static ref={helperRef} x={0} y={0} w="fill" h="fill">
+            <layer static ref={helperDodgerRef} x={0} y={0} w="fill" h="fill" onLoad={() => preEocHelperInit()}>
+              <layer static ref={helperContentRef} x={0} y={0} w={180} h={100} />
+            </layer>
+          </layer>
+          <layer static ref={statBoostsHudRef} x={0} y={0} w="fill" h="fill" />
+          <layer static ref={buffBarRef} x={0} y={0} w="fill" h="fill" />
+          <layer static ref={hudContainerBackRef} x={0} y={0} w={{ fill: 215 }} h={{ fill: 165 }}>
+            <layer static ref={overlayHudRef} x="center" y="center" w="fill" h="fill" />
+            <layer static ref={xpDropsRef} x={0} y={0} w="fill" h="fill" />
+            <layer static ref={zeahRef} x={0} y={0} w="fill" h="fill" />
+          </layer>
+          <layer static ref={notificationsRef} x="center" y={10} w={178} h={100} />
+        </layer>
+
+        <layer static ref={pmContainerRef} x={0} y={0} w={519} h="fill" />
+
+        <layer static ref={viewportTrackerFrontRef} x="center" y="center" w="fill" h="fill">
+          <layer static ref={mainmodalBackgroundsRef} x="center" y="center" w="fill" h="fill">
+            <ModalBackdrop />
+          </layer>
+          <layer static ref={hudContainerFrontRef} x={0} y={0} w={{ fill: 215 }} h={{ fill: 165 }}>
+            <layer static ref={mainmodalRef} x="center" y="center" w={Resize.MODAL_W} h={Resize.MODAL_H} />
+            <layer static ref={maincrmRef} x="center" y="center" w={Resize.MODAL_W} h={Resize.MODAL_H} />
+            <layer static ref={floaterRef} x="center" y="center" w="fill" h="fill" />
+            <layer static ref={debugRef} x="right" y={0} w={120} h={100} contentType="fpsCounter" />
+          </layer>
+          <sprite
+            static
+            ref={multiwayIconRef}
+            x={{ right: 15 }}
+            y={170}
+            w={25}
+            h={25}
+            sprite={Sprites.OVERLAY_MULTIWAY}
+            hide
+          />
+          <layer static ref={gravestoneRef} x={{ right: 76 }} y={178} w={30} h={25} options={['Grave info']}>
+            <GravestoneTimer />
+          </layer>
+        </layer>
+
+        <layer static ref={mapContainerRef} x="right" y={0} w={211} h={207}>
+          <layer static ref={mapMinimapRef} x={0} y={0} w="fill" h={179}>
+            <layer static ref={mapNoclick0Ref} x="right" y={4} w={178} h={40} noClickThrough />
+            <layer static ref={mapNoclick1Ref} x="right" y={44} w={166} h={56} noClickThrough />
+            <layer static ref={mapNoclick2Ref} x="right" y={100} w={161} h={25} noClickThrough />
+            <layer static ref={mapNoclick3Ref} x="right" y={125} w={151} h={15} noClickThrough />
+            <layer static ref={mapNoclick4Ref} x="right" y={140} w={141} h={15} noClickThrough />
+            <layer static ref={mapNoclick5Ref} x="right" y={155} w={121} h={11} noClickThrough />
+            <sprite x={34} y={5} w={35} h={35} sprite={Sprites.RESIZE_COMPASS_MASK} contentType="compass" />
+            <sprite
+              static
+              ref={minimapRef}
+              x={{ right: 6 }}
+              y={8}
+              w={152}
+              h={152}
+              sprite={Sprites.RESIZE_MAP_MASK}
+              contentType="minimap"
+            />
+            <layer static ref={compassclickRef} x={32} y={3} w={36} h={36}>
+              <CompassOps />
+            </layer>
+            <sprite x="right" y={0} w={182} h={166} sprite={Sprites.OSRS_STRETCH_MAPSURROUND} />
+          </layer>
+          <layer static ref={orbsRef} x={0} y={10} w={207} h={197} />
+          <sprite
+            static
+            ref={stone10Ref}
+            x={{ right: 2 }}
+            y={2}
+            w={26}
+            h={23}
+            tiling
+            options={['Logout', 'World Switcher']}
+            onOptionSelect={(event) => preEocLogoutOp(event.option)}
+          />
+          <sprite
+            static
+            ref={icon10Ref}
+            x={{ right: 2 }}
+            y={2}
+            w={26}
+            h={23}
+            sprite={Sprites.CLOSE_BUTTONS_7}
+            transparency={100}
+          />
+        </layer>
+
+        <layer static ref={chatContainerRef} x={0} y="bottom" w={519} h={165} />
+
+        <layer
+          static
+          ref={sideStaticLayerRef}
+          x="right"
+          y="bottom"
+          w={PreEocStone.ROW_W}
+          h={PreEocStone.H}
+          noClickThrough
+        >
+          <sprite
+            static
+            ref={sideStaticBackgroundRef}
+            x="right"
+            y="bottom"
+            w={PreEocStone.ROW_W}
+            h={PreEocStone.H}
+            sprite={Sprites.PRE_EOC_STONES_0}
+            tiling
+          />
+          <layer static ref={sideStaticRef} x="right" y="center" w={198} h={PreEocStone.H}>
+            <StaticTabs />
+          </layer>
+        </layer>
+
+        <layer
+          static
+          ref={sideMovableLayerRef}
+          x={{ right: 198 }}
+          y="bottom"
+          w={PreEocStone.ROW_W}
+          h={PreEocStone.H}
+          noClickThrough
+        >
+          <sprite
+            static
+            ref={sideMovableBackgroundRef}
+            x={0}
+            y="bottom"
+            w={PreEocStone.ROW_W}
+            h={PreEocStone.H}
+            sprite={Sprites.PRE_EOC_STONES_0}
+            tiling
+          />
+          <layer static ref={sideMovableRef} x="center" y="center" w={PreEocStone.ROW_W} h={PreEocStone.H}>
+            <MovableTabs />
+          </layer>
+        </layer>
+
+        <layer static ref={sideContainerRef} x="right" y={{ bottom: 36 }} w={204} h={275} noClickThrough>
+          <sprite
+            static
+            ref={sideBackgroundRef}
+            x="center"
+            y="center"
+            w={{ fill: 2 }}
+            h={{ fill: 2 }}
+            sprite={Sprites.TRADEBACKING_DARK}
+            tiling
+          />
+          <layer static ref={sidemodalRef} x="center" y="center" w={190} h={261} contentType={1354} />
+          <layer static ref={sidePanelsRef} x="center" y="center" w={190} h={261}>
+            <layer static ref={side0Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side1Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side2Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side3Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side4Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side5Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side6Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side7Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side8Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side9Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side10Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side11Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side12Ref} x={0} y={0} w={190} h={261} hide />
+            <layer static ref={side13Ref} x={0} y={0} w={190} h={261} hide />
+          </layer>
+          <layer static ref={sidecrmRef} x="center" y="center" w={190} h={261} hide />
+          <SideContainerFrame />
+        </layer>
+      </layer>
+
+      <layer static ref={popoutRef} x="right" y={0} w={300} h="fill" />
+      <layer static ref={ehcListenerRef} x={0} y={0} w={1} h={1}>
+        <EhcHooks />
+      </layer>
+      <layer static ref={mouseoverRef} x={-3} y={-1} w="fill" h="fill" />
+      <layer static ref={uiHighlightsRef} x={0} y={0} w="fill" h="fill" />
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <CutsceneLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <ViewportLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <SidePanelLayout />
+      </layer>
+    </>
+  );
+}
+
+function CutsceneLayout(): Component {
+  const cutscene: Int = useServerState(Varbits.CUTSCENE_STATUS);
+  const fovClamp: Int = useServerState(Varbits.FOV_CLAMP);
+  const buffBarHidden: Int = useServerState(Varbits.BUFF_BAR_HIDDEN);
+  const transparent: Int = useServerState(Varbits.SIDE_TRANSPARENCY);
+  const multiway: Int = useServerState(Varbits.MULTIWAY_INDICATOR);
+  const singlewayPlus: Int = useServerState(Varbits.SINGLEWAY_PLUS_INDICATOR);
+  const td: Int = useServerState(Varbits.TD_MULTIWAY_INDICATOR);
+  const orbsDisabled: Int = useServerState(Varbits.ORBS_DISABLED);
+  const storeButton: Int = useServerState(Varbits.TLI_STOREBUTTON_TOGGLE_DESKTOP);
+  const minimapToggle: Int = useServerState(Varbits.MINIMAP_TOGGLE);
+
+  let inCutscene: Boolean = false;
+  if (cutscene !== 0) {
+    inCutscene = true;
+  }
+  let compassHidden: Boolean = false;
+  if (cutscene === 1 || fovClamp !== 0) {
+    compassHidden = true;
+  }
+  let buffBarShown: Boolean = false;
+  if (buffBarHidden === 0 && cutscene === 0) {
+    buffBarShown = true;
+  }
+  let dark: Boolean = false;
+  if (transparent === 1) {
+    dark = true;
+  }
+  let multiwaySprite: Sprite = Sprites.OVERLAY_MULTIWAY;
+  let multiwayShown: Boolean = false;
+  if (multiway === 1 && cutscene === 0) {
+    multiwayShown = true;
+  } else if (singlewayPlus === 1 && cutscene === 0) {
+    multiwaySprite = Sprites.OVERLAY_SINGLEWAY_PLUS;
+    multiwayShown = true;
+  } else if (td > 0 && cutscene === 0) {
+    if (td === 2) {
+      multiwaySprite = Sprites.OVERLAY_TD_MULTIWAY_1;
+    } else if (td === 3) {
+      multiwaySprite = Sprites.OVERLAY_TD_MULTIWAY_2;
+    } else {
+      multiwaySprite = Sprites.OVERLAY_TD_MULTIWAY_0;
+    }
+    multiwayShown = true;
+  }
+  let chatMode: Int = 0;
+  if (cutscene === 1) {
+    chatMode = fovClamp === 3 ? 2 : 1;
+  }
+  let mask: Sprite = Sprites.RESIZE_MAP_CLICKMASK;
+  if (orbsDisabled === 1) {
+    mask = Sprites.RESIZE_MAP_MASK;
+  } else if (storeButton === 1) {
+    mask = Sprites.RESIZE_MAP_CLICKMASK_BOND;
+  }
+  let minimapHidden: Boolean = false;
+  if (minimapToggle >= 1) {
+    minimapHidden = true;
+  }
+
+  onMounted(() =>
+    cutsceneHides(
+      inCutscene,
+      compassHidden,
+      buffBarShown,
+      dark,
+      multiwaySprite,
+      multiwayShown,
+      chatMode,
+      mask,
+      minimapHidden,
+    ),
+  );
+  onUpdated(() =>
+    cutsceneHides(
+      inCutscene,
+      compassHidden,
+      buffBarShown,
+      dark,
+      multiwaySprite,
+      multiwayShown,
+      chatMode,
+      mask,
+      minimapHidden,
+    ),
+  );
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function cutsceneHides(
+  inCutscene: Boolean,
+  compassHidden: Boolean,
+  buffBarShown: Boolean,
+  dark: Boolean,
+  multiwaySprite: Sprite,
+  multiwayShown: Boolean,
+  chatMode: Int,
+  mask: Sprite,
+  minimapHidden: Boolean,
+): void {
+  mapContainerRef.props = { hide: inCutscene };
+  compassclickRef.props = { hide: compassHidden };
+  if (dark) {
+    sideBackgroundRef.props = { sprite: Sprites.TRADEBACKING_DARK, transparency: 0 };
+  } else {
+    sideBackgroundRef.props = { sprite: Sprites.TRADEBACKING_LIGHT, transparency: 150 };
+  }
+  multiwayIconRef.props = { sprite: multiwaySprite, hide: !multiwayShown };
+  buffBarRef.props = { hide: !buffBarShown };
+  pmContainerRef.props = { hide: inCutscene };
+  if (chatMode === 2) {
+    chatContainerRef.props = { x: 'center', y: 'bottom' };
+  } else if (chatMode === 1) {
+    chatContainerRef.props = { x: 0, y: { bottom: ChatDrop.CUTSCENE_BOTTOM } };
+  } else {
+    chatContainerRef.props = { x: 0, y: 'bottom' };
+  }
+  statBoostsHudRef.props = { hide: inCutscene };
+  helperRef.props = { hide: inCutscene };
+  hpbarHudRef.props = { hide: inCutscene };
+  mouseoverRef.props = { hide: inCutscene };
+  minimapRef.props = { clickMask: mask };
+  mapMinimapRef.props = { hide: minimapHidden };
+  applyClientSettings();
+  applySavedZoom();
+  touchBuffBarDodgers();
+}
+
+function ViewportLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const fovClamp: Int = useServerState(Varbits.FOV_CLAMP);
+  const cutscene: Int = useServerState(Varbits.CUTSCENE_STATUS);
+  const osmMinimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  const xpdropsPosition: Int = useServerState(Varbits.XPDROPS_POSITION);
+  const [bgTrans] = useState(toplevelMainmodalBgTrans);
+  const mobile: Boolean = onMobile();
+
+  desktopFov(fovClamp, ToplevelComponents.PRE_EOC);
+  const [viewW, viewH] = CS2.viewport_effective_size_get();
+  const frameW: Int = universe.width;
+  const frameH: Int = universe.height;
+  const insetRight: Int = preEocInsetRight(fovClamp, frameW, viewW);
+  const insetBottom: Int = preEocInsetBottom(fovClamp, frameH, viewH);
+
+  let modalMode: Int = 0;
+  if (!mobile && CS2.if_sub_has(mainmodalRef)) {
+    modalMode = bgTrans;
+  }
+  let debugY: Int = 0;
+  if (CS2.if_sub_has(xpDropsRef) && xpdropsPosition === 0) {
+    debugY = Resize.DEBUG_UNDER_XPDROPS;
+  }
+  let minimapW: Int = Resize.MOBILE_MINIMAP;
+  if (osmMinimapToggle !== 0) {
+    minimapW = Resize.MOBILE_MINIMAP_COLLAPSED;
+  }
+  let debugRight: Int = 0;
+  if (mobile && cutscene === 0) {
+    debugRight = minimapW + Resize.MOBILE_DEBUG_PAD;
+  }
+  let xpDropsInset: Int = 0;
+  if (mobile) {
+    xpDropsInset = minimapW;
+  }
+
+  onMounted(() => placeViewport(viewW, viewH, insetRight, insetBottom, modalMode, debugRight, debugY, xpDropsInset));
+  onUpdated(() => placeViewport(viewW, viewH, insetRight, insetBottom, modalMode, debugRight, debugY, xpDropsInset));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeViewport(
+  viewW: Int,
+  viewH: Int,
+  insetRight: Int,
+  insetBottom: Int,
+  modalMode: Int,
+  debugRight: Int,
+  debugY: Int,
+  xpDropsInset: Int,
+): void {
+  viewportTrackerBackRef.props = { w: viewW, h: viewH };
+  viewportTrackerFrontRef.props = { w: viewW, h: viewH };
+  hudContainerBackRef.props = { x: 0, y: 0, w: { fill: insetRight }, h: { fill: insetBottom } };
+  hudContainerFrontRef.props = { x: 0, y: 0, w: { fill: insetRight }, h: { fill: insetBottom } };
+  if (modalMode === Resize.MODAL_TALL) {
+    mainmodalRef.props = { w: Resize.MODAL_W, h: 'fill' };
+  } else if (modalMode === Resize.MODAL_FILL) {
+    mainmodalRef.props = { w: 'fill', h: 'fill' };
+  } else {
+    mainmodalRef.props = { w: Resize.MODAL_W, h: Resize.MODAL_H };
+  }
+  debugRef.props = { x: { right: debugRight }, y: debugY };
+  xpDropsRef.props = { w: { fill: xpDropsInset }, h: 'fill' };
+}
+
+function SidePanelLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const [panel] = useState(toplevelPanel);
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  const modalUp: Boolean = CS2.if_sub_has(sidemodalRef);
+  const sideTaken: Boolean = cutsceneHidesSide();
+  let openSlot: ComponentId = -1;
+  if (panel >= 0 && panel < Panel.COUNT) {
+    const slot: ComponentId = SideSlots.at(panel) ?? -1;
+    if (slot !== -1 && CS2.if_sub_has(slot)) {
+      openSlot = slot;
+    }
+  }
+  let containerShown: Boolean = false;
+  if ((modalUp || openSlot !== -1) && !sideTaken) {
+    containerShown = true;
+  }
+  let logoutSprite: Sprite = NoSprite.NONE;
+  if (panel === Panel.LOGOUT && (openSlot !== -1 || flashside - 1 === Panel.LOGOUT)) {
+    logoutSprite = Sprites.CLOSE_BUTTONS_7;
+  }
+  let narrow: Boolean = false;
+  if (universe.width - 519 < Customise.NARROW_FROM) {
+    narrow = true;
+  }
+
+  onMounted(() => placeSide(openSlot, modalUp, sideTaken, containerShown, logoutSprite, narrow));
+  onUpdated(() => placeSide(openSlot, modalUp, sideTaken, containerShown, logoutSprite, narrow));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeSide(
+  openSlot: ComponentId,
+  modalUp: Boolean,
+  sideTaken: Boolean,
+  containerShown: Boolean,
+  logoutSprite: Sprite,
+  narrow: Boolean,
+): void {
+  side0Ref.props = { hide: openSlot !== side0Ref };
+  side1Ref.props = { hide: openSlot !== side1Ref };
+  side2Ref.props = { hide: openSlot !== side2Ref };
+  side3Ref.props = { hide: openSlot !== side3Ref };
+  side4Ref.props = { hide: openSlot !== side4Ref };
+  side5Ref.props = { hide: openSlot !== side5Ref };
+  side6Ref.props = { hide: openSlot !== side6Ref };
+  side7Ref.props = { hide: openSlot !== side7Ref };
+  side8Ref.props = { hide: openSlot !== side8Ref };
+  side9Ref.props = { hide: openSlot !== side9Ref };
+  side10Ref.props = { hide: openSlot !== side10Ref };
+  side11Ref.props = { hide: openSlot !== side11Ref };
+  side12Ref.props = { hide: openSlot !== side12Ref };
+  side13Ref.props = { hide: openSlot !== side13Ref };
+  sidePanelsRef.props = { hide: modalUp };
+  sidecrmRef.props = { hide: modalUp };
+  sideStaticRef.props = { hide: modalUp };
+  sideMovableRef.props = { hide: modalUp };
+  stone10Ref.props = { sprite: logoutSprite, hide: modalUp };
+  icon10Ref.props = { hide: modalUp };
+  if (narrow) {
+    sideContainerRef.props = { x: 'right', y: { bottom: PreEocStone.H * 2 }, hide: !containerShown };
+    sideMovableLayerRef.props = { x: 'right', y: { bottom: PreEocStone.H }, hide: sideTaken };
+  } else {
+    sideContainerRef.props = { x: 'right', y: { bottom: PreEocStone.H }, hide: !containerShown };
+    sideMovableLayerRef.props = { x: { right: PreEocStone.ROW_W - Customise.OVERLAP }, y: 'bottom', hide: sideTaken };
+  }
+  sideStaticLayerRef.props = { hide: sideTaken };
+}
+
+function tabHidden(panel: Int): Boolean {
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  if (flashside - 1 === panel) {
+    return false;
+  }
+  const slot: ComponentId = SideSlots.at(panel) ?? -1;
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    return false;
+  }
+  return true;
+}
+
+function stoneSprite(panel: Int): Sprite {
+  const [selected] = useState(toplevelPanel);
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  const slot: ComponentId = SideSlots.at(panel) ?? -1;
+  let open: Boolean = false;
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    open = true;
+  }
+  if (selected === panel && (open || flashside - 1 === panel)) {
+    return Sprites.PRE_EOC_STONES_1;
+  }
+  return NoSprite.NONE;
+}
+
+function StaticTabs(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const channelsTab: Int = useServerState(Varbits.SIDE_CHANNELS_TAB_SELECTED);
+  const ironman: Int = useServerState(Varbits.IRONMAN);
+  const friendsPanel: Int = useServerState(Varbits.FRIENDS_PANEL);
+
+  let channelsLabel: String = SideChannelLabels.get(channelsTab) ?? 'Chat-channel';
+  let channelsIcon: Sprite = SideChannelIcons.get(channelsTab) ?? 781;
+  const ironmanGroup: Boolean = ironman === 4 || ironman === 5 || ironman === 6;
+  if (ironmanGroup && (channelsTab === 4 || channelsTab === 5 || channelsTab === 6)) {
+    channelsLabel = SideChannelLabels.get(ironman) ?? 'Chat-channel';
+    channelsIcon = SideChannelIcons.get(ironman) ?? 781;
+  }
+  let ironmanOp: String = '';
+  if (ironmanGroup && channelsTab !== ironman) {
+    ironmanOp = SideChannelLabels.get(ironman) ?? 'Chat-channel';
+  }
+  const channel0: String = channelsTab !== 0 ? 'Chat-channel' : '';
+  const channel1: String = channelsTab !== 1 ? (SideChannelLabels.get(1) ?? '') : '';
+  const channel2: String = channelsTab !== 2 ? (SideChannelLabels.get(2) ?? '') : '';
+  const channel3: String = channelsTab !== 3 ? (SideChannelLabels.get(3) ?? '') : '';
+  const friendsFirst: String = friendsPanel === 0 ? 'Friends List' : 'Ignore List';
+  const friendsSecond: String = friendsPanel === 0 ? 'Ignore List' : 'Friends List';
+  const friendsIcon: Sprite = friendsPanel === 0 ? Sprites.SIDEICONS_INTERFACE_8 : Sprites.SIDEICONS_INTERFACE_9;
+
+  const channelsHidden: Boolean = tabHidden(Panel.CHANNELS);
+  const accountHidden: Boolean = tabHidden(Panel.ACCOUNT);
+  const friendsHidden: Boolean = tabHidden(Panel.FRIENDS);
+  const settingsHidden: Boolean = tabHidden(Panel.SETTINGS);
+  const emotesHidden: Boolean = tabHidden(Panel.EMOTES);
+  const musicHidden: Boolean = tabHidden(Panel.MUSIC);
+
+  return (
+    <>
+      <sprite
+        x={{ right: 99 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.CHANNELS)}
+        hide={channelsHidden}
+        options={[channelsLabel, ironmanOp, channel0, channel1, channel2, channel3]}
+        onOptionSelect={(event) => preEocTabOp(Panel.CHANNELS, event.option)}
+      />
+      <sprite
+        x={{ right: 132 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.ACCOUNT)}
+        hide={accountHidden}
+        options={[SidePanelOps.at(Panel.ACCOUNT) ?? '', 'Account', 'Community', 'Useful links']}
+        onOptionSelect={(event) => preEocTabOp(Panel.ACCOUNT, event.option)}
+      />
+      <sprite
+        x={{ right: 165 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.FRIENDS)}
+        hide={friendsHidden}
+        options={[friendsFirst, friendsSecond]}
+        onOptionSelect={(event) => preEocTabOp(Panel.FRIENDS, event.option)}
+      />
+      <sprite
+        x={{ right: 66 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.SETTINGS)}
+        hide={settingsHidden}
+        options={[SidePanelOps.at(Panel.SETTINGS) ?? '', 'Controls', 'Audio', 'Display']}
+        onOptionSelect={(event) => preEocTabOp(Panel.SETTINGS, event.option)}
+      />
+      <sprite
+        x={{ right: 33 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.EMOTES)}
+        hide={emotesHidden}
+        options={[SidePanelOps.at(Panel.EMOTES) ?? '']}
+        onOptionSelect={(event) => preEocTabOp(Panel.EMOTES, event.option)}
+      />
+      <sprite
+        x="right"
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.MUSIC)}
+        hide={musicHidden}
+        options={[SidePanelOps.at(Panel.MUSIC) ?? '']}
+        onOptionSelect={(event) => preEocTabOp(Panel.MUSIC, event.option)}
+      />
+      <sprite
+        x={{ right: 99 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={channelsIcon}
+        hide={channelsHidden}
+      />
+      <sprite
+        x={{ right: 132 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={Sprites.SIDE_ICONS_22}
+        hide={accountHidden}
+      />
+      <sprite
+        x={{ right: 165 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={friendsIcon}
+        hide={friendsHidden}
+      />
+      <sprite
+        x={{ right: 66 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={Sprites.SIDE_ICONS_11}
+        hide={settingsHidden}
+      />
+      <sprite
+        x={{ right: 33 }}
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={Sprites.SIDE_ICONS_12}
+        hide={emotesHidden}
+      />
+      <sprite
+        x="right"
+        y="center"
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={Sprites.SIDE_ICONS_13}
+        hide={musicHidden}
+      />
+    </>
+  );
+}
+
+function MovableTabs(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const sailing: Int = useServerState(Varbits.SAILING_SIDEPANEL_VISIBLE);
+  const journalTab: Int = useServerState(Varbits.SIDE_JOURNAL_TAB);
+  const leagueType: Int = useServerState(Varbits.LEAGUE_TYPE);
+  const prayerbook: Int = useServerState(Varbits.PRAYERBOOK);
+  const prayerFilter: Int = useServerState(Varbits.PRAYER_HIDEFILTERBUTTON);
+  const spellbook: Int = useServerState(Varbits.SPELLBOOK);
+  const spellFilter: Int = useServerState(Varbits.MAGIC_SPELLBOOK_HIDEFILTERBUTTON);
+  const mobile: Boolean = onMobile();
+
+  const combatLabel: String = sailing === 1 ? 'Sailing Options' : 'Combat Options';
+  const combatIcon: Sprite = sailing === 1 ? Sprites.SIDEICONS_INTERFACE_67 : Sprites.SIDEICONS_INTERFACE_0;
+  const fifth: Int = fifthTab();
+  let journalIcon: Sprite = JournalTabIcons.at(journalTab) ?? 2309;
+  let journalOp6: String = '';
+  let journalOp5: String = '';
+  if (fifth === FifthTab.FSW || fifth === FifthTab.LEAGUES || fifth === FifthTab.DEADMAN) {
+    if (journalTab === 4) {
+      journalIcon = LeagueJournalIcons.get(leagueType) ?? journalIcon;
+    } else {
+      journalOp6 = JournalTabLabels.at(4) ?? '';
+    }
+  } else if (fifth === FifthTab.PATHS) {
+    if (journalTab !== 3) {
+      journalOp5 = JournalTabLabels.at(3) ?? '';
+    }
+  }
+  const journalOp2: String = journalTab !== 0 ? (JournalTabLabels.at(0) ?? '') : '';
+  const journalOp3: String = journalTab !== 1 ? (JournalTabLabels.at(1) ?? '') : '';
+  const journalOp4: String = journalTab !== 2 ? (JournalTabLabels.at(2) ?? '') : '';
+  const prayerIcon: Sprite = prayerbook === 1 ? Sprites.SIDEICONS_INTERFACE_56 : Sprites.SIDEICONS_INTERFACE_5;
+  let prayerOp2: String = 'Disable prayer filtering';
+  if (mobile) {
+    prayerOp2 = '';
+  } else if (prayerFilter === 1) {
+    prayerOp2 = 'Enable prayer filtering';
+  }
+  let magicIcon: Sprite = Sprites.SIDEICONS_INTERFACE_6;
+  if (spellbook === 1) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_19;
+  } else if (spellbook === 2) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_20;
+  } else if (spellbook === 3) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_21;
+  }
+  let magicOp2: String = 'Disable spell filtering';
+  if (mobile) {
+    magicOp2 = '';
+  } else if (spellFilter === 1) {
+    magicOp2 = 'Enable spell filtering';
+  }
+
+  const combatHidden: Boolean = tabHidden(Panel.COMBAT);
+  const skillsHidden: Boolean = tabHidden(Panel.SKILLS);
+  const journalHidden: Boolean = tabHidden(Panel.JOURNAL);
+  const inventoryHidden: Boolean = tabHidden(Panel.INVENTORY);
+  const equipmentHidden: Boolean = tabHidden(Panel.EQUIPMENT);
+  const prayerHidden: Boolean = tabHidden(Panel.PRAYER);
+  const magicHidden: Boolean = tabHidden(Panel.MAGIC);
+
+  return (
+    <>
+      <sprite
+        x={0}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.COMBAT)}
+        hide={combatHidden}
+        options={[combatLabel]}
+        onOptionSelect={(event) => preEocTabOp(Panel.COMBAT, event.option)}
+      />
+      <sprite
+        x={33}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.SKILLS)}
+        hide={skillsHidden}
+        options={[SidePanelOps.at(Panel.SKILLS) ?? '']}
+        onOptionSelect={(event) => preEocTabOp(Panel.SKILLS, event.option)}
+      />
+      <sprite
+        x={66}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.JOURNAL)}
+        hide={journalHidden}
+        options={[JournalTabLabels.at(journalTab) ?? '', journalOp2, journalOp3, journalOp4, journalOp5, journalOp6]}
+        onOptionSelect={(event) => preEocTabOp(Panel.JOURNAL, event.option)}
+      />
+      <sprite
+        x={99}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.INVENTORY)}
+        hide={inventoryHidden}
+        options={[SidePanelOps.at(Panel.INVENTORY) ?? '']}
+        onOptionSelect={(event) => preEocTabOp(Panel.INVENTORY, event.option)}
+      />
+      <sprite
+        x={132}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.EQUIPMENT)}
+        hide={equipmentHidden}
+        options={[SidePanelOps.at(Panel.EQUIPMENT) ?? '']}
+        onOptionSelect={(event) => preEocTabOp(Panel.EQUIPMENT, event.option)}
+      />
+      <sprite
+        x={165}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.PRAYER)}
+        hide={prayerHidden}
+        options={[SidePanelOps.at(Panel.PRAYER) ?? '', prayerOp2]}
+        onOptionSelect={(event) => preEocTabOp(Panel.PRAYER, event.option)}
+      />
+      <sprite
+        x={198}
+        y={0}
+        w={PreEocStone.W}
+        h={PreEocStone.H}
+        sprite={stoneSprite(Panel.MAGIC)}
+        hide={magicHidden}
+        options={[SidePanelOps.at(Panel.MAGIC) ?? '', magicOp2]}
+        onOptionSelect={(event) => preEocTabOp(Panel.MAGIC, event.option)}
+      />
+      <sprite x={0} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={combatIcon} hide={combatHidden} />
+      <sprite x={33} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={Sprites.SIDE_ICONS_1} hide={skillsHidden} />
+      <sprite x={66} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={journalIcon} hide={journalHidden} />
+      <sprite x={99} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={Sprites.SIDE_ICONS_3} hide={inventoryHidden} />
+      <sprite x={132} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={Sprites.SIDE_ICONS_4} hide={equipmentHidden} />
+      <sprite x={165} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={prayerIcon} hide={prayerHidden} />
+      <sprite x={198} y={0} w={PreEocStone.W} h={PreEocStone.H} sprite={magicIcon} hide={magicHidden} />
+    </>
+  );
+}
+
+function ModalBackdrop(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const [colour] = useState(toplevelMainmodalBgColour);
+  const [trans] = useState(toplevelMainmodalBgTrans);
+  const fovClamp: Int = useServerState(Varbits.FOV_CLAMP);
+  const mobile: Boolean = onMobile();
+  const modalOpen: Boolean = CS2.if_sub_has(mainmodalRef);
+  const [viewW, viewH] = CS2.viewport_effective_size_get();
+  const insetRight: Int = preEocInsetRight(fovClamp, universe.width, viewW);
+  const insetBottom: Int = preEocInsetBottom(fovClamp, universe.height, viewH);
+
+  let fourRects: Boolean = false;
+  if (!mobile && colour > -1 && trans > -1 && modalOpen) {
+    fourRects = true;
+  }
+  let oneRect: Boolean = false;
+  if (mobile && trans === 0 && modalOpen) {
+    oneRect = true;
+  }
+  const boxW: Int = viewW - insetRight;
+  const boxH: Int = viewH - insetBottom;
+  const leftW: Int = (boxW - Resize.MODAL_W) / 2;
+  const topH: Int = (boxH - Resize.MODAL_H) / 2;
+  const rightW: Int = boxW - (leftW + Resize.MODAL_W) + insetRight;
+  const bottomH: Int = boxH - (topH + Resize.MODAL_H) + insetBottom;
+
+  return (
+    <>
+      {fourRects && (
+        <>
+          <rect x={0} y={0} w="fill" h={topH} color={colour} fill transparency={trans} />
+          <rect x={0} y="bottom" w="fill" h={bottomH} color={colour} fill transparency={trans} />
+          <rect x={0} y={topH} w={leftW} h={Resize.MODAL_H} color={colour} fill transparency={trans} />
+          <rect x="right" y={topH} w={rightW} h={Resize.MODAL_H} color={colour} fill transparency={trans} />
+        </>
+      )}
+      {oneRect && <rect x="center" y="center" w="fill" h="fill" color={colour} fill transparency={0} />}
+    </>
+  );
+}
+
+function SideContainerFrame(): Component {
+  const steel: Int = useServerState(Varbits.SIDE_CONTAINER_STEEL);
+  let stone: Boolean = true;
+  if (steel !== 0) {
+    stone = false;
+  }
+  onMounted(() => sizeSideContainer(stone));
+  onUpdated(() => sizeSideContainer(stone));
+  return <>{stone ? <StoneBox skin={StoneBoxSkin.ORNATE} /> : <SteelFrame backdrop={false} />}</>;
+}
+
+function sizeSideContainer(stone: Boolean): void {
+  if (stone) {
+    sideContainerRef.props = { w: 204, h: 275 };
+  } else {
+    sideContainerRef.props = { w: 202, h: 273 };
+  }
+}

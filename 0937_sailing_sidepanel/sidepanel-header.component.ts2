@@ -1,0 +1,205 @@
+import { useInterval, useRef, useState } from 'ts2';
+import { HealthBar, HealthBarAnim } from '../0399_questlist/questlist.constants';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ButtonSprites, HP_BOX_H, HP_BOX_W, SidepanelColor, SidepanelFont } from './sailing-sidepanel.constants';
+import { sidepanelBoatName, sidepanelHpStep } from './sailing-sidepanel.helpers';
+import {
+  sidepanelBoardedType,
+  sidepanelCombatLit,
+  sidepanelHpAnim,
+  sidepanelHpCurrent,
+  sidepanelHpFillPx,
+  sidepanelHpFrameLit,
+  sidepanelHpMax,
+  sidepanelHpOverlayPx,
+  sidepanelHpShown,
+} from './sailing-sidepanel.state';
+
+export function SidepanelCombatButton(): Component {
+  const [litCell] = useState(sidepanelCombatLit);
+  const [hover, setHover] = useState(0);
+  const lit: Boolean = litCell === 1;
+  const hot: Boolean = !lit && hover === 1;
+  const centre: Sprite = lit ? ButtonSprites.LIT_CENTRE : ButtonSprites.IDLE_CENTRE;
+  const nw: Sprite = lit ? ButtonSprites.LIT_NW : hot ? ButtonSprites.HOVER_NW : ButtonSprites.IDLE_NW;
+  const ne: Sprite = lit ? ButtonSprites.LIT_NE : hot ? ButtonSprites.HOVER_NE : ButtonSprites.IDLE_NE;
+  const sw: Sprite = lit ? ButtonSprites.LIT_SW : hot ? ButtonSprites.HOVER_SW : ButtonSprites.IDLE_SW;
+  const se: Sprite = lit ? ButtonSprites.LIT_SE : hot ? ButtonSprites.HOVER_SE : ButtonSprites.IDLE_SE;
+  const w: Sprite = lit ? ButtonSprites.LIT_W : hot ? ButtonSprites.HOVER_W : ButtonSprites.IDLE_W;
+  const n: Sprite = lit ? ButtonSprites.LIT_N : hot ? ButtonSprites.HOVER_N : ButtonSprites.IDLE_N;
+  const e: Sprite = lit ? ButtonSprites.LIT_E : hot ? ButtonSprites.HOVER_E : ButtonSprites.IDLE_E;
+  const s: Sprite = lit ? ButtonSprites.LIT_S : hot ? ButtonSprites.HOVER_S : ButtonSprites.IDLE_S;
+  return (
+    <>
+      <sprite x={0} y={0} w={26} h={26} sprite={centre} tiling />
+      <sprite x={0} y={0} w={5} h={5} sprite={nw} tiling />
+      <sprite x={21} y={0} w={5} h={5} sprite={ne} tiling />
+      <sprite x={0} y={21} w={5} h={5} sprite={sw} tiling />
+      <sprite x={21} y={21} w={5} h={5} sprite={se} tiling />
+      <sprite x={0} y={5} w={5} h={16} sprite={w} tiling />
+      <sprite x={5} y={0} w={16} h={5} sprite={n} tiling />
+      <sprite x={21} y={5} w={5} h={16} sprite={e} tiling />
+      <sprite x={5} y={21} w={16} h={5} sprite={s} tiling />
+      <sprite x={3} y={3} w={20} h={20} sprite={ButtonSprites.COMBAT} transparency={0} />
+      <text
+        x={3}
+        y={3}
+        w={20}
+        h={20}
+        text=""
+        font={SidepanelFont.TITLE}
+        color={0}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={20}
+      />
+      <rect
+        x={0}
+        y={0}
+        w={26}
+        h={26}
+        fill
+        color={0}
+        transparency={255}
+        options={['View']}
+        optionSubject="Combat Options"
+        onOptionSelect={(event) => opsound(event.option, 2)}
+        onMouseEnter={lit || onMobile() ? undefined : () => setHover(1)}
+        onMouseLeave={lit ? undefined : () => setHover(0)}
+      />
+    </>
+  );
+}
+
+export function SidepanelBoatName(): Component {
+  const [type] = useState(sidepanelBoardedType);
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text={sidepanelBoatName(type)}
+      font={SidepanelFont.NAME}
+      color={SidepanelColor.ORANGE}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+export function SidepanelHealthbar(): Component {
+  const c: Int = HealthBar.CORNER;
+  const spanW: Int = HP_BOX_W - HealthBar.EDGE;
+  const spanH: Int = HP_BOX_H - HealthBar.EDGE;
+  const right: Int = HP_BOX_W - c;
+  const bottom: Int = HP_BOX_H - c;
+
+  const [shown] = useState(sidepanelHpShown);
+  const [current] = useState(sidepanelHpCurrent);
+  const [max] = useState(sidepanelHpMax);
+  const [anim] = useState(sidepanelHpAnim);
+  const [overlay] = useState(sidepanelHpOverlayPx);
+  const [fill] = useState(sidepanelHpFillPx);
+  const [frameLit] = useState(sidepanelHpFrameLit);
+
+  const full: Boolean = current > 0 && current >= max;
+  const empty: Boolean = !full && current <= 0;
+
+  let topLeft: Sprite = HealthBar.DARK_TOP_LEFT;
+  let top: Sprite = HealthBar.DARK_TOP;
+  let topRight: Sprite = HealthBar.DARK_TOP_RIGHT;
+  let left: Sprite = HealthBar.DARK_LEFT;
+  let middle: Sprite = HealthBar.DARK_MIDDLE;
+  let rightEdge: Sprite = HealthBar.DARK_RIGHT;
+  let bottomLeft: Sprite = HealthBar.DARK_BOTTOM_LEFT;
+  let bottomEdge: Sprite = HealthBar.DARK_BOTTOM;
+  let bottomRight: Sprite = HealthBar.DARK_BOTTOM_RIGHT;
+  if (full) {
+    topLeft = HealthBar.LIT_TOP_LEFT;
+    top = HealthBar.LIT_TOP;
+    topRight = HealthBar.LIT_TOP_RIGHT;
+    left = HealthBar.LIT_LEFT;
+    middle = HealthBar.LIT_MIDDLE;
+    rightEdge = HealthBar.LIT_RIGHT;
+    bottomLeft = HealthBar.LIT_BOTTOM_LEFT;
+    bottomEdge = HealthBar.LIT_BOTTOM;
+    bottomRight = HealthBar.LIT_BOTTOM_RIGHT;
+  } else if (!empty) {
+    topLeft = HealthBar.LIT_TOP_LEFT;
+    left = HealthBar.LIT_LEFT;
+    bottomLeft = HealthBar.LIT_BOTTOM_LEFT;
+  } else if (frameLit === 1) {
+    topLeft = HealthBar.LIT_LEFT;
+    left = HealthBar.LIT_MIDDLE;
+    bottomLeft = HealthBar.LIT_RIGHT;
+  } else if (anim === HealthBarAnim.FADE || anim === HealthBarAnim.FADE_DONE) {
+    topLeft = HealthBar.GHOST_LEFT;
+    left = HealthBar.GHOST_MID_LEFT;
+    bottomLeft = HealthBar.GHOST_BOTTOM_LEFT;
+  }
+
+  let overlayTop: Sprite = HealthBar.GHOST_TOP;
+  let overlayMiddle: Sprite = HealthBar.GHOST_MIDDLE;
+  let overlayBottom: Sprite = HealthBar.GHOST_BOTTOM;
+  if (anim === HealthBarAnim.HEAL) {
+    overlayTop = HealthBar.HEAL_TOP;
+    overlayMiddle = HealthBar.HEAL_MIDDLE;
+    overlayBottom = HealthBar.HEAL_BOTTOM;
+  }
+  const overlayLeft: Int = HealthBar.FILL_INSET + fill;
+
+  const tickHost = useRef();
+  useInterval(() => sidepanelHpStep(), tickHost);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={shown === 0}>
+      <layer ref={tickHost} x={0} y={0} w={1} h={1} hide={anim === HealthBarAnim.NONE} />
+      <sprite x={0} y={0} w={c} h={c} sprite={topLeft} tiling />
+      <sprite x={c} y={0} w={spanW} h={c} sprite={top} tiling />
+      <sprite x={right} y={0} w={c} h={c} sprite={topRight} tiling />
+      <sprite x={0} y={c} w={c} h={spanH} sprite={left} tiling />
+      <sprite x={c} y={c} w={spanW} h={spanH} sprite={middle} tiling />
+      <sprite x={right} y={c} w={c} h={spanH} sprite={rightEdge} tiling />
+      <sprite x={0} y={bottom} w={c} h={c} sprite={bottomLeft} tiling />
+      <sprite x={c} y={bottom} w={spanW} h={c} sprite={bottomEdge} tiling />
+      <sprite x={right} y={bottom} w={c} h={c} sprite={bottomRight} tiling />
+      <sprite x={HealthBar.FILL_INSET} y={0} w={fill} h={c} sprite={HealthBar.LIT_TOP} tiling hide={full || empty} />
+      <sprite
+        x={HealthBar.FILL_INSET}
+        y={c}
+        w={fill}
+        h={spanH}
+        sprite={HealthBar.LIT_MIDDLE}
+        tiling
+        hide={full || empty}
+      />
+      <sprite
+        x={HealthBar.FILL_INSET}
+        y={bottom}
+        w={fill}
+        h={c}
+        sprite={HealthBar.LIT_BOTTOM}
+        tiling
+        hide={full || empty}
+      />
+      <sprite x={overlayLeft} y={0} w={overlay} h={c} sprite={overlayTop} tiling hide={overlay <= 0} />
+      <sprite x={overlayLeft} y={c} w={overlay} h={spanH} sprite={overlayMiddle} tiling hide={overlay <= 0} />
+      <sprite x={overlayLeft} y={bottom} w={overlay} h={c} sprite={overlayBottom} tiling hide={overlay <= 0} />
+      <text
+        x={0}
+        y={HealthBar.TEXT_DROP}
+        w="fill"
+        h="fill"
+        text={`${current}/${max}`}
+        font={SidepanelFont.SMALL}
+        color={SidepanelColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

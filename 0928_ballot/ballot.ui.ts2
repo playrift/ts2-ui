@@ -1,0 +1,452 @@
+import { CS2, createRef, onMounted, onUpdated, useServerState, useState } from 'ts2';
+import { playSound } from '../lib/lib.engine';
+import { SteelborderFont } from '../lib/lib.constants';
+import { Varbits } from '../lib/game/varbits';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { StoneButtonInitEntrypoint } from '../0765_pvp_arena_choosebuild/stone-button-init-entrypoint.component';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { truncateToWidth } from '../0704_clans_events_create/clans-events-create.helpers';
+import { FloaterHandles, FloaterKind, floaterPlaced, floaterRect } from '../0372_cr_ui/floater';
+import {
+  BallotColour,
+  BallotFont,
+  BallotLayout,
+  BallotPage,
+  BallotSound,
+  BallotSprite,
+  ballotDodgerRef,
+  ballotFrameRef,
+  ballotLoadingHostRef,
+  ballotModalBoxRef,
+  ballotModalButton1Ref,
+  ballotModalButton2Ref,
+  ballotModalFrameRef,
+  ballotModalHostRef,
+  ballotModalWashRef,
+  ballotPollsHostRef,
+  ballotPollsRowsBarRef,
+  ballotPollsRowsBoxRef,
+  ballotPollsRowsRef,
+  ballotPollsYearsBarRef,
+  ballotPollsYearsBoxRef,
+  ballotPollsYearsRef,
+  ballotResultsContentRef,
+  ballotResultsExitRef,
+  ballotResultsHostRef,
+  ballotResultsListRef,
+  ballotResultsScrollbarRef,
+  ballotResultsViewportRef,
+  ballotUniverseRef,
+  ballotVoteBackRef,
+  ballotVoteHostRef,
+  ballotVotePaneRef,
+  ballotVoteScrollbarRef,
+  ballotWindowRef,
+} from './ballot.constants';
+import { PollsPage, PollsRowsPane, PollsScrollbar, PollsYearsPane } from './polls.component';
+import { ResultsBands, ResultsPage } from './results.component';
+import { resultsContentHeight, resultsExit, resultsRevealed } from './results.state';
+import { VotePage } from './vote.component';
+import { ballotCommitPendingAnswers, ballotOpen, ballotVotePaneLive } from './ballot.entry';
+import { BallotLoadingIcon } from './ballot-loading-icon.component';
+import {
+  BallotModalCaption,
+  BallotModalPrimaryButton,
+  BallotModalSecondaryButton,
+  BallotScrollbar,
+  BallotSubmitRow,
+  ballotVoteContentHeight,
+} from './ballot.layout';
+import {
+  ballotDisplayFrame,
+  ballotLoadingShown,
+  ballotModalShown,
+  ballotPage,
+  ballotPollState,
+  ballotSubmitShown,
+  ballotTitle,
+  ballotVoteBarBuild,
+  ballotVoteContentShown,
+  pollsRowsContentTotal,
+  voteContentTotal,
+} from './ballot.state';
+
+const ballotRef = createRef('ballot');
+
+export const ballotUi = (): UI => (
+  <ui ref={ballotRef}>
+    <Ballot />
+  </ui>
+);
+
+function Ballot(): Component {
+  return (
+    <layer static ref={ballotUniverseRef} x="center" y="center" w="fill" h="fill" onLoad={() => ballotOpen()}>
+      <layer static ref={ballotDodgerRef} x="center" y="center" w="fill" h="fill">
+        <layer
+          static
+          ref={ballotWindowRef}
+          x="center"
+          y="center"
+          w={BallotLayout.WINDOW_W}
+          h={BallotLayout.WINDOW_H}
+          noClickThrough
+        >
+          <layer static ref={ballotFrameRef} x="center" y="center" w="fill" h="fill">
+            <BallotChrome />
+            <BallotResultsScroll />
+          </layer>
+
+          <BallotCloseButton />
+
+          <layer static ref={ballotPollsHostRef} x="center" y={{ bottom: 10 }} w={{ fill: 20 }} h={{ fill: 50 }}>
+            <layer static x="center" y={0} w="fill" h={41}>
+              <PollsPage />
+            </layer>
+            <layer static ref={ballotPollsYearsBoxRef} x={0} y="bottom" w={75} h={{ fill: 43 }}>
+              <BallotPollsThinBox />
+              <layer static ref={ballotPollsYearsRef} x={{ right: 2 }} y="center" w={{ fill: 20 }} h={{ fill: 4 }}>
+                <PollsYearsPane />
+              </layer>
+              <layer static ref={ballotPollsYearsBarRef} x={2} y="center" w={16} h={{ fill: 4 }}>
+                <BallotPollsYearsScrollbar content={ballotPollsYearsRef} />
+              </layer>
+            </layer>
+            <layer static ref={ballotPollsRowsBoxRef} x="right" y="bottom" w={{ fill: 74 }} h={{ fill: 43 }}>
+              <BallotPollsThinBox />
+              <layer static ref={ballotPollsRowsRef} x={2} y="center" w={{ fill: 20 }} h={{ fill: 4 }}>
+                <PollsRowsPane />
+              </layer>
+              <layer static ref={ballotPollsRowsBarRef} x={{ right: 2 }} y="center" w={16} h={{ fill: 4 }}>
+                <BallotPollsRowsScrollbar content={ballotPollsRowsRef} />
+              </layer>
+            </layer>
+          </layer>
+
+          <layer static ref={ballotResultsHostRef} x="center" y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 12 }}>
+            <layer static ref={ballotResultsViewportRef} x={0} y={{ bottom: 4 }} w={{ fill: 21 }} h={{ fill: 37 }}>
+              <layer static ref={ballotResultsListRef} x="center" y="center" w="fill" h="fill">
+                <ResultsBands />
+              </layer>
+              <layer static ref={ballotResultsContentRef} x="center" y="center" w={{ fill: 8 }} h="fill">
+                <ResultsPage />
+              </layer>
+            </layer>
+            <layer static ref={ballotResultsScrollbarRef} x={{ right: 4 }} y={{ bottom: 4 }} w={16} h={{ fill: 37 }}>
+              <BallotResultsScrollbar content={ballotResultsViewportRef} />
+            </layer>
+            <layer static ref={ballotResultsExitRef} x={0} y={0} w={BallotLayout.BUTTON_W} h={BallotLayout.BUTTON_H}>
+              <BallotExitButton />
+            </layer>
+          </layer>
+
+          <layer static ref={ballotVoteHostRef} x="center" y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 12 }}>
+            <layer static ref={ballotVotePaneRef} x={4} y={{ bottom: 4 }} w={{ fill: 29 }} h={{ fill: 37 }}>
+              <VotePage />
+              <BallotVoteSubmit />
+            </layer>
+            <layer static ref={ballotVoteScrollbarRef} x={{ right: 4 }} y={{ bottom: 4 }} w={16} h={{ fill: 37 }}>
+              <BallotVoteScrollbar content={ballotVotePaneRef} />
+            </layer>
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static ref={ballotVoteBackRef} x={0} y={0} w={BallotLayout.BUTTON_W} h={BallotLayout.BUTTON_H} hide>
+              <StoneButtonInitEntrypoint label="Back" font={BallotFont.BODY} />
+            </layer>
+          </layer>
+
+          <layer static ref={ballotLoadingHostRef} x="center" y={{ bottom: 10 }} w={{ fill: 20 }} h={{ fill: 50 }} hide>
+            <layer static x="center" y="center" w={BallotLayout.LOADING_ICON} h={BallotLayout.LOADING_ICON}>
+              <BallotLoadingIcon />
+            </layer>
+          </layer>
+
+          <layer
+            static
+            ref={ballotModalHostRef}
+            x="center"
+            y={{ bottom: 6 }}
+            w={{ fill: 12 }}
+            h={{ fill: 41 }}
+            noClickThrough
+          >
+            <rect
+              static
+              ref={ballotModalWashRef}
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              color={0}
+              fill
+              transparency={BallotLayout.MODAL_WASH_TRANSPARENCY}
+              hide
+            />
+            <layer
+              static
+              ref={ballotModalBoxRef}
+              x="center"
+              y="center"
+              w={BallotLayout.MODAL_W}
+              h={BallotLayout.MODAL_H}
+            >
+              <layer static ref={ballotModalFrameRef} x="center" y="center" w="fill" h="fill" hide>
+                <SteelFrame backdrop />
+              </layer>
+              <layer
+                static
+                ref={ballotModalButton1Ref}
+                x={{ center: -60 }}
+                y={{ bottom: 20 }}
+                w={BallotLayout.MODAL_BUTTON_W}
+                h={BallotLayout.MODAL_BUTTON_H}
+              >
+                <BallotModalPrimaryButton />
+              </layer>
+              <layer
+                static
+                ref={ballotModalButton2Ref}
+                x={{ center: 60 }}
+                y={{ bottom: 20 }}
+                w={BallotLayout.MODAL_BUTTON_W}
+                h={BallotLayout.MODAL_BUTTON_H}
+              >
+                <BallotModalSecondaryButton />
+              </layer>
+              <BallotModalCaption />
+            </layer>
+          </layer>
+        </layer>
+
+        <BallotFloater />
+      </layer>
+    </layer>
+  );
+}
+
+function BallotPollsThinBox(): Component {
+  const [page] = useState(ballotPage);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={page !== BallotPage.POLLS}>
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}
+
+export function BallotExitButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const [page] = useState(ballotPage);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      hide={page !== BallotPage.RESULTS}
+      options={[CS2.tags_remove('Exit')]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={() => {
+        resultsExit(ballotPollState(), ballotResultsExitRef, -1);
+      }}
+    >
+      <StoneButtonDraw label={'Exit'} font={BallotFont.BODY} pressed={skin} />
+    </layer>
+  );
+}
+
+function BallotChrome(): Component {
+  const [title] = useState(ballotTitle);
+  const [displayFrame] = useState(ballotDisplayFrame);
+  const [page] = useState(ballotPage);
+  const [loadingShown] = useState(ballotLoadingShown);
+  const [modalShown] = useState(ballotModalShown);
+  const contentHeight: Int = ballotVoteContentHeight();
+
+  const [pollsRowsTotal] = useState(pollsRowsContentTotal);
+  const pollsBarH: Int = ballotPollsRowsBarRef.height;
+  const pollsRowsExtent: Int = pollsRowsTotal > pollsBarH ? pollsRowsTotal : 0;
+
+  const [rx, ry, rw, rh] = floaterRect(FloaterKind.BALLOT);
+  const [px, py, pw, ph] = floaterPlaced(FloaterKind.BALLOT, rx, ry, rw, rh);
+
+  const flags: Int = displayFrame === 1 ? 1 : 3;
+  const voteHidden: Boolean = page !== BallotPage.VOTE;
+  const loadingHidden: Boolean = loadingShown === 0;
+  const modalHidden: Boolean = modalShown === 0;
+
+  onMounted(() => {
+    ballotWindowRef.props = { hide: false, x: px, y: py, w: pw, h: ph };
+    ballotPollsRowsRef.scrollHeight = pollsRowsExtent;
+    ballotVoteBackRef.hide = voteHidden;
+    ballotVotePaneRef.scrollHeight = contentHeight;
+    ballotLoadingHostRef.hide = loadingHidden;
+    ballotModalHostRef.noClickThrough = !modalHidden;
+    ballotModalWashRef.hide = modalHidden;
+    ballotModalFrameRef.hide = modalHidden;
+  });
+  onUpdated(() => {
+    ballotWindowRef.props = { hide: false, x: px, y: py, w: pw, h: ph };
+    ballotPollsRowsRef.scrollHeight = pollsRowsExtent;
+    ballotVoteBackRef.hide = voteHidden;
+    ballotVotePaneRef.scrollHeight = contentHeight;
+    ballotLoadingHostRef.hide = loadingHidden;
+    ballotModalHostRef.noClickThrough = !modalHidden;
+    ballotModalWashRef.hide = modalHidden;
+    ballotModalFrameRef.hide = modalHidden;
+  });
+
+  return (
+    <SteelBorder
+      title={truncateToWidth(title, pw - BallotLayout.TITLE_WIDTH_INSET, SteelborderFont.TITLE)}
+      titleColor={BallotColour.TITLE}
+      flags={flags}
+    />
+  );
+}
+
+function BallotResultsScroll(): Component {
+  const height: Int = resultsContentHeight(CS2.if_width_get(ballotResultsContentRef));
+
+  onMounted(() => {
+    ballotResultsViewportRef.scrollHeight = height;
+  });
+  onUpdated(() => {
+    ballotResultsViewportRef.scrollHeight = height;
+  });
+
+  return <layer x={0} y={0} w={1} h={1} />;
+}
+
+function BallotPollsYearsScrollbar({ content }: { content: Ref }): Component {
+  const [page] = useState(ballotPage);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={page !== BallotPage.POLLS}>
+      <PollsScrollbar content={content} />
+    </layer>
+  );
+}
+
+function BallotPollsRowsScrollbar({ content }: { content: Ref }): Component {
+  const [page] = useState(ballotPage);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={page !== BallotPage.POLLS}>
+      <PollsScrollbar content={content} />
+    </layer>
+  );
+}
+
+function BallotResultsScrollbar({ content }: { content: Ref }): Component {
+  const [revealed] = useState(resultsRevealed);
+  const [page] = useState(ballotPage);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={revealed === 0 || page !== BallotPage.RESULTS}>
+      <BallotScrollbar content={content} />
+    </layer>
+  );
+}
+
+function BallotVoteScrollbar({ content }: { content: Ref }): Component {
+  const [barBuild] = useState(ballotVoteBarBuild);
+  const [voteContentShown] = useState(ballotVoteContentShown);
+  const [page] = useState(ballotPage);
+
+  ballotVotePaneRef.scrollHeight = ballotVoteContentHeight();
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      hide={voteContentShown === 0 || page !== BallotPage.VOTE || barBuild === 0}
+    >
+      <BallotScrollbar content={content} />
+    </layer>
+  );
+}
+
+function BallotCloseButton(): Component {
+  const votePageActive: Boolean = ballotVotePaneLive();
+  const [page] = useState(ballotPage);
+  const votePageUp: Boolean = page === BallotPage.VOTE;
+
+  if (onMobile()) {
+    return (
+      <sprite
+        x={{ right: 1 }}
+        y={1}
+        w={33}
+        h={33}
+        sprite={BallotSprite.CLOSE_MOBILE}
+        options={[{ label: 'Close', hotkey: 13 }]}
+        onMouseLeave={(event) => {
+          event.self.sprite = BallotSprite.CLOSE_MOBILE;
+        }}
+        onOptionSelect={() => {
+          ballotCloseOp(votePageActive, votePageUp);
+        }}
+      />
+    );
+  }
+
+  return (
+    <sprite
+      x={{ right: 3 }}
+      y={6}
+      w={26}
+      h={23}
+      sprite={BallotSprite.CLOSE}
+      hover={{ sprite: BallotSprite.CLOSE_HOVER }}
+      options={[{ label: 'Close', hotkey: 13 }]}
+      onOptionSelect={() => {
+        ballotCloseOp(votePageActive, votePageUp);
+      }}
+    />
+  );
+}
+
+function ballotCloseOp(votePageActive: Boolean, votePageUp: Boolean): void {
+  playSound(BallotSound.SELECT);
+  if (votePageActive && votePageUp) {
+    ballotCommitPendingAnswers();
+  }
+}
+
+function BallotVoteSubmit(): Component {
+  const [submitShown] = useState(ballotSubmitShown);
+  const [page] = useState(ballotPage);
+  const [voteRows] = useState(voteContentTotal);
+  return submitShown === 1 && page === BallotPage.VOTE ? <BallotSubmitRow y={voteRows} /> : null;
+}
+
+function BallotFloater(): Component {
+  const [displayFrame] = useState(ballotDisplayFrame);
+  const [x, y, w, h] = floaterRect(FloaterKind.BALLOT);
+
+  return (
+    <FloaterHandles
+      kind={FloaterKind.BALLOT}
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      anchored={displayFrame === 0}
+      hideOnMobile={false}
+    />
+  );
+}

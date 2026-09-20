@@ -1,0 +1,50 @@
+import { useDerived, useInterval, useRef, useState } from 'ts2';
+import { warningBeat } from './kit.state';
+import { clientClock } from '../lib.engine';
+import { tobHudNameFlasher } from '../../0773_toa_lobby/toa-lobby.helpers';
+import { Warning, warningState } from './loadout-edit';
+import {
+  Copy,
+  SuppliesColor,
+  SuppliesFonts,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+
+export function KitWarning({ build }: { build: Int }): Component {
+  const state: Int = useDerived(() => warningState(build));
+  const [beat, setBeat] = useState(warningBeat);
+  const line = useRef();
+  useInterval(
+    state !== Warning.OK
+      ? () => {
+          setBeat(clientClock());
+        }
+      : undefined,
+    line,
+  );
+
+  let text: String = Copy.WARN_OK;
+  if (state === Warning.STATS) {
+    text = Copy.WARN_STATS;
+  } else if (state === Warning.TOO_MANY) {
+    text = Copy.WARN_TOO_MANY;
+  } else if (state === Warning.AMMO) {
+    text = Copy.WARN_AMMO;
+  }
+  const pass: Int = beat;
+
+  return (
+    <text
+      ref={line}
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={text}
+      font={state === Warning.OK ? SuppliesFonts.BODY : SuppliesFonts.SMALL}
+      color={state === Warning.OK || pass < 0 ? SuppliesColor.LABEL : tobHudNameFlasher()}
+      shadow
+      align="center"
+      valign="bottom"
+    />
+  );
+}

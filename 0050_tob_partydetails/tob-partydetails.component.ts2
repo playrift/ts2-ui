@@ -4,47 +4,25 @@ import { BoardButton } from '../lib/board-button.component';
 import { SteelBorder } from '../lib/steel-border.component';
 import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
 import { SteelborderColor } from '../lib/lib.constants';
-import { clientClock, textLineCount, textWidth } from '../lib/lib.engine';
+import { textLineCount, textWidth } from '../lib/lib.engine';
 import { onMobile } from '../lib/lib.helpers';
 import { pipeHead, pipeTail } from '../lib/lib.format';
 import { raidsListsortDetails } from '../lib/game/varcs';
-import { TooltipBox, tooltipUp } from '../lib/tooltip.component';
+import { TooltipBox, TooltipChrome, tooltipUp } from '../lib/tooltip.component';
 import {
-  actionRef,
   applicantsRef,
-  backRef,
-  boardBuilt,
   currentRef,
   frameRef,
-  refreshStartedAt,
-  headerRef,
-  leaderHighlightRef,
-  levelRef,
   middleRef,
-  modeRef,
-  refreshRef,
-  sizeRef,
-  sortareaRef,
-  timerRef,
-  tipIndex,
+  tickRef,
   tooltipRef,
   topRef,
-  unblockRef,
   universeRef,
-  p1DownRef,
-  p1UpRef,
-  p2DownRef,
-  p2UpRef,
-  p3DownRef,
-  p3UpRef,
-  p4DownRef,
-  p4UpRef,
-  p5DownRef,
-  p5UpRef,
   AutoRefresh,
   Copy,
   Layout,
   PartyRole,
+  ROW_COLUMNS_W,
   RowColumns,
   SortKeys,
   Tip,
@@ -55,21 +33,37 @@ import {
   TobPartydetailsTips,
   Tooltip,
 } from './tob-partydetails.constants';
+import {
+  arrowsPlaced,
+  autorefreshStart,
+  boardBuilt,
+  dialRemaining,
+  partyTitled,
+  tipIndex,
+} from './tob-partydetails.state';
 import type { TobPartydetailsTip } from './tob-partydetails.constants';
-import { ApplicantPackets, BoardPacket, LEADER_PACKET, MemberPackets } from './tob-partydetails.data';
+import {
+  APPLICANT_COUNT,
+  ApplicantPackets,
+  BoardPacket,
+  LEADER_PACKET,
+  MEMBER_COUNT,
+  MemberPackets,
+} from './tob-partydetails.data';
 import {
   cellColor,
   cellText,
   hideTobPartydetailsTip,
   partyTitle,
   plateMode,
+  loadTobPartydetails,
   plateNumber,
-  resetTobPartydetails,
   rowColor,
   rowSubject,
   rowTransparency,
   setTobPartydetailsSort,
   showTobPartydetailsTip,
+  tobPartydetailsAutorefresh,
 } from './tob-partydetails.helpers';
 
 export function TobPartydetails(): Component {
@@ -119,28 +113,43 @@ export function TobPartydetails(): Component {
         offsetY={-33}
       />
 
-      <layer ref={unblockRef} x={0} y="bottom" w={Layout.BUTTON_W} h={{ fill: Layout.BUTTON_INSET_H }} hide>
+      <TobPartydetailsBottomBar />
+      <TobPartydetailsArrows />
+    </layer>
+  );
+}
+
+function TobPartydetailsBottomBar(): Component {
+  const [built] = useState(boardBuilt);
+  const shell: Boolean = built === 0;
+  return (
+    <>
+      <layer
+        x={0}
+        y="bottom"
+        w={Layout.BUTTON_W}
+        h={{ fill: Layout.BUTTON_INSET_H }}
+        hide={shell || BoardPacket.role !== PartyRole.LEADER}
+      >
         <TobPartydetailsUnblockButton />
       </layer>
 
       <layer
-        ref={modeRef}
         x={Layout.PLATE_MODE_X}
         y={{ bottom: Layout.PLATE_BOTTOM }}
         w={Layout.PLATE_MODE_W}
         h={Layout.PLATE_H}
-        hide
+        hide={shell}
       >
         <PlateSkin />
         <TobPartydetailsPlate label={Copy.MODE} value={BoardPacket.mode} subject={Copy.SUBJECT_MODE} table />
       </layer>
       <layer
-        ref={sizeRef}
         x={Layout.PLATE_SIZE_X}
         y={{ bottom: Layout.PLATE_BOTTOM }}
         w={Layout.PLATE_SIZE_W}
         h={Layout.PLATE_H}
-        hide
+        hide={shell}
       >
         <PlateSkin />
         <TobPartydetailsPlate
@@ -150,12 +159,11 @@ export function TobPartydetails(): Component {
         />
       </layer>
       <layer
-        ref={levelRef}
         x={Layout.PLATE_LEVEL_X}
         y={{ bottom: Layout.PLATE_BOTTOM }}
         w={Layout.PLATE_LEVEL_W}
         h={Layout.PLATE_H}
-        hide
+        hide={shell}
       >
         <PlateSkin />
         <TobPartydetailsPlate
@@ -165,12 +173,10 @@ export function TobPartydetails(): Component {
         />
       </layer>
 
-      <layer ref={actionRef} right={0} y="bottom" w={Layout.BUTTON_W} h={{ fill: Layout.BUTTON_INSET_H }} hide>
+      <layer right={0} y="bottom" w={Layout.BUTTON_W} h={{ fill: Layout.BUTTON_INSET_H }} hide={shell}>
         <TobPartydetailsActionButton />
       </layer>
-
-      <TobPartydetailsArrows />
-    </layer>
+    </>
   );
 }
 
@@ -195,17 +201,6 @@ function TobPartydetailsTop(): Component {
         h={Layout.CURRENT_H}
         dragDeadZone={Layout.CURRENT_DRAG_DEAD_ZONE}
       >
-        <rect
-          ref={leaderHighlightRef}
-          x={0}
-          y={0}
-          w="fill"
-          h={Layout.LEADER_H}
-          fill
-          color={TobPartydetailsColor.LEADER}
-          transparency={Layout.LEADER_TRANSPARENCY}
-          hide
-        />
         <TobPartydetailsMembers />
       </layer>
       <TobPartydetailsLoading />
@@ -214,22 +209,23 @@ function TobPartydetailsTop(): Component {
 }
 
 function TobPartydetailsHeader(): Component {
+  const [built] = useState(boardBuilt);
+  const [remaining] = useState(dialRemaining);
+  const [started] = useState(autorefreshStart);
+  const shell: Boolean = built === 0;
+  let pressedAt: Int = 0;
+  if (started >= 0 && remaining === 0) {
+    pressedAt = started + AutoRefresh.CYCLES;
+  }
   return (
-    <layer ref={headerRef} x="center" y={0} w="fill" h={Layout.HEADER_H} hide>
-      <layer
-        ref={refreshRef}
-        x={Layout.REFRESH_X}
-        y="center"
-        w={Layout.REFRESH_W}
-        h={{ fill: Layout.HEADER_ROW_INSET_H }}
-        hide
-      >
-        <BoardButton label={Copy.REFRESH} />
+    <layer x="center" y={0} w="fill" h={Layout.HEADER_H} hide={shell}>
+      <layer x={Layout.REFRESH_X} y="center" w={Layout.REFRESH_W} h={{ fill: Layout.HEADER_ROW_INSET_H }} hide={shell}>
+        <BoardButton label={Copy.REFRESH} pressedAt={pressedAt} />
       </layer>
 
       <layer x={Layout.DIAL_X} y="center" w={Layout.DIAL_W} h="fill">
         <DialModels lit={false} />
-        <TobPartydetailsTimerWipe />
+        <TobPartydetailsTimerWipe remaining={remaining} />
       </layer>
 
       <sprite
@@ -367,28 +363,9 @@ function DialModels({ lit }: { lit: Boolean }): Component {
   );
 }
 
-function TobPartydetailsTimerWipe(): Component {
-  const [startedAt] = useState(refreshStartedAt);
-  const [seen, setSeen] = useState(0);
-
-  let remaining: Int = AutoRefresh.CYCLES;
-  let ticking: Boolean = false;
-  if (startedAt !== -1) {
-    remaining = AutoRefresh.CYCLES - (seen - startedAt);
-    if (remaining < 0) {
-      remaining = 0;
-    }
-    if (remaining > AutoRefresh.CYCLES) {
-      remaining = AutoRefresh.CYCLES;
-    }
-    if (remaining > 0) {
-      ticking = true;
-    }
-  }
-  useInterval(ticking ? () => setSeen(clientClock()) : undefined);
-
+function TobPartydetailsTimerWipe({ remaining }: { remaining: Int }): Component {
   return (
-    <layer ref={timerRef} x={0} y="center" w={(Layout.DIAL_W * remaining) / AutoRefresh.CYCLES} h="fill">
+    <layer x={0} y="center" w={(Layout.DIAL_W * remaining) / AutoRefresh.CYCLES} h="fill">
       <DialModels lit />
     </layer>
   );
@@ -463,8 +440,9 @@ function TobPartydetailsMiddleText(): Component {
 }
 
 function TobPartydetailsSortArea(): Component {
+  const [built] = useState(boardBuilt);
   return (
-    <layer ref={sortareaRef} x="center" y={0} w="fill" h={Layout.SORTAREA_H} hide>
+    <layer x="center" y={0} w="fill" h={Layout.SORTAREA_H} hide={built === 0 || APPLICANT_COUNT <= 0}>
       <TobPartydetailsSortColumn
         x={Layout.SORT_NAME_X}
         w={Layout.SORT_NAME_W}
@@ -610,109 +588,44 @@ function TobPartydetailsSortArrow({ asc, desc, tip }: { asc: Int; desc: Int; tip
 }
 
 function TobPartydetailsArrows(): Component {
+  const [placed] = useState(arrowsPlaced);
   return (
     <layer x={0} y={Layout.ARROWS_Y} w={Layout.ARROWS_W} h={Layout.ARROWS_H}>
-      <sprite
-        ref={p1UpRef}
-        x={Layout.ARROW_UP_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_UP}
-        options={[Copy.MOVE_UP]}
-        hide
-      />
-      <sprite
-        ref={p1DownRef}
-        x={Layout.ARROW_DOWN_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_DOWN}
-        options={[Copy.MOVE_DOWN]}
-        hide
-      />
-      <sprite
-        ref={p2UpRef}
-        x={Layout.ARROW_ALT_UP_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_UP_W}
-        h={Layout.ARROW_UP_H}
-        sprite={TobPartydetailsSprites.MOVE_UP}
-        options={[Copy.MOVE_UP]}
-        hide
-      />
-      <sprite
-        ref={p2DownRef}
-        x={Layout.ARROW_DOWN_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_DOWN}
-        options={[Copy.MOVE_DOWN]}
-        hide
-      />
-      <sprite
-        ref={p3UpRef}
-        x={Layout.ARROW_ALT_UP_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_UP_W}
-        h={Layout.ARROW_UP_H}
-        sprite={TobPartydetailsSprites.MOVE_UP}
-        options={[Copy.MOVE_UP]}
-        hide
-      />
-      <sprite
-        ref={p3DownRef}
-        x={Layout.ARROW_DOWN_X}
-        y={Layout.ARROW_DOWN_Y}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_DOWN}
-        options={[Copy.MOVE_DOWN]}
-        hide
-      />
-      <sprite
-        ref={p4UpRef}
-        x={Layout.ARROW_ALT_UP_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_UP_W}
-        h={Layout.ARROW_UP_H}
-        sprite={TobPartydetailsSprites.MOVE_UP}
-        options={[Copy.MOVE_UP]}
-        hide
-      />
-      <sprite
-        ref={p4DownRef}
-        x={Layout.ARROW_DOWN_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_DOWN}
-        options={[Copy.MOVE_DOWN]}
-        hide
-      />
-      <sprite
-        ref={p5UpRef}
-        x={Layout.ARROW_ALT_UP_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_UP_W}
-        h={Layout.ARROW_UP_H}
-        sprite={TobPartydetailsSprites.MOVE_UP}
-        options={[Copy.MOVE_UP]}
-        hide
-      />
-      <sprite
-        ref={p5DownRef}
-        x={Layout.ARROW_DOWN_X}
-        y={{ center: Layout.ARROW_Y }}
-        w={Layout.ARROW_DOWN_W}
-        h={Layout.ARROW_DOWN_W}
-        sprite={TobPartydetailsSprites.MOVE_DOWN}
-        options={[Copy.MOVE_DOWN]}
-        hide
-      />
+      <ArrowPair index={0} placed={placed} />
+      <ArrowPair index={1} placed={placed} />
+      <ArrowPair index={2} placed={placed} />
+      <ArrowPair index={3} placed={placed} />
+      <ArrowPair index={4} placed={placed} />
     </layer>
+  );
+}
+
+function ArrowPair({ index, placed }: { index: Int; placed: Int }): Component {
+  const live: Boolean = placed === 1 && index < MEMBER_COUNT;
+  const top: Int = index * Layout.ROW_H + Layout.ROW_TOP;
+  const left: Int = ROW_COLUMNS_W + 8;
+  const rightArrow: Int = left + Layout.ARROW_LIVE + 8;
+  return (
+    <>
+      <sprite
+        x={left}
+        y={top}
+        w={Layout.ARROW_LIVE}
+        h={Layout.ARROW_LIVE}
+        sprite={TobPartydetailsSprites.MOVE_UP}
+        options={[Copy.MOVE_UP]}
+        hide={!live}
+      />
+      <sprite
+        x={rightArrow}
+        y={top}
+        w={Layout.ARROW_LIVE}
+        h={Layout.ARROW_LIVE}
+        sprite={TobPartydetailsSprites.MOVE_DOWN}
+        options={[Copy.MOVE_DOWN]}
+        hide={!live}
+      />
+    </>
   );
 }
 
@@ -750,10 +663,6 @@ function TobPartydetailsPlate({
   subject: String;
   table?: Boolean;
 }): Component {
-  const [built] = useState(boardBuilt);
-  if (built === 0) {
-    return null;
-  }
   const text: String = table ? plateMode(label, value) : plateNumber(label, value);
   return (
     <layer w="fill" h="fill">
@@ -779,15 +688,22 @@ function TobPartydetailsPlate({
 
 export function TobPartydetailsFrame(): Component {
   return (
-    <layer ref={frameRef} x="center" y="center" w="fill" h="fill" onLoad={() => resetTobPartydetails()}>
+    <layer ref={frameRef} x="center" y="center" w="fill" h="fill" onLoad={() => loadTobPartydetails()}>
       <TobPartydetailsTitle />
+      <TobPartydetailsTick />
     </layer>
   );
 }
 
+function TobPartydetailsTick(): Component {
+  const [start] = useState(autorefreshStart);
+  useInterval(start >= 0 ? () => tobPartydetailsAutorefresh() : undefined, tickRef);
+  return <layer ref={tickRef} x={0} y={0} w={1} h={1} />;
+}
+
 function TobPartydetailsTitle(): Component {
-  const [built] = useState(boardBuilt);
-  if (built === 0) {
+  const [titled] = useState(partyTitled);
+  if (titled === 0) {
     return null;
   }
   return (
@@ -798,8 +714,9 @@ function TobPartydetailsTitle(): Component {
 }
 
 export function TobPartydetailsBack(): Component {
+  const [built] = useState(boardBuilt);
   return (
-    <layer ref={backRef} x={Layout.BACK_X} y={Layout.BACK_Y} w={Layout.BACK} h={Layout.BACK} hide options={[Copy.BACK]}>
+    <layer x={Layout.BACK_X} y={Layout.BACK_Y} w={Layout.BACK} h={Layout.BACK} hide={built === 0} options={[Copy.BACK]}>
       <TobPartydetailsBackButton />
     </layer>
   );
@@ -846,10 +763,6 @@ function plateRested(target: ComponentId): void {
 }
 
 function TobPartydetailsActionButton(): Component {
-  const [built] = useState(boardBuilt);
-  if (built === 0) {
-    return null;
-  }
   return (
     <layer w="fill" h="fill">
       <BoardButton label={actionLabel()} />
@@ -874,10 +787,6 @@ function actionLabel(): String {
 }
 
 function TobPartydetailsUnblockButton(): Component {
-  const [built] = useState(boardBuilt);
-  if (built === 0 || BoardPacket.role !== PartyRole.LEADER) {
-    return null;
-  }
   return (
     <layer w="fill" h="fill">
       <BoardButton label={Copy.UNBLOCK} />
@@ -887,14 +796,20 @@ function TobPartydetailsUnblockButton(): Component {
 
 function TobPartydetailsMembers(): Component {
   const [built] = useState(boardBuilt);
-  if (built === 0) {
-    return null;
-  }
+  const [titled] = useState(partyTitled);
   return (
     <layer w="fill" h="fill">
-      {MemberPackets.map((line, index) => (
-        <TobPartydetailsMemberRow line={line} index={index} />
-      ))}
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h={Layout.LEADER_H}
+        fill
+        color={TobPartydetailsColor.LEADER}
+        transparency={Layout.LEADER_TRANSPARENCY}
+        hide={titled === 0 || MEMBER_COUNT <= 0}
+      />
+      {built === 1 ? MemberPackets.map((line, index) => <TobPartydetailsMemberRow line={line} index={index} />) : null}
     </layer>
   );
 }
@@ -967,19 +882,59 @@ function TobPartydetailsMemberRow({ line, index }: { line: String; index: Int })
 
 function TobPartydetailsApplicants(): Component {
   const [built] = useState(boardBuilt);
+  const [sort] = useState(raidsListsortDetails);
   if (built === 0) {
     return null;
   }
+  const descending: Boolean = isDescendingSort(sort);
   return (
     <layer w="fill" h="fill">
       {ApplicantPackets.map((line, index) => (
-        <TobPartydetailsApplicantRow line={line} index={index} />
+        <TobPartydetailsApplicantRow
+          line={line}
+          index={index}
+          slot={descending ? APPLICANT_COUNT - 1 - index : index}
+        />
       ))}
     </layer>
   );
 }
 
-function TobPartydetailsApplicantRow({ line, index }: { line: String; index: Int }): Component {
+function isDescendingSort(key: Int): Boolean {
+  if (key === SortKeys.NAME_DESC) {
+    return true;
+  }
+  if (key === SortKeys.COMBAT_DESC) {
+    return true;
+  }
+  if (key === SortKeys.RUNS_DESC) {
+    return true;
+  }
+  if (key === SortKeys.ATTACK_DESC) {
+    return true;
+  }
+  if (key === SortKeys.STRENGTH_DESC) {
+    return true;
+  }
+  if (key === SortKeys.RANGED_DESC) {
+    return true;
+  }
+  if (key === SortKeys.MAGIC_DESC) {
+    return true;
+  }
+  if (key === SortKeys.DEFENCE_DESC) {
+    return true;
+  }
+  if (key === SortKeys.HITPOINTS_DESC) {
+    return true;
+  }
+  if (key === SortKeys.PRAYER_DESC) {
+    return true;
+  }
+  return false;
+}
+
+function TobPartydetailsApplicantRow({ line, index, slot }: { line: String; index: Int; slot: Int }): Component {
   const name: String = pipeHead(line);
   const rest0: String = pipeTail(line);
   const combat: String = pipeHead(rest0);
@@ -1000,7 +955,7 @@ function TobPartydetailsApplicantRow({ line, index }: { line: String; index: Int
   const rest8: String = pipeTail(rest7);
   const runs: String = pipeHead(rest8);
 
-  const top: Int = index * Layout.ROW_H;
+  const top: Int = slot * Layout.ROW_H;
   const wash: Int = rowTransparency(index);
   const ink: Int = rowColor(name);
 
@@ -1130,22 +1085,7 @@ export function TobPartydetailsTooltip(): Component {
       w={shown ? boxW : Layout.TOOLTIP}
       h={shown ? boxH : Layout.TOOLTIP}
     >
-      {shown && <rect x="center" y="center" w="fill" h="fill" fill color={TooltipBox.fill} />}
-      {shown && <rect x="center" y="center" w="fill" h="fill" color={TooltipBox.ink} />}
-      {shown && (
-        <text
-          x="center"
-          y={{ bottom: 0 }}
-          w={{ fill: TooltipBox.padX }}
-          h={{ fill: 1 }}
-          text={text}
-          align="left"
-          valign="top"
-          lineHeight={0}
-          font={TooltipBox.font}
-          color={TooltipBox.ink}
-        />
-      )}
+      {shown && <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />}
     </layer>
   );
 }

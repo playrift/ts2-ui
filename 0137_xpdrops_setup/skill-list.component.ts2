@@ -1,0 +1,155 @@
+import { useRef, useState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StonePanelEntrypoint } from '../0648_target_streaks/stone-panel-entrypoint.component';
+import { SkillByIndex, SkillIcons, SkillNames } from '../lib/skills.data';
+import { selectSkillRow, xpdropsDataGet, xpdropsToString, xpdropsToStringThousands } from './xpdrops-setup.state';
+import {
+  XpdropsBar,
+  XpdropsColor,
+  XpdropsFont,
+  XpdropsLayout,
+  XpdropsSprite,
+  XpdropsWash,
+} from './xpdrops-setup.constants';
+
+export function XpdropsSkillList(): Component {
+  const pane = useRef();
+
+  return (
+    <layer x="center" y="bottom" w="fill" h={{ fill: XpdropsLayout.status.drop }}>
+      <sprite x="center" y="top" w="fill" h="fill" sprite={XpdropsSprite.PANEL} tiling />
+
+      <layer
+        ref={pane}
+        x={XpdropsLayout.status.listX}
+        y="center"
+        w={{ fill: XpdropsLayout.status.listInset }}
+        h={{ fill: 8 }}
+        scrollHeight={XpdropsLayout.row.contentH > XpdropsLayout.row.paneH ? XpdropsLayout.row.contentH : 0}
+        scrollY={0}
+      >
+        {SkillRows.map((row) => (
+          <XpdropsSkillWash index={row} />
+        ))}
+
+        {SkillRows.map((row) => (
+          <XpdropsSkillRow index={row} />
+        ))}
+      </layer>
+
+      <layer x={{ right: XpdropsLayout.status.listX }} y="center" w={XpdropsLayout.status.barW} h={{ fill: 8 }}>
+        <ScrollbarVertical
+          content={pane}
+          track={XpdropsBar.track}
+          capTopSprite={XpdropsBar.capTop}
+          thumbSprite={XpdropsBar.thumb}
+          capBottomSprite={XpdropsBar.capBottom}
+          arrowUp={XpdropsBar.arrowUp}
+          arrowDown={XpdropsBar.arrowDown}
+        />
+      </layer>
+
+      <StonePanelEntrypoint divider={-1} />
+    </layer>
+  );
+}
+
+const SkillRows = listOf<Int>([
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+]);
+
+function XpdropsSkillWash({ index }: { index: Int }): Component {
+  const total: Boolean = index >= XpdropsLayout.row.count - 1;
+  const name: String = total ? 'Total XP' : skillNameAt(index);
+  const even: Boolean = index % 2 === 0;
+  const base: Int = even ? XpdropsColor.WHITE : XpdropsColor.BLACK;
+  const wash: Int = even ? XpdropsWash.FULL : XpdropsWash.ROW_HOVER;
+  const [hovered, setHovered] = useState(0);
+
+  return (
+    <rect
+      x="center"
+      y={index * XpdropsLayout.row.h}
+      w="fill"
+      h={XpdropsLayout.row.h}
+      fill
+      color={hovered === 1 ? XpdropsColor.WHITE : base}
+      transparency={hovered === 1 ? XpdropsWash.ROW_HOVER : wash}
+      options={['Configure']}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onMouseEnter={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          setHovered(0);
+        }
+      }}
+      onOptionSelect={() => selectSkillRow(index)}
+    />
+  );
+}
+
+function XpdropsSkillRow({ index }: { index: Int }): Component {
+  const total: Boolean = index >= XpdropsLayout.row.count - 1;
+  const skill: Skill = SkillByIndex.get(index + 1) ?? 0;
+  const top: Int = index * XpdropsLayout.row.h;
+
+  return (
+    <>
+      <sprite
+        x="left"
+        y={top}
+        w={XpdropsLayout.row.iconSize}
+        h={XpdropsLayout.row.iconSize}
+        sprite={total ? XpdropsSprite.TOTAL_XP : (SkillIcons.get(skill) ?? -1)}
+      />
+      <text
+        x={XpdropsLayout.row.nameX}
+        y={top}
+        w={XpdropsLayout.row.nameW}
+        h={XpdropsLayout.row.h}
+        text={total ? 'Total XP' : (SkillNames.get(skill) ?? 'Skill')}
+        font={XpdropsFont.VALUE}
+        color={XpdropsColor.LABEL_HOT}
+        align="left"
+        valign="middle"
+        shadow
+      />
+      <text
+        x="right"
+        y={top}
+        w={{ fill: XpdropsLayout.row.statusInset }}
+        h={XpdropsLayout.row.statusH}
+        text={rowStatus(index, total)}
+        font={XpdropsFont.STATUS}
+        color={XpdropsColor.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function skillNameAt(index: Int): String {
+  const skill: Skill = SkillByIndex.get(index + 1) ?? 0;
+  return SkillNames.get(skill) ?? 'Skill';
+}
+
+function rowStatus(index: Int, total: Boolean): String {
+  const [start, end] = xpdropsDataGet(index);
+  const startText: String = total ? xpdropsToStringThousands(start) : xpdropsToString(start, 0);
+  const endText: String = total ? xpdropsToStringThousands(end) : xpdropsToString(end, 0);
+  if (end === -1) {
+    return `Tracking XP since <col=ffffff>${startText}</col>.`;
+  }
+  if (end > start) {
+    return `Goal is <col=ffffff>${endText}</col>, starting from <col=ffffff>${startText}</col>.`;
+  }
+  return 'No tracker or goal set.';
+}

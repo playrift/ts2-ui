@@ -1,0 +1,520 @@
+import { CS2, predictServerState, useInterval, useServerState, useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { Varps } from '../lib/game/varps';
+import { clientClock, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  TooltipBox,
+  TooltipChrome,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+} from '../lib/tooltip.component';
+import { onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { onEnhancedAny } from '../0091_clanwars_setup/clanwars-setup.helpers';
+
+import { MasteryColour, MasterySprites } from './league-combat-mastery.constants';
+import {
+  CombatMasteries,
+  PipsLargeOff,
+  PipsLargeOn,
+  PipsSmallOff,
+  PipsSmallOn,
+  SparkFramesMastery,
+  SparkFramesTutorial,
+} from './league-combat-mastery.data';
+import { STYLES, TIERS, masteryState, masteryTab, masteryView } from './league-combat-mastery.helpers';
+import { masteryHover, masteryTipIndex } from './league-combat-mastery.state';
+
+const MASTERIES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] as const;
+
+function breakpoint(): Int {
+  const [value] = useState(responsiveCurrentBreakpoint);
+  return value;
+}
+
+function large(bp: Int): Boolean {
+  return bp === 2 || bp === 3;
+}
+
+function startSize(bp: Int): Int {
+  return large(bp) ? 96 : 49;
+}
+
+function iconSize(bp: Int): Int {
+  return large(bp) ? 74 : 40;
+}
+
+function leftMargin(bp: Int): Int {
+  return startSize(bp) + 4;
+}
+
+function columnWidth(paneW: Int, bp: Int): Int {
+  return (paneW + 6 - leftMargin(bp)) / TIERS;
+}
+
+function rowHeight(paneH: Int): Int {
+  return (paneH - 6) / STYLES;
+}
+
+function cellX(index: Int, paneW: Int, bp: Int): Int {
+  return leftMargin(bp) + columnWidth(paneW, bp) * (index % TIERS);
+}
+
+function cellY(index: Int, paneH: Int): Int {
+  return rowHeight(paneH) * (index / TIERS);
+}
+
+function pip(tier: Int, on: Boolean, bp: Int): Sprite {
+  if (large(bp)) {
+    return on ? (PipsLargeOn.get(tier) ?? -1) : (PipsLargeOff.get(tier) ?? -1);
+  }
+  return on ? (PipsSmallOn.get(tier) ?? -1) : (PipsSmallOff.get(tier) ?? -1);
+}
+
+function icon(index: Int, on: Boolean, bp: Int): Sprite {
+  const row = CombatMasteries.at(index);
+  if (row === null) {
+    return -1;
+  }
+  if (large(bp)) {
+    return on ? row.iconLargeOn : row.iconLargeOff;
+  }
+  return on ? row.iconOn : row.iconOff;
+}
+
+function pathColour(state: Int): Int {
+  if (state === 1) {
+    return MasteryColour.PATH_SELECTABLE;
+  }
+  if (state === 2) {
+    return MasteryColour.PATH_UNLOCKED;
+  }
+  return MasteryColour.PATH_LOCKED;
+}
+
+function onPaths(): Boolean {
+  return masteryTab() === 0;
+}
+
+export function MasteryBackgrounds(): Component {
+  return null;
+}
+
+export function MasteryStart(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  return (
+    <>
+      <rect x={leftMargin(bp)} y={0} w={columnWidth(box.width, bp)} h={box.height} transparency={255} />
+      <rect x={leftMargin(bp)} y={0} w="fill" h={rowHeight(box.height)} transparency={255} />
+    </>
+  );
+}
+
+function segmentX(index: Int, paneW: Int, bp: Int): Int {
+  if (index % TIERS > 0) {
+    return cellX(index, paneW, bp) - iconSize(bp) / 2 - 10;
+  }
+  return cellX(index, paneW, bp) - startSize(bp) / 2;
+}
+
+function segmentW(index: Int, paneW: Int, bp: Int): Int {
+  if (index % TIERS > 0) {
+    return columnWidth(paneW, bp);
+  }
+  return columnWidth(paneW, bp) - 5;
+}
+
+export function MasteryPaths(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const vx: Int = leftMargin(bp) - startSize(bp) / 2;
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <rect
+          x={segmentX(index, box.width, bp) - 2}
+          y={cellY(index, box.height) + row / 2 - 2}
+          w={segmentW(index, box.width, bp) + 4}
+          h={6}
+          fill
+          color={MasteryColour.BLACK}
+        />
+      ))}
+      <rect x={vx - 2} y={row / 2 - 2} w={6} h={row + 4} fill color={MasteryColour.BLACK} />
+      <rect x={vx - 2} y={row * 2 + 2 - row / 2 - 2} w={6} h={row - 1 + 4} fill color={MasteryColour.BLACK} />
+    </>
+  );
+}
+
+export function MasteryLines(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const start: Int = startSize(bp);
+  const vx: Int = leftMargin(bp) - start / 2;
+  const lift: Int = large(bp) ? 5 : 2;
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <rect
+          x={segmentX(index, box.width, bp)}
+          y={cellY(index, box.height) + row / 2}
+          w={segmentW(index, box.width, bp)}
+          h={2}
+          fill
+          color={pathColour(masteryState(index))}
+        />
+      ))}
+      <rect x={vx} y={row / 2} w={2} h={row} fill color={pathColour(masteryState(0))} />
+      <rect x={vx} y={row * 2 + 2 - row / 2} w={2} h={row - 1} fill color={pathColour(masteryState(TIERS * 2))} />
+      <sprite
+        x={5}
+        y={(row * 3) / 2 - start / 2 - lift}
+        w={start}
+        h={start}
+        sprite={large(bp) ? MasterySprites.START_LARGE : MasterySprites.START}
+      />
+    </>
+  );
+}
+
+export function MasteryFrames(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const size: Int = iconSize(bp);
+  const frameW: Int = large(bp) ? 78 : 44;
+  const frameH: Int = large(bp) ? 96 : 50;
+  const [hover] = useState(masteryHover);
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <layer x={0} y={0} w="fill" h="fill">
+          {masteryState(index) === 1 ? (
+            <PulsingFrame
+              x={cellX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2 - 2}
+              y={cellY(index, box.height) + row / 2 - size / 2 - 2}
+              w={frameW}
+              h={frameH}
+              sprite={large(bp) ? MasterySprites.FRAME_SELECTABLE_LARGE : MasterySprites.FRAME_SELECTABLE}
+            />
+          ) : (
+            <sprite
+              x={cellX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2 - 2}
+              y={cellY(index, box.height) + row / 2 - size / 2 - 2}
+              w={frameW}
+              h={frameH}
+              sprite={large(bp) ? MasterySprites.FRAME_LARGE : MasterySprites.FRAME}
+              transparency={frameFade(masteryState(index), hover === index)}
+            />
+          )}
+        </layer>
+      ))}
+    </>
+  );
+}
+
+function frameFade(state: Int, hovered: Boolean): Int {
+  if (state === 2) {
+    return hovered ? 0 : 127;
+  }
+  return hovered ? 127 : 255;
+}
+
+function PulsingFrame({ x, y, w, h, sprite }: { x: Int; y: Int; w: Int; h: Int; sprite: Sprite }): Component {
+  const [fires, setFires] = useState(0);
+  useInterval(() => setFires(fires + 1));
+  const step: Int = fires === 0 ? 0 : triangle(fires - 1);
+  return <sprite x={x} y={y} w={w} h={h} sprite={sprite} transparency={(step * 255) / 30} />;
+}
+
+function triangle(n: Int): Int {
+  const phase: Int = n % 60;
+  if (phase <= 30) {
+    return phase;
+  }
+  return 60 - phase;
+}
+
+export function MasteryIcons(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const size: Int = iconSize(bp);
+  const [hover] = useState(masteryHover);
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <sprite
+          x={cellX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2}
+          y={cellY(index, box.height) + row / 2 - size / 2}
+          w={size}
+          h={size}
+          sprite={icon(index, lit(masteryState(index), hover === index), bp)}
+        />
+      ))}
+    </>
+  );
+}
+
+function lit(state: Int, hovered: Boolean): Boolean {
+  if (state === 2) {
+    return true;
+  }
+  if (state === 1 && hovered) {
+    return true;
+  }
+  return false;
+}
+
+export function MasteryPips(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const size: Int = large(bp) ? 32 : 16;
+  const [hover] = useState(masteryHover);
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <sprite
+          x={cellX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2}
+          y={cellY(index, box.height) + row / 2 + scaled(72, 100, size)}
+          w={size}
+          h={size}
+          sprite={pip((index % TIERS) + 1, lit(masteryState(index), hover === index), bp)}
+        />
+      ))}
+    </>
+  );
+}
+
+export function MasterySparks(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const start: Int = startSize(bp);
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <layer x={0} y={0} w="fill" h="fill">
+          {masteryState(index) === 2 && (
+            <Spark
+              x={cellX(index, box.width, bp) + 3}
+              y={cellY(index, box.height) + row / 2 - 16}
+              slot={index}
+              tutorial={false}
+            />
+          )}
+        </layer>
+      ))}
+      <layer x={0} y={0} w="fill" h="fill">
+        <Spark x={start / 2 - 10} y={(row * 3) / 2 - start / 2 - (large(bp) ? -12 : 2)} slot={18} tutorial />
+      </layer>
+    </>
+  );
+}
+
+function Spark({ x, y, slot, tutorial }: { x: Int; y: Int; slot: Int; tutorial: Boolean }): Component {
+  const [left, setLeft] = useState(-1);
+  const [frame, setFrame] = useState(0);
+  const [shown, setShown] = useState(-1);
+  const [flip, setFlip] = useState(0);
+  useInterval(() => {
+    let remaining: Int = left === -1 ? CS2.randominc(300) + 100 : left;
+    let next: Int = frame;
+    const sprite: Sprite = tutorial ? (SparkFramesTutorial.at(frame) ?? -1) : (SparkFramesMastery.at(frame) ?? -1);
+    remaining = remaining - 1;
+    if (remaining <= 0) {
+      setShown(sprite as Int);
+      if (sprite === -1) {
+        next = 0;
+        remaining = slot + 30 + CS2.randominc(400) + 100;
+        setFlip(CS2.randominc(1));
+      } else {
+        next = frame + 1;
+        remaining = 4 + CS2.randominc(1);
+      }
+    }
+    if (remaining === 10) {
+      sparkSound();
+    }
+    setFrame(next);
+    setLeft(remaining);
+  });
+  return <sprite x={x} y={y} w={32} h={32} sprite={shown as Sprite} hflip={flip === 1} />;
+}
+
+function sparkSound(): void {
+  const last: Int = useServerState(Varps.LEAGUES_5_UI_SPARK_TRACKER);
+  let pick: Int = 12;
+  if (clientClock() - last > 120) {
+    pick = clientClock() % 5;
+    if (last === 0) {
+      predictServerState(Varps.LEAGUES_5_UI_SPARK_TRACKER, clientClock());
+    } else {
+      predictServerState(Varps.LEAGUES_5_UI_SPARK_TRACKER, last + 60);
+    }
+  }
+  if (pick === 0) {
+    CS2.sound_effect(10060, 1, 0);
+  }
+  if (pick === 1) {
+    CS2.sound_effect(10061, 1, 0);
+  }
+  if (pick === 2) {
+    CS2.sound_effect(10053, 1, 0);
+  }
+  if (pick === 3) {
+    CS2.sound_effect(10058, 1, 0);
+  }
+  if (pick === 4) {
+    CS2.sound_effect(10052, 1, 0);
+  }
+}
+
+export function MasteryClicks(): Component {
+  if (!onPaths()) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const row: Int = rowHeight(box.height);
+  const column: Int = columnWidth(box.width, bp);
+  const mobile: Boolean = onMobile();
+  const [, setHover] = useState(masteryHover);
+  return (
+    <>
+      {MASTERIES.map((index) => (
+        <rect
+          x={scaled(10, 100, column) + cellX(index, box.width, bp)}
+          y={scaled(10, 100, row) + cellY(index, box.height)}
+          w={scaled(70, 100, column)}
+          h={scaled(70, 100, row)}
+          fill
+          transparency={255}
+          options={['View']}
+          optionSubject={`<col=ff981f>${masteryName(index)}</col>`}
+          onOptionSelect={() => masteryView()}
+          onMouseRepeat={
+            mobile
+              ? undefined
+              : () => {
+                  setHover(index);
+                  masteryTipShow(index);
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : () => {
+                  setHover(-1);
+                  masteryTipHide();
+                }
+          }
+        />
+      ))}
+    </>
+  );
+}
+
+function masteryName(index: Int): String {
+  const row = CombatMasteries.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+function masteryTipShow(index: Int): void {
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(25)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const [, setTip] = useState(masteryTipIndex);
+  setTip(index);
+  tooltipRaise();
+}
+
+function masteryTipHide(): void {
+  tooltipHide();
+  const [, setTip] = useState(masteryTipIndex);
+  setTip(-1);
+}
+
+export function MasteryTooltip({
+  contentX,
+  contentY,
+  contentW,
+  contentH,
+}: {
+  contentX: Int;
+  contentY: Int;
+  contentW: Int;
+  contentH: Int;
+}): Component {
+  const [tip] = useState(masteryTipIndex);
+  if (tip < 0) {
+    return null;
+  }
+  const host = useUniverse();
+  const bp: Int = breakpoint();
+  const row = CombatMasteries.at(tip);
+  const text: String = row === null ? '' : row.description;
+  const measure: Int = Math.min(200, host.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+  const paneW: Int = contentW - 6;
+  const paneH: Int = contentH - 47 - 23;
+  const column: Int = columnWidth(paneW, bp);
+  const cell: Int = rowHeight(paneH);
+  const anchorX: Int = contentX + 3 + scaled(10, 100, column) + cellX(tip, paneW, bp);
+  const anchorY: Int = contentY + 47 + 23 + scaled(10, 100, cell) + cellY(tip, paneH);
+  const anchorH: Int = scaled(70, 100, cell);
+  const below: Int = anchorY + anchorH + TooltipBox.nudge;
+  return (
+    <layer
+      x={Math.min(anchorX + TooltipBox.nudge, host.width - boxW)}
+      y={below > host.height - boxH ? anchorY - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+    >
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}

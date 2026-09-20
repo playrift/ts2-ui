@@ -1,0 +1,64 @@
+import { onMounted, onUpdated, useServerState, useState } from 'ts2';
+
+import {
+  BankView,
+  BanksideVarbits,
+  BanksideVarps,
+  itemsContainer,
+  lootingBagContainer,
+  prepotContainer,
+  runepouchContainer,
+  runepouchNameSelectContainer,
+  runepouchSelectContainer,
+  secondInvContainer,
+} from './bankside.constants';
+import { banksideViewAsked, prepotDeviceShow, secondInventoryAvailable, setView } from './bankside.helpers';
+import { runeNamePickerOpen, runePickerOpen } from './bankside.state';
+
+export function BanksideViewSwitch(): Component {
+  const view: Int = useServerState(BanksideVarbits.VIEW);
+  const obj: Item = useServerState(BanksideVarps.BANK_VIEWCONTAINER_OBJ) as Item;
+  const [pickerOpen] = useState(runePickerOpen);
+  const [namePickerOpen] = useState(runeNamePickerOpen);
+
+  const asked: Int = banksideViewAsked(view, obj);
+  const pouchAsked: Boolean = asked === BankView.RUNE_POUCH;
+  const pickerShown: Boolean = pouchAsked && pickerOpen === 1;
+  const pickerStale: Boolean = !pouchAsked && pickerOpen === 1;
+  const namesShown: Boolean = namePickerOpen === 1;
+
+  onMounted(() => applyView(asked, pouchAsked, pickerShown, pickerStale, namesShown, obj));
+  onUpdated(() => applyView(asked, pouchAsked, pickerShown, pickerStale, namesShown, obj));
+
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function applyView(
+  asked: Int,
+  pouchAsked: Boolean,
+  pickerShown: Boolean,
+  pickerStale: Boolean,
+  namesShown: Boolean,
+  obj: Item,
+): void {
+  let shown: Int = asked;
+  if (asked === BankView.SECOND_INVENTORY && secondInventoryAvailable() !== 1) {
+    shown = BankView.ITEMS;
+    setView(BankView.ITEMS, -1);
+  }
+  if (shown === BankView.PREPOT_DEVICE) {
+    prepotDeviceShow(obj);
+  }
+  if (pickerStale) {
+    const [, setPicker] = useState(runePickerOpen);
+    setPicker(0);
+  }
+
+  itemsContainer.props = { hide: shown !== BankView.ITEMS };
+  lootingBagContainer.props = { hide: shown !== BankView.LOOTING_BAG };
+  secondInvContainer.props = { hide: shown !== BankView.SECOND_INVENTORY };
+  runepouchContainer.props = { hide: !pouchAsked };
+  prepotContainer.props = { hide: shown !== BankView.PREPOT_DEVICE };
+  runepouchSelectContainer.props = { hide: !pickerShown };
+  runepouchNameSelectContainer.props = { hide: !namesShown };
+}

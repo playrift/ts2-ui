@@ -1,52 +1,99 @@
-import { useRef, useServerState } from 'ts2';
-import { playerCoord } from '../lib/lib.engine';
-import { DestinationIcon } from './destination-icon.component';
-import { Layout, Marker, QuetzalArt, QuetzalVarps } from './quetzalwhistle-menu.constants';
+import { useServerState, useServerStateOnce, useState } from 'ts2';
+import { hasBit, playerCoord } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Facts, Layout, Marker, QuetzalArt, QuetzalSounds, QuetzalVarps } from './quetzalwhistle-menu.constants';
 import { Quetzals } from './quetzalwhistle-menu.data';
-import { coordDistance, quetzalUnlocked } from './quetzalwhistle-menu.helpers';
+import { quetzalFacts, soundSynth } from './quetzalwhistle-menu.helpers';
 
 export function QuetzalMap(): Component {
-  const unlockedBits: Int = useServerState(QuetzalVarps.UNLOCKED);
-  const here: Coord = playerCoord();
+  const facts: Int = useServerStateOnce(() => quetzalFacts(useServerState(QuetzalVarps.UNLOCKED), playerCoord()));
 
-  const selectedBack = useRef();
-  const selectedFront = useRef();
-  const selectedLocked = useRef();
-  const selectedCurrent = useRef();
+  const [markRow, setMarkRow] = useState(-1);
+  const [plateUp, setPlateUp] = useState(0);
+  const [badgeUp, setBadgeUp] = useState(0);
+  const [ringUp, setRingUp] = useState(0);
+  const [picked, setPicked] = useState(0);
+
+  const mark = Quetzals.at(Math.max(markRow, 0));
+  const markX: Int = mark === null ? Marker.x : Marker.x + mark.x;
+  const markY: Int = mark === null ? Marker.y : Marker.y + mark.y;
+  const markModel: Model = mark === null ? QuetzalArt.SELECTION_PLATE : mark.model;
 
   return (
     <>
       <layer x={Layout.icons.x} y={{ bottom: Layout.icons.y }} w={Layout.icons.w} h={Layout.icons.h}>
-        {Quetzals.map((destination) => (
-          <DestinationIcon
-            name={destination.name}
+        {Quetzals.map((destination, row) => (
+          <model
+            x={destination.x}
+            y={{ bottom: destination.y }}
+            w={Layout.icon.size}
+            h={Layout.icon.size}
             model={destination.model}
-            dx={destination.x}
-            dy={destination.y}
-            unlocked={quetzalUnlocked(destination.id, destination.autoUnlocked, unlockedBits)}
-            near={coordDistance(here, destination.coord) <= 10 ? 1 : 0}
-            back={selectedBack}
-            front={selectedFront}
-            locked={selectedLocked}
-            current={selectedCurrent}
+            pitch={Layout.icon.pitch}
+            zoom={Layout.icon.zoom}
+            orthogonal
+            noClickThrough
+            options={[destination.name]}
+            onMouseRepeat={
+              hasBit(picked, row)
+                ? undefined
+                : () => {
+                    setMarkRow(row);
+                    setPlateUp(1);
+                    setBadgeUp(hasBit(facts, row) ? 1 : 0);
+                    setRingUp(hasBit(facts, Facts.NEAR + row) ? 1 : 0);
+                  }
+            }
+            onMouseEnter={
+              hasBit(picked, row)
+                ? undefined
+                : () => {
+                    if (!onMobile()) {
+                      soundSynth(QuetzalSounds.HOVER, 1, 0);
+                    }
+                  }
+            }
+            onMouseLeave={
+              hasBit(picked, row)
+                ? undefined
+                : () => {
+                    setPlateUp(0);
+                    setRingUp(0);
+                  }
+            }
+            onOptionSelect={
+              hasBit(picked, row)
+                ? undefined
+                : () => {
+                    soundSynth(QuetzalSounds.SELECT, 1, 0);
+                    setPicked(picked | Math.pow(2, row));
+                    setMarkRow(row);
+                    setPlateUp(1);
+                    if (hasBit(facts, row)) {
+                      setBadgeUp(1);
+                    }
+                    if (hasBit(facts, Facts.NEAR + row)) {
+                      setRingUp(1);
+                    }
+                  }
+            }
           />
         ))}
-        {Quetzals.filter((destination) => !quetzalUnlocked(destination.id, destination.autoUnlocked, unlockedBits)).map(
-          (destination) => (
-            <model
-              x={destination.x}
-              y={{ bottom: destination.y }}
-              w={Layout.icon.size}
-              h={Layout.icon.size}
-              model={QuetzalArt.LOCKED}
-              pitch={Layout.icon.pitch}
-              zoom={Layout.icon.zoom}
-              orthogonal
-            />
-          ),
-        )}
+        {Quetzals.map((destination, row) => (
+          <model
+            x={destination.x}
+            y={{ bottom: destination.y }}
+            w={Layout.icon.size}
+            h={Layout.icon.size}
+            model={QuetzalArt.LOCKED}
+            pitch={Layout.icon.pitch}
+            zoom={Layout.icon.zoom}
+            orthogonal
+            hide={!hasBit(facts, row)}
+          />
+        ))}
 
-        {Quetzals.filter((destination) => coordDistance(here, destination.coord) <= 10).map((destination) => (
+        {Quetzals.map((destination, row) => (
           <model
             x={destination.x}
             y={{ bottom: destination.y }}
@@ -56,53 +103,54 @@ export function QuetzalMap(): Component {
             pitch={Layout.icon.pitch}
             zoom={Layout.icon.zoom}
             orthogonal
+            hide={!hasBit(facts, Facts.NEAR + row)}
           />
         ))}
       </layer>
 
       <model
-        ref={selectedBack}
-        y={{ bottom: 0 }}
+        x={markX}
+        y={{ bottom: markY }}
         w={Layout.icon.size}
         h={Layout.icon.size}
         model={QuetzalArt.SELECTION_PLATE}
         pitch={Layout.icon.pitch}
         zoom={Layout.icon.zoom}
         orthogonal
-        hide
+        hide={plateUp === 0}
       />
       <model
-        ref={selectedFront}
-        y={{ bottom: 0 }}
+        x={markX}
+        y={{ bottom: markY }}
         w={Layout.icon.size}
         h={Layout.icon.size}
-        model={QuetzalArt.SELECTION_PLATE}
+        model={markModel}
         pitch={Layout.icon.pitch}
         zoom={Layout.icon.zoom}
         orthogonal
-        hide
+        hide={plateUp === 0}
       />
       <model
-        ref={selectedLocked}
-        y={{ bottom: 0 }}
+        x={markX}
+        y={{ bottom: markY }}
         w={Layout.icon.size}
         h={Layout.icon.size}
         model={QuetzalArt.LOCKED}
         pitch={Layout.icon.pitch}
         zoom={Layout.icon.zoom}
         orthogonal
-        hide
+        hide={badgeUp === 0}
       />
       <model
-        ref={selectedCurrent}
-        y={{ bottom: 0 }}
+        x={markX}
+        y={{ bottom: markY }}
         w={Layout.icon.size}
         h={Layout.icon.size}
         model={QuetzalArt.HERE_RING}
         pitch={Layout.icon.pitch}
         zoom={Layout.icon.zoom}
         orthogonal
-        hide
+        hide={ringUp === 0}
       />
     </>
   );

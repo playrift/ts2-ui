@@ -1,0 +1,574 @@
+import { useDerived, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { defaultQuantityLabel } from '../0012_bankmain/bankmain.helpers';
+import { pouchSlotCount, pouchSlotRune } from '../0106_zmi_bank_payment/zmi-bank-payment.helpers';
+import { ZmiRunes } from '../0106_zmi_bank_payment/zmi-runes.data';
+import { flashFor } from '../lib/lib.components';
+import { scaled } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { LoadoutNameOrder, LoadoutNames } from './bankside-loadout-names.data';
+import {
+  hoverFade,
+  hoverFadeUnlessMobile,
+  loadoutCap,
+  loadoutNameId,
+  loadoutRuneAvailable,
+  loadoutRuneIndex,
+  openNamePicker,
+  openRunePicker,
+  pickLoadoutName,
+  pickRune,
+  pouchModelItem,
+  pouchReorder,
+} from './bankside-runepouch.helpers';
+import {
+  BankView,
+  BanksideColor,
+  BanksideFonts,
+  BanksideItems,
+  BanksideSprites,
+  BanksideVarbits,
+  Grid,
+  HoverFade,
+  Pouch,
+  Wash,
+  runepouchLoadoutContainer,
+  runepouchNameSelectList,
+  runepouchSelectList,
+} from './bankside.constants';
+import { orangeName } from './bankside.helpers';
+
+const PouchSlots = [1, 2, 3, 4] as const;
+const Loadouts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+
+function PouchStripSlot({
+  slot,
+  rune,
+  count,
+  shown,
+  x,
+  slots,
+  depositDefault,
+  depositOne,
+  depositRequested,
+}: {
+  slot: Int;
+  rune: ItemName;
+  count: Int;
+  shown: Boolean;
+  x: Int;
+  slots: Int;
+  depositDefault: String;
+  depositOne: String;
+  depositRequested: String;
+}): Component {
+  const filled: Boolean = rune !== -1;
+  return (
+    <sprite
+      x={x}
+      y="center"
+      w={Grid.W}
+      h={Grid.H}
+      hide={!shown}
+      item={filled ? rune : BanksideItems.BLANK}
+      itemCount={filled ? count : 1}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={filled ? Wash.CLEAR : Wash.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={
+        filled
+          ? [
+              depositDefault,
+              depositOne,
+              'Deposit-5',
+              'Deposit-10',
+              depositRequested,
+              'Deposit-X',
+              'Deposit-All',
+              '',
+              '',
+              'Examine',
+            ]
+          : undefined
+      }
+      optionSubject={filled ? orangeName(rune as Item) : ''}
+      onOptionSelect={(event) => flashFor(event.self, Wash.FLASH, Wash.CLEAR)}
+      onDragComplete={(event) =>
+        pouchReorder(event.component, event.dragTarget, event.subId, event.dragTargetSubId, slots)
+      }
+    />
+  );
+}
+
+function PouchStripGhost({ shown, empty, x }: { shown: Boolean; empty: Boolean; x: Int }): Component {
+  return (
+    <sprite
+      x={x}
+      y="center"
+      w={Grid.W}
+      h={Grid.H}
+      hide={!(shown && empty)}
+      item={BanksideItems.LIME_DUMMY}
+      itemCount={1}
+      itemCountMode="never"
+      transparency={Wash.DIM}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+    />
+  );
+}
+
+export function RunePouchTop(): Component {
+  const universe = useUniverse();
+  const view: Int = useServerState(BanksideVarbits.VIEW);
+  const quantityType: Int = useServerState(BanksideVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(BanksideVarbits.REQUESTED_QUANTITY);
+  const slots: Int = view === BankView.RUNE_POUCH ? Pouch.BH_SLOTS : Pouch.SLOTS;
+  const gap: Int = (universe.width - (Pouch.MODEL + Pouch.MODEL_GAP + Grid.W * slots)) / slots;
+  const depositDefault: String = `Deposit-${defaultQuantityLabel(quantityType, requested)}`;
+  const depositOne: String = quantityType !== 0 ? 'Deposit-1' : '';
+  const depositRequested: String = requested > 0 ? `Deposit-${requested}` : '';
+
+  return (
+    <>
+      <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      {PouchSlots.map((slot) => (
+        <PouchStripSlot
+          slot={slot}
+          rune={pouchSlotRune(slot)}
+          count={pouchSlotCount(slot)}
+          shown={slot <= slots}
+          slots={slots}
+          depositDefault={depositDefault}
+          depositOne={depositOne}
+          depositRequested={depositRequested}
+          x={Pouch.MODEL + Pouch.MODEL_GAP + (slot - 1) * (gap + Grid.W)}
+        />
+      ))}
+      {PouchSlots.map((slot) => (
+        <PouchStripGhost
+          shown={slot <= slots}
+          empty={pouchSlotRune(slot) === -1}
+          x={Pouch.MODEL + Pouch.MODEL_GAP + (slot - 1) * (gap + Grid.W)}
+        />
+      ))}
+      <model
+        x={0}
+        y="center"
+        w={Pouch.MODEL}
+        h={Pouch.MODEL}
+        item={pouchModelItem(view)}
+        itemCount={1}
+        itemCountMode="never"
+      />
+    </>
+  );
+}
+
+function LoadButton(): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+  return (
+    <layer
+      x={0}
+      y={{ bottom: Pouch.LOAD_BOTTOM }}
+      w={Pouch.LOAD_W}
+      h={Pouch.LOAD_H}
+      options={['Load']}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      {skin === 1 ? (
+        <StoneButtonPressedFilled>
+          <sprite
+            x="center"
+            y="center"
+            w={Pouch.LOAD_ICON}
+            h={Pouch.LOAD_ICON}
+            sprite={BanksideSprites.LOAD_ICON}
+            transparency={Pouch.LOAD_ICON_PRESSED}
+          />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <sprite
+            x="center"
+            y="center"
+            w={Pouch.LOAD_ICON}
+            h={Pouch.LOAD_ICON}
+            sprite={BanksideSprites.LOAD_ICON}
+            transparency={Pouch.LOAD_ICON_REST}
+          />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}
+
+function LoadoutName({ loadout }: { loadout: Int }): Component {
+  const label = useRef();
+  const nameId: Int = useDerived(() => loadoutNameId(loadout));
+  const name: String = LoadoutNames.at(nameId) ?? '';
+  return (
+    <layer
+      x={Pouch.NAME_X}
+      y={0}
+      w={{ fill: Pouch.NAME_INSET_W }}
+      h={Pouch.NAME_H}
+      options={['Change loadout name']}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          label.color = BanksideColor.WHITE;
+        }
+      }}
+      onMouseLeave={() => {
+        label.color = BanksideColor.LABEL;
+      }}
+      onOptionSelect={() => openNamePicker(loadout)}
+    >
+      <sprite x="center" y={{ bottom: 0 }} w="fill" h="fill" sprite={BanksideSprites.BACKING} tiling />
+      <text
+        ref={label}
+        x="center"
+        y={0}
+        w="fill"
+        h="fill"
+        text={name}
+        font={BanksideFonts.BODY}
+        color={BanksideColor.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function LoadoutSlot({ loadout, slot, slots, gap }: { loadout: Int; slot: Int; slots: Int; gap: Int }): Component {
+  if (slot > slots) {
+    return null;
+  }
+  const right: Int = gap + (slots - slot) * (Grid.W + gap) - 1;
+  const index: Int = useDerived(() => loadoutRuneIndex(loadout, slot));
+  const cap: Int = useDerived(() => loadoutCap(loadout, slot));
+  const rune: ItemName = ZmiRunes.get(index) ?? -1;
+  const available: Boolean = loadoutRuneAvailable(rune);
+
+  if (rune === -1) {
+    return (
+      <>
+        <sprite
+          x={{ right: right }}
+          y={{ bottom: 0 }}
+          w={Grid.W}
+          h={Grid.H}
+          item={BanksideItems.LIME_DUMMY}
+          itemCount={1}
+          itemCountMode="never"
+          outline={Grid.OUTLINE}
+          shadowColor={BanksideColor.SLOT_SHADOW}
+          transparency={Wash.DIM}
+          options={['Set']}
+          optionSubject="<col=ff9040>Empty slot</col>"
+          onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onOptionSelect={(event) => openRunePicker(event.option)}
+        />
+        <sprite
+          x={{ right: right }}
+          y={{ center: Pouch.LOCK_Y }}
+          w={Pouch.LOCK}
+          h={Pouch.LOCK}
+          sprite={BanksideSprites.LOCK}
+          transparency={Wash.CLEAR}
+          hide
+        />
+      </>
+    );
+  }
+
+  if (available) {
+    return (
+      <>
+        {cap > 0 ? (
+          <sprite
+            x={{ right: right }}
+            y={{ bottom: 0 }}
+            w={Grid.W}
+            h={Grid.H}
+            item={rune}
+            itemCount={cap}
+            itemCountMode="always"
+            outline={Grid.OUTLINE}
+            shadowColor={BanksideColor.SLOT_SHADOW}
+            transparency={Wash.CLEAR}
+            options={['Change']}
+            optionSubject={orangeName(rune as Item)}
+            onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+            onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+            onOptionSelect={(event) => openRunePicker(event.option)}
+          />
+        ) : (
+          <sprite
+            x={{ right: right }}
+            y={{ bottom: 0 }}
+            w={Grid.W}
+            h={Grid.H}
+            item={rune}
+            itemCount={1}
+            itemCountMode="never"
+            outline={Grid.OUTLINE}
+            shadowColor={BanksideColor.SLOT_SHADOW}
+            transparency={Wash.CLEAR}
+            options={['Change']}
+            optionSubject={orangeName(rune as Item)}
+            onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+            onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+            onOptionSelect={(event) => openRunePicker(event.option)}
+          />
+        )}
+        <sprite
+          x={{ right: right }}
+          y={{ center: Pouch.LOCK_Y }}
+          w={Pouch.LOCK}
+          h={Pouch.LOCK}
+          sprite={BanksideSprites.LOCK}
+          transparency={Wash.CLEAR}
+          hide
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      {cap > 0 ? (
+        <sprite
+          x={{ right: right }}
+          y={{ bottom: 0 }}
+          w={Grid.W}
+          h={Grid.H}
+          item={rune}
+          itemCount={cap}
+          itemCountMode="always"
+          outline={Grid.OUTLINE}
+          shadowColor={BanksideColor.SLOT_SHADOW}
+          transparency={Wash.DIM}
+          options={['Change']}
+          optionSubject={orangeName(rune as Item)}
+          onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onOptionSelect={(event) => openRunePicker(event.option)}
+        />
+      ) : (
+        <sprite
+          x={{ right: right }}
+          y={{ bottom: 0 }}
+          w={Grid.W}
+          h={Grid.H}
+          item={rune}
+          itemCount={1}
+          itemCountMode="never"
+          outline={Grid.OUTLINE}
+          shadowColor={BanksideColor.SLOT_SHADOW}
+          transparency={Wash.DIM}
+          options={['Change']}
+          optionSubject={orangeName(rune as Item)}
+          onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+          onOptionSelect={(event) => openRunePicker(event.option)}
+        />
+      )}
+      <sprite
+        x={{ right: right }}
+        y={{ center: Pouch.LOCK_Y }}
+        w={Pouch.LOCK}
+        h={Pouch.LOCK}
+        sprite={BanksideSprites.LOCK}
+        transparency={Wash.CLEAR}
+      />
+    </>
+  );
+}
+
+function LoadoutRow({
+  loadout,
+  y,
+  h,
+  named,
+  slots,
+  runWidth,
+}: {
+  loadout: Int;
+  y: Int;
+  h: Int;
+  named: Boolean;
+  slots: Int;
+  runWidth: Int;
+}): Component {
+  const gap: Int = (runWidth - Grid.W * slots) / (slots + 1);
+  return (
+    <layer x="center" y={y} w="fill" h={h}>
+      <LoadButton />
+      {named && <LoadoutName loadout={loadout} />}
+      <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      {PouchSlots.map((slot) => (
+        <LoadoutSlot loadout={loadout} slot={slot} slots={slots} gap={gap} />
+      ))}
+    </layer>
+  );
+}
+
+export function RunePouchLoadouts(): Component {
+  const universe = useUniverse();
+  const namesDisabled: Int = useServerState(BanksideVarbits.LOADOUT_NAMES_DISABLED);
+  const view: Int = useServerState(BanksideVarbits.VIEW);
+  const named: Boolean = namesDisabled === 0;
+  const rowH: Int = named ? Pouch.ROW_H_NAMED : Pouch.ROW_H_PLAIN;
+  const pitch: Int = named ? Pouch.ROW_PITCH_NAMED : Pouch.ROW_PITCH_PLAIN;
+  const slots: Int = view === BankView.RUNE_POUCH ? Pouch.BH_SLOTS : Pouch.SLOTS;
+  const runWidth: Int = universe.width - (Pouch.LOAD_W + Pouch.SLOT_RUN_GAP);
+  const extent: Int = (Pouch.LOADOUTS - 1) * pitch + rowH;
+  runepouchLoadoutContainer.scrollHeight = extent > universe.height ? extent : 0;
+  runepouchLoadoutContainer.scrollY = 0;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {Loadouts.map((loadout) => (
+        <LoadoutRow
+          loadout={loadout}
+          y={(loadout - 1) * pitch}
+          h={rowH}
+          named={named}
+          slots={slots}
+          runWidth={runWidth}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function PickerRune({
+  rune,
+  index,
+  left,
+  gapX,
+  gapY,
+}: {
+  rune: ItemName;
+  index: Int;
+  left: Int;
+  gapX: Int;
+  gapY: Int;
+}): Component {
+  return (
+    <sprite
+      x={left + (index % Pouch.PICKER_COLUMNS) * (Grid.W + gapX)}
+      y={(index / Pouch.PICKER_COLUMNS) * (Grid.H + gapY)}
+      w={Grid.W}
+      h={Grid.H}
+      item={rune}
+      itemCount={1}
+      itemCountMode="never"
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={Wash.PICKER_REST}
+      options={['Select']}
+      optionSubject={orangeName(rune as Item)}
+      onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+      onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST)}
+      onOptionSelect={(event) => pickRune(event.self, rune)}
+    />
+  );
+}
+
+export function RunePicker(): Component {
+  const universe = useUniverse();
+  const width: Int = universe.width;
+  const gapX: Int = (width - Pouch.PICKER_COLUMNS * Grid.W) / (Pouch.PICKER_COLUMNS - 1);
+  const left: Int = (width - (Pouch.PICKER_COLUMNS * Grid.W + (Pouch.PICKER_COLUMNS - 1) * gapX)) / 2;
+  const gapY: Int = scaled(Pouch.PICKER_ROW_NUM, Pouch.PICKER_ROW_DEN, gapX);
+  const extent: Int = (Pouch.RUNES / Pouch.PICKER_COLUMNS) * (Grid.H + gapY) + Grid.H;
+  runepouchSelectList.scrollHeight = extent > universe.height ? extent : 0;
+  runepouchSelectList.scrollY = 0;
+
+  return (
+    <>
+      {ZmiRunes.map((rune, key, index) => (
+        <PickerRune rune={rune} index={index} left={left} gapX={gapX} gapY={gapY} />
+      ))}
+      <sprite
+        x={left + (Pouch.RUNES % Pouch.PICKER_COLUMNS) * (Grid.W + gapX)}
+        y={(Pouch.RUNES / Pouch.PICKER_COLUMNS) * (Grid.H + gapY)}
+        w={Grid.W}
+        h={Grid.H}
+        item={BanksideItems.LIME_DUMMY}
+        itemCount={1}
+        itemCountMode="never"
+        outline={Grid.OUTLINE}
+        shadowColor={BanksideColor.SLOT_SHADOW}
+        transparency={Wash.DIM}
+        options={['Select']}
+        optionSubject="<col=ff9040>Empty slot</col>"
+        onMouseRepeat={(event) => hoverFadeUnlessMobile(event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+        onMouseLeave={(event) => hoverFade(false, event.self, HoverFade.DIM_FLASH, HoverFade.DIM_REST)}
+        onOptionSelect={(event) => pickRune(event.self, BanksideItems.LIME_DUMMY)}
+      />
+    </>
+  );
+}
+
+export function RuneNamePicker(): Component {
+  const universe = useUniverse();
+  const extent: Int = LoadoutNameOrder.length * Pouch.NAME_ROW_H;
+  runepouchNameSelectList.scrollHeight = extent > universe.height ? extent : 0;
+  runepouchNameSelectList.scrollY = 0;
+
+  return (
+    <>
+      {LoadoutNameOrder.map((id, index) => (
+        <rect
+          x={0}
+          y={index * Pouch.NAME_ROW_H}
+          w="fill"
+          h={Pouch.NAME_ROW_H}
+          fill
+          color={BanksideColor.BLACK}
+          transparency={index % 2 === 0 ? Pouch.NAME_ROW_EVEN : Pouch.NAME_ROW_ODD}
+          onMouseEnter={(event) => {
+            if (!onMobile()) {
+              event.self.color = BanksideColor.WHITE;
+            }
+          }}
+          onMouseLeave={(event) => {
+            event.self.color = BanksideColor.BLACK;
+          }}
+        />
+      ))}
+      {LoadoutNameOrder.map((id, index) => (
+        <text
+          x={0}
+          y={index * Pouch.NAME_ROW_H}
+          w="fill"
+          h={Pouch.NAME_ROW_H}
+          text={LoadoutNames.at(id) ?? ''}
+          font={BanksideFonts.BODY}
+          color={BanksideColor.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+          options={['Select']}
+          onOptionSelect={() => pickLoadoutName(index)}
+        />
+      ))}
+    </>
+  );
+}

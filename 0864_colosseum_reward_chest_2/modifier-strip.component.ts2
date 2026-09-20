@@ -1,0 +1,123 @@
+import { useRef } from 'ts2';
+
+import { ScrollbarHorizontal } from '../0770_pvp_arena_1v1_info/scrollbar-horizontal.component';
+import { chatMessage } from '../lib/lib.engine';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import {
+  ColosseumModifiers,
+  modifierDescriptionFrom1,
+  modifierHeld,
+  modifierIcon,
+  modifierTier,
+  modifierTitle,
+} from './colosseum.helpers';
+import { BACKDROP_TRANSPARENCY, ColosseumColor, ColosseumFonts, ColosseumSprites } from './colosseum.constants';
+
+export function ModifierStrip({ held }: { held: Int }): Component {
+  const pane = useRef();
+  const count: Int = heldModifierCount(held);
+
+  return (
+    <>
+      <layer x={0} y={{ bottom: 15 }} w="fill" h={{ fill: 15 }}>
+        <rect
+          x="center"
+          y={0}
+          w="fill"
+          h="fill"
+          fill
+          color={ColosseumColor.BLACK}
+          transparency={BACKDROP_TRANSPARENCY}
+        />
+        <ThinBoxOutline />
+      </layer>
+      <layer
+        ref={pane}
+        x={2}
+        y={2}
+        w={{ fill: 4 }}
+        h={{ fill: 19 }}
+        scrollWidth={Math.max(count * 46 + 4, pane.width)}
+        scrollHeight={pane.height}
+      >
+        {held === 0 ? (
+          <text
+            x="right"
+            y={0}
+            w="fill"
+            h="fill"
+            text="You have no modifiers yet."
+            font={ColosseumFonts.BODY}
+            color={ColosseumColor.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+        ) : null}
+        {ColosseumModifiers.map(
+          (row, key) =>
+            modifierHeld(row, held) && (
+              <>
+                <sprite
+                  x={heldBefore(held, key) * 46 - 10}
+                  y="center"
+                  w={64}
+                  h={64}
+                  sprite={modifierIcon(row, row.tiered ? modifierTier(row) : 0)}
+                />
+                <layer
+                  x={heldBefore(held, key) * 46 + 2}
+                  y="center"
+                  w={40}
+                  h={40}
+                  options={['Details']}
+                  optionSubject={`<col=ff9040>${modifierTitle(row, true, true)}</col>`}
+                  onOptionSelect={() =>
+                    chatMessage(`${modifierTitle(row, true, true)} - ${modifierDescriptionFrom1(row)}`)
+                  }
+                />
+              </>
+            ),
+        )}
+      </layer>
+      <layer x="right" y="bottom" w="fill" h={16}>
+        <ScrollbarHorizontal
+          content={pane}
+          track={ColosseumSprites.SCROLL_TRACK}
+          capLeftSprite={ColosseumSprites.SCROLL_CAP_LEFT}
+          thumbSprite={ColosseumSprites.SCROLL_THUMB}
+          capRightSprite={ColosseumSprites.SCROLL_CAP_RIGHT}
+          arrowLeft={ColosseumSprites.SCROLL_LEFT}
+          arrowRight={ColosseumSprites.SCROLL_RIGHT}
+          rebuilt
+        />
+      </layer>
+    </>
+  );
+}
+
+function heldBefore(held: Int, key: Int): Int {
+  let count: Int = 0;
+  let at: Int = 0;
+  while (at < key) {
+    const row = ColosseumModifiers.at(at);
+    if (row !== null && modifierHeld(row, held)) {
+      count = count + 1;
+    }
+    at = at + 1;
+  }
+  return count;
+}
+
+function heldModifierCount(held: Int): Int {
+  let count: Int = 0;
+  let key: Int = 0;
+  while (key < ColosseumModifiers.length) {
+    const row = ColosseumModifiers.at(key);
+    if (row !== null && modifierHeld(row, held)) {
+      count = count + 1;
+    }
+    key = key + 1;
+  }
+  return count;
+}

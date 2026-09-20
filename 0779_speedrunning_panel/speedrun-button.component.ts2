@@ -1,0 +1,114 @@
+import { useInterval, useRef, useState } from 'ts2';
+
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SpeedrunButton as ButtonLayout, SpeedrunColor, SpeedrunFont } from './speedrunning-panel.constants';
+import { openSpeedrunInfo, openSpeedrunStats } from './speedrunning-panel.helpers';
+
+const SPEEDRUN_CLICK = 2266;
+
+export enum SpeedrunButtonAction {
+  PRESS = 0,
+  INFO = 1,
+  STATS = 2,
+}
+
+export function SpeedrunStoneButton({ label, locked, action }: { label: String; locked: Int; action: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const [hover, setHover] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(-1);
+  const tick = useRef();
+  useInterval(() => {
+    if (pressedUntil >= 0 && clientClock() >= pressedUntil) {
+      setPressedUntil(-1);
+    }
+  }, tick);
+
+  const pressed: Boolean = locked === 1 || hover === 1 || pressedUntil >= 0;
+  const caption: Int = locked === 1 ? SpeedrunColor.LOCKED : SpeedrunColor.AMBER;
+  const live: Boolean = locked === 0 && pressedUntil < 0;
+
+  return (
+    <>
+      <layer ref={tick} x={0} y={0} w={1} h={1} hide={pressedUntil < 0} />
+      {pressed ? (
+        <StoneButtonPressedFilled>
+          <text
+            x="center"
+            y="center"
+            w={{ fill: ButtonLayout.TEXT_INSET_W }}
+            h="fill"
+            text={label}
+            font={SpeedrunFont.BODY}
+            color={caption}
+            shadow
+            align="center"
+            valign="middle"
+          />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <text
+            x="center"
+            y="center"
+            w={{ fill: ButtonLayout.TEXT_INSET_W }}
+            h="fill"
+            text={label}
+            font={SpeedrunFont.BODY}
+            color={caption}
+            shadow
+            align="center"
+            valign="middle"
+          />
+        </StoneButtonFilled>
+      )}
+      {live && mobile ? (
+        <layer
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          options={[label]}
+          onHold={() => setHover(1)}
+          onRelease={() => setHover(0)}
+          onMouseLeave={() => setHover(0)}
+          onOptionSelect={() => {
+            if (action === SpeedrunButtonAction.INFO) {
+              openSpeedrunInfo();
+            } else if (action === SpeedrunButtonAction.STATS) {
+              openSpeedrunStats();
+            } else {
+              playSound(SPEEDRUN_CLICK);
+              setHover(0);
+              setPressedUntil(clientClock() + ButtonLayout.PRESS_CYCLES);
+            }
+          }}
+        />
+      ) : null}
+      {live && !mobile ? (
+        <layer
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          options={[label]}
+          onMouseRepeat={() => setHover(1)}
+          onMouseLeave={() => setHover(0)}
+          onOptionSelect={() => {
+            if (action === SpeedrunButtonAction.INFO) {
+              openSpeedrunInfo();
+            } else if (action === SpeedrunButtonAction.STATS) {
+              openSpeedrunStats();
+            } else {
+              playSound(SPEEDRUN_CLICK);
+              setHover(0);
+              setPressedUntil(clientClock() + ButtonLayout.PRESS_CYCLES);
+            }
+          }}
+        />
+      ) : null}
+    </>
+  );
+}

@@ -1,0 +1,283 @@
+import { useRef, useServerState, useUniverse } from 'ts2';
+
+import {
+  Layout,
+  QuestColor,
+  QuestColourSetting,
+  QuestFont,
+  QuestScrollbar,
+  QuestVarbits,
+  Row,
+} from '../0399_questlist/questlist.constants';
+import { questStatus } from '../0399_questlist/questlist.component';
+import { type QuestRow, QuestsByKind, QuestsByName } from '../0399_questlist/questlist.data';
+import { settingColourOrDefault } from '../0399_questlist/settings-colour';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+
+export function SpeedrunQuestPane(): Component {
+  const mobile: Boolean = onMobile();
+  const sort: Int = useServerState(QuestVarbits.SORT_TYPE);
+  const headers: Boolean = useServerState(QuestVarbits.DISABLE_HEADERS) === 0;
+  const shadow: Boolean = useServerState(QuestVarbits.DISABLE_TEXT_SHADOW) === 0;
+  const large: Boolean = useServerState(QuestVarbits.LARGER_TEXT) === 1;
+  const line: Int = large ? Row.LINE_LARGE : Row.LINE;
+  const pad: Int = (mobile ? Row.PAD_MOBILE : Row.PAD) + (large ? Row.PAD_LARGE : 0);
+  const font: Font = large ? QuestFont.ROW_LARGE : QuestFont.ROW;
+  const rows: List<QuestRow> = sort === 1 ? QuestsByName : QuestsByKind;
+
+  const box = useUniverse();
+  const pane = useRef();
+  const width: Int = box.width - Layout.pane.insetW;
+  const paneHeight: Int = box.height;
+
+  const top: Int = headers ? Row.TOP : Row.TOP_NO_HEADERS;
+  let content: Int = top;
+  let i: Int = 0;
+  while (i < rows.length) {
+    const row: QuestRow | null = rows.at(i);
+    if (row !== null) {
+      content = content + rowAdvance(row, headers, line, pad, width, font);
+    }
+    i = i + 1;
+  }
+  content = content + Row.END_PAD;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.pane.left}
+        y="center"
+        w={{ fill: Layout.pane.insetW }}
+        h="fill"
+        scrollHeight={content > paneHeight ? content : 0}
+      >
+        <layer w="fill" h={content}>
+          {sort === 1 ? (
+            <SpeedrunRowsByName
+              top={top}
+              headers={headers}
+              shadow={shadow}
+              line={line}
+              pad={pad}
+              width={width}
+              font={font}
+              mobile={mobile}
+            />
+          ) : (
+            <SpeedrunRowsByKind
+              top={top}
+              headers={headers}
+              shadow={shadow}
+              line={line}
+              pad={pad}
+              width={width}
+              font={font}
+              mobile={mobile}
+            />
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 0 }} y="center" w={Layout.scrollbar.w} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={QuestScrollbar.TRACK}
+          capTopSprite={QuestScrollbar.CAP_TOP}
+          thumbSprite={QuestScrollbar.THUMB}
+          capBottomSprite={QuestScrollbar.CAP_BOTTOM}
+          arrowUp={QuestScrollbar.ARROW_UP}
+          arrowDown={QuestScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SpeedrunRowsByKind({
+  top,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  top: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  return (
+    <>
+      {QuestsByKind.scan(
+        (row, index, y) => (
+          <SpeedrunEntry
+            row={row}
+            y={y}
+            headers={headers}
+            shadow={shadow}
+            line={line}
+            pad={pad}
+            width={width}
+            font={font}
+            mobile={mobile}
+          />
+        ),
+        (row, index) => rowAdvance(row, headers, line, pad, width, font),
+        top,
+      )}
+    </>
+  );
+}
+
+function SpeedrunRowsByName({
+  top,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  top: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  return (
+    <>
+      {QuestsByName.scan(
+        (row, index, y) => (
+          <SpeedrunEntry
+            row={row}
+            y={y}
+            headers={headers}
+            shadow={shadow}
+            line={line}
+            pad={pad}
+            width={width}
+            font={font}
+            mobile={mobile}
+          />
+        ),
+        (row, index) => rowAdvance(row, headers, line, pad, width, font),
+        top,
+      )}
+    </>
+  );
+}
+
+function SpeedrunEntry({
+  row,
+  y,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  row: QuestRow;
+  y: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  const heading: Boolean = headers && row.header.length > 0;
+  const colour: Int = rowColour(row);
+  const label: String = row.mq === 1 ? `MQ: ${row.name}` : row.name;
+  return (
+    <>
+      {heading ? (
+        <text
+          x="center"
+          y={y + Row.HEADER_DROP}
+          w="fill"
+          h={Row.HEADER_H}
+          text={row.header}
+          font={QuestFont.TITLE}
+          color={QuestColor.ORANGE}
+          shadow
+          align="left"
+          valign="top"
+        />
+      ) : null}
+      <text
+        x="center"
+        y={heading ? y + Row.HEADER_ADVANCE : y}
+        w="fill"
+        h={line * textLineCount(label, width, font) + pad}
+        text={label}
+        font={font}
+        color={colour}
+        shadow={shadow}
+        align="left"
+        valign="middle"
+        lineHeight={line}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        options={[
+          '',
+          'Read journal:',
+          row.map === 1 ? 'Show on map:' : '',
+          'Open wiki guide:',
+          'Open wiki quick guide:',
+          'Pin journal:',
+        ]}
+        onMouseEnter={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.color = QuestColor.WHITE;
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.color = colour;
+              }
+        }
+      />
+    </>
+  );
+}
+
+function rowAdvance(row: QuestRow, headers: Boolean, line: Int, pad: Int, width: Int, font: Font): Int {
+  const label: String = row.mq === 1 ? `MQ: ${row.name}` : row.name;
+  const heading: Int = headers && row.header.length > 0 ? Row.HEADER_ADVANCE : 0;
+  return heading + line * textLineCount(label, width, font) + pad;
+}
+
+function rowColour(row: QuestRow): Int {
+  const unavailable: Boolean = row.restricted !== 0 && sailingRestricted();
+  if (unavailable) {
+    return settingColourOrDefault(QuestColourSetting.UNAVAILABLE);
+  }
+  const status: Int = questStatus(row);
+  if (status === 0) {
+    return settingColourOrDefault(QuestColourSetting.IN_PROGRESS);
+  }
+  if (status === 2) {
+    return settingColourOrDefault(QuestColourSetting.COMPLETED);
+  }
+  return settingColourOrDefault(QuestColourSetting.NOT_STARTED);
+}

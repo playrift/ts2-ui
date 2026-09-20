@@ -1,0 +1,708 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { speedrunTrophyCount } from '../0781_questscroll_speedrun/questscroll-speedrun.helpers';
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { scaled, textLineCount } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Quest } from '../lib/lib.quests';
+import { SkillNames } from '../lib/skills.data';
+import { PohLocationNames } from './poh-location-names.data';
+import {
+  QuestTrophyVarbits,
+  SpeedrunBestVarps,
+  SpeedrunClock,
+  SpeedrunFont,
+  SpeedrunVars,
+  UnlockRow,
+  SPEEDRUN_INFO_TEXT,
+  infoPopupRef,
+  statsPopupRef,
+} from './speedrunning-panel.constants';
+import {
+  speedrunClockOffset,
+  speedrunClockPrecise,
+  speedrunClockRunning,
+  speedrunClockSeparate,
+  speedrunClockText,
+} from './speedrunning-panel.state';
+import {
+  SpeedrunQuests,
+  SpeedrunQuestsRecommendedStats,
+  SpeedrunQuestsRequirementQuests,
+  SpeedrunQuestsRequirementStats,
+} from './speedrun-quests.data';
+import {
+  Speedruns,
+  SpeedrunsSpeedrunItemUnlocks,
+  SpeedrunsSpeedrunQuestUnlocks,
+  SpeedrunsSpeedrunStatUnlocks,
+  SpeedrunsSpeedrunTrophyTimes,
+} from './speedruns.data';
+
+export function questIndex(quest: Int): Int {
+  if (quest < 0) {
+    return -1;
+  }
+  const count: Int = SpeedrunQuests.length;
+  let index: Int = 0;
+  let found: Int = -1;
+  let hit: Boolean = false;
+  while (index < count) {
+    const row = SpeedrunQuests.at(index);
+    hit = false;
+    if (row !== null) {
+      if (row.quest === quest) {
+        found = index;
+        index = count;
+        hit = true;
+      }
+    }
+    if (!hit) {
+      index = index + 1;
+    }
+  }
+  return found;
+}
+
+export function speedrunQuestName(quest: Int): String {
+  const index: Int = questIndex(quest);
+  if (index < 0) {
+    return '';
+  }
+  const row = SpeedrunQuests.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.displayname;
+}
+
+export function speedrunQuestId(quest: Int): Int {
+  const index: Int = questIndex(quest);
+  if (index < 0) {
+    return -1;
+  }
+  const row = SpeedrunQuests.at(index);
+  if (row === null) {
+    return -1;
+  }
+  return row.id;
+}
+
+export function speedrunIndex(quest: Int): Int {
+  if (quest < 0) {
+    return -1;
+  }
+  const count: Int = Speedruns.length;
+  let index: Int = 0;
+  let found: Int = -1;
+  let hit: Boolean = false;
+  while (index < count) {
+    const row = Speedruns.at(index);
+    hit = false;
+    if (row !== null) {
+      if (row.quest === quest) {
+        found = index;
+        index = count;
+        hit = true;
+      }
+    }
+    if (!hit) {
+      index = index + 1;
+    }
+  }
+  return found;
+}
+
+export function speedrunBeta(quest: Int): Boolean {
+  const index: Int = speedrunIndex(quest);
+  if (index < 0) {
+    return false;
+  }
+  const row = Speedruns.at(index);
+  if (row === null) {
+    return false;
+  }
+  return row.speedrunState === 2 || row.speedrunState === 3;
+}
+
+export function speedrunTitle(quest: Int): String {
+  if (speedrunBeta(quest)) {
+    return `${speedrunQuestName(quest)} (Beta)`;
+  }
+  return speedrunQuestName(quest);
+}
+
+export function questTrophy(quest: Int): Int {
+  switch (quest) {
+    case Quest.BELOW_ICE_MOUNTAIN: {
+      return useServerState(QuestTrophyVarbits.BELOW_ICE_MOUNTAIN);
+    }
+    case Quest.BLACK_KNIGHTS_FORTRESS: {
+      return useServerState(QuestTrophyVarbits.BLACK_KNIGHTS_FORTRESS);
+    }
+    case Quest.COOK_S_ASSISTANT: {
+      return useServerState(QuestTrophyVarbits.COOKS_ASSISTANT);
+    }
+    case Quest.DEMON_SLAYER: {
+      return useServerState(QuestTrophyVarbits.DEMON_SLAYER);
+    }
+    case Quest.DRAGON_SLAYER_I: {
+      return useServerState(QuestTrophyVarbits.DRAGON_SLAYER);
+    }
+    case Quest.DRAGON_SLAYER_II: {
+      return useServerState(QuestTrophyVarbits.DRAGON_SLAYER_2);
+    }
+    case Quest.ERNEST_THE_CHICKEN: {
+      return useServerState(QuestTrophyVarbits.ERNEST_THE_CHICKEN);
+    }
+    case Quest.KINGDOM_DIVIDED_A: {
+      return useServerState(QuestTrophyVarbits.KINGDOM_DIVIDED);
+    }
+    case Quest.KNIGHT_S_SWORD_THE: {
+      return useServerState(QuestTrophyVarbits.KNIGHTS_SWORD);
+    }
+    case Quest.PRINCE_ALI_RESCUE: {
+      return useServerState(QuestTrophyVarbits.PRINCE_ALI_RESCUE);
+    }
+    case Quest.SINS_OF_THE_FATHER: {
+      return useServerState(QuestTrophyVarbits.SINS_OF_THE_FATHER);
+    }
+    case Quest.SONG_OF_THE_ELVES: {
+      return useServerState(QuestTrophyVarbits.SONG_OF_THE_ELVES);
+    }
+    case Quest.TASTE_OF_HOPE_A: {
+      return useServerState(QuestTrophyVarbits.TASTE_OF_HOPE);
+    }
+    case Quest.VAMPYRE_SLAYER: {
+      return useServerState(QuestTrophyVarbits.VAMPYRE_SLAYER);
+    }
+    case Quest.X_MARKS_THE_SPOT: {
+      return useServerState(QuestTrophyVarbits.X_MARKS_THE_SPOT);
+    }
+    case Quest.TEMPLE_OF_THE_EYE: {
+      return useServerState(QuestTrophyVarbits.TEMPLE_OF_THE_EYE);
+    }
+    case Quest.BENEATH_CURSED_SANDS: {
+      return useServerState(QuestTrophyVarbits.BENEATH_CURSED_SANDS);
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
+export function trophyTime(quest: Int, trophy: Int): Int {
+  const index: Int = speedrunIndex(quest);
+  if (index < 0) {
+    return 0;
+  }
+  const count: Int = SpeedrunsSpeedrunTrophyTimes.length;
+  let i: Int = 0;
+  let time: Int = 0;
+  let hit: Boolean = false;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunTrophyTimes.at(i);
+    hit = false;
+    if (row !== null) {
+      if (row.row === index && row.trophy === trophy) {
+        time = row.time;
+        i = count;
+        hit = true;
+      }
+    }
+    if (!hit) {
+      i = i + 1;
+    }
+  }
+  return time;
+}
+
+export function speedrunBestTime(quest: Int): Int {
+  switch (quest) {
+    case Quest.BELOW_ICE_MOUNTAIN: {
+      return useServerState(SpeedrunBestVarps.BELOW_ICE_MOUNTAIN);
+    }
+    case Quest.BLACK_KNIGHTS_FORTRESS: {
+      return useServerState(SpeedrunBestVarps.BLACK_KNIGHTS_FORTRESS);
+    }
+    case Quest.COOK_S_ASSISTANT: {
+      return useServerState(SpeedrunBestVarps.COOKS_ASSISTANT);
+    }
+    case Quest.DEMON_SLAYER: {
+      return useServerState(SpeedrunBestVarps.DEMON_SLAYER);
+    }
+    case Quest.DRAGON_SLAYER_I: {
+      return useServerState(SpeedrunBestVarps.DRAGON_SLAYER);
+    }
+    case Quest.DRAGON_SLAYER_II: {
+      return useServerState(SpeedrunBestVarps.DRAGON_SLAYER_2);
+    }
+    case Quest.ERNEST_THE_CHICKEN: {
+      return useServerState(SpeedrunBestVarps.ERNEST_THE_CHICKEN);
+    }
+    case Quest.KINGDOM_DIVIDED_A: {
+      return useServerState(SpeedrunBestVarps.KINGDOM_DIVIDED);
+    }
+    case Quest.KNIGHT_S_SWORD_THE: {
+      return useServerState(SpeedrunBestVarps.KNIGHTS_SWORD);
+    }
+    case Quest.PRINCE_ALI_RESCUE: {
+      return useServerState(SpeedrunBestVarps.PRINCE_ALI_RESCUE);
+    }
+    case Quest.SINS_OF_THE_FATHER: {
+      return useServerState(SpeedrunBestVarps.SINS_OF_THE_FATHER);
+    }
+    case Quest.SONG_OF_THE_ELVES: {
+      return useServerState(SpeedrunBestVarps.SONG_OF_THE_ELVES);
+    }
+    case Quest.TASTE_OF_HOPE_A: {
+      return useServerState(SpeedrunBestVarps.TASTE_OF_HOPE);
+    }
+    case Quest.VAMPYRE_SLAYER: {
+      return useServerState(SpeedrunBestVarps.VAMPYRE_SLAYER);
+    }
+    case Quest.X_MARKS_THE_SPOT: {
+      return useServerState(SpeedrunBestVarps.X_MARKS_THE_SPOT);
+    }
+    case Quest.TEMPLE_OF_THE_EYE: {
+      return useServerState(SpeedrunBestVarps.TEMPLE_OF_THE_EYE);
+    }
+    case Quest.BENEATH_CURSED_SANDS: {
+      return useServerState(SpeedrunBestVarps.BENEATH_CURSED_SANDS);
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
+export function nextTrophy(quest: Int, elapsed: Int): [String, Int] {
+  let target: Int = trophyTime(quest, 5);
+  if (elapsed < target && target > 0) {
+    return ['Diamond', target];
+  }
+  target = trophyTime(quest, 4);
+  if (elapsed < target && target > 0) {
+    return ['Platinum', target];
+  }
+  target = trophyTime(quest, 3);
+  if (elapsed < target && target > 0) {
+    return ['Gold', target];
+  }
+  target = trophyTime(quest, 2);
+  if (elapsed < target && target > 0) {
+    return ['Silver', target];
+  }
+  target = trophyTime(quest, 1);
+  if (elapsed < target && target > 0) {
+    return ['Bronze', target];
+  }
+  return ['', 0];
+}
+
+export function trophyHeld(quest: Int, trophy: Int): Boolean {
+  return questTrophy(quest) >= trophy;
+}
+
+export function speedrunPointsText(): String {
+  return groupDigits(Math.min(useServerState(SpeedrunVars.POINTS), 800000), ',');
+}
+
+export function speedrunTotalText(): String {
+  return groupDigits(Math.min(useServerState(SpeedrunVars.TOTAL), 2000000000), ',');
+}
+
+export function speedrunTrophiesText(): String {
+  return groupDigits(speedrunTrophyCount(), ',');
+}
+
+export function trophyKindText(count: Int): String {
+  return groupDigits(Math.min(count, 60000), ',');
+}
+
+export function openSpeedrunInfo(): void {
+  CS2.sound_effect(2266, 1, 0);
+  infoPopupRef.hide = false;
+}
+
+export function openSpeedrunStats(): void {
+  CS2.sound_effect(2266, 1, 0);
+  statsPopupRef.hide = false;
+}
+
+export function closeSpeedrunInfo(): void {
+  infoPopupRef.hide = true;
+}
+
+export function closeSpeedrunStats(): void {
+  statsPopupRef.hide = true;
+}
+
+export function speedrunPanelReset(): void {
+  const [, setRunning] = useState(speedrunClockRunning);
+  const [, setText] = useState(speedrunClockText);
+  setRunning(0);
+  setText('-');
+}
+
+export function speedrunClockStart(quest: Int, startTick: Int): void {
+  const [, setRunning] = useState(speedrunClockRunning);
+  const [, setText] = useState(speedrunClockText);
+  if (quest < 0 || quest !== useServerState(SpeedrunVars.PANEL_QUEST) || startTick === -1) {
+    setRunning(0);
+    setText('-');
+    return;
+  }
+  const [, setOffset] = useState(speedrunClockOffset);
+  const [, setPrecise] = useState(speedrunClockPrecise);
+  const [, setSeparate] = useState(speedrunClockSeparate);
+  setOffset(startTick * 30 - CS2.clientclock());
+  setPrecise(useServerState(SpeedrunVars.PRECISE));
+  setSeparate(useServerState(SpeedrunVars.SEPARATE_HOURS));
+  setRunning(1);
+}
+
+export function speedrunClockLabel(offset: Int, precise: Int, separate: Int): String {
+  const elapsed: Int = offset + CS2.clientclock();
+  const seconds: Int = minmax(
+    0,
+    scaled(SpeedrunClock.MAX_SECONDS_NUM, SpeedrunClock.MAX_SECONDS_DEN, SpeedrunClock.CAP),
+    elapsed / 50,
+  );
+  const tenths: Int = minmax(
+    0,
+    scaled(SpeedrunClock.MAX_TENTHS_NUM, SpeedrunClock.MAX_TENTHS_DEN, SpeedrunClock.CAP),
+    elapsed / 5,
+  );
+  if (precise === 0) {
+    return clockSeconds(seconds, separate);
+  }
+  return clockTenths(tenths, separate);
+}
+
+export function speedrunClockTick(): void {
+  const [running] = useState(speedrunClockRunning);
+  if (running === 0) {
+    return;
+  }
+  const [offset] = useState(speedrunClockOffset);
+  const [precise] = useState(speedrunClockPrecise);
+  const [separate] = useState(speedrunClockSeparate);
+  const [, setText] = useState(speedrunClockText);
+  setText(speedrunClockLabel(offset, precise, separate));
+}
+
+export function clockSeconds(total: Int, separate: Int): String {
+  let minutes: Int = total / 60;
+  const hours: Int = minutes / 60;
+  const seconds: Int = total % 60;
+  if (separate === 0) {
+    minutes = minutes % 60;
+  }
+  let out: String = '';
+  if (hours > 0 && separate === 0) {
+    out = `${out}${hours}:`;
+  }
+  if (minutes < 10 && hours > 0) {
+    out = `${out}0${minutes}:`;
+  } else {
+    out = `${out}${minutes}:`;
+  }
+  if (seconds < 10) {
+    out = `${out}0${seconds}`;
+  } else {
+    out = `${out}${seconds}`;
+  }
+  return out;
+}
+
+export function clockTenths(total: Int, separate: Int): String {
+  let seconds: Int = total / 10;
+  let minutes: Int = seconds / 60;
+  const hours: Int = minutes / 60;
+  const tenths: Int = total % 10;
+  seconds = seconds % 60;
+  if (separate === 0) {
+    minutes = minutes % 60;
+  }
+  let out: String = '';
+  if (hours > 0 && separate === 0) {
+    out = `${out}${hours}:`;
+  }
+  if (minutes < 10 && hours > 0) {
+    out = `${out}0${minutes}:`;
+  } else {
+    out = `${out}${minutes}:`;
+  }
+  if (seconds < 10) {
+    out = `${out}0${seconds}.`;
+  } else {
+    out = `${out}${seconds}.`;
+  }
+  return `${out}${tenths}0`;
+}
+
+export function setupButtonFace(quest: Int): Int {
+  const id: Int = speedrunQuestId(quest);
+  const current: Int = useServerState(SpeedrunVars.CURRENT);
+  if (id <= 0 || id !== current) {
+    if (current > 0) {
+      return 2;
+    }
+    return 0;
+  }
+  return 1;
+}
+
+export function unlockRowHeight(text: String, boxWidth: Int): Int {
+  return textLineCount(text, boxWidth - UnlockRow.INSET_W, SpeedrunFont.SMALL) * UnlockRow.LINE + UnlockRow.PAD;
+}
+
+function combatSkill(skill: Skill): Boolean {
+  return skill >= 0 && skill <= 6;
+}
+
+export function unlockCombatLevel(questRow: Int, speedrun: Int): Int {
+  const row = SpeedrunQuests.at(questRow);
+  let required: Int = 0;
+  let recommended: Int = 0;
+  if (row !== null) {
+    required = row.requirementCombat;
+    recommended = row.recommendedCombat;
+  }
+  const combat: Int = Math.max(required, recommended);
+  let stat: Int = minmax(3, 99, scaled(4, 5, combat) + 15);
+  let unlock: Int = 1;
+  const sr = Speedruns.at(speedrun);
+  if (sr !== null) {
+    unlock = sr.speedrunCombatStatsUnlock;
+  }
+  if (unlock > 1) {
+    stat = unlock;
+  }
+  const rest: Int = stat % 5;
+  if (combat > 3 || unlock > 1) {
+    if (rest < 3) {
+      stat = stat - rest;
+    } else {
+      stat = stat + (5 - rest);
+    }
+    return minmax(1, 99, stat);
+  }
+  return 1;
+}
+
+function speedrunStatLevel(speedrun: Int, skill: Skill, level: Int): Int {
+  const count: Int = SpeedrunsSpeedrunStatUnlocks.length;
+  let best: Int = level;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunStatUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun && row.skill === skill && row.level > best) {
+        best = row.level;
+      }
+    }
+    i = i + 1;
+  }
+  return best;
+}
+
+function recommendedLevel(questRow: Int, skill: Skill, level: Int): Int {
+  const count: Int = SpeedrunQuestsRecommendedStats.length;
+  let best: Int = level;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunQuestsRecommendedStats.at(i);
+    if (row !== null) {
+      if (row.row === questRow && row.skill === skill && row.level > best) {
+        best = row.level;
+      }
+    }
+    i = i + 1;
+  }
+  return best;
+}
+
+function requiresSkill(questRow: Int, skill: Skill): Boolean {
+  const count: Int = SpeedrunQuestsRequirementStats.length;
+  let i: Int = 0;
+  let found: Boolean = false;
+  let hit: Boolean = false;
+  while (i < count) {
+    const row = SpeedrunQuestsRequirementStats.at(i);
+    hit = false;
+    if (row !== null) {
+      if (row.row === questRow && row.skill === skill) {
+        found = true;
+        i = count;
+        hit = true;
+      }
+    }
+    if (!hit) {
+      i = i + 1;
+    }
+  }
+  return found;
+}
+
+function recommendsSkill(questRow: Int, skill: Skill): Boolean {
+  const count: Int = SpeedrunQuestsRecommendedStats.length;
+  let i: Int = 0;
+  let found: Boolean = false;
+  let hit: Boolean = false;
+  while (i < count) {
+    const row = SpeedrunQuestsRecommendedStats.at(i);
+    hit = false;
+    if (row !== null) {
+      if (row.row === questRow && row.skill === skill) {
+        found = true;
+        i = count;
+        hit = true;
+      }
+    }
+    if (!hit) {
+      i = i + 1;
+    }
+  }
+  return found;
+}
+
+export function requiredStatShown(questRow: Int, speedrun: Int, skill: Skill, level: Int, combatLevel: Int): Int {
+  if (skill < 0 || level <= 1) {
+    return 0;
+  }
+  const raised: Int = speedrunStatLevel(speedrun, skill, recommendedLevel(questRow, skill, level));
+  if (combatSkill(skill) && raised <= combatLevel) {
+    return 0;
+  }
+  if (raised > 1) {
+    return raised;
+  }
+  return 0;
+}
+
+export function recommendedStatShown(questRow: Int, speedrun: Int, skill: Skill, level: Int, combatLevel: Int): Int {
+  if (skill < 0 || level <= 1) {
+    return 0;
+  }
+  if (requiresSkill(questRow, skill)) {
+    return 0;
+  }
+  const raised: Int = speedrunStatLevel(speedrun, skill, level);
+  if (combatSkill(skill) && raised <= combatLevel) {
+    return 0;
+  }
+  if (raised > 1) {
+    return raised;
+  }
+  return 0;
+}
+
+export function speedrunStatShown(questRow: Int, skill: Skill, level: Int, combatLevel: Int): Int {
+  if (skill < 0 || level <= 1) {
+    return 0;
+  }
+  if (requiresSkill(questRow, skill) || recommendsSkill(questRow, skill)) {
+    return 0;
+  }
+  if (combatSkill(skill) && level <= combatLevel) {
+    return 0;
+  }
+  return level;
+}
+
+export function statLine(level: Int, skill: Skill): String {
+  return `${level} ${SkillNames.get(skill) ?? 'Skill'}`;
+}
+
+export function questExtraLines(quest: Int): Int {
+  if (quest === Quest.DRAGON_SLAYER_II) {
+    return 3;
+  }
+  if (quest === Quest.BENEATH_CURSED_SANDS || quest === Quest.SINS_OF_THE_FATHER) {
+    return 1;
+  }
+  return 0;
+}
+
+export function questExtraLine(quest: Int, n: Int): String {
+  if (quest === Quest.DRAGON_SLAYER_II) {
+    if (n === 0) {
+      return 'Barbarian Firemaking Training';
+    }
+    if (n === 1) {
+      return 'Knight Waves Training Grounds';
+    }
+    return 'Miscellaneous quests to give 200 Quest Points';
+  }
+  return 'Knight Waves Training Grounds';
+}
+
+export function pohLine(location: Int): String {
+  return `${PohLocationNames.get(location) ?? 'nowhere'} Player Owned House`;
+}
+
+export function hasQuestUnlocks(questRow: Int, speedrun: Int): Boolean {
+  let count: Int = SpeedrunQuestsRequirementQuests.length;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunQuestsRequirementQuests.at(i);
+    if (row !== null) {
+      if (row.row === questRow) {
+        return true;
+      }
+    }
+    i = i + 1;
+  }
+  count = SpeedrunsSpeedrunQuestUnlocks.length;
+  i = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunQuestUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun) {
+        return true;
+      }
+    }
+    i = i + 1;
+  }
+  return false;
+}
+
+export function itemLine(item: ItemName, count: Int): String {
+  if (count === 1) {
+    return CS2.item_name(item as Item);
+  }
+  return `${CS2.item_name(item as Item)} x ${groupDigits(count, ',')}`;
+}
+
+export function itemUnlockCount(speedrun: Int, inventory: Int): Int {
+  const count: Int = SpeedrunsSpeedrunItemUnlocks.length;
+  let found: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunItemUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun && row.inventory === inventory) {
+        found = found + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return found;
+}
+
+export function itemRowShown(
+  speedrun: Int,
+  inventory: Int,
+  rowIndex: Int,
+  rowInventory: Int,
+  item: Int,
+  count: Int,
+): Boolean {
+  return rowIndex === speedrun && rowInventory === inventory && item >= 0 && count > 0;
+}
+
+export function speedrunInfoText(): String {
+  return SPEEDRUN_INFO_TEXT;
+}

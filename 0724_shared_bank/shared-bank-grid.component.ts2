@@ -1,0 +1,297 @@
+import { CS2, intArray, useInterval, useInventory, useRef, useServerState, useState, useUniverse, useWatch } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { meslayermode } from '../lib/game/varcs';
+import { groupDigits } from '../lib/lib.format';
+import { itemName } from '../lib/lib.engine';
+import { flashFor } from '../lib/lib.components';
+import {
+  bankmainFilterItem,
+  bankmainFilterString,
+  bankmainSearching,
+  defaultQuantityLabel,
+} from '../0012_bankmain/bankmain.helpers';
+import { mesTextRef } from '../0162_chatbox/chatbox.constants';
+import {
+  BankColor,
+  BankSprites,
+  BankVarbits,
+  BankVarps,
+  Grid,
+  Layout,
+  SEARCH_MODE,
+  SIZE_ABS,
+  SIZE_MINUS,
+  SLOT_FLASH,
+  SLOT_REST,
+  Storage,
+} from './shared-bank.constants';
+import { capacityRef, closeRef, itemsRef, occupiedRef, searchRef, sharedBank, universeRef } from './shared-bank.refs';
+import { sharedBankCloseButton } from './shared-bank.state';
+import { sharedBankDragItem, sharedBankReorder } from './shared-bank.drag';
+
+function ItemSlot({
+  item,
+  count,
+  x,
+  y,
+  hidden,
+  slot,
+  capacity,
+  primary,
+  one,
+  five,
+  ten,
+  requested,
+  all,
+}: {
+  item: Item;
+  count: Int;
+  x: Int;
+  y: Int;
+  hidden: Boolean;
+  slot: Int;
+  capacity: Int;
+  primary: String;
+  one: String;
+  five: String;
+  ten: String;
+  requested: String;
+  all: String;
+}): Component {
+  const cell = useRef();
+  return (
+    <sprite
+      ref={cell}
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      hide={hidden}
+      item={item}
+      itemCount={count}
+      outline={1}
+      shadowColor={BankColor.SHADOW}
+      transparency={SLOT_REST}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={[primary, one, five, ten, requested, 'Withdraw-X', all, 'Withdraw-All-but-1', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={() => flashFor(cell, SLOT_FLASH, SLOT_REST)}
+      onDrag={(event) => sharedBankDragItem(event.mouseY, 0, event.self)}
+      onDragComplete={(event) =>
+        sharedBankReorder(
+          event.dragTarget === event.component,
+          event.subId,
+          event.dragTargetSubId,
+          capacity,
+          event.self,
+        )
+      }
+    />
+  );
+}
+
+function EmptySlot({ x, y, hidden }: { x: Int; y: Int; hidden: Boolean }): Component {
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      hide={hidden}
+      item={BankItems.BLANK}
+      itemCount={1}
+      itemCountMode="never"
+      outline={1}
+      shadowColor={BankColor.SHADOW}
+      transparency={SLOT_REST}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+    />
+  );
+}
+
+enum BankItems {
+  BLANK = 6512,
+}
+
+function StorageSlot({
+  item,
+  count,
+  x,
+  y,
+  hidden,
+  slot,
+  capacity,
+  primary,
+  one,
+  five,
+  ten,
+  requested,
+  all,
+}: {
+  item: Item;
+  count: Int;
+  x: Int;
+  y: Int;
+  hidden: Boolean;
+  slot: Int;
+  capacity: Int;
+  primary: String;
+  one: String;
+  five: String;
+  ten: String;
+  requested: String;
+  all: String;
+}): Component {
+  if (item === -1) {
+    return <EmptySlot x={x} y={y} hidden={hidden} />;
+  }
+  return (
+    <ItemSlot
+      item={item}
+      count={count}
+      x={x}
+      y={y}
+      hidden={hidden}
+      slot={slot}
+      capacity={capacity}
+      primary={primary}
+      one={one}
+      five={five}
+      ten={ten}
+      requested={requested}
+      all={all}
+    />
+  );
+}
+
+export function SharedBankGrid(): Component {
+  useWatch([Varps.DEADMAN, Varps.SIDESTONE_KEYBINDINGS_1], () => sharedBankCloseButton(closeRef));
+
+  const [rootSeen, setRootSeen] = useState(0);
+  useInterval(() => {
+    if (sharedBank.height !== rootSeen) {
+      setRootSeen(sharedBank.height);
+    }
+  });
+
+  const universe = useUniverse();
+  const bag = useInventory(Storage.INV);
+  const capacity: Int = useServerState(BankVarps.CAPACITY);
+  const quantityType: Int = useServerState(BankVarbits.QUANTITY_TYPE);
+  const requestedQuantity: Int = useServerState(BankVarbits.REQUESTED_QUANTITY);
+
+  const searching: Boolean = bankmainSearching();
+  const filter: String = bankmainFilterString();
+
+  capacityRef.text = groupDigits(capacity, ',');
+  searchRef.sprite = searching ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF;
+
+  const pitch: Int = (universe.width - Grid.COLUMNS * Grid.W) / (Grid.COLUMNS - 1) + Grid.W;
+
+  const primary: String = `Withdraw-${defaultQuantityLabel(quantityType, requestedQuantity)}`;
+  const one: String = quantityType !== 0 ? 'Withdraw-1' : '';
+  const five: String = quantityType !== 1 ? 'Withdraw-5' : '';
+  const ten: String = quantityType !== 2 ? 'Withdraw-10' : '';
+  const requested: String =
+    quantityType !== 3 && requestedQuantity > 0 ? `Withdraw-${stringOf(requestedQuantity)}` : '';
+  const all: String = quantityType !== 4 ? 'Withdraw-All' : '';
+
+  const xs = intArray(Grid.MAX_SLOTS);
+  const ys = intArray(Grid.MAX_SLOTS);
+  let lastItemY: Int = -1;
+  let lastSlotY: Int = -1;
+  let placed: Int = 0;
+  let occupied: Int = 0;
+  let slot: Int = 0;
+  let held: Item = -1;
+  while (slot < Grid.MAX_SLOTS) {
+    xs[slot] = -1;
+    ys[slot] = 0;
+    held = -1;
+    if (slot < capacity) {
+      held = bag[slot];
+      if (held !== -1) {
+        occupied = occupied + 1;
+      }
+      if (searching) {
+        if (held !== -1 && bankmainFilterItem(held, searching, filter)) {
+          xs[slot] = (placed % Grid.COLUMNS) * pitch;
+          ys[slot] = (placed / Grid.COLUMNS) * pitch;
+          placed = placed + 1;
+          lastItemY = ys[slot];
+          lastSlotY = ys[slot];
+        }
+      } else {
+        xs[slot] = (slot % Grid.COLUMNS) * pitch;
+        ys[slot] = (slot / Grid.COLUMNS) * pitch;
+        if (held !== -1) {
+          lastItemY = ys[slot];
+        }
+        lastSlotY = ys[slot];
+      }
+    }
+    slot = slot + 1;
+  }
+
+  occupiedRef.text = groupDigits(occupied, ',');
+
+  const [mode] = useState(meslayermode);
+  if (searching && mode === SEARCH_MODE) {
+    if (filter.length > 0) {
+      mesTextRef.text = `Show items whose names contain the following text: (${groupDigits(placed, ',')} found)`;
+    } else {
+      mesTextRef.text = 'Show items whose names contain the following text:';
+    }
+  }
+
+  let itemBottom: Int = 0;
+  if (lastItemY !== -1) {
+    itemBottom = lastItemY + Grid.H;
+  }
+  let slotBottom: Int = 0;
+  if (lastSlotY !== -1) {
+    slotBottom = lastSlotY + Grid.H;
+  }
+  const extent: Int = Math.min(slotBottom, itemBottom + 2 * pitch);
+  const natural: Int = pitch * ((capacity + Grid.COLUMNS - 1) / Grid.COLUMNS - 1) + Grid.H + Layout.FRAME_CHROME;
+
+  const rootHeight: Int = rootSeen > 0 ? rootSeen : sharedBank.height;
+  const frameHeight: Int = Math.min(natural, rootHeight - Layout.FRAME_MARGIN);
+  CS2.if_size_set(0, frameHeight, SIZE_MINUS, SIZE_ABS, universeRef);
+
+  const visible: Int = frameHeight - Layout.FRAME_CHROME;
+  let scrollExtent: Int = 0;
+  if (extent > visible) {
+    scrollExtent = extent;
+  }
+
+  itemsRef.scrollHeight = scrollExtent;
+
+  return (
+    <layer x={0} y={0} w="fill" h={(Grid.MAX_SLOTS / Grid.COLUMNS) * pitch + Grid.H}>
+      {bag.map(
+        (item, index) =>
+          index < capacity && (
+            <StorageSlot
+              item={item}
+              count={bag.count(index)}
+              x={xs[index] < 0 ? 0 : xs[index]}
+              y={ys[index]}
+              hidden={xs[index] < 0 ? true : false}
+              slot={index}
+              capacity={capacity}
+              primary={primary}
+              one={one}
+              five={five}
+              ten={ten}
+              requested={requested}
+              all={all}
+            />
+          ),
+      )}
+    </layer>
+  );
+}

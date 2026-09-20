@@ -1,0 +1,1101 @@
+import { useInterval, useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import {
+  CosineDegrees,
+  LoadingIcon,
+  LoadingRingItems,
+  SineDegrees,
+} from '../0284_membership_benefits_prompt/membership-benefits-prompt.constants';
+import { ModifierBadges } from '../0864_colosseum_reward_chest_2/colosseum-art.data';
+import {
+  ColosseumColor,
+  ColosseumFonts,
+  ColosseumInventories,
+  ColosseumSounds,
+  ColosseumSprites,
+  ColosseumVarps,
+} from '../0864_colosseum_reward_chest_2/colosseum.constants';
+import {
+  ColosseumModifiers,
+  formatDurationMinutes,
+  modifierDescription,
+  modifierHeld,
+  modifierIcon,
+  modifierTier,
+  modifierTitle,
+  ticksToSeconds,
+} from '../0864_colosseum_reward_chest_2/colosseum.helpers';
+import { Sprites } from '../lib/game/sprites';
+import { colosseumSelectedModifierClient } from '../lib/game/varcs';
+import { flashFor } from '../lib/lib.components';
+import { itemName, playSound, scaled } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile, trackScroll } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ARROW, CAP, STEP, SteelborderColor, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import {
+  CLAIMING_LAYER,
+  CONFIRM_BODY,
+  CONFIRM_LAYER,
+  intermissionChestHover,
+  intermissionClaimCancelled,
+  intermissionHeld,
+  intermissionHeldCount,
+  intermissionHovered,
+  intermissionMode,
+  intermissionWave,
+  PROCEED_PANE,
+  SUMMARY_LIST,
+  SUMMARY_PANE,
+  switchIntermissionPane,
+} from './colosseum-intermission.state';
+
+export function ColosseumIntermission(): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y={{ center: -34 }} w="fill" h={{ fill: 66 }}>
+        <IntermissionBorder />
+      </layer>
+      <layer x="center" y={39} w={499} h={{ fill: 313 }}>
+        <PaneTabs />
+      </layer>
+      <layer x={0} y={60} w="99.993896484375%" h={{ fill: 131 }}>
+        <IntermissionPanes />
+      </layer>
+      <layer x={0} y={0} w={512} h={264} />
+      <layer ref={CONFIRM_LAYER} x={0} y={0} w="fill" h="fill" hide noClickThrough>
+        <rect x={0} y={0} w="fill" h={{ fill: 70 }} fill transparency={128} />
+        <layer x="center" y="center" w={350} h={150}>
+          <layer x="center" y="center" w="fill" h="fill">
+            <SteelBorder
+              title="Are you sure you want to claim your loot?"
+              titleColor={SteelborderColor.TITLE}
+              flags={1}
+            />
+          </layer>
+          <text
+            ref={CONFIRM_BODY}
+            x={{ center: -1 }}
+            y={38}
+            w={{ fill: 32 }}
+            h={62}
+            text=""
+            font={ColosseumFonts.BODY}
+            color={ColosseumColor.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={15}
+          />
+          <layer x={{ right: 53 }} y={{ bottom: 13 }} w={90} h={30}>
+            <ConfirmChoice label="Confirm" confirm />
+          </layer>
+          <layer x={52} y={{ bottom: 12 }} w={90} h={30}>
+            <ConfirmChoice label="Cancel" confirm={false} />
+          </layer>
+          <layer ref={CLAIMING_LAYER} x={0} y={0} w="fill" h="fill" hide noClickThrough>
+            <rect x={0} y={0} w="fill" h="fill" fill transparency={128} />
+            <ClaimingRing />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function IntermissionBorder(): Component {
+  const [wave] = useState(intermissionWave);
+  const title: String = wave > 0 ? `Wave ${wave} Completed!` : 'Colosseum';
+  return <SteelBorder title={title} titleColor={SteelborderColor.TITLE} flags={0} />;
+}
+
+function PaneTabs(): Component {
+  const [mode] = useState(intermissionMode);
+  return (
+    <>
+      <layer
+        x={0}
+        y={0}
+        w="50%"
+        h="fill"
+        options={['View']}
+        onOptionSelect={() => {
+          if (mode !== 0) {
+            switchIntermissionPane(0);
+          }
+        }}
+      >
+        <PaneTab label="Summary" selected={mode === 0} />
+      </layer>
+      <layer
+        x="right"
+        y={0}
+        w="50%"
+        h="fill"
+        options={['View']}
+        onOptionSelect={() => {
+          if (mode !== 1) {
+            switchIntermissionPane(1);
+          }
+        }}
+      >
+        <PaneTab label="Proceed" selected={mode === 1} />
+      </layer>
+    </>
+  );
+}
+
+function PaneTab({ label, selected }: { label: String; selected: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  const face: Int = selected ? 1 : hovered === 1 ? 2 : 0;
+  const cap: Sprite =
+    face === 1 ? Sprites.TABS_MODAL_SHORT_0 : face === 2 ? Sprites.TABS_MODAL_SHORT_4 : Sprites.TABS_MODAL_SHORT_2;
+  const middle: Sprite =
+    face === 1 ? Sprites.TABS_MODAL_SHORT_1 : face === 2 ? Sprites.TABS_MODAL_SHORT_5 : Sprites.TABS_MODAL_SHORT_3;
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!selected && !onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!selected && !onMobile()) {
+          setHovered(0);
+        }
+      }}
+    >
+      <sprite x={0} y={0} w={20} h={21} sprite={cap} />
+      <sprite x={20} y={0} w={{ fill: 40 }} h={21} sprite={middle} tiling />
+      <sprite x="right" y={0} w={20} h={21} sprite={cap} hflip />
+      <text
+        x="center"
+        y={1}
+        w="fill"
+        h={19}
+        text={label}
+        font={ColosseumFonts.BODY}
+        color={selected ? TabColor.SELECTED : ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+enum TabColor {
+  SELECTED = 0xffa82f,
+}
+
+function IntermissionPanes(): Component {
+  return (
+    <>
+      <layer ref={SUMMARY_PANE} x={0} y={0} w={512} h={202} hide>
+        <layer x={{ right: 5 }} y={29} w={16} h={{ fill: 31 }}>
+          <SummaryScrollbar />
+        </layer>
+        <line x={{ center: -1 }} y={0} w={0} h={{ fill: 2 }} color={DIVIDER} lineWidth={1} />
+        <layer ref={SUMMARY_LIST} x={{ right: 20 }} y={29} w={{ fill: 276 }} h={{ fill: 31 }}>
+          <SummaryList />
+        </layer>
+        <layer x={0} y={0} w={{ fill: 257 }} h="99.993896484375%">
+          <GloryColumn />
+        </layer>
+        <text
+          x="right"
+          y={0}
+          w="50%"
+          h={28}
+          text="Active Modifiers"
+          font={ColosseumFonts.BOLD}
+          color={ColosseumColor.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <text
+          x={0}
+          y={0}
+          w="50%"
+          h={28}
+          text="Glory"
+          font={ColosseumFonts.BOLD}
+          color={ColosseumColor.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+      <layer ref={PROCEED_PANE} x={0} y={0} w={512} h={204}>
+        <ProceedPane />
+      </layer>
+    </>
+  );
+}
+
+function SummaryScrollbar(): Component {
+  const [held] = useState(intermissionHeld);
+  const count: Int = intermissionHeldCount(held);
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+  const scrollExtent: Int = SUMMARY_LIST.scrollHeight;
+  const extent: Int = scrollExtent > 0 ? scrollExtent : SUMMARY_LIST.height;
+
+  if (count > 0) {
+    SUMMARY_LIST.onScrollWheel = (event) => {
+      SUMMARY_LIST.scrollY = SUMMARY_LIST.scrollY + event.mouseY * WHEEL;
+      trackScroll(gutter, thumb, capTop, capBottom, SUMMARY_LIST);
+    };
+  }
+
+  return count > 0 ? (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_3}
+        noClickThrough
+        onScrollWheel={(event) => {
+          SUMMARY_LIST.scrollY = SUMMARY_LIST.scrollY + event.mouseY * WHEEL;
+          trackScroll(gutter, thumb, capTop, capBottom, SUMMARY_LIST);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = SUMMARY_LIST.scrollHeight - SUMMARY_LIST.height;
+          SUMMARY_LIST.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, SUMMARY_LIST);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, SUMMARY_LIST.height, extent, true)) * SUMMARY_LIST.scrollY) /
+            Math.max(1, SUMMARY_LIST.scrollHeight - SUMMARY_LIST.height)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, SUMMARY_LIST.height, extent, true)}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = SUMMARY_LIST.scrollHeight - SUMMARY_LIST.height;
+          SUMMARY_LIST.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={Sprites.SCROLLBAR_DRAGGER_V2_0} />
+      <sprite
+        ref={capBottom}
+        y={thumb.y + thumb.height - CAP}
+        w="fill"
+        h={CAP}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+      />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_0}
+        noClickThrough
+        onHold={() => {
+          SUMMARY_LIST.scrollY = SUMMARY_LIST.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, SUMMARY_LIST);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_1}
+        noClickThrough
+        onHold={() => {
+          SUMMARY_LIST.scrollY = SUMMARY_LIST.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, SUMMARY_LIST);
+        }}
+      />
+    </layer>
+  ) : null;
+}
+
+function SummaryList(): Component {
+  const [held] = useState(intermissionHeld);
+  const count: Int = intermissionHeldCount(held);
+  return (
+    <>
+      {count === 0 ? (
+        <text
+          x={{ center: 10 }}
+          y={0}
+          w="fill"
+          h="fill"
+          text="None!"
+          font={ColosseumFonts.BODY}
+          color={ColosseumColor.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      ) : null}
+      <layer x={0} y={0} w="fill" h={count * 28}>
+        {ColosseumModifiers.map(
+          (row, key) =>
+            modifierHeld(row, held) && (
+              <>
+                <rect
+                  x="center"
+                  y={summaryRowBefore(held, key) * 28}
+                  w="fill"
+                  h={28}
+                  fill
+                  transparency={220}
+                  color={summaryRowBefore(held, key) % 2 === 0 ? ColosseumColor.BLACK : ColosseumColor.WHITE}
+                />
+                <text
+                  x="center"
+                  y={summaryRowBefore(held, key) * 28}
+                  w="50%"
+                  h={28}
+                  text={modifierTitle(row, true, true)}
+                  font={ColosseumFonts.BODY}
+                  color={ColosseumColor.WHITE}
+                  shadow
+                  align="center"
+                  valign="middle"
+                />
+              </>
+            ),
+        )}
+      </layer>
+    </>
+  );
+}
+
+function summaryRowBefore(held: Int, key: Int): Int {
+  let count: Int = 0;
+  let at: Int = 0;
+  while (at < key) {
+    const row = ColosseumModifiers.at(at);
+    if (row !== null && modifierHeld(row, held)) {
+      count = count + 1;
+    }
+    at = at + 1;
+  }
+  return count;
+}
+
+const DIVIDER = 0x786f64;
+
+function GloryColumn(): Component {
+  const [held] = useState(intermissionHeld);
+  const [wave] = useState(intermissionWave);
+  const lastWave: Int = useServerState(ColosseumVarps.LAST_WAVE_DURATION);
+  const glory: Int = useServerState(ColosseumVarps.GLORY);
+  const damage: Int = useServerState(ColosseumVarps.DAMAGE_TAKEN);
+  const lastWaveTime: String = formatDurationMinutes(ticksToSeconds(lastWave));
+  const totalTime: String = formatDurationMinutes(ticksToSeconds(useServerState(ColosseumVarps.TOTAL_DURATION)));
+  const gloryText: String = glory === 2147483647 ? 'Lots!' : `${glory}`;
+  const damageBonus: Int = damage <= 0 ? wave * 100 : 0;
+  const waveBonus: Int = wave === 12 ? 100 * wave + 1000 : 100 * wave;
+  const speedBonus: Int = lastWave > 0 && lastWave < 500 ? (500 - lastWave) * wave : 0;
+  const modifierBonus: Int = heldGloryUntiered(held);
+
+  return (
+    <>
+      <text
+        x={0}
+        y={{ bottom: 26 }}
+        w="50%"
+        h={20}
+        text="Total Glory"
+        font={ColosseumFonts.BOLD}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={0}
+        y={{ bottom: 7 }}
+        w="50%"
+        h={20}
+        text={gloryText}
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={{ bottom: 26 }}
+        w="50%"
+        h={20}
+        text="Total Time"
+        font={ColosseumFonts.BOLD}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={{ bottom: 7 }}
+        w="50%"
+        h={20}
+        text={totalTime}
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <GloryRow top={30} label="Wave complete: " value={`<col=0dc10d>+${waveBonus}</col>`} />
+      <GloryRow top={60} label="Speed bonus: " value={`<col=0dc10d>+${speedBonus}</col> (${lastWaveTime})`} />
+      <GloryRow top={90} label="Modifier choice:" value={`<col=0dc10d>+${modifierBonus}</col>`} />
+      <GloryRow top={120} label="Damage Taken:" value={`<col=0dc10d>+${damageBonus}</col> (${damage})`} />
+    </>
+  );
+}
+
+function GloryRow({ top, label, value }: { top: Int; label: String; value: String }): Component {
+  return (
+    <>
+      <text
+        x={15}
+        y={top}
+        w="50%"
+        h={28}
+        text={label}
+        font={ColosseumFonts.BODY}
+        color={GLORY_LABEL}
+        shadow
+        align="left"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={top}
+        w="50%"
+        h={28}
+        text={value}
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+const GLORY_LABEL = 0xffb83f;
+
+function heldGloryUntiered(held: Int): Int {
+  let total: Int = 0;
+  let key: Int = 0;
+  while (key < ColosseumModifiers.length) {
+    const row = ColosseumModifiers.at(key);
+    if (row !== null && modifierHeld(row, held)) {
+      total = total + row.glory;
+    }
+    key = key + 1;
+  }
+  return total;
+}
+
+function ProceedPane(): Component {
+  const lastValue: Int = useServerState(ColosseumVarps.LAST_WAVE_VALUE);
+  const nextValue: Int = useServerState(ColosseumVarps.NEXT_WAVE_VALUE);
+  const totalValue: Int = useServerState(ColosseumVarps.TOTAL_VALUE);
+
+  return (
+    <>
+      <layer x="center" y={0} w={254} h={200}>
+        <layer x={0} y={94} w={254} h={105}>
+          <OfferDescription />
+        </layer>
+        <layer x={0} y={27} w={254} h={65}>
+          <layer x={0} y={0} w="32.99560546875%" h={65} options={['Set']}>
+            <OfferBox position={1} />
+          </layer>
+          <layer x="center" y={0} w="32.99560546875%" h={65} options={['Set']}>
+            <OfferBox position={2} />
+          </layer>
+          <layer x="right" y={0} w="32.99560546875%" h={65} options={['Set']}>
+            <OfferBox position={3} />
+          </layer>
+        </layer>
+        <text
+          x="center"
+          y={5}
+          w={245}
+          h={18}
+          text="Choose a modifier:"
+          font={ColosseumFonts.BODY}
+          color={ColosseumColor.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+      <layer x={{ right: 6 }} y={{ center: -12 }} w={120} h={37}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <ItemBoxBacking />
+        </layer>
+        <layer x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }}>
+          <NextWaveRow />
+        </layer>
+      </layer>
+      <text
+        x={{ right: 1 }}
+        y={{ center: -61 }}
+        w={127}
+        h={18}
+        text="Next wave..."
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={{ right: 1 }}
+        y={{ center: -42 }}
+        w={127}
+        h={18}
+        text={`${groupDigits(nextValue, ',')} GP`}
+        font={ColosseumFonts.SMALL}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <layer x={6} y={{ center: -12 }} w={120} h={37}>
+        <layer x="center" y={0} w="fill" h="fill">
+          <ItemBoxBacking />
+        </layer>
+        <layer x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }}>
+          <LastWaveRow />
+        </layer>
+      </layer>
+      <text
+        x={2}
+        y={{ center: -42 }}
+        w={127}
+        h={18}
+        text={`${groupDigits(lastValue, ',')} GP`}
+        font={ColosseumFonts.SMALL}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={2}
+        y={{ center: -61 }}
+        w={127}
+        h={18}
+        text="Last wave..."
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <ClaimButton />
+      <ContinueButton />
+      <layer x={48} y={155} w={40} h={40} hide={totalValue <= lastValue}>
+        <LootChest />
+      </layer>
+    </>
+  );
+}
+
+function ItemBoxBacking(): Component {
+  return (
+    <>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={ColosseumSprites.BACKING_DARK} tiling />
+      <ThinBoxOutline />
+    </>
+  );
+}
+
+function LastWaveRow(): Component {
+  const items = useInventory(ColosseumInventories.LAST_WAVE);
+  const stop: Int = firstEmptyLastWave();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {items.map(
+        (item, slot) =>
+          slot < stop && (
+            <sprite
+              x={36 * slot + 5}
+              y={2}
+              w={36}
+              h={32}
+              item={item}
+              itemCount={items.count(slot)}
+              outline={1}
+              shadowColor={ColosseumColor.ITEM_SHADOW}
+              transparency={0}
+              options={['Examine']}
+              optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+              onOptionSelect={(event) => flashFor(event.self, 100, 0)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function firstEmptyLastWave(): Int {
+  const items = useInventory(ColosseumInventories.LAST_WAVE);
+  let slot: Int = 0;
+  while (slot < items.size && items[slot] !== -1) {
+    slot = slot + 1;
+  }
+  return slot;
+}
+
+function NextWaveRow(): Component {
+  const items = useInventory(ColosseumInventories.NEXT_WAVE);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {items.map(
+        (item, slot) =>
+          item !== -1 &&
+          items.count(slot) > 0 && (
+            <sprite
+              x={36 * slot + 5}
+              y={2}
+              w={36}
+              h={32}
+              item={item}
+              itemCount={items.count(slot)}
+              outline={1}
+              shadowColor={ColosseumColor.ITEM_SHADOW}
+              transparency={0}
+              options={['Examine']}
+              optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+              onOptionSelect={(event) => flashFor(event.self, 100, 0)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function LootChest(): Component {
+  const [chestHover, setChestHover] = useState(intermissionChestHover);
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setChestHover(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          setChestHover(0);
+        }
+      }}
+    >
+      <sprite
+        x="center"
+        y={{ center: chestHover === 1 ? 2 : 0 }}
+        w={32}
+        h={32}
+        sprite={Sprites.OPTIONS_ICONS_28}
+        transparency={chestHover === 1 ? 100 : 0}
+      />
+    </layer>
+  );
+}
+
+function OfferBox({ position }: { position: Int }): Component {
+  const [selected, setSelected] = useState(colosseumSelectedModifierClient);
+  const [hoveredOffer, setHoveredOffer] = useState(intermissionHovered);
+  const key: Int = offerKey(position);
+  const row = ColosseumModifiers.at(key);
+  const tier: Int = row === null ? 0 : row.tiered ? modifierTier(row) : 0;
+  const title: String = row === null ? '' : modifierTitle(row, false, true);
+  const icon: Sprite = row === null ? -1 : modifierIcon(row, tier + 1);
+  const badge: Sprite = ModifierBadges.get(tier + 1) ?? BADGE_DEFAULT;
+  const lit: Boolean = selected === position || hoveredOffer === position;
+
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      optionSubject={`<col=ff9040>${title}</col>`}
+      onOptionSelect={(event) => {
+        if (event.option === 1) {
+          if (selected === position) {
+            setSelected(0);
+          } else {
+            setSelected(position);
+            playSound(ColosseumSounds.SELECT);
+          }
+        }
+      }}
+      onMouseEnter={() => {
+        if (!onMobile() && selected !== position) {
+          playSound(ColosseumSounds.HOVER);
+          setHoveredOffer(position);
+        }
+      }}
+      onMouseLeave={() => {
+        if (selected !== position) {
+          setHoveredOffer(0);
+        }
+      }}
+    >
+      <sprite x="center" y="center" w="fill" h="fill" sprite={ColosseumSprites.BACKING_DARK} tiling />
+      <rect x="center" y="center" w="fill" h="fill" fill color={ColosseumColor.WHITE} transparency={lit ? 200 : 255} />
+      <ThinBoxOutline />
+      <sprite x="center" y="center" w={64} h={64} sprite={badge} />
+      <sprite x="center" y="center" w={64} h={64} sprite={icon} />
+    </layer>
+  );
+}
+
+const BADGE_DEFAULT = 5531;
+
+function offerKey(position: Int): Int {
+  if (position === 1) {
+    return useServerState(ColosseumVarps.OFFER_1);
+  }
+  if (position === 2) {
+    return useServerState(ColosseumVarps.OFFER_2);
+  }
+  return useServerState(ColosseumVarps.OFFER_3);
+}
+
+function OfferDescription(): Component {
+  const [chestHover] = useState(intermissionChestHover);
+  const [hoveredOffer] = useState(intermissionHovered);
+  const [selected] = useState(colosseumSelectedModifierClient);
+  const hoveredKey: Int = hoveredOffer > 0 ? offerKey(hoveredOffer) : 0;
+  const showHovered: Boolean = hoveredOffer > 0 && hoveredKey !== 0;
+  const shown: Int = showHovered ? hoveredOffer : selected;
+  const key: Int = shown > 0 ? offerKey(shown) : 0;
+  const row = ColosseumModifiers.at(key);
+  const title: String = row === null ? '' : showHovered ? modifierTitle(row, false, false) : row.name;
+  const description: String = row === null ? '' : modifierDescription(row);
+  const glory: Int = row === null ? 0 : row.glory;
+
+  return (
+    <>
+      <layer x={0} y={0} w="fill" h="fill" hide={chestHover === 1}>
+        <ItemBoxBacking />
+        {shown > 0 ? (
+          <>
+            <text
+              x="center"
+              y={5}
+              w={{ fill: 5 }}
+              h="32.99560546875%"
+              text={title}
+              font={ColosseumFonts.BODY}
+              color={ColosseumColor.ORANGE}
+              shadow
+              align="center"
+              valign="middle"
+            />
+            <text
+              x="center"
+              y="center"
+              w={{ fill: 5 }}
+              h="32.99560546875%"
+              text={description}
+              font={ColosseumFonts.BODY}
+              color={ColosseumColor.ORANGE}
+              shadow
+              align="center"
+              valign="middle"
+            />
+            <text
+              x="center"
+              y={{ bottom: 5 }}
+              w={{ fill: 5 }}
+              h="32.99560546875%"
+              text={`+${glory} Glory per wave`}
+              font={ColosseumFonts.BODY}
+              color={ColosseumColor.GREEN}
+              shadow
+              align="center"
+              valign="middle"
+            />
+          </>
+        ) : null}
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill" hide={chestHover !== 1}>
+        <ChestLoot />
+      </layer>
+    </>
+  );
+}
+
+function ChestLoot(): Component {
+  const loot = useInventory(ColosseumInventories.LOOT);
+  const total: Int = useServerState(ColosseumVarps.TOTAL_VALUE);
+  const stop: Int = firstEmptyLoot();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <ItemBoxBacking />
+      {loot.map(
+        (item, slot) =>
+          slot < stop && (
+            <sprite
+              x={36 * slot + 5}
+              y={5}
+              w={36}
+              h={32}
+              item={item}
+              itemCount={loot.count(slot)}
+              outline={1}
+              shadowColor={ColosseumColor.ITEM_SHADOW}
+              transparency={0}
+              options={['Examine']}
+              optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+              onOptionSelect={(event) => flashFor(event.self, 100, 0)}
+            />
+          ),
+      )}
+      <text
+        x="center"
+        y="bottom"
+        w="fill"
+        h={20}
+        text={`Total value: <col=ffffff>${groupDigits(total, ',')} GP</col>`}
+        font={ColosseumFonts.SMALL}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function firstEmptyLoot(): Int {
+  const loot = useInventory(ColosseumInventories.LOOT);
+  let slot: Int = 0;
+  while (slot < loot.size && loot[slot] !== -1) {
+    slot = slot + 1;
+  }
+  return slot;
+}
+
+function ContinueButton(): Component {
+  const [selected] = useState(colosseumSelectedModifierClient);
+  const [pressed, setPressed] = useState(0);
+  const live: Boolean = selected !== 0;
+  return (
+    <layer
+      x={{ center: 193 }}
+      y={{ center: 32 }}
+      w={85}
+      h={34}
+      options={['Continue']}
+      onMouseRepeat={() => {
+        if (live && !onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (live && !onMobile()) {
+          setPressed(0);
+        }
+      }}
+    >
+      <ButtonFace pressed={pressed === 1} label="Continue" colour={live ? CONTINUE_LIVE : ColosseumColor.DISABLED} />
+    </layer>
+  );
+}
+
+const CONTINUE_LIVE = 0x00f010;
+const CLAIM_CANCELLED = 0xff3232;
+
+function ClaimButton(): Component {
+  const [wave] = useState(intermissionWave);
+  const [cancelled] = useState(intermissionClaimCancelled);
+  const [pressed, setPressed] = useState(0);
+  if (wave <= 0) {
+    return <layer x={{ center: -188 }} y={{ center: 32 }} w={85} h={34} options={['Select']} />;
+  }
+  return (
+    <layer
+      x={{ center: -188 }}
+      y={{ center: 32 }}
+      w={85}
+      h={34}
+      options={['Claim']}
+      onOptionSelect={() => {
+        playSound(ColosseumSounds.SELECT);
+        CONFIRM_LAYER.hide = false;
+      }}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          setPressed(0);
+        }
+      }}
+    >
+      <ButtonFace
+        pressed={pressed === 1}
+        label="Claim"
+        colour={cancelled === 1 ? CLAIM_CANCELLED : ColosseumColor.ORANGE}
+      />
+    </layer>
+  );
+}
+
+function ButtonFace({ pressed, label, colour }: { pressed: Boolean; label: String; colour: Int }): Component {
+  return (
+    <>
+      {pressed ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={ColosseumFonts.BODY}
+        color={colour}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function ConfirmChoice({ label, confirm }: { label: String; confirm: Boolean }): Component {
+  const [pressed, setPressed] = useState(0);
+  const [, setCancelled] = useState(intermissionClaimCancelled);
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      options={[label]}
+      optionSubject="<col=ff981f>Claim</col>"
+      onOptionSelect={() => {
+        playSound(ColosseumSounds.SELECT);
+        if (confirm) {
+          CLAIMING_LAYER.hide = false;
+        } else {
+          CONFIRM_LAYER.hide = true;
+          setCancelled(1);
+        }
+      }}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          setPressed(0);
+        }
+      }}
+    >
+      <ButtonFace pressed={pressed === 1} label={label} colour={ColosseumColor.WHITE} />
+    </layer>
+  );
+}
+
+function ClaimingRing(): Component {
+  const universe = useUniverse();
+  const size: Int = Math.min(universe.width, universe.height) / LoadingIcon.SIZE_DIVISOR;
+  const centerX: Int = (universe.width - size) / 2;
+  const centerY: Int = (universe.height - size) / 2 + RING_OFFSET_Y;
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {LoadingRingItems.map((item, index) => (
+        <ClaimingRingItem item={item} index={index} centerX={centerX} centerY={centerY} size={size} />
+      ))}
+    </layer>
+  );
+}
+
+const RING_OFFSET_Y = 30;
+
+function ClaimingRingItem({
+  item,
+  index,
+  centerX,
+  centerY,
+  size,
+}: {
+  item: Item;
+  index: Int;
+  centerX: Int;
+  centerY: Int;
+  size: Int;
+}): Component {
+  const angle: Int = index * LoadingIcon.DEGREES_PER_ITEM + Math.min(index + 1, LoadingIcon.DEGREES_SPARE);
+  const zoom: Int = Math.max(LoadingIcon.ZOOM_MAX - index * LoadingIcon.ZOOM_STEP, LoadingIcon.ZOOM_MIN);
+  const me = useRef();
+
+  useInterval(() => {
+    const next: Int = me.zoom + LoadingIcon.ZOOM_PER_CYCLE;
+    me.props = {
+      offsetX: 0,
+      offsetY: 0,
+      pitch: LoadingIcon.PITCH,
+      yaw: LoadingIcon.YAW,
+      roll: LoadingIcon.ROLL,
+      zoom: next > LoadingIcon.ZOOM_MAX ? LoadingIcon.ZOOM_MIN : next,
+    };
+  }, me);
+
+  return (
+    <model
+      ref={me}
+      x={centerX + scaled(CosineDegrees.at(angle) ?? 0, LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      y={centerY + scaled(SineDegrees.at(angle) ?? 0, LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      w={size}
+      h={size}
+      item={item}
+      itemCount={LoadingIcon.STACK}
+      pitch={LoadingIcon.PITCH}
+      yaw={LoadingIcon.YAW}
+      roll={LoadingIcon.ROLL}
+      zoom={zoom}
+    />
+  );
+}

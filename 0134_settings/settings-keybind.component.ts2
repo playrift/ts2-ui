@@ -1,4 +1,4 @@
-import { predictServerState, useDerived, useServerState, useState } from 'ts2';
+import { CS2, predictServerState, useDerived, useRef, useServerState, useState } from 'ts2';
 import { playSound, textWidth } from '../lib/lib.engine';
 import { Sprites } from '../lib/game/sprites';
 import { NoOptions } from './settings-options.data';
@@ -7,6 +7,8 @@ import { Art, Colour, SettingsFonts, SettingsVarbits, Sounds } from './settings.
 import type { SettingsRow } from './settings-rows.data';
 import { Grid, categoryBase } from './settings-layout';
 import {
+  Drop,
+  latchOpenComponents,
   openDropdownH,
   openDropdownRow,
   openDropdownSetting,
@@ -60,13 +62,14 @@ export function SettingsKeybind({
   const code: Int = useDerived(() => keybindCode(settingId));
   const label: String = table.at(code) ?? fallback;
   const enabledFlag: Int = useDerived(() => settingEnabled(row));
-  const [open, setOpen] = useState(openDropdownSetting);
+  const [, setOpen] = useState(openDropdownSetting);
   const [, setOpenRow] = useState(openDropdownRow);
   const [, setOpenX] = useState(openDropdownX);
   const [, setOpenY] = useState(openDropdownY);
   const [, setOpenW] = useState(openDropdownW);
   const [, setOpenH] = useState(openDropdownH);
-  const expanded: Boolean = keybindOpen(open, settingId);
+  const caption = useRef();
+  const chevron = useRef();
 
   return (
     <>
@@ -109,14 +112,16 @@ export function SettingsKeybind({
           />
 
           <sprite
+            ref={chevron}
             x={boxX + labelW + Keybind.arrowDx}
             y={top + Keybind.arrowDy}
             w={Keybind.arrow}
             h={Keybind.arrow}
-            sprite={expanded ? Art.BAR_ARROW_UP : KeybindArt.CHEVRON}
+            sprite={KeybindArt.CHEVRON}
           />
 
           <text
+            ref={caption}
             x={boxX + Keybind.textDx}
             y={top + Keybind.arrowDy}
             w={labelW + Keybind.textPad}
@@ -129,40 +134,6 @@ export function SettingsKeybind({
             valign="middle"
             lineHeight={Keybind.textLineHeight}
           />
-
-          {enabled && enabledFlag === 1 ? (
-            <rect
-              x={boxX}
-              y={top + Keybind.boxDy}
-              w={boxW}
-              h={Keybind.boxH}
-              fill
-              color={Colour.BLACK}
-              transparency={Keybind.clickTransparency}
-              options={['Select']}
-              onOptionSelect={() => {
-                playSound(Sounds.TAB_SELECT);
-                setOpenRow(categoryBase(row.category) + row.ordinal);
-                setOpenX(boxX);
-                setOpenY(top + Keybind.boxDy);
-                setOpenW(boxW);
-                setOpenH(Keybind.boxH);
-                setOpen(settingId);
-              }}
-            />
-          ) : (
-            <rect
-              x={boxX}
-              y={top + Keybind.boxDy}
-              w={boxW}
-              h={Keybind.boxH}
-              fill
-              color={Colour.BLACK}
-              transparency={Keybind.clickTransparency}
-              options={['Select']}
-              hide
-            />
-          )}
 
           {enabled && enabledFlag === 1 && !mobile ? (
             <rect
@@ -186,6 +157,42 @@ export function SettingsKeybind({
               transparency={Keybind.clickTransparency}
             />
           )}
+
+          {enabled && enabledFlag === 1 ? (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+              options={['Select']}
+              onOptionSelect={() => {
+                playSound(Sounds.TAB_SELECT);
+                setOpenRow(categoryBase(row.category) + row.ordinal);
+                setOpenX(boxX);
+                setOpenY(top + Keybind.boxDy);
+                setOpenW(boxW);
+                setOpenH(Keybind.boxH);
+                latchOpenComponents(caption, chevron);
+                setOpen(settingId);
+                chevron.sprite = Art.BAR_ARROW_UP;
+              }}
+            />
+          ) : (
+            <rect
+              x={boxX}
+              y={top + Keybind.boxDy}
+              w={boxW}
+              h={Keybind.boxH}
+              fill
+              color={Colour.BLACK}
+              transparency={Keybind.clickTransparency}
+              options={['Select']}
+              hide
+            />
+          )}
         </>
       )}
     </>
@@ -199,6 +206,8 @@ export function KeybindEntry({
   count,
   entryH,
   mobile,
+  captionIndex,
+  chevronIndex,
 }: {
   row: SettingsRow;
   optionsId: List<String>;
@@ -206,11 +215,14 @@ export function KeybindEntry({
   count: Int;
   entryH: Int;
   mobile: Boolean;
+  captionIndex: Int;
+  chevronIndex: Int;
 }): Component {
   const [, setOpen] = useState(openDropdownSetting);
   const table: List<String> = optionsId;
   const fallback: String = row.optionsFallback ?? '';
   const y: Int = index * entryH;
+  const text: String = table.at(index) ?? fallback;
 
   return (
     <>
@@ -241,7 +253,7 @@ export function KeybindEntry({
             y={y}
             w="fill"
             h={entryH}
-            text={table.at(index) ?? fallback}
+            text={text}
             font={SettingsFonts.BODY}
             shadow
             color={Colour.AMBER}
@@ -258,11 +270,8 @@ export function KeybindEntry({
             color={Colour.BLACK}
             transparency={Keybind.clickTransparency}
             options={['Select']}
-            onOptionSelect={() => {
-              playSound(Sounds.TAB_SELECT);
-              if (!(row.live ?? false)) {
-                settingsSetKeybind(row);
-              }
+            onOptionSelect={(event) => {
+              keybindEntryOp(event.component, captionIndex, chevronIndex, text, row, mobile, index);
               setOpen(-1);
             }}
           />
@@ -276,11 +285,56 @@ export function settingsSetKeybind(row: SettingsRow): void {
   predictServerState(SettingsVarbits.SELECTED_SETTING, row.settingId ?? 0);
 }
 
-function keybindOpen(open: Int, settingId: Int): Boolean {
-  if (open === settingId) {
-    return true;
+export function keybindEntryOp(
+  mount: ComponentId,
+  captionIndex: Int,
+  chevronIndex: Int,
+  text: String,
+  row: SettingsRow,
+  mobile: Boolean,
+  index: Int,
+): void {
+  playSound(Sounds.TAB_SELECT);
+  if (CS2.cc_find(mount, captionIndex)) {
+    CS2.cc_text_set(text);
+    if (!(row.live ?? false)) {
+      settingsSetKeybind(row);
+      if (CS2.cc_find(mount, captionIndex)) {
+        CS2.cc_on_timer_set(() => keybindSynch(0, mount, captionIndex, row, mobile));
+      }
+    }
   }
-  return false;
+  if (CS2.cc_find(mount, chevronIndex)) {
+    CS2.cc_sprite_set(KeybindArt.CHEVRON);
+  }
+}
+
+export function keybindSynch(
+  count: Int,
+  mount: ComponentId,
+  captionIndex: Int,
+  row: SettingsRow,
+  mobile: Boolean,
+): void {
+  if (!CS2.cc_find(mount, captionIndex)) {
+    return;
+  }
+  if (count < Drop.synchCycles) {
+    const next: Int = count + 1;
+    CS2.cc_on_timer_set(() => keybindSynch(next, mount, captionIndex, row, mobile));
+    return;
+  }
+  const options: List<String> =
+    mobile && (row.optionsMobile ?? NoOptions).length !== 0
+      ? (row.optionsMobile ?? NoOptions)
+      : (row.options ?? NoOptions);
+  const fallback: String =
+    mobile && (row.optionsMobile ?? NoOptions).length !== 0
+      ? (row.optionsMobileFallback ?? '')
+      : (row.optionsFallback ?? '');
+  const label: String = options.at(keybindCode(row.settingId ?? 0)) ?? fallback;
+  CS2.cc_text_set(label);
+  CS2.cc_on_timer_set(null);
 }
 
 export function keybindCode(settingId: Int): Int {

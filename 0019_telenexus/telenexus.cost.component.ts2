@@ -1,0 +1,137 @@
+import { CS2, useState } from 'ts2';
+
+import { Sprites } from '../lib/game/sprites';
+
+import {
+  CostCard as CostCardBox,
+  Layout,
+  TelenexusColor,
+  TelenexusFonts,
+  TelenexusTeleport,
+  TelenexusTeleports,
+} from './telenexus.constants';
+import { CostRow, CostY } from './telenexus.state';
+import { affordable, teleportRequirements } from './telenexus.requirements';
+
+export function CostCardLayer(): Component {
+  const [row] = useState(CostRow);
+  const [top] = useState(CostY);
+  const teleport: TelenexusTeleport | null = TelenexusTeleports.get(row);
+
+  const width: Int = teleport === null ? Layout.COST_CARD_SIZE : cardWidth(teleport);
+  const height: Int = teleport === null ? Layout.COST_CARD_SIZE : cardHeight(teleport, width);
+
+  return (
+    <layer
+      x={teleport === null ? 0 : 0}
+      y={teleport === null ? 0 : top}
+      w={width}
+      h={height}
+      hide={teleport === null}
+      noClickThrough
+    >
+      {teleport !== null && <CostCardBody row={teleport} width={width} />}
+    </layer>
+  );
+}
+
+function cardHeight(row: TelenexusTeleport, width: Int): Int {
+  const [met, text] = teleportRequirements(row);
+  return (
+    CostCardBox.CHROME_H +
+    CostCardBox.LINE_H * CS2.paraheight(text, width - CostCardBox.TEXT_INSET, TelenexusFonts.LABEL)
+  );
+}
+
+function CostCardBody({ row, width }: { row: TelenexusTeleport; width: Int }): Component {
+  const [met, text] = teleportRequirements(row);
+
+  return (
+    <>
+      <rect x={0} y={0} w="fill" h="fill" fill color={0} />
+
+      <rect
+        x={CostCardBox.BORDER_OFFSET}
+        y={CostCardBox.BORDER_OFFSET}
+        w={{ fill: CostCardBox.BORDER_INSET }}
+        h={{ fill: CostCardBox.BORDER_INSET }}
+        color={TelenexusColor.BUTTON}
+      />
+
+      <CostItem item={row.cost1Item ?? -1} count={row.cost1Count ?? -1} x={CostCardBox.ITEM_X1} />
+      <CostItem item={row.cost2Item ?? -1} count={row.cost2Count ?? -1} x={CostCardBox.ITEM_X2} />
+      <CostItem item={row.cost3Item ?? -1} count={row.cost3Count ?? -1} x={CostCardBox.ITEM_X3} />
+      <CostItem item={row.cost4Item ?? -1} count={row.cost4Count ?? -1} x={CostCardBox.ITEM_X4} />
+
+      <text
+        x={CostCardBox.TEXT_OFFSET}
+        y={CostCardBox.TEXT_OFFSET}
+        w={{ fill: CostCardBox.TEXT_INSET }}
+        h={{ fill: CostCardBox.TEXT_INSET }}
+        text={row.name}
+        font={TelenexusFonts.LABEL}
+        color={TelenexusColor.BUTTON}
+        align="center"
+        shadow
+      />
+
+      <text
+        x={CostCardBox.TEXT_OFFSET}
+        y={{ bottom: CostCardBox.TEXT_OFFSET }}
+        w={{ fill: CostCardBox.TEXT_INSET }}
+        h={CostCardBox.TEXT_BOTTOM_H}
+        text={text}
+        font={TelenexusFonts.LABEL}
+        align="center"
+        valign="bottom"
+        lineHeight={CostCardBox.LINE_H}
+        shadow
+      />
+    </>
+  );
+}
+
+function cardWidth(row: TelenexusTeleport): Int {
+  let items: Int = 0;
+  if ((row.cost1Item ?? -1) !== -1) {
+    items = items + 1;
+  }
+  if ((row.cost2Item ?? -1) !== -1) {
+    items = items + 1;
+  }
+  if ((row.cost3Item ?? -1) !== -1) {
+    items = items + 1;
+  }
+  if ((row.cost4Item ?? -1) !== -1) {
+    items = items + 1;
+  }
+  return Math.max(CostCardBox.MIN_WIDTH, items * CostCardBox.WIDTH_PER_ITEM);
+}
+
+function CostItem({ item, count, x }: { item: ItemName; count: Int; x: Int }): Component {
+  if (item === -1) {
+    return null;
+  }
+  const enough: Boolean = affordable(item) >= count;
+  return (
+    <>
+      <sprite
+        x={x}
+        y={CostCardBox.ITEM_Y}
+        w={CostCardBox.ITEM_W}
+        h={CostCardBox.ITEM_H}
+        item={CS2.item_uncert(item as Item)}
+        itemCount={count}
+        options={['Examine']}
+        onOptionSelect={() => CS2.message(CS2.item_name(item as Item))}
+      />
+      <sprite
+        x={x + CostCardBox.ITEM_W - CostCardBox.MARK_INSET}
+        y={CostCardBox.ITEM_Y + CostCardBox.ITEM_H - CostCardBox.MARK_INSET}
+        w={enough ? CostCardBox.TICK_SIZE : CostCardBox.CROSS_SIZE}
+        h={enough ? CostCardBox.TICK_SIZE : CostCardBox.CROSS_SIZE}
+        sprite={enough ? Sprites.TICK : Sprites.CLICKCROSS_4}
+      />
+    </>
+  );
+}

@@ -1,0 +1,70 @@
+import { predictServerState, useServerState, useUniverse } from 'ts2';
+import { playSound, textWidth } from '../lib/lib.engine';
+import { battleSettled } from './supplies-tabs';
+import {
+  Copy,
+  Ready,
+  SuppliesColor,
+  SuppliesFonts,
+  SuppliesSounds,
+  SuppliesSprites,
+  SuppliesVarbits,
+  Wash,
+} from './pvp-arena-stagingarea-supplies.constants';
+
+export function ReadyToggle(): Component {
+  const strip = useUniverse();
+  const battleType: Int = useServerState(SuppliesVarbits.BATTLE_TYPE);
+  const ready: Int = useServerState(SuppliesVarbits.I_AM_READY);
+
+  if (!battleSettled(battleType)) {
+    return null;
+  }
+
+  const labelWidth: Int = textWidth(Copy.READY, strip.width, SuppliesFonts.BODY) + Ready.GAP + Ready.RADIO;
+  return (
+    <>
+      <rect
+        x={{ right: 0 }}
+        y={0}
+        w={Ready.RECT_PAD + labelWidth}
+        h={{ fill: 1 }}
+        fill
+        color={SuppliesColor.WHITE}
+        transparency={Wash.CLEAR}
+        options={[Copy.READY_OP]}
+        onMouseRepeat={(event) => {
+          event.self.transparency = Wash.READY_HOVER;
+        }}
+        onMouseLeave={(event) => {
+          event.self.transparency = Wash.CLEAR;
+        }}
+        onOptionSelect={(event) => {
+          if (event.option === 1) {
+            playSound(SuppliesSounds.CLICK);
+            predictServerState(SuppliesVarbits.I_AM_READY, 1 - ready);
+          }
+        }}
+      />
+      <text
+        x={{ right: 0 }}
+        y={0}
+        w={labelWidth}
+        h={{ fill: 1 }}
+        color={SuppliesColor.LABEL_HOT}
+        font={SuppliesFonts.BODY}
+        shadow
+        align="left"
+        valign="middle"
+        text={Copy.READY}
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={(strip.height - 1 - Ready.RADIO) / 2}
+        w={Ready.RADIO}
+        h={Ready.RADIO}
+        sprite={ready === 1 ? SuppliesSprites.RADIO_ON : SuppliesSprites.RADIO_OFF}
+      />
+    </>
+  );
+}

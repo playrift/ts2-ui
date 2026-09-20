@@ -1,0 +1,98 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/game/sounds';
+import { Varps } from '../lib/game/varps';
+import { OmnishopShops } from './omnishop.data';
+import {
+  omnishopCalls,
+  omnishopColumnOpen,
+  omnishopInfoBuiltAt,
+  omnishopInventory,
+  omnishopRingLead,
+  omnishopSelectedSlot,
+  omnishopShop,
+} from './omnishop-main.state';
+
+export function omnishopMainOpen(shopIndex: Int, inventory: Int): void {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return;
+  }
+  const lastShop: Int = useServerState(Varps.OMNISHOP_LASTSHOP);
+  const selectedId: Int = useServerState(Varps.OMNISHOP_SELECTED_ID);
+  let selected: Int = selectedId;
+  if (lastShop !== shop.wireRow) {
+    predictServerState(Varps.OMNISHOP_SELECTED_ID, -1);
+    predictServerState(Varps.OMNISHOP_SELECTED_SIDE_ID, -1);
+    predictServerState(Varps.OMNISHOP_FILTER, 0);
+    selected = -1;
+  }
+  const [, setShop] = useState(omnishopShop);
+  const [, setInventory] = useState(omnishopInventory);
+  const [calls, setCalls] = useState(omnishopCalls);
+  const [, setSelectedSlot] = useState(omnishopSelectedSlot);
+  const [, setColumnOpen] = useState(omnishopColumnOpen);
+  setShop(shopIndex);
+  setInventory(inventory);
+  setCalls(calls + 1);
+  setSelectedSlot(selected);
+  setColumnOpen(-1);
+  infoBuiltNow(0);
+}
+
+function infoBuiltNow(lead: Int): void {
+  const [, setBuiltAt] = useState(omnishopInfoBuiltAt);
+  const [, setLead] = useState(omnishopRingLead);
+  setBuiltAt(clientClock());
+  setLead(lead);
+}
+
+export function omnishopListSelect(slot: Int, op: Int): void {
+  if (op !== 1) {
+    return;
+  }
+  playSound(Sounds.INTERFACE_SELECT1);
+  const [, setSelectedSlot] = useState(omnishopSelectedSlot);
+  const [, setColumnOpen] = useState(omnishopColumnOpen);
+  setSelectedSlot(slot);
+  infoBuiltNow(1);
+  const expanded: Int = useServerState(Varps.OMNISHOP_VIEW_EXPANDED);
+  if (expanded === 1) {
+    setColumnOpen(1);
+  }
+}
+
+export function omnishopHelp(op: Int): void {
+  if (op !== 1) {
+    return;
+  }
+  playSound(Sounds.INTERFACE_SELECT1);
+  const [, setSelectedSlot] = useState(omnishopSelectedSlot);
+  const [, setColumnOpen] = useState(omnishopColumnOpen);
+  setSelectedSlot(-1);
+  setColumnOpen(1);
+}
+
+export function omnishopInfoClose(): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  const [, setColumnOpen] = useState(omnishopColumnOpen);
+  setColumnOpen(0);
+}
+
+export function omnishopToggleView(): void {
+  const expanded: Int = useServerState(Varps.OMNISHOP_VIEW_EXPANDED);
+  predictServerState(Varps.OMNISHOP_VIEW_EXPANDED, expanded === 1 ? 0 : 1);
+  predictServerState(Varps.OMNISHOP_SELECTED_ID, -1);
+  const [, setSelectedSlot] = useState(omnishopSelectedSlot);
+  const [calls, setCalls] = useState(omnishopCalls);
+  setSelectedSlot(-1);
+  setCalls(calls + 1);
+}
+
+export function omnishopFilterPick(key: Int): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  predictServerState(Varps.OMNISHOP_FILTER, key);
+  predictServerState(Varps.OMNISHOP_SELECTED_ID, -1);
+  const [, setSelectedSlot] = useState(omnishopSelectedSlot);
+  setSelectedSlot(-1);
+}

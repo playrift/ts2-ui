@@ -1,0 +1,107 @@
+import { useDerived, useUniverse } from 'ts2';
+
+import { CaColour, CaFonts, Layout } from './ca-overview.constants';
+import {
+  bossKillTotal,
+  formatCount,
+  raidCompletionTotal,
+  skillingBossKillTotal,
+  tasksCompletedTotal,
+  topBossKillcount,
+  topBossOf,
+  topBossText,
+} from './ca-overview.helpers';
+
+export function CaPersonal(): Component {
+  const universe = useUniverse();
+  const rowW: Int = universe.width - Layout.STAT_INSET_W;
+  const rowH: Int = universe.height / Layout.STAT_ROWS;
+
+  const tasks: Int = useDerived(() => tasksCompletedTotal());
+  const bosses: Int = useDerived(() => bossKillTotal());
+  const skilling: Int = useDerived(() => skillingBossKillTotal());
+  const raids: Int = useDerived(() => raidCompletionTotal());
+  const topBoss: Int = useDerived(() => topBossOf(1));
+  const topBossKills: Int = useDerived(() => topBossKillcount(1));
+  const topSkilling: Int = useDerived(() => topBossOf(2));
+  const topSkillingKills: Int = useDerived(() => topBossKillcount(2));
+  const topRaid: Int = useDerived(() => topBossOf(3));
+  const topRaidKills: Int = useDerived(() => topBossKillcount(3));
+
+  return (
+    <>
+      <rect
+        w={{ fill: Layout.STAT_PLATE_INSET_W }}
+        h={{ fill: Layout.STAT_PLATE_INSET_H }}
+        color={CaColour.BLACK}
+        transparency={Layout.STAT_PLATE_ALPHA}
+      />
+      <PersonalStat row={0} rowW={rowW} rowH={rowH} caption="Tasks Completed:" value={formatCount(tasks)} />
+      <PersonalStat row={1} rowW={rowW} rowH={rowH} caption="Boss Kill Count:" value={formatCount(bosses)} />
+      <PersonalStat row={2} rowW={rowW} rowH={rowH} caption="Skilling Boss Kill Count:" value={formatCount(skilling)} />
+      <PersonalStat row={3} rowW={rowW} rowH={rowH} caption="Raid Completions:" value={formatCount(raids)} />
+      <PersonalStat row={4} rowW={rowW} rowH={rowH} caption="Top Boss:" value={topBossText(topBoss, topBossKills)} />
+      <PersonalStat
+        row={5}
+        rowW={rowW}
+        rowH={rowH}
+        caption="Top Skilling Boss:"
+        value={topBossText(topSkilling, topSkillingKills)}
+      />
+      <PersonalStat row={6} rowW={rowW} rowH={rowH} caption="Top Raid:" value={topBossText(topRaid, topRaidKills)} />
+    </>
+  );
+}
+
+function PersonalStat({
+  row,
+  rowW,
+  rowH,
+  caption,
+  value,
+}: {
+  row: Int;
+  rowW: Int;
+  rowH: Int;
+  caption: String;
+  value: String;
+}): Component {
+  const y: Int = Layout.STAT_Y + row * rowH;
+  return (
+    <>
+      <rect
+        x={Layout.STAT_X}
+        y={y}
+        w={rowW}
+        h={rowH}
+        fill
+        color={CaColour.WHITE}
+        transparency={row % 2 === 0 ? Layout.STAT_ROW_ALPHA_A : Layout.STAT_ROW_ALPHA_B}
+      />
+      <text
+        x={Layout.STAT_X + Layout.STAT_TEXT_INSET}
+        y={y}
+        w={rowW}
+        h={rowH}
+        text={caption}
+        font={CaFonts.BODY}
+        shadow
+        color={CaColour.CAPTION}
+        align="left"
+        valign="middle"
+      />
+      <text
+        x={Layout.STAT_X}
+        y={y}
+        w={rowW - Layout.STAT_TEXT_INSET}
+        h={rowH}
+        text={value}
+        font={CaFonts.BODY}
+        shadow
+        color={CaColour.VALUE}
+        align="right"
+        valign="middle"
+      />
+    </>
+  );
+}

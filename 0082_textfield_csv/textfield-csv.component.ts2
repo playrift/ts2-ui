@@ -1,0 +1,267 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+import { SettingsRow, SettingsRows } from '../0134_settings/settings-rows.data';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { onMobile } from '../lib/lib.helpers';
+import { clientClock } from '../lib/lib.engine';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { CsvColors, CsvCopy, CsvFade, CsvFonts, CsvLayout } from './textfield-csv.constants';
+import { CsvButton, textfieldCsvBackdropClick, textfieldCsvButton } from './textfield-csv.helpers';
+import {
+  textfieldCsvClosed,
+  textfieldCsvFadeDirection,
+  textfieldCsvFadeStartedAt,
+  textfieldCsvInitialText,
+  textfieldCsvInstructions,
+  textfieldCsvOpens,
+  textfieldCsvRowKey,
+} from './textfield-csv.state';
+
+export function TextfieldCsv(): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        x="center"
+        y={{ bottom: CsvLayout.CLAMP_BOTTOM }}
+        w={{ fill: CsvLayout.CLAMP_INSET_X }}
+        h={{ fill: CsvLayout.CLAMP_INSET_Y }}
+        noClickThrough
+        onClick={() => textfieldCsvBackdropClick()}
+      >
+        <ModalFader />
+        <layer x="center" y="center" w={CsvLayout.WINDOW_W} h={CsvLayout.WINDOW_H} noClickThrough>
+          <layer x="center" y="center" w="fill" h="fill">
+            <FrameBorder />
+          </layer>
+          <layer
+            x="center"
+            y={CsvLayout.BODY_Y}
+            w={{ fill: CsvLayout.BODY_INSET_X }}
+            h={{ fill: CsvLayout.BODY_INSET_Y }}
+          >
+            <Instructions />
+            <layer x={0} y="bottom" w="fill" h={{ fill: CsvLayout.TAB_INSET_Y }}>
+              <TabBacking />
+            </layer>
+            <layer x={0} y="bottom" w="fill" h={{ fill: CsvLayout.TAB_INSET_Y }}>
+              <TabThinBox />
+            </layer>
+          </layer>
+          <layer
+            x={{ center: -CsvLayout.BUTTON_DX }}
+            y={{ bottom: CsvLayout.BUTTON_BOTTOM }}
+            w={CsvLayout.BUTTON_W}
+            h={CsvLayout.BUTTON_H}
+          >
+            <CancelButton />
+          </layer>
+          <layer
+            x={{ center: CsvLayout.BUTTON_DX }}
+            y={{ bottom: CsvLayout.BUTTON_BOTTOM }}
+            w={CsvLayout.BUTTON_W}
+            h={CsvLayout.BUTTON_H}
+          >
+            <SaveButton />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function windowShown(opens: Int, closed: Int): Boolean {
+  return opens > 0 && closed === 0;
+}
+
+function fadeLevel(direction: Int, elapsed: Int): Int {
+  if (direction === 1) {
+    if (elapsed >= CsvFade.IN_CYCLES) {
+      return CsvFade.DIM;
+    }
+    return CsvFade.CLEAR + CS2.scale(elapsed, CsvFade.IN_CYCLES, CsvFade.DIM - CsvFade.CLEAR);
+  }
+  if (elapsed >= CsvFade.OUT_CYCLES) {
+    return CsvFade.CLEAR;
+  }
+  return CsvFade.DIM + CS2.scale(elapsed, CsvFade.OUT_CYCLES, CsvFade.CLEAR - CsvFade.DIM);
+}
+
+function fadeFrom(direction: Int): Int {
+  if (direction === 2) {
+    return CsvFade.DIM;
+  }
+  return CsvFade.CLEAR;
+}
+
+function ModalFader(): Component {
+  const host = useRef();
+  const [direction] = useState(textfieldCsvFadeDirection);
+  const [startedAt] = useState(textfieldCsvFadeStartedAt);
+  const [level, setLevel] = useState(255);
+  const [levelFor, setLevelFor] = useState(-1);
+  const run: Int = direction;
+  const since: Int = startedAt;
+  const stepped: Int = level;
+  const steppedFor: Int = levelFor;
+  let drawn: Int = fadeFrom(run);
+  let done: Boolean = run === 0;
+  if (steppedFor === since && run > 0) {
+    drawn = stepped;
+    if (run === 1 && stepped === CsvFade.DIM) {
+      done = true;
+    }
+    if (run === 2 && stepped === CsvFade.CLEAR) {
+      done = true;
+    }
+  }
+  useInterval(
+    done
+      ? undefined
+      : () => {
+          setLevel(fadeLevel(run, clientClock() - since));
+          setLevelFor(since);
+        },
+    host,
+  );
+  return <rect ref={host} x="center" y="center" w="fill" h="fill" color={CsvColors.FADER} fill transparency={drawn} />;
+}
+
+function FrameBorder(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const [rowKey] = useState(textfieldCsvRowKey);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const key: Int = rowKey;
+  let title: String = '';
+  const row: SettingsRow | null = SettingsRows.at(key);
+  if (row !== null) {
+    title = `${CsvCopy.TITLE_PREFIX}${row.title ?? ''}`;
+  }
+  const shown: Boolean = windowShown(opened, shut);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown ? <SteelBorder title={title} titleColor={CsvColors.ORANGE} flags={1} /> : null}
+    </layer>
+  );
+}
+
+function Instructions(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const [instructions] = useState(textfieldCsvInstructions);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const copy: String = instructions;
+  return (
+    <text
+      x="center"
+      y={0}
+      w={{ fill: CsvLayout.INSTRUCTIONS_INSET }}
+      h={CsvLayout.INSTRUCTIONS_H}
+      font={CsvFonts.INSTRUCTIONS}
+      color={CsvColors.ORANGE}
+      shadow
+      align="left"
+      valign="middle"
+      hide={opened > 0 && shut === 1}
+      text={copy}
+    />
+  );
+}
+
+function TabBacking(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const [initialText] = useState(textfieldCsvInitialText);
+  const initial: String = initialText;
+  const shown: Boolean = opened > 0 && shut === 0;
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {opened === 0 ? <ThinBoxEntrypoint /> : null}
+      {shown ? <rect x="center" y="center" w="fill" h="fill" color={CsvColors.FIELD_BACK} fill /> : null}
+      {shown ? (
+        <input
+          x="center"
+          y="center"
+          w={{ fill: CsvLayout.FIELD_INSET }}
+          h={{ fill: CsvLayout.FIELD_INSET }}
+          font={CsvFonts.FIELD}
+          color={CsvColors.FIELD_TEXT}
+          shadow
+          align="left"
+          valign="top"
+          lineWrapWidth={CsvLayout.FIELD_WRAP}
+          selectColor={CsvColors.SELECT}
+          selectBgColor={CsvColors.SELECT_BG}
+          text={initial}
+          focus
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function TabThinBox(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const gone: Boolean = opened > 0 && shut === 1;
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {!gone ? <ThinBoxEntrypoint /> : null}
+    </layer>
+  );
+}
+
+function CsvStoneButton({ label, action }: { label: String; action: Int }): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+  return (
+    <layer
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onOptionSelect={() => textfieldCsvButton(action)}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={label} font={CsvFonts.FIELD} pressed={skin} flags={0} />
+    </layer>
+  );
+}
+
+function CancelButton(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const shown: Boolean = windowShown(opened, shut);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown ? <CsvStoneButton label={CsvCopy.CANCEL} action={CsvButton.CANCEL} /> : null}
+    </layer>
+  );
+}
+
+function SaveButton(): Component {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  const shown: Boolean = windowShown(opened, shut);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown ? <CsvStoneButton label={CsvCopy.SAVE} action={CsvButton.SAVE} /> : null}
+    </layer>
+  );
+}

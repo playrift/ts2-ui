@@ -1,0 +1,102 @@
+import { CS2, useState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { textWidth } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Copy, Layout, RewardsColour, RewardsFonts, RewardTab } from './soul-wars-rewards.constants';
+import { expConfirmCaption, otherConfirmName, otherConfirmTop } from './soul-wars-rewards.helpers';
+import { rewardConfirm } from './soul-wars-rewards.state';
+import { ImbueRewards } from './imbue-rewards.data';
+
+export function ConfirmBar({ tab, pick, sub }: { tab: Int; pick: Int; sub: Int }): Component {
+  const [hot, setHot] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  if (pick === -1) {
+    return (
+      <>
+        <layer x="center" y="center" w="fill" h="fill">
+          <StoneButtonPressedFilled />
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            font={RewardsFonts.BODY}
+            color={RewardsColour.DIM}
+            align="center"
+            valign="middle"
+            text={Copy.SELECT_AN_OPTION}
+          />
+        </layer>
+      </>
+    );
+  }
+
+  const lower: String =
+    tab === RewardTab.EXPERIENCE
+      ? expConfirmCaption(pick)
+      : tab === RewardTab.IMBUES
+        ? CS2.item_name((ImbueRewards.at(pick) ?? -1) as Item)
+        : otherConfirmName(pick, sub);
+  const upper: String = tab === RewardTab.OTHER ? otherConfirmTop(pick) : Copy.CONFIRM;
+  const wide: Boolean = textWidth(lower, Layout.CONFIRM_MEASURE_W, RewardsFonts.SMALL) > Layout.CONFIRM_WIDE;
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        {hot === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h={{ fill: Layout.CONFIRM_TEXT_INSET }}
+          font={wide ? RewardsFonts.SMALL : RewardsFonts.BODY}
+          shadow
+          align="center"
+          valign="top"
+          color={RewardsColour.ORANGE}
+          text={upper}
+        />
+        <text
+          x="center"
+          y={{ center: -1 }}
+          w="fill"
+          h={{ fill: Layout.CONFIRM_TEXT_INSET }}
+          font={RewardsFonts.SMALL}
+          shadow
+          align="center"
+          valign="bottom"
+          color={RewardsColour.ORANGE}
+          text={lower}
+        />
+      </layer>
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        options={[Copy.CONFIRM]}
+        optionSubject={`<col=ff9040>${lower}</col>`}
+        onMouseRepeat={
+          mobile
+            ? undefined
+            : () => {
+                setHot(1);
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : () => {
+                setHot(0);
+              }
+        }
+        onOptionSelect={(event) => {
+          rewardConfirm(event.option, tab);
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,113 @@
+import { onMounted, useServerState, useState } from 'ts2';
+import {
+  SidepanelColor,
+  SidepanelFont,
+  SidepanelTab,
+  SidepanelVarbits,
+  assignPageRef,
+} from './sailing-sidepanel.constants';
+import { sidepanelAssignTitle, sidepanelTab } from './sailing-sidepanel.state';
+
+export function sidepanelBlocked(): Boolean {
+  return useServerState(SidepanelVarbits.SHIPYARD) === 1 || useServerState(SidepanelVarbits.ON_BOAT) !== 1;
+}
+
+export enum SidepanelPage {
+  FACILITIES = 0,
+  STATS = 1,
+  CREW = 2,
+  ASSIGN = 3,
+}
+
+export function sidepanelPageShown(tab: Int, page: Int): Boolean {
+  const assigning: Boolean = useServerState(SidepanelVarbits.ASSIGNING) === 1;
+  let shows: Int = -1;
+  if (tab === SidepanelTab.STATS) {
+    shows = SidepanelPage.STATS;
+  } else if (tab === SidepanelTab.CREW) {
+    shows = SidepanelPage.CREW;
+  } else if (tab === SidepanelTab.FACILITIES) {
+    shows = assigning ? SidepanelPage.ASSIGN : SidepanelPage.FACILITIES;
+  }
+  return shows === page;
+}
+
+export function SidepanelTitle(): Component {
+  const [tab] = useState(sidepanelTab);
+  const [assignTitle] = useState(sidepanelAssignTitle);
+  const assigning: Boolean = useServerState(SidepanelVarbits.ASSIGNING) === 1;
+  const blocked: Boolean = sidepanelBlocked();
+
+  const facilities: Boolean = tab === SidepanelTab.FACILITIES && !assigning;
+  const assign: Boolean = tab === SidepanelTab.FACILITIES && assigning;
+  const stats: Boolean = tab === SidepanelTab.STATS;
+  const crew: Boolean = tab === SidepanelTab.CREW;
+
+  let title: String = '';
+  if (facilities) {
+    title = 'Facilities';
+  } else if (stats) {
+    title = 'Stats';
+  } else if (crew) {
+    title = 'Crew';
+  } else if (assign && !blocked) {
+    title = assignTitle;
+  }
+
+  onMounted(() => {
+    assignPageRef.hide = false;
+  });
+
+  return (
+    <text
+      x="center"
+      y={0}
+      w="fill"
+      h="fill"
+      text={title}
+      font={SidepanelFont.TITLE}
+      color={SidepanelColor.ORANGE}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+export function CrewMessage(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const shipyard: Boolean = useServerState(SidepanelVarbits.SHIPYARD) === 1;
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {blocked && (
+        <Message
+          text={
+            shipyard
+              ? 'Crew details are not available while customising your boat in the shipyard.'
+              : 'Crew details can only be viewed while on a boat.'
+          }
+        />
+      )}
+    </layer>
+  );
+}
+
+export function Message({ text }: { text: String }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={text}
+      font={SidepanelFont.SMALL}
+      color={SidepanelColor.ORANGE}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={13}
+    />
+  );
+}

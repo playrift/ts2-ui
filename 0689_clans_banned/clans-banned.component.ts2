@@ -1,0 +1,249 @@
+import {
+  CS2,
+  Engine,
+  onMounted,
+  onUpdated,
+  useInterval,
+  useOnResize,
+  useRef,
+  useRerenderOn,
+  useServerState,
+  useState,
+  useUniverse,
+  useWatch,
+} from 'ts2';
+
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { Varps } from '../lib/game/varps';
+import { meslayerinput, meslayermode } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import { bankmainFilterString } from '../0012_bankmain/bankmain.helpers';
+import { clanStatusText } from '../0696_clans_storage_main/clan-interface-title';
+import { ClanSearchButton } from '../0693_clans_members/clan-members-shared.search-button.component';
+import { MESLAYER_SEARCH } from '../0693_clans_members/clans-members.constants';
+import { BanList, BanPane, bannedShownCount, blockerStep } from './ban-list.component';
+import { BannedButton } from './banned-button.component';
+import { bannedClanLoaded, bannedHintText, bannedTitle } from './banned-text.component';
+import {
+  COLUMNS,
+  ClanBannedColor,
+  ClanBannedFonts,
+  ClanBannedOps,
+  ClanBannedSprites,
+  ClanBannedText,
+  ClanBannedVarbits,
+  ClanBannedWash,
+  Layout,
+} from './clans-banned.constants';
+import { blockerName, blockerWash, unbanDeadline, unbanName } from './clans-banned.state';
+
+export function ClansBanned(): Component {
+  const root = useUniverse();
+  useOnResize(root);
+  useRerenderOn(Engine.CLAN_SETTINGS);
+
+  const asGuest: Int = useServerState(ClanBannedVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanBannedVarbits.GUEST_AFFINITY_STATUS);
+  const status: Int = useServerState(ClanBannedVarbits.AFFINITY_STATUS);
+  const loaded: Int = bannedClanLoaded(asGuest, guestStatus, status);
+
+  const [mode] = useState(meslayermode);
+  const [typed] = useState(meslayerinput);
+  let searching: Int = 0;
+  if (mode === MESLAYER_SEARCH) {
+    searching = 1;
+  } else if (mode <= 0 && typed.length > 0) {
+    searching = 1;
+  }
+  let filter: String = '';
+  if (searching === 1) {
+    filter = bankmainFilterString();
+  }
+  const filterLength: Int = filter.length;
+
+  let mobile: Int = 0;
+  if (onMobile()) {
+    mobile = 1;
+  }
+  const rowHeight: Int = mobile === 1 ? scaled(Layout.ROW_H, MOBILE_SCALE_OF, Layout.ROW_H) : Layout.ROW_H;
+
+  let count: Int = 0;
+  let message: String = '';
+  if (loaded === 1) {
+    const mySlot: Int = CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()));
+    if (mySlot !== -1) {
+      count = CS2.activeclansettings_banned_count_get();
+      if (count <= 0) {
+        message = ClanBannedText.EMPTY;
+      }
+    } else {
+      message = ClanBannedText.HINT_MEMBERS_ONLY;
+    }
+  } else {
+    message = clanStatusText(asGuest, guestStatus, status);
+  }
+
+  const shown: Int = bannedShownCount(count, filter);
+  let listHeight: Int = 0;
+  if (count > 0 && shown > 0) {
+    listHeight = ((shown - 1) / COLUMNS) * rowHeight + rowHeight;
+  }
+
+  const panelH: Int = Math.min(root.height - Layout.PANEL_SLACK, Math.max(Layout.LIST_MIN, listHeight) + PANEL_CHROME);
+  const paneH: Int = panelH - PANEL_CHROME;
+  const extent: Int = Math.max(Layout.LIST_MIN, listHeight);
+
+  const [fitGen, setFitGen] = useState(0);
+  const [wasScrolling, setWasScrolling] = useState(0);
+  const scrolls: Int = extent > paneH ? 1 : 0;
+  const was: Int = wasScrolling;
+  const fits: Int = fitGen;
+  onMounted(() => {
+    setWasScrolling(scrolls);
+  });
+  onUpdated(() => {
+    if (was === 1 && scrolls === 0) {
+      setFitGen(fits + 1);
+    }
+    setWasScrolling(scrolls);
+  });
+
+  const [deadline] = useState(unbanDeadline);
+  const panel = useRef();
+  useInterval(
+    deadline !== -1
+      ? () => {
+          const [due, setDeadline] = useState(unbanDeadline);
+          if (clientClockNow() >= due) {
+            const [name] = useState(unbanName);
+            CS2.stringdialog_resume(name);
+            setDeadline(-1);
+          }
+        }
+      : undefined,
+    panel,
+  );
+
+  return (
+    <layer ref={panel} x="center" y="center" w={Layout.PANEL_W} h={panelH}>
+      <SteelBorderEntrypoint title={bannedTitle(loaded, searching, filter, asGuest, guestStatus, status)} />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x="center" y={0} w="fill" h={{ fill: Layout.LIST_BOX_DROP }}>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={ClanBannedSprites.BACKING} tiling />
+
+          <BanPane extent={extent} paneH={paneH} fitGen={fitGen}>
+            <BanList
+              count={count}
+              message={message}
+              filter={filter}
+              filterLength={filterLength}
+              rowHeight={rowHeight}
+              mobile={mobile}
+            />
+          </BanPane>
+
+          <Blocker />
+
+          <ThinBoxOutline />
+        </layer>
+
+        <layer x="center" y="bottom" w="fill" h={Layout.BUTTONS_H}>
+          <layer x={0} y="center" w={Layout.BACK_W} h="fill">
+            <BannedButton label={ClanBannedText.BACK} option={ClanBannedOps.BACK} />
+          </layer>
+          <layer x={Layout.HINT_X} y="center" w={{ fill: Layout.HINT_INSET_W }} h="fill">
+            <text
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              text={bannedHintText(loaded, asGuest, guestStatus, status)}
+              font={ClanBannedFonts.BODY}
+              color={ClanBannedColor.LABEL}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          </layer>
+          <layer x={{ right: Layout.SEARCH_RIGHT }} y={0} w={Layout.SEARCH_W} h="fill">
+            <ClanSearchButton />
+          </layer>
+          <layer x={{ right: 0 }} y="center" w={Layout.ADD_W} h="fill">
+            <BannedButton label={ClanBannedText.ADD} option={ClanBannedOps.ADD} />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+const PANEL_CHROME = 88;
+
+const MOBILE_SCALE_OF = 20;
+
+const SEARCH_REFRESH_CYCLES = 40;
+
+function clientClockNow(): Int {
+  return CS2.clientclock();
+}
+
+function Blocker(): Component {
+  const [wash] = useState(blockerWash);
+  const [caption] = useState(blockerName);
+  const [wasPrompt, setWasPrompt] = useState(0);
+  const blocker = useRef();
+
+  useInterval(() => {
+    blockerStep();
+    const [mode] = useState(meslayermode);
+    const was: Int = wasPrompt;
+    if (mode === MESLAYER_SEARCH) {
+      if (clientClockNow() % SEARCH_REFRESH_CYCLES === 0) {
+        blockerStep();
+      }
+      setWasPrompt(1);
+      return;
+    }
+    if (was === 1) {
+      blockerStep();
+    }
+    setWasPrompt(0);
+  }, blocker);
+  useWatch([Varps.CLAN_TEMP_TRANSMIT_0, Varps.CLAN_EDITING_3], () => blockerStep(), blocker);
+  useWatch(Engine.CLAN_SETTINGS, () => blockerStep(), blocker);
+
+  return (
+    <layer
+      ref={blocker}
+      x="center"
+      y="center"
+      w={{ fill: Layout.BLOCKER_INSET }}
+      h={{ fill: Layout.BLOCKER_INSET }}
+      hide={wash >= ClanBannedWash.BLOCKER_CLEAR}
+      noClickThrough
+    >
+      <rect x="center" y="center" w="fill" h="fill" fill color={ClanBannedColor.BLACK} transparency={wash} />
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h="50%"
+        text={caption}
+        font={ClanBannedFonts.BODY}
+        color={ClanBannedColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        hide={wash > ClanBannedWash.BLOCKER_TEXT_SHOWS_BELOW}
+      />
+    </layer>
+  );
+}

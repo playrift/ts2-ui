@@ -1,0 +1,146 @@
+import { predictServerState, sessionState, useServerState, useState } from 'ts2';
+
+import { switchSidePanel } from '../0601_toplevel_osm/toplevel-osm.helpers';
+import { magicSpellbookTooltip, osmSidepanelOnLeft, storedSpell } from '../lib/game/varcs';
+import { playSound } from '../lib/lib.engine';
+import { PanelMode, SpellbookSounds, SpellbookVarbits } from './magic-spellbook.constants';
+import { spellRowOf } from './magic-spellbook.helpers';
+
+export const spellbookPanelMode = sessionState(0);
+
+export const spellbookHoverSpell = sessionState(-1);
+
+export const spellbookTipCellY = sessionState(0);
+
+export const spellbookFlashFires = sessionState(-1);
+
+export const spellbookFlashPhase = sessionState(-2);
+
+export function resetSpellbookPanel(): void {
+  const [, setMode] = useState(spellbookPanelMode);
+  const [, setHover] = useState(spellbookHoverSpell);
+  const [, setTapped] = useState(magicSpellbookTooltip);
+  setMode(PanelMode.GRID);
+  setHover(-1);
+  setTapped(-1);
+}
+
+export function toggleSpellbookPanel(target: Int): void {
+  const [mode, setMode] = useState(spellbookPanelMode);
+  const [, setHover] = useState(spellbookHoverSpell);
+  const [, setTapped] = useState(magicSpellbookTooltip);
+  playSound(SpellbookSounds.CLICK);
+  setHover(-1);
+  setTapped(-1);
+  if (mode === target) {
+    setMode(PanelMode.GRID);
+    return;
+  }
+  setMode(target);
+}
+
+export function showSpellTip(spell: Item, cellY: Int): void {
+  const [, setHover] = useState(spellbookHoverSpell);
+  const [, setY] = useState(spellbookTipCellY);
+  setY(cellY);
+  setHover(spell as Int);
+}
+
+export function hideSpellTip(): void {
+  const [, setHover] = useState(spellbookHoverSpell);
+  setHover(-1);
+}
+
+export function tapSpellInfo(spell: Item, cellY: Int): void {
+  const [tapped, setTapped] = useState(magicSpellbookTooltip);
+  const [, setY] = useState(spellbookTipCellY);
+  playSound(SpellbookSounds.CLICK);
+  if (tapped === (spell as Int)) {
+    setTapped(-1);
+    return;
+  }
+  setY(cellY);
+  setTapped(spell as Int);
+}
+
+export function stopSpellFlash(spell: Item): void {
+  const [, setStored] = useState(storedSpell);
+  const [, setFires] = useState(spellbookFlashFires);
+  const [, setPhase] = useState(spellbookFlashPhase);
+  setFires(-1);
+  setPhase(-2);
+  if (spellRowOf(spell) === null) {
+    return;
+  }
+  setStored(-1);
+}
+
+export function spellbookFlash(book: Int, spell: Item): void {
+  const [stored, setStored] = useState(storedSpell);
+  const [, setFires] = useState(spellbookFlashFires);
+  const [, setPhase] = useState(spellbookFlashPhase);
+  if (useServerState(SpellbookVarbits.SPELLBOOK) !== book) {
+    return;
+  }
+  if (spellRowOf(spell) === null) {
+    return;
+  }
+  if (stored !== -1) {
+    setFires(-1);
+    setPhase(-2);
+    setStored(spell as Int);
+    return;
+  }
+  setFires(0);
+  setPhase(-1);
+  setStored(spell as Int);
+}
+
+export function stepSpellFlash(): void {
+  const [fires, setFires] = useState(spellbookFlashFires);
+  const [phase, setPhase] = useState(spellbookFlashPhase);
+  if (fires < 0) {
+    return;
+  }
+  const next: Int = fires + 1;
+  setFires(next);
+  let lit: Int = 0;
+  if (((next - 1) / 15) % 2 === 0) {
+    lit = 1;
+  }
+  if (lit !== phase) {
+    setPhase(lit);
+  }
+}
+
+export function spellTargetEntered(spell: Item, componentTarget: Boolean): void {
+  const [stored] = useState(storedSpell);
+  const [onLeft] = useState(osmSidepanelOnLeft);
+  if (componentTarget) {
+    let left: Int = 0;
+    if (onLeft === 1) {
+      left = 1;
+    }
+    switchSidePanel(3, left);
+  }
+  if (stored === (spell as Int)) {
+    stopSpellFlash(spell);
+  }
+}
+
+export function spellTargetLeft(spell: Item): void {
+  const [stored] = useState(storedSpell);
+  if (stored === (spell as Int)) {
+    stopSpellFlash(spell);
+  }
+}
+
+export function spellbookSublistOp(spell: Item, sublist: Int): void {
+  const [stored] = useState(storedSpell);
+  if (stored === (spell as Int)) {
+    stopSpellFlash(spell);
+  }
+  if (sublist !== -1 && useServerState(SpellbookVarbits.SUBLIST) !== sublist) {
+    predictServerState(SpellbookVarbits.SUBLIST, sublist);
+  }
+}

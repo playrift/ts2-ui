@@ -1,0 +1,294 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { clientClock } from '../lib/lib.engine';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import {
+  bingoGridCount,
+  bingoGridRewardTotal,
+  bingoLineChallenge,
+  bingoLineComplete,
+  bingoLineLength,
+  bingoRewardClaim,
+  bingoRewardSlotAt,
+  bingoSlotReward,
+  bingoSlotRewardName,
+  bingoSlotRewardNames,
+} from './bingo-overlay.helpers';
+
+export const BINGO_REWARDS_KEY = 82;
+
+export function bingoClampGrid(next: Int): Int {
+  return Math.max(0, Math.min(next, bingoGridCount() - 1));
+}
+
+export function bingoRewardsKeyHeld(): Int {
+  return CS2.key_held(BINGO_REWARDS_KEY) ? 1 : 0;
+}
+
+export const bingoTilePopout = sessionState(0);
+
+export const BingoGridServerScript = {
+  CLAIM_REWARD: 109665464,
+} as const;
+
+export function bingoClaimReward(host: ComponentId, hostSub: Int, grid: Int, slot: Int, option: Int): void {
+  CS2.if_runscript(BingoGridServerScript.CLAIM_REWARD, host, hostSub, grid, slot, option, 'iii');
+}
+
+export const BINGO_REWARD_OPTIONS = 3;
+
+export const bingoRewardPopout = sessionState(-1);
+
+export const bingoRewardPopoutTile = sessionState(-1);
+
+export const bingoRewardPopoutFromCard = sessionState(0);
+
+export function bingoRewardClaimState(grid: Int, slot: Int): [Boolean, Int] {
+  const claim: Int = bingoRewardClaim(grid, slot);
+  if (claim > 0) {
+    return [false, claim - 1];
+  }
+  if (!bingoLineComplete(grid, slot)) {
+    return [false, -1];
+  }
+  return [true, -1];
+}
+
+export function bingoRewardClaimable(grid: Int, slot: Int): Boolean {
+  if (slot < 0) {
+    return false;
+  }
+  const [_index, held] = bingoRewardSlotAt(grid, slot);
+  if (Math.min(held, BINGO_REWARD_OPTIONS) <= 0) {
+    return false;
+  }
+  if (bingoRewardClaim(grid, slot) < 0) {
+    return false;
+  }
+  const [claimable, _claimed] = bingoRewardClaimState(grid, slot);
+  return claimable;
+}
+
+export function bingoClaimPulse(): Int {
+  const wave: Int = Trig.sinDeg((BINGO_PULSE_SPEED * (clientClock() % BINGO_PULSE_UNIT)) % BINGO_PULSE_UNIT);
+  return 255 - CS2.scale(wave + BINGO_PULSE_UNIT, BINGO_PULSE_UNIT * 2, 255);
+}
+
+export function bingoRewardSelecting(grid: Int, slot: Int): Boolean {
+  const [_index, held] = bingoRewardSlotAt(grid, slot);
+  if (Math.min(held, BINGO_REWARD_OPTIONS) <= 1) {
+    return false;
+  }
+  const [claimable, claimed] = bingoRewardClaimState(grid, slot);
+  if (claimable) {
+    return true;
+  }
+  return claimed === -1;
+}
+
+export function bingoRewardTaken(grid: Int, reward: Int): Boolean {
+  const total: Int = bingoGridRewardTotal(grid);
+  let s: Int = 0;
+  while (s < total) {
+    const claim: Int = bingoRewardClaim(grid, s);
+    if (claim > 0) {
+      const [index, _held] = bingoRewardSlotAt(grid, s);
+      if (index >= 0) {
+        if (bingoSlotReward(index, claim - 1) === reward) {
+          return true;
+        }
+      }
+    }
+    s = s + 1;
+  }
+  return false;
+}
+
+export function bingoRewardChoice(grid: Int, slot: Int, choice: Int): Int {
+  const [index, held] = bingoRewardSlotAt(grid, slot);
+  const count: Int = Math.min(held, BINGO_REWARD_OPTIONS);
+  if (count <= 1) {
+    return choice;
+  }
+  if (!bingoRewardSelecting(grid, slot)) {
+    return choice;
+  }
+  let n: Int = choice;
+  while (n >= 0) {
+    if (n >= count) {
+      return -1;
+    }
+    if (!bingoRewardOptionTaken(grid, index, n)) {
+      return n;
+    }
+    n = n + 1;
+  }
+  return choice;
+}
+
+export const BingoOncePerEventRewards = listOf<Int>([1, 2, 3, 18, 19, 20]);
+
+export function bingoRewardOncePerEvent(reward: Int): Boolean {
+  let i: Int = 0;
+  while (i < BingoOncePerEventRewards.length) {
+    if (BingoOncePerEventRewards.at(i) === reward) {
+      return true;
+    }
+    i = i + 1;
+  }
+  return false;
+}
+
+export function bingoRewardOptionTaken(grid: Int, index: Int, n: Int): Boolean {
+  const reward: Int = bingoSlotReward(index, n);
+  if (reward === -1) {
+    return false;
+  }
+  if (!bingoRewardOncePerEvent(reward)) {
+    return false;
+  }
+  return bingoRewardTaken(grid, reward);
+}
+
+export function bingoRewardBoxTip(grid: Int, slot: Int, tile: Int): String {
+  const [_index, held] = bingoRewardSlotAt(grid, slot);
+  const count: Int = Math.min(held, BINGO_REWARD_OPTIONS);
+  const claim: Int = bingoRewardClaim(grid, slot);
+  const names: String = bingoSlotRewardNames(grid, slot);
+  if (claim > 0) {
+    const took: String = bingoSlotRewardName(grid, slot, claim - 1);
+    return `You already claimed this reward.<br><br>${took}`;
+  }
+  if (bingoLineComplete(grid, slot)) {
+    if (count > 1) {
+      return `Claim a reward!<br><br>${names}`;
+    }
+    return `Claim the reward!<br><br>${names}`;
+  }
+  if (tile === -1) {
+    return `Complete more tiles to unlock this!<br><br>${names}`;
+  }
+  return `Complete the tile to unlock this!<br><br>${names}`;
+}
+
+export const BingoRewardStripSlots = listOf<Int>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+
+export const BINGO_TIP_DWELL = 25;
+
+export const BINGO_TIP_WRAP = 512;
+
+const BINGO_PULSE_SPEED = 400;
+
+const BINGO_PULSE_UNIT = 16384;
+
+export const bingoRewardTipSlot = sessionState(-1);
+
+export const bingoRewardTipTile = sessionState(-1);
+
+export const bingoRewardTipAt = sessionState(0);
+
+export const bingoRewardTipX = sessionState(0);
+
+export const bingoRewardTipY = sessionState(0);
+
+export const bingoRewardTipH = sessionState(0);
+
+export const bingoTipText = sessionState('');
+
+export function bingoTipArmed(at: Int): Int {
+  if (at <= 0) {
+    return 0;
+  }
+  if (CS2.clientclock() > at) {
+    return 0;
+  }
+  return 1;
+}
+
+export function bingoOnEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function bingoShowRewardTip(slot: Int, tile: Int, x: Int, y: Int, h: Int): void {
+  const [, setSlot] = useState(bingoRewardTipSlot);
+  const [, setTile] = useState(bingoRewardTipTile);
+  const [, setAt] = useState(bingoRewardTipAt);
+  const [, setX] = useState(bingoRewardTipX);
+  const [, setY] = useState(bingoRewardTipY);
+  const [, setH] = useState(bingoRewardTipH);
+  setSlot(slot);
+  setTile(tile);
+  setAt(clientClock());
+  setX(x);
+  setY(y);
+  setH(h);
+  if (bingoOnEnhancedMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (tooltipDown() && tooltipDwellElapsed(BINGO_TIP_DWELL)) {
+    tooltipRaise();
+  }
+}
+
+export function bingoHideRewardTip(): void {
+  const [, setSlot] = useState(bingoRewardTipSlot);
+  const [, setTile] = useState(bingoRewardTipTile);
+  const [, setAt] = useState(bingoRewardTipAt);
+  const [, setText] = useState(bingoTipText);
+  setSlot(-1);
+  setTile(-1);
+  setAt(0);
+  setText('');
+  tooltipHide();
+}
+
+export function bingoShowTip(text: String, x: Int, y: Int, h: Int): void {
+  const [, setSlot] = useState(bingoRewardTipSlot);
+  const [, setTile] = useState(bingoRewardTipTile);
+  const [, setText] = useState(bingoTipText);
+  const [, setX] = useState(bingoRewardTipX);
+  const [, setY] = useState(bingoRewardTipY);
+  const [, setH] = useState(bingoRewardTipH);
+  setSlot(-1);
+  setTile(-1);
+  setText(text);
+  setX(x);
+  setY(y);
+  setH(h);
+  if (bingoOnEnhancedMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (tooltipDown() && tooltipDwellElapsed(BINGO_TIP_DWELL)) {
+    tooltipRaise();
+  }
+}
+
+export function bingoLineHasChallenge(grid: Int, slot: Int, id: Int): Boolean {
+  if (slot < 0) {
+    return false;
+  }
+  if (id === -1) {
+    return false;
+  }
+  const length: Int = bingoLineLength(grid, slot);
+  let i: Int = 0;
+  while (i < length) {
+    if (bingoLineChallenge(grid, slot, i) === id) {
+      return true;
+    }
+    i = i + 1;
+  }
+  return false;
+}

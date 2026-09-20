@@ -1,0 +1,163 @@
+import { useServerState, useState } from 'ts2';
+
+import { chatMessage } from '../lib/lib.engine';
+import { Varps } from '../lib/game/varps';
+import { osmHotkeysDropdown } from '../lib/game/varcs';
+import { HotkeyArt, HotkeyBits, HotkeyFont, Layout, SLOTS, ToggleOp } from './osm-hotkeys.constants';
+import {
+  activeHotkey,
+  contentHeight,
+  inTutorial,
+  shown,
+  slotVisible,
+  slotY,
+  swapLoadout,
+  toggleAccordionLock,
+  toggleHeight,
+} from './osm-hotkeys.helpers';
+import { HotkeySlot } from './hotkey-slot.component';
+
+export function OsmHotkeys(): Component {
+  const hidden: Int = useServerState(HotkeyBits.HIDE_HOTKEYS);
+  const showEmpty: Int = useServerState(HotkeyBits.SHOW_EMPTY);
+  const [dropdown] = useState(osmHotkeysDropdown);
+
+  const a0: Int = activeHotkey(0);
+  const a1: Int = activeHotkey(1);
+  const a2: Int = activeHotkey(2);
+  const a3: Int = activeHotkey(3);
+  const a4: Int = activeHotkey(4);
+
+  const v0: Boolean = slotVisible(showEmpty, dropdown, a0);
+  const v1: Boolean = slotVisible(showEmpty, dropdown, a1);
+  const v2: Boolean = slotVisible(showEmpty, dropdown, a2);
+  const v3: Boolean = slotVisible(showEmpty, dropdown, a3);
+  const v4: Boolean = slotVisible(showEmpty, dropdown, a4);
+
+  const n0: Int = 0;
+  const n1: Int = n0 + shown(v0);
+  const n2: Int = n1 + shown(v1);
+  const n3: Int = n2 + shown(v2);
+  const n4: Int = n3 + shown(v3);
+  const visibleCount: Int = n4 + shown(v4);
+
+  return (
+    <>
+      <layer w={Layout.ACCORDION_W} h={contentHeight(visibleCount)} y="bottom" hide={hidden === 1}>
+        <layer w="fill" h="fill" x="center">
+          <AccordionFrame />
+          <sprite w={Layout.ACCORDION_W} h={Layout.ACCORDION_H} x="center" sprite={HotkeyArt.ACCORDION_PLATE} />
+        </layer>
+
+        <layer w="fill" h="fill">
+          <MasterToggle dropdown={dropdown} visibleCount={visibleCount} />
+          <HotkeySlot action={a0} y={slotY(n0)} hide={!v0} />
+          <HotkeySlot action={a1} y={slotY(n1)} hide={!v1} />
+          <HotkeySlot action={a2} y={slotY(n2)} hide={!v2} />
+          <HotkeySlot action={a3} y={slotY(n3)} hide={!v3} />
+          <HotkeySlot action={a4} y={slotY(n4)} hide={!v4} />
+        </layer>
+      </layer>
+
+      <layer w="fill" h="fill" />
+    </>
+  );
+}
+
+function AccordionFrame(): Component {
+  const c: Int = Layout.CORNER;
+  const e: Int = Layout.EDGE;
+  return (
+    <layer w={{ fill: Layout.FRAME_INSET }} h="fill" x="center" y="center">
+      <sprite w={c} h={c} sprite={HotkeyArt.NINE_TL} />
+      <sprite w={c} h={c} x="right" sprite={HotkeyArt.NINE_TR} />
+      <sprite w={{ fill: e }} h={c} x="center" sprite={HotkeyArt.NINE_TOP} />
+      <sprite w={c} h={{ fill: e }} y="center" sprite={HotkeyArt.NINE_LEFT} />
+      <sprite w={{ fill: e }} h={{ fill: e }} x="center" y="center" sprite={HotkeyArt.NINE_MID} />
+      <sprite w={c} h={{ fill: e }} x="right" y="center" sprite={HotkeyArt.NINE_RIGHT} />
+      <sprite w={c} h={c} y="bottom" sprite={HotkeyArt.NINE_BL} />
+      <sprite w={c} h={c} x="right" y="bottom" sprite={HotkeyArt.NINE_BR} />
+      <sprite w={{ fill: e }} h={c} x="center" y="bottom" sprite={HotkeyArt.NINE_BOTTOM} />
+    </layer>
+  );
+}
+
+function MasterToggle({ dropdown, visibleCount }: { dropdown: Int; visibleCount: Int }): Component {
+  const collapsed: Boolean = dropdown === 1;
+  const [, setDropdown] = useState(osmHotkeysDropdown);
+  const locked: Int = useServerState(HotkeyBits.ACCORDION_LOCKED);
+  const tutorial: Int = useServerState(Varps.TUTORIAL);
+  const tutorial2: Int = useServerState(Varps.TUTORIAL_2);
+
+  return (
+    <layer
+      w="fill"
+      h={toggleHeight(visibleCount)}
+      x="center"
+      y="bottom"
+      optionSubject="<col=ff9040>Hotkeys"
+      options={[
+        collapsed ? 'Show' : 'Hide',
+        'Customise',
+        'Swap-to Loadout 1',
+        'Swap-to Loadout 2',
+        'Swap-to Loadout 3',
+        locked === 1 ? 'Unlock' : 'Lock',
+      ]}
+      onOptionSelect={(event) => {
+        if (event.option === ToggleOp.CUSTOMISE) {
+          return;
+        }
+        if (event.option === ToggleOp.LOCK) {
+          toggleAccordionLock(locked);
+          return;
+        }
+        if (
+          event.option === ToggleOp.LOADOUT_1 ||
+          event.option === ToggleOp.LOADOUT_2 ||
+          event.option === ToggleOp.LOADOUT_3
+        ) {
+          if (inTutorial(tutorial, tutorial2)) {
+            chatMessage('You cannot switch loadouts during the tutorial');
+            return;
+          }
+          swapLoadout(event.option - 2, 0);
+          return;
+        }
+        if (event.option === ToggleOp.SHOW_HIDE && locked === 1) {
+          return;
+        }
+        setDropdown(collapsed ? 0 : 1);
+      }}
+    >
+      <sprite
+        w="fill"
+        h={Layout.TOGGLE_H_ALONE}
+        x="center"
+        y="bottom"
+        sprite={collapsed ? HotkeyArt.TOGGLE_COLLAPSED : HotkeyArt.TOGGLE_EXPANDED}
+      />
+      <sprite
+        w={Layout.CHEVRON_W}
+        h={Layout.CHEVRON_H}
+        x="center"
+        y={{ bottom: Layout.CHEVRON_LIFT }}
+        sprite={collapsed ? HotkeyArt.CHEVRON_DOWN : HotkeyArt.CHEVRON_UP}
+      />
+      <text
+        w="fill"
+        h={Layout.CAPTION_H}
+        x="center"
+        y={{ bottom: Layout.CAPTION_LIFT }}
+        font={HotkeyFont.CAPTION}
+        color={0xffffff}
+        shadow
+        align="center"
+        valign="middle"
+        text="Hotkeys"
+      />
+    </layer>
+  );
+}
+
+export { SLOTS };

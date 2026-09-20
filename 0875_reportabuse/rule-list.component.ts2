@@ -1,0 +1,178 @@
+import { useRef, useState, useUniverse } from 'ts2';
+
+import { bondifConvertCountCs } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import {
+  DEADMAN_TOURNAMENT,
+  DeadmanRules,
+  HOVER_RELEASE_MS,
+  Layout,
+  ReportColour,
+  ReportFonts,
+  ReportScrollbar,
+  ROW_HOVER_TRANSPARENCY,
+  RULE_COUNT,
+  Rules,
+} from './reportabuse.constants';
+import { reportabuseSend } from './reportabuse.state';
+import { RuleHotkeyLetters } from './rule-hotkey-letters.data';
+
+export function RuleList(): Component {
+  const mobile: Boolean = onMobile();
+  const rowH: Int = mobile ? Layout.ROW_H_MOBILE : Layout.ROW_H;
+  const deadman: Boolean = deadmanWorld() === DEADMAN_TOURNAMENT;
+  const count: Int = deadman ? RULE_COUNT + DeadmanRules.length : RULE_COUNT;
+  const [remembered] = useState(bondifConvertCountCs);
+  const universe = useUniverse();
+  const pane = useRef();
+
+  const paneH: Int = universe.height - Layout.LIST_INSET_H;
+  const extent: Int = count * rowH;
+  const scrolls: Boolean = extent > paneH;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.LIST_X}
+        y="center"
+        w={{ fill: Layout.LIST_INSET_W }}
+        h={{ fill: Layout.LIST_INSET_H }}
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={scrolls ? minmax(0, extent - paneH, remembered) : 0}
+      >
+        {Rules.map((entry, index) => (
+          <RuleRow label={entry.label} rule={entry.rule} index={index} rowH={rowH} mobile={mobile} />
+        ))}
+        {deadman
+          ? DeadmanRules.map((entry, index) => (
+              <RuleRow label={entry.label} rule={entry.rule} index={RULE_COUNT + index} rowH={rowH} mobile={mobile} />
+            ))
+          : null}
+      </layer>
+      <layer x={{ right: Layout.LIST_X }} y="center" w={Layout.BAR_W} h={{ fill: Layout.LIST_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ReportScrollbar.TRACK}
+          capTopSprite={ReportScrollbar.CAP_TOP}
+          thumbSprite={ReportScrollbar.THUMB}
+          capBottomSprite={ReportScrollbar.CAP_BOTTOM}
+          arrowUp={ReportScrollbar.ARROW_UP}
+          arrowDown={ReportScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function hotkeyLabel(index: Int): String {
+  if (index < 9) {
+    return `${index + 1}`;
+  }
+  return RuleHotkeyLetters.get(index - 8) ?? '';
+}
+
+function RuleRow({
+  label,
+  rule,
+  index,
+  rowH,
+  mobile,
+}: {
+  label: String;
+  rule: Int;
+  index: Int;
+  rowH: Int;
+  mobile: Boolean;
+}): Component {
+  const top: Int = index * rowH;
+  return (
+    <>
+      {mobile ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowH}
+          color={ReportColour.WHITE}
+          fill
+          transparency={index % 2 === 0 ? 240 : 255}
+          options={['Report for']}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          onOptionSelect={() => reportabuseSend(0, -1, 'null', rule)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowH}
+          color={ReportColour.WHITE}
+          fill
+          transparency={index % 2 === 0 ? 240 : 255}
+          options={['Report for']}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          hover={{ transparency: ROW_HOVER_TRANSPARENCY, releaseAfterMs: HOVER_RELEASE_MS }}
+          onOptionSelect={() => reportabuseSend(0, -1, 'null', rule)}
+        />
+      )}
+      <text
+        x={0}
+        y={top}
+        w={Layout.NUMBER_W}
+        h={rowH}
+        text={hotkeyLabel(index)}
+        font={ReportFonts.BODY}
+        color={ReportColour.NUMBER}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={top}
+        w={{ fill: Layout.NUMBER_W }}
+        h={rowH}
+        text={label}
+        font={ReportFonts.BODY}
+        color={ReportColour.RULE}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function RuleHotkeys(): Component {
+  const deadman: Boolean = deadmanWorld() === DEADMAN_TOURNAMENT;
+  return (
+    <>
+      {Rules.map((entry, index) => (
+        <rect
+          x="center"
+          y="center"
+          w={1}
+          h={1}
+          color={ReportColour.WHITE}
+          transparency={255}
+          onKey={(event) => reportabuseSend(1, event.keyChar, hotkeyLabel(index), entry.rule)}
+        />
+      ))}
+      {deadman
+        ? DeadmanRules.map((entry, index) => (
+            <rect
+              x="center"
+              y="center"
+              w={1}
+              h={1}
+              color={ReportColour.WHITE}
+              transparency={255}
+              onKey={(event) => reportabuseSend(1, event.keyChar, hotkeyLabel(RULE_COUNT + index), entry.rule)}
+            />
+          ))
+        : null}
+    </>
+  );
+}

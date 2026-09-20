@@ -1,4 +1,4 @@
-import { useDerived, useRef } from 'ts2';
+import { useServerStateOnce, useState } from 'ts2';
 
 import { clientClock, playSound } from '../lib/lib.engine';
 import { onMobile } from '../lib/lib.helpers';
@@ -7,6 +7,10 @@ import { DeadmanUnlocks } from './deadmanskull.data';
 import { hideTileTooltip, showTileTooltip } from './deadmanskull.tooltip';
 import { unlockActive, unlockOwned } from './deadmanskull.state';
 import { Sounds } from '../lib/game/sounds';
+
+const MENU_ACTIVATE = ['Activate'] as const;
+const MENU_DEACTIVATE = ['Deactivate'] as const;
+const MENU_CLEARED = [] as const;
 
 export function SigilTile({
   sigil,
@@ -26,26 +30,29 @@ export function SigilTile({
     return null;
   }
 
-  const active: Int = useDerived(() => unlockActive(sigil, mode));
-  const owned: Int = useDerived(() => unlockOwned(sigil, mode));
-  const builtAt: Int = clientClock();
+  const active: Int = useServerStateOnce(() => unlockActive(sigil, mode));
+  const owned: Int = useServerStateOnce(() => unlockOwned(sigil, mode));
+  const [builtAt] = useState(clientClock());
 
-  const icon = useRef();
-  const caption = useRef();
+  const [hovered, setHovered] = useState(0);
+  const [opaque, setOpaque] = useState(0);
+  const [claimed, setClaimed] = useState(0);
 
   const label: String = owned === 0 ? `${row.name}<br>${row.points} points` : row.name;
 
   const lit: Sprite = row.iconActive;
   const dim: Sprite = row.iconInactive;
+  const restArt: Sprite = active === 1 ? lit : dim;
   const restColor: Int = active === 1 ? SkullColor.TILE_ACTIVE : SkullColor.TILE_INACTIVE;
+
+  const captionColor: Int = hovered === 1 ? SkullColor.TILE_HOVER : claimed === 1 ? SkullColor.TILE_HOVER : restColor;
 
   const enter = () => {
     if (clientClock() === builtAt) {
       return;
     }
-    icon.transparency = Grid.ICON_LIT_TRANSPARENCY;
-    icon.sprite = lit;
-    caption.color = SkullColor.TILE_HOVER;
+    setHovered(1);
+    setOpaque(1);
     showTileTooltip(sigil, active, x + Grid.CAPTION_DX, y + Grid.CAPTION_DY, Grid.CAPTION_H, list);
   };
 
@@ -53,8 +60,7 @@ export function SigilTile({
     if (clientClock() === builtAt) {
       return;
     }
-    icon.sprite = active === 1 ? lit : dim;
-    caption.color = restColor;
+    setHovered(0);
     hideTileTooltip();
   };
 
@@ -63,8 +69,8 @@ export function SigilTile({
       return;
     }
     playSound(Sounds.INTERFACE_SELECT1);
-    icon.transparency = Grid.ICON_LIT_TRANSPARENCY;
-    caption.color = SkullColor.TILE_HOVER;
+    setOpaque(1);
+    setClaimed(1);
     hideTileTooltip();
   };
 
@@ -72,6 +78,7 @@ export function SigilTile({
 
   return (
     <>
+      <layer x={0} y={0} w={0} h={0} hide />
       {mode === 1 && touch ? (
         <rect
           x={x + Grid.PLATE_DX}
@@ -82,8 +89,8 @@ export function SigilTile({
           color={SkullColor.PLATE}
           transparency={Grid.PLATE_TRANSPARENCY}
           optionSubject={`<col=ff9040>${row.name}</col>`}
-          options={[active === 1 ? 'Deactivate' : 'Activate']}
-          onOptionSelect={claim}
+          options={claimed === 1 ? MENU_CLEARED : active === 1 ? MENU_DEACTIVATE : MENU_ACTIVATE}
+          onOptionSelect={claimed === 1 ? undefined : claim}
         />
       ) : mode === 1 ? (
         <rect
@@ -95,10 +102,10 @@ export function SigilTile({
           color={SkullColor.PLATE}
           transparency={Grid.PLATE_TRANSPARENCY}
           optionSubject={`<col=ff9040>${row.name}</col>`}
-          options={[active === 1 ? 'Deactivate' : 'Activate']}
-          onMouseRepeat={enter}
-          onMouseLeave={leave}
-          onOptionSelect={claim}
+          options={claimed === 1 ? MENU_CLEARED : active === 1 ? MENU_DEACTIVATE : MENU_ACTIVATE}
+          onMouseRepeat={claimed === 1 ? undefined : enter}
+          onMouseLeave={claimed === 1 ? undefined : leave}
+          onOptionSelect={claimed === 1 ? undefined : claim}
         />
       ) : touch ? (
         <rect
@@ -124,23 +131,21 @@ export function SigilTile({
         />
       )}
       <sprite
-        ref={icon}
         x={x + Grid.ICON_DX}
         y={y + Grid.ICON_DY}
         w={Grid.ICON}
         h={Grid.ICON}
-        sprite={active === 1 ? lit : dim}
-        transparency={Grid.ICON_TRANSPARENCY}
+        sprite={hovered === 1 ? lit : restArt}
+        transparency={opaque === 1 ? Grid.ICON_LIT_TRANSPARENCY : Grid.ICON_TRANSPARENCY}
       />
       <text
-        ref={caption}
         x={x + Grid.CAPTION_DX}
         y={y + Grid.CAPTION_DY}
         w={Grid.CAPTION_W}
         h={Grid.CAPTION_H}
         text={label}
         font={SkullFonts.TILE}
-        color={restColor}
+        color={captionColor}
         shadow
         align="center"
         valign="middle"

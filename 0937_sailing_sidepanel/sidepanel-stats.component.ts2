@@ -1,0 +1,233 @@
+import { onMounted, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { SidepanelColor, SidepanelFont, SidepanelTab, statsPaneRef } from './sailing-sidepanel.constants';
+import { sidepanelTab } from './sailing-sidepanel.state';
+import { SidepanelPage, sidepanelPageShown } from './sidepanel-content.component';
+import { Pane, PaneScrollbar } from './sidepanel-scrollbar.component';
+
+export function StatsBacking(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.STATS);
+  const [tab] = useState(sidepanelTab);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {tab === SidepanelTab.STATS && (
+        <>
+          <rect x={0} y={0} w="fill" h="fill" fill color={StatColor.BACKING} />
+          <rect x="center" y="center" w="fill" h="fill" color={StatColor.BOX_OUTER} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={StatColor.BOX_INNER} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function StatsRows(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.STATS);
+  onMounted(() => {
+    statsPaneRef.scrollHeight = STAT_ROWS * ROW_H;
+  });
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {StatRows.map((row, index) =>
+        row.header ? (
+          <>
+            <rect x={0} y={index * ROW_H} w="fill" h={ROW_H} fill color={StatColor.HEADER} />
+            <text
+              x="center"
+              y={index * ROW_H}
+              w="fill"
+              h={ROW_H}
+              text={`<col=ffffff>${row.label}</col>`}
+              font={SidepanelFont.SMALL}
+              color={SidepanelColor.ORANGE}
+              shadow
+              align="center"
+              valign="middle"
+              lineHeight={13}
+            />
+          </>
+        ) : (
+          <>
+            {row.stripe && <rect x={0} y={index * ROW_H} w="fill" h={ROW_H} fill color={StatColor.STRIPE} />}
+            <text
+              x={8}
+              y={index * ROW_H}
+              w="fill"
+              h={ROW_H}
+              text={row.label}
+              font={SidepanelFont.SMALL}
+              color={SidepanelColor.ORANGE}
+              shadow
+              align="left"
+              valign="middle"
+              lineHeight={13}
+            />
+            <text
+              x={{ right: 10 }}
+              y={index * ROW_H}
+              w="fill"
+              h={ROW_H}
+              text={statValue(index)}
+              font={SidepanelFont.SMALL}
+              color={SidepanelColor.ORANGE}
+              shadow
+              align="right"
+              valign="middle"
+              lineHeight={13}
+            />
+          </>
+        ),
+      )}
+    </layer>
+  );
+}
+
+export function StatsScrollbar(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.STATS);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <PaneScrollbar which={Pane.STATS} extent={STAT_ROWS * ROW_H} height={PANE_H} />
+    </layer>
+  );
+}
+
+const ROW_H = 15;
+const STAT_ROWS = 38;
+const PANE_H = 168;
+
+const StatColor = {
+  BACKING: 0x595046,
+  BOX_OUTER: 0x0e0e0c,
+  BOX_INNER: 0x474745,
+  STRIPE: 0x4e453a,
+  HEADER: 0x968776,
+} as const;
+
+const StatRows = [
+  { label: 'Movement', header: true, stripe: false },
+  { label: 'Base speed', header: false, stripe: false },
+  { label: 'Speed cap', header: false, stripe: true },
+  { label: 'Acceleration', header: false, stripe: false },
+  { label: 'Speed boost duration', header: false, stripe: true },
+  { label: 'Combat: Overall', header: true, stripe: false },
+  { label: 'Max hitpoints', header: false, stripe: false },
+  { label: 'Defence', header: false, stripe: true },
+  { label: 'Armour', header: false, stripe: false },
+  { label: 'Facility ammo saved', header: false, stripe: true },
+  { label: 'Combat: Melee', header: true, stripe: false },
+  { label: 'Stab defence', header: false, stripe: false },
+  { label: 'Slash defence', header: false, stripe: true },
+  { label: 'Crush defence', header: false, stripe: false },
+  { label: 'Stab armour', header: false, stripe: true },
+  { label: 'Slash armour', header: false, stripe: false },
+  { label: 'Crush armour', header: false, stripe: true },
+  { label: 'Combat: Ranged', header: true, stripe: false },
+  { label: 'Light ranged defence', header: false, stripe: false },
+  { label: 'Standard ranged defence', header: false, stripe: true },
+  { label: 'Heavy ranged defence', header: false, stripe: false },
+  { label: 'Light ranged armour', header: false, stripe: true },
+  { label: 'Standard ranged armour', header: false, stripe: false },
+  { label: 'Heavy ranged armour', header: false, stripe: true },
+  { label: 'Combat: Magic', header: true, stripe: false },
+  { label: 'Magic defence', header: false, stripe: false },
+  { label: 'Air magic armour', header: false, stripe: true },
+  { label: 'Water magic armour', header: false, stripe: false },
+  { label: 'Earth magic armour', header: false, stripe: true },
+  { label: 'Fire magic armour', header: false, stripe: false },
+  { label: 'Resistance', header: true, stripe: false },
+  { label: 'Rapid resistance', header: false, stripe: false },
+  { label: 'Storm resistance', header: false, stripe: true },
+  { label: 'Crystal helm resistance', header: false, stripe: false },
+  { label: 'Fetid water resistant', header: false, stripe: true },
+  { label: 'Crystal sea resistant', header: false, stripe: false },
+  { label: 'Tangled kelp resistant', header: false, stripe: true },
+  { label: 'Icy seas resistant', header: false, stripe: false },
+] as const;
+
+function statValue(row: Int): String {
+  switch (row) {
+    case 1:
+      return speed(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_BASESPEED));
+    case 2:
+      return speed(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_SPEEDCAP));
+    case 3:
+      return speed(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_ACCELERATION));
+    case 4:
+      return `${useServerState(Varbits.SAILING_SIDEPANEL_BOAT_SPEEDBOOST_DURATION)}`;
+    case 6:
+      return `${useServerState(Varbits.SAILING_SIDEPANEL_BOAT_HP_MAX)}`;
+    case 7:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_DEFENCE)}`;
+    case 8:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR)}`;
+    case 9:
+      return `${useServerState(Varbits.VARBIT_20206)}%`;
+    case 11:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_STABDEF)}`;
+    case 12:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_SLASHDEF)}`;
+    case 13:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_CRUSHDEF)}`;
+    case 14:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MELEE_STAB)}`;
+    case 15:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MELEE_SLASH)}`;
+    case 16:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MELEE_CRUSH)}`;
+    case 18:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_LIGHTRANGEDDEF)}`;
+    case 19:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_STANDARDRANGEDDEF)}`;
+    case 20:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_HEAVYRANGEDDEF)}`;
+    case 21:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_RANGED_LIGHT)}`;
+    case 22:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_RANGED_STANDARD)}`;
+    case 23:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_RANGED_HEAVY)}`;
+    case 25:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOATSTAT_TOTAL_MAGICDEF)}`;
+    case 26:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MAGIC_AIR)}`;
+    case 27:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MAGIC_WATER)}`;
+    case 28:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MAGIC_EARTH)}`;
+    case 29:
+      return `${useServerState(Varps.SAILING_SIDEPANEL_BOAT_ARMOUR_MAGIC_FIRE)}`;
+    case 31:
+      return `${useServerState(Varbits.SAILING_SIDEPANEL_BOAT_RAPIDRESISTANCE)}`;
+    case 32:
+      return `${useServerState(Varbits.SAILING_SIDEPANEL_BOAT_STORMRESISTANCE)}`;
+    case 33:
+      return `${useServerState(Varbits.SAILING_SIDEPANEL_BOAT_CRYSTALHELM_RESISTANCE)}`;
+    case 34:
+      return yesNo(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_FETIDWATER_RESISTANT));
+    case 35:
+      return yesNo(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_CRYSTALFLECKED_RESISTANT));
+    case 36:
+      return yesNo(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_TANGLEDKELP_RESISTANT));
+    case 37:
+      return yesNo(useServerState(Varbits.SAILING_SIDEPANEL_BOAT_ICYSEAS_RESISTANT));
+  }
+  return '';
+}
+
+function speed(value: Int): String {
+  if (value % 128 === 64) {
+    return `${value / 128}.5`;
+  }
+  return `${value / 128}.0`;
+}
+
+function yesNo(value: Int): String {
+  if (value >= 1) {
+    return 'Yes';
+  }
+  return 'No';
+}

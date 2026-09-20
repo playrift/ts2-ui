@@ -1,0 +1,155 @@
+import { CS2, useDerived, useState } from 'ts2';
+
+import { ChatboxAlpha, ChatboxColor, ChatboxSprites } from './chatbox.constants';
+import { chatboxAreaRef, inputClickareaRef } from './chatbox.constants';
+import {
+  CHAT_BACKDROP_MOBILE,
+  CHAT_BACKDROP_OPAQUE,
+  CHAT_BACKDROP_RAMP,
+  chatboxBackdrop,
+  chatboxRepaint,
+  chatboxStripPlate,
+} from './chatbox.state';
+import { chatBackdropVisible } from './chatbox-chrome';
+
+export function ChatBackdrop(): Component {
+  const [arm] = useState(chatboxBackdrop);
+  const [repaint] = useState(chatboxRepaint);
+
+  const visible: Int = useDerived(() => chatBackdropVisible());
+
+  const paneHeight: Int = inputClickareaRef.height!;
+  const band: Int = paneHeight / RAMP_BANDS;
+  const lastBand: Int = paneHeight - band * (RAMP_BANDS - 1);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" rebuildOn={repaint}>
+      {visible === 1 && arm === CHAT_BACKDROP_OPAQUE && (
+        <sprite
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          sprite={ChatboxSprites.BACKDROP}
+          transparency={ChatboxAlpha.OPAQUE}
+        />
+      )}
+
+      {visible === 1 && arm === CHAT_BACKDROP_RAMP && (
+        <>
+          {RAMP_BAND.map((at) => (
+            <rect
+              x={0}
+              y={band * at}
+              w="fill"
+              h={at === RAMP_BANDS - 1 ? lastBand : band}
+              fill
+              color={ChatboxColor.RAMP}
+              transparency={CS2.interpolate(RAMP_BOTTOM, RAMP_TOP, 0, RAMP_BANDS, at)}
+            />
+          ))}
+        </>
+      )}
+
+      {visible === 1 && arm === CHAT_BACKDROP_MOBILE && (
+        <rect x="center" y="bottom" w="fill" h="100%" fill color={ChatboxColor.RAMP} transparency={MOBILE_RAMP_ALPHA} />
+      )}
+    </layer>
+  );
+}
+
+export function ChatHairlines(): Component {
+  const [arm] = useState(chatboxBackdrop);
+  const [repaint] = useState(chatboxRepaint);
+  const visible: Int = useDerived(() => chatBackdropVisible());
+
+  const areaWidth: Int = chatboxAreaRef.width!;
+  const step: Int = areaWidth / RAMP_BANDS;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" rebuildOn={repaint}>
+      {visible === 1 && arm === CHAT_BACKDROP_OPAQUE && (
+        <rect x="center" y={{ bottom: HAIRLINE_Y }} w="fill" h={1} fill color={ChatboxColor.HAIRLINE} />
+      )}
+
+      {visible === 1 && arm === CHAT_BACKDROP_RAMP && (
+        <>
+          {RAMP_BAND.map((at) => (
+            <>
+              <rect
+                x={step * at}
+                y={0}
+                w={step}
+                h={1}
+                fill
+                color={ChatboxColor.HAIRLINE_TRANSPARENT}
+                transparency={CS2.interpolate(LINE_TOP, LINE_BOTTOM, 0, RAMP_BANDS, at)}
+              />
+              <rect
+                x={step * at}
+                y={{ bottom: HAIRLINE_Y }}
+                w={step}
+                h={1}
+                fill
+                color={ChatboxColor.HAIRLINE_TRANSPARENT}
+                transparency={CS2.interpolate(LINE_TOP, LINE_BOTTOM, 0, RAMP_BANDS, at)}
+              />
+            </>
+          ))}
+        </>
+      )}
+
+      {visible === 1 && arm === CHAT_BACKDROP_MOBILE && (
+        <>
+          <rect
+            x={0}
+            y={0}
+            w="100%"
+            h={1}
+            fill
+            color={ChatboxColor.HAIRLINE_TRANSPARENT}
+            transparency={MOBILE_LINE_TOP_ALPHA}
+          />
+          <rect
+            x={0}
+            y={{ bottom: HAIRLINE_Y }}
+            w="100%"
+            h={1}
+            fill
+            color={ChatboxColor.HAIRLINE_TRANSPARENT}
+            transparency={MOBILE_LINE_BOTTOM_ALPHA}
+          />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function ChatStripPlate(): Component {
+  const [plate] = useState(chatboxStripPlate);
+
+  return (
+    <rect
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      hide={plate !== 1}
+      fill
+      color={ChatboxColor.RAMP}
+      transparency={MOBILE_RAMP_ALPHA}
+    />
+  );
+}
+
+const RAMP_BAND = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] as const;
+
+const RAMP_BANDS = 20;
+const RAMP_TOP = 193;
+const RAMP_BOTTOM = 253;
+const LINE_TOP = 200;
+const LINE_BOTTOM = 253;
+const HAIRLINE_Y = 15;
+const MOBILE_RAMP_ALPHA = 225;
+const MOBILE_LINE_TOP_ALPHA = 200;
+const MOBILE_LINE_BOTTOM_ALPHA = 130;

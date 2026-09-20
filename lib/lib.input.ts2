@@ -1,0 +1,152 @@
+import { CS2 } from 'ts2';
+import { groupPrefixed } from '../0162_chatbox/chatbox.helpers';
+
+export function addToInputString(text: String, mode: Int, key: Int, keyChar: Char): String {
+  const length: Int = text.length;
+  if (key === InputKey.BACKSPACE) {
+    if (length > 0) {
+      return text.substring(0, length - 1);
+    }
+    return text;
+  }
+  const limit: Int = inputLimit(mode, text);
+  if (CS2.char_printable_is(keyChar) === false) {
+    if (mode === InputMode.PARAGRAPH && key === InputKey.ENTER) {
+      if (length >= limit) {
+        return text;
+      }
+      if (length < PARAGRAPH_BREAK_GAP) {
+        return text;
+      }
+      if (CS2.string_indexof_string(text.substring(length - PARAGRAPH_BREAK_GAP, length), '|', 0) !== -1) {
+        return text;
+      }
+      return text.concat('|');
+    }
+    return text;
+  }
+  if (mode === InputMode.NAME) {
+    if (
+      (CS2.char_alpha_numeric_is(keyChar) === true || CS2.string_indexof_char(' _-', keyChar) !== -1) &&
+      length < NAME_LIMIT
+    ) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.WORDS) {
+    if (
+      (CS2.char_alpha_numeric_is(keyChar) === true || CS2.string_indexof_char(' ', keyChar) !== -1) &&
+      length < NAME_LIMIT
+    ) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.CODE) {
+    if (
+      (CS2.char_alpha_numeric_is(keyChar) === true ||
+        CS2.string_indexof_char('0123456789abcdefghijklmnopqrstuvwxyz _-', keyChar) !== -1) &&
+      length < limit
+    ) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.AMOUNT) {
+    if (length > 0) {
+      const last: String = CS2.lowercase(text.substring(length - 1, length));
+      if (CS2.compare(last, 'k') === 0 || CS2.compare(last, 'm') === 0 || CS2.compare(last, 'b') === 0) {
+        return text;
+      }
+    }
+    const suffix: Boolean = CS2.string_indexof_char('kKmMbB', keyChar) !== -1;
+    if ((suffix || CS2.char_numeric_is(keyChar) === true) && length < AMOUNT_LIMIT) {
+      if (suffix && length <= 0) {
+        return text;
+      }
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.WORLD) {
+    if (CS2.char_numeric_is(keyChar) === true && length < 4) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.PARAGRAPH && CS2.string_indexof_char('|', keyChar) !== -1) {
+    return text;
+  }
+  if (mode === InputMode.PERCENT) {
+    if (CS2.char_numeric_is(keyChar) === true && length < 3) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (mode === InputMode.COLOUR) {
+    if (length < 6) {
+      return CS2.append_char(text, keyChar);
+    }
+    return text;
+  }
+  if (length < limit) {
+    return CS2.append_char(text, keyChar);
+  }
+  return text;
+}
+
+export function inputLimit(mode: Int, text: String): Int {
+  if (mode === 3) {
+    return 10;
+  }
+  if (mode === 4) {
+    return 25;
+  }
+  if (mode === 13) {
+    return 30;
+  }
+  if (mode === InputMode.PARAGRAPH) {
+    return 500;
+  }
+  if (mode === InputMode.WORLD) {
+    return 4;
+  }
+  if (mode === InputMode.PERCENT) {
+    return 3;
+  }
+  if (mode === InputMode.COLOUR) {
+    return 6;
+  }
+  if (mode === InputMode.MESSAGE) {
+    if (groupPrefixed(text) === true) {
+      return 79;
+    }
+    return 80;
+  }
+  if (mode === InputMode.CODE) {
+    return 8;
+  }
+  return 80;
+}
+
+export enum InputKey {
+  ENTER = 84,
+  BACKSPACE = 85,
+}
+
+export enum InputMode {
+  MESSAGE = 0,
+  AMOUNT = 1,
+  NAME = 2,
+  PARAGRAPH = 5,
+  WORLD = 6,
+  WORDS = 8,
+  COLOUR = 9,
+  PERCENT = 10,
+  CODE = 12,
+}
+
+const NAME_LIMIT = 12;
+const AMOUNT_LIMIT = 10;
+const PARAGRAPH_BREAK_GAP = 15;

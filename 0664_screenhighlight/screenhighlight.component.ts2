@@ -1,20 +1,32 @@
+import { useInterval, useRef, useState } from 'ts2';
 import { HighlightBorder } from './highlight-border.component';
 import { HighlightCaption, HighlightCounter } from './caption.component';
 import { HighlightCloseButton } from './close-button.component';
 import { HighlightNextButton, HighlightPrevButton } from './footer-button.component';
+import { highlightTextboxResize } from './screenhighlight.helpers';
 import {
   HighlightColor,
   HighlightLayout,
   HighlightSprites,
-  highlightCloseMount,
   highlightMarker,
-  highlightPanel,
   highlightPauseButton,
+  highlightRoot,
 } from './screenhighlight.constants';
+import {
+  PANEL_FALLBACK,
+  PANEL_REST,
+  highlightCloseShown,
+  highlightMeasuredH,
+  highlightPanelH,
+  highlightPanelPlace,
+  highlightPanelW,
+  highlightPanelX,
+  highlightPanelY,
+} from './screenhighlight.state';
 
 export function Screenhighlight(): Component {
   return (
-    <layer w="fill" h="fill">
+    <layer static ref={highlightRoot} w="fill" h="fill">
       <layer w="fill" h="fill">
         <rect
           x="center"
@@ -65,46 +77,61 @@ export function Screenhighlight(): Component {
         <HighlightBorder />
       </layer>
 
+      <rect static ref={highlightPauseButton} x={0} y={0} w={0} h={0} />
+
+      <HighlightPanel />
+    </layer>
+  );
+}
+
+function HighlightPanel(): Component {
+  const [placeMode] = useState(highlightPanelPlace);
+  const [x] = useState(highlightPanelX);
+  const [y] = useState(highlightPanelY);
+  const [w] = useState(highlightPanelW);
+  const [h] = useState(highlightPanelH);
+  const [closeShown] = useState(highlightCloseShown);
+  const [measuredH] = useState(highlightMeasuredH);
+
+  const host = useRef();
+  useInterval(measuredH >= 0 ? () => highlightTextboxResize() : undefined, host);
+
+  return (
+    <layer
+      ref={host}
+      x={placeMode === PANEL_FALLBACK ? 'center' : x}
+      y={placeMode === PANEL_REST ? { bottom: y } : placeMode === PANEL_FALLBACK ? { bottom: y } : y}
+      w={w}
+      h={h}
+    >
+      <sprite x="center" y="center" w="fill" h="fill" sprite={HighlightSprites.PANEL_BACKING} />
+
+      <HighlightBorder />
+
+      <HighlightCaption />
+      <HighlightCounter />
+
       <layer
-        static
-        ref={highlightPanel}
-        x={HighlightLayout.PANEL_X}
-        y={{ bottom: HighlightLayout.PANEL_Y }}
-        w={HighlightLayout.PANEL_W}
-        h={HighlightLayout.PANEL_H}
+        x={{ right: HighlightLayout.CLOSE_RIGHT }}
+        y={HighlightLayout.CLOSE_Y}
+        w={HighlightLayout.CLOSE_W}
+        h={HighlightLayout.CLOSE_H}
+        hide={closeShown === 0}
       >
-        <rect static ref={highlightPauseButton} x={0} y={0} w={0} h={0} />
+        <HighlightCloseButton />
+      </layer>
 
-        <sprite x="center" y="center" w="fill" h="fill" sprite={HighlightSprites.PANEL_BACKING} />
-
-        <HighlightBorder />
-
-        <HighlightCaption />
-        <HighlightCounter />
-
-        <layer
-          static
-          ref={highlightCloseMount}
-          x={{ right: HighlightLayout.CLOSE_RIGHT }}
-          y={HighlightLayout.CLOSE_Y}
-          w={HighlightLayout.CLOSE_W}
-          h={HighlightLayout.CLOSE_H}
-        >
-          <HighlightCloseButton />
+      <layer
+        x="center"
+        y={{ bottom: HighlightLayout.FOOTER_BOTTOM }}
+        w={{ fill: HighlightLayout.FOOTER_W_INSET }}
+        h={HighlightLayout.FOOTER_H}
+      >
+        <layer x="right" y={0} w="50%" h="fill">
+          <HighlightNextButton />
         </layer>
-
-        <layer
-          x="center"
-          y={{ bottom: HighlightLayout.FOOTER_BOTTOM }}
-          w={{ fill: HighlightLayout.FOOTER_W_INSET }}
-          h={HighlightLayout.FOOTER_H}
-        >
-          <layer x="right" y={0} w="50%" h="fill">
-            <HighlightNextButton />
-          </layer>
-          <layer x={0} y={0} w="50%" h="fill">
-            <HighlightPrevButton />
-          </layer>
+        <layer x={0} y={0} w="50%" h="fill">
+          <HighlightPrevButton />
         </layer>
       </layer>
     </layer>

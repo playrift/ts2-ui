@@ -1,0 +1,489 @@
+import { useInterval, useRef, useServerState, useSkill, useState } from 'ts2';
+
+import { Skills } from '../0077_quickprayer/quickprayer.constants';
+import { storedSpell } from '../lib/game/varcs';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { spellSprite } from '../lib/lib.magic';
+import {
+  NO_MATCH,
+  PanelMode,
+  SpellbookColour,
+  SpellbookFonts,
+  SpellbookSprites,
+  SpellbookVarbits,
+  SpellFade,
+} from './magic-spellbook.constants';
+import { Spells, SpellTargets } from './magic-spellbook.data';
+import type { SpellRow } from './magic-spellbook.data';
+import {
+  activeSpellBook,
+  GridKind,
+  gridColGap,
+  gridCols,
+  gridHeight,
+  gridIcon,
+  gridKind,
+  gridRowGap,
+  gridWidth,
+  spellFade,
+  spellLit,
+  spellLockSprite,
+  spellOp,
+  spellOpSubject,
+  spellShown,
+  spellState,
+  spellSublistTarget,
+  tableX,
+  tableY,
+} from './magic-spellbook.helpers';
+import {
+  hideSpellTip,
+  showSpellTip,
+  spellbookFlashPhase,
+  spellbookPanelMode,
+  spellbookSublistOp,
+  spellTargetEntered,
+  spellTargetLeft,
+  stepSpellFlash,
+  tapSpellInfo,
+} from './magic-spellbook.state';
+
+function shownSpellCount(book: Int, unfiltered: Boolean): Int {
+  let shown: Int = 0;
+  let i: Int = 0;
+  let row: SpellRow | null = Spells.at(i);
+  while (row !== null) {
+    if (spellShown(row, book, unfiltered)) {
+      shown = shown + 1;
+    }
+    i = i + 1;
+    row = Spells.at(i);
+  }
+  return shown;
+}
+
+function flashFade(spell: Item, stored: Int, phase: Int): Int {
+  if (stored !== (spell as Int)) {
+    return -1;
+  }
+  if (phase === 1) {
+    return SpellFade.FLASH;
+  }
+  if (phase === 0) {
+    return SpellFade.LIT;
+  }
+  return -1;
+}
+
+export function SpellGrid(): Component {
+  const me = useRef();
+  const [mode] = useState(spellbookPanelMode);
+  const [phase] = useState(spellbookFlashPhase);
+  const [stored] = useState(storedSpell);
+  useInterval(() => stepSpellFlash(), me);
+
+  const mobile: Boolean = onMobile();
+  const kind: Int = gridKind(mobile);
+  const varbitBook: Int = useServerState(SpellbookVarbits.SPELLBOOK);
+  const book: Int = activeSpellBook();
+  const unfiltered: Boolean = kind === GridKind.TABLE;
+  const prayerRead: Int = useSkill(Skills.PRAYER) * 0;
+  const shown: Int = book === -1 ? 0 : shownSpellCount(book, unfiltered);
+
+  const icon: Int = gridIcon(kind, shown) + prayerRead;
+  const cols: Int = gridCols(kind, shown, varbitBook);
+  const colGap: Int = gridColGap(kind, shown, varbitBook);
+  const rowGap: Int = gridRowGap(kind, shown, varbitBook);
+  const width: Int = gridWidth(kind, shown, varbitBook);
+  const height: Int = gridHeight(kind, shown, varbitBook);
+  const placed: Boolean = shown > 0;
+  const table: Boolean = placed && kind === GridKind.TABLE;
+  const xOffset: Int = table ? tableX(varbitBook) : 0;
+  const yTop: Int = table ? tableY(varbitBook) : 0;
+  const listed: Boolean = book !== -1;
+  const empty: Boolean = listed && shown <= 0;
+
+  return (
+    <layer
+      ref={me}
+      x={{ center: xOffset }}
+      y={table ? yTop : 'center'}
+      w={placed ? width : 'fill'}
+      h={placed ? height : 'fill'}
+      hide={mode === PanelMode.FILTERS}
+    >
+      {Spells.filter((row) => placed && spellShown(row, book, unfiltered)).scan(
+        (row, index, at) => (
+          <SpellCell
+            row={row}
+            x={(at % cols) * (icon + colGap)}
+            y={(at / cols) * (icon + rowGap)}
+            icon={icon}
+            mobile={mobile}
+            flash={flashFade(row.spell, stored, phase)}
+          />
+        ),
+        (row) => 1,
+      )}
+      <InfoOverlay
+        book={book}
+        unfiltered={unfiltered}
+        icon={icon}
+        cols={cols}
+        colGap={colGap}
+        rowGap={rowGap}
+        mobile={mobile}
+        mode={mode}
+      />
+      {empty ? (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={NO_MATCH}
+          font={SpellbookFonts.BODY}
+          color={SpellbookColour.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      ) : null}
+      {Spells.filter((row) => placed && spellShown(row, book, unfiltered)).scan(
+        (row, index, at) => (
+          <SpellLock row={row} x={(at % cols) * (icon + colGap)} y={(at / cols) * (icon + rowGap)} icon={icon} />
+        ),
+        (row) => 1,
+      )}
+    </layer>
+  );
+}
+
+function InfoOverlay({
+  book,
+  unfiltered,
+  icon,
+  cols,
+  colGap,
+  rowGap,
+  mobile,
+  mode,
+}: {
+  book: Int;
+  unfiltered: Boolean;
+  icon: Int;
+  cols: Int;
+  colGap: Int;
+  rowGap: Int;
+  mobile: Boolean;
+  mode: Int;
+}): Component {
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={mode !== PanelMode.INFO}>
+      <sprite
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        sprite={SpellbookSprites.INFO_BACKDROP}
+        tiling
+        transparency={225}
+        noClickThrough
+        onClick={() => opsound(0, 0)}
+      />
+      {Spells.filter((row) => mobile && spellShown(row, book, unfiltered)).scan(
+        (row, index, at) => (
+          <sprite
+            x={(at % cols) * (icon + colGap)}
+            y={(at / cols) * (icon + rowGap)}
+            w={icon}
+            h={icon}
+            item={row.spell}
+            itemCount={1}
+            transparency={255}
+            onClick={() => tapSpellInfo(row.spell, (at / cols) * (icon + rowGap))}
+          />
+        ),
+        (row) => 1,
+      )}
+    </layer>
+  );
+}
+
+function SpellLock({ row, x, y, icon }: { row: SpellRow; x: Int; y: Int; icon: Int }): Component {
+  const lock: Sprite = spellLockSprite(spellState(row), icon);
+  if (lock === -1) {
+    return null;
+  }
+  return <sprite x={x} y={y} w={icon} h={icon} sprite={lock} />;
+}
+
+function SpellCell({
+  row,
+  x,
+  y,
+  icon,
+  mobile,
+  flash,
+}: {
+  row: SpellRow;
+  x: Int;
+  y: Int;
+  icon: Int;
+  mobile: Boolean;
+  flash: Int;
+}): Component {
+  const [targeted, setTargeted] = useState(0);
+  const spell: Item = row.spell;
+  const state: Int = spellState(row);
+  const fade: Int = flash !== -1 ? flash : spellFade(row, state);
+  const sprite: Sprite = spellSprite(spell, icon, spellLit(state));
+  const op1: String = spellOp(row, 1);
+  const op2: String = spellOp(row, 2);
+  const op3: String = spellOp(row, 3);
+  const op4: String = spellOp(row, 4);
+  const op5: String = spellOp(row, 5);
+  const op6: String = spellOp(row, 6);
+  const op7: String = spellOp(row, 7);
+  const op8: String = spellOp(row, 8);
+  const op9: String = spellOp(row, 9);
+  const op10: String = spellOp(row, 10);
+  const subject: String = spellOpSubject(spell);
+  const sublist: Int = spellSublistTarget(spell);
+  const verb: String = row.targetVerb;
+  const outline: Int = targeted === 1 ? 2 : 0;
+  const tipY: Int = y;
+
+  if (row.targets === SpellTargets.NPC_PLAYER) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['npc', 'player']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, false);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.COMPONENT) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['component']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, true);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.GROUND_ITEM_NPC) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['groundItem', 'npc']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, false);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.NPC) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['npc']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, false);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.OBJECT) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['object']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, false);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.PLAYER) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['player']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, false);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.GROUND_ITEM_COMPONENT) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['groundItem', 'component']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, true);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  if (row.targets === SpellTargets.OBJECT_COMPONENT) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        transparency={fade}
+        outline={outline}
+        options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+        optionSubject={subject}
+        targetVerb={verb}
+        spellTargets={['object', 'component']}
+        onTargetEnter={() => {
+          setTargeted(1);
+          spellTargetEntered(spell, true);
+        }}
+        onTargetLeave={() => {
+          setTargeted(0);
+          spellTargetLeft(spell);
+        }}
+        onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+        onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={icon}
+      h={icon}
+      sprite={sprite}
+      transparency={fade}
+      options={[op1, op2, op3, op4, op5, op6, op7, op8, op9, op10]}
+      optionSubject={subject}
+      targetVerb={verb}
+      onOptionSelect={() => spellbookSublistOp(spell, sublist)}
+      onMouseRepeat={mobile ? undefined : () => showSpellTip(spell, tipY)}
+      onMouseLeave={mobile ? undefined : () => hideSpellTip()}
+    />
+  );
+}

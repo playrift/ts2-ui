@@ -1,0 +1,208 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Varbits } from '../lib/game/varbits';
+import {
+  fairyringsScrollpos,
+  fairyringsSearchstring,
+  fairyringsSort,
+  meslayerinput,
+  meslayermode,
+  snapshotOpen,
+} from '../lib/game/varcs';
+import { clientClock, playSound, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { KEYBOARD_STRING, keyboardShow, meslayerClose, meslayerEcho, meslayerOpen } from '../0162_chatbox/meslayer';
+import { mesText2Ref, mesTextRef } from '../0162_chatbox/chatbox.constants';
+import { FairyRings } from './fairyrings-log.data';
+import { fairyringsApplied, fairyringsRevision, fairyringsSearchTimer } from './fairyrings-log.state';
+
+export const MESLAYER_FAIRYRING_SEARCH = 28;
+
+const SEARCH_LIMIT = 30;
+
+const KEYBOARD_LIMIT = 80;
+
+const LINE_HEIGHT = 12;
+const ROW_PAD = 5;
+
+export function searchFilter(search: String): String {
+  const lowered: String = CS2.lowercase(search);
+  if (CS2.string_length(lowered) <= SEARCH_LIMIT) {
+    return lowered;
+  }
+  return CS2.substring(lowered, 0, SEARCH_LIMIT);
+}
+
+export function ringMatches(text: String, filter: String): Boolean {
+  if (CS2.string_length(filter) <= 0) {
+    return true;
+  }
+  return CS2.string_indexof_string(removeSeparator(CS2.lowercase(text), ':'), filter, 0) !== -1;
+}
+
+function removeSeparator(text: String, separator: String): String {
+  const length: Int = CS2.string_length(text);
+  const width: Int = CS2.string_length(separator);
+  let at: Int = 0;
+  let kept: String = '';
+  while (at < length) {
+    if (CS2.compare(CS2.substring(text, at, at + width), separator) === 0) {
+      at = at + width;
+    } else {
+      kept = `${kept}${CS2.substring(text, at, at + 1)}`;
+      at = at + 1;
+    }
+  }
+  return kept;
+}
+
+export function ringRowHeight(text: String, width: Int): Int {
+  return textLineCount(text, width, Fonts.P12_FULL) * LINE_HEIGHT + ROW_PAD;
+}
+
+export function textOf(component: ComponentId): String {
+  return CS2.if_text_get(component);
+}
+
+export function widthOf(component: ComponentId): Int {
+  return CS2.if_width_get(component);
+}
+
+export function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+export function placeComponent(component: ComponentId, x: Int, y: Int, w: Int, h: Int): void {
+  component.props = { hide: false, x: x, y: y, w: w, h: h };
+}
+
+export function hideComponent(component: ComponentId, hidden: Boolean): void {
+  component.hide = hidden;
+}
+
+export function ringCode(index: Int): String {
+  const ring = FairyRings.at(index);
+  if (ring === null) {
+    return '';
+  }
+  return ring.code;
+}
+
+export function ringKeyCompare(sort: Int, textA: String, indexA: Int, textB: String, indexB: Int): Int {
+  if (sort === 1) {
+    return CS2.compare(CS2.lowercase(textA), CS2.lowercase(textB));
+  }
+  return CS2.compare(CS2.lowercase(ringCode(indexA)), CS2.lowercase(ringCode(indexB)));
+}
+
+export function ringSearching(): Boolean {
+  const [mode] = useState(meslayermode);
+  const [typed] = useState(meslayerinput);
+  if (mode === MESLAYER_FAIRYRING_SEARCH) {
+    return true;
+  }
+  return mode <= 0 && CS2.string_length(typed) > 0;
+}
+
+function sanitizeLog(): void {
+  const [sort, setSort] = useState(fairyringsSort);
+  if (sort !== 0 && sort !== 1) {
+    setSort(0);
+  }
+  const [scroll, setScroll] = useState(fairyringsScrollpos);
+  if (scroll < 0) {
+    setScroll(0);
+  }
+}
+
+function rebuildLog(search: String): void {
+  const [, setApplied] = useState(fairyringsApplied);
+  const [revision, setRevision] = useState(fairyringsRevision);
+  setApplied(searchFilter(search));
+  setRevision(revision + 1);
+}
+
+export function fairyLogRebuild(reopen: Int): void {
+  if (reopen === 1) {
+    sanitizeLog();
+  }
+  const [search] = useState(fairyringsSearchstring);
+  rebuildLog(search);
+}
+
+export function fairyLogOpen(): void {
+  const [search, setSearch] = useState(fairyringsSearchstring);
+  sanitizeLog();
+  rebuildLog(search);
+  setSearch('');
+  const autoOpen: Int = useServerState(Varbits.SETTINGS_FAIRYRING_MOBILE_KEYBOARD_AUTOOPEN_DISABLED) === 0 ? 1 : 0;
+  fairyLogSearch(1, 0, autoOpen);
+}
+
+export function fairyLogSearch(op: Int, reopen: Int, keyboard: Int): void {
+  if (op !== 1) {
+    return;
+  }
+  const [search] = useState(fairyringsSearchstring);
+  if (ringSearching()) {
+    meslayerClose(false, true, true);
+    if (reopen === 1) {
+      sanitizeLog();
+    }
+    rebuildLog(search);
+    return;
+  }
+  openSearchPrompt(search, keyboard);
+  armSearchTimer();
+}
+
+function openSearchPrompt(initial: String, keyboard: Int): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(MESLAYER_FAIRYRING_SEARCH);
+  mesTextRef.text = 'Search for destination:';
+  const [, setTyped] = useState(meslayerinput);
+  setTyped(initial);
+  meslayerEcho(initial);
+  CS2.if_on_key_set(null, mesText2Ref);
+  CS2.if_on_dialog_abort_set(null, mesText2Ref);
+  if (onMobile() && keyboard === 1) {
+    keyboardShow(KEYBOARD_STRING, KEYBOARD_LIMIT);
+  }
+}
+
+function armSearchTimer(): void {
+  const [mode] = useState(meslayermode);
+  const [, setTimer] = useState(fairyringsSearchTimer);
+  if (ringSearching() && mode === MESLAYER_FAIRYRING_SEARCH) {
+    setTimer(1);
+  } else {
+    setTimer(0);
+  }
+}
+
+export function fairyLogSearchTick(): void {
+  const [mode] = useState(meslayermode);
+  const [search, setSearch] = useState(fairyringsSearchstring);
+  if (mode !== MESLAYER_FAIRYRING_SEARCH) {
+    rebuildLog(search);
+    return;
+  }
+  const [typed] = useState(meslayerinput);
+  setSearch(typed);
+  if (clientClock() % 20 === 0) {
+    rebuildLog(typed);
+  }
+}
+
+export function fairyLogSortClick(): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  const [sort, setSort] = useState(fairyringsSort);
+  setSort(sort === 1 ? 0 : 1);
+  const [search] = useState(fairyringsSearchstring);
+  rebuildLog(search);
+}

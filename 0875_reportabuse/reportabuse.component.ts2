@@ -1,0 +1,360 @@
+import { Engine, useInterval, useRef, useState, useWatch } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ReportButton } from './report-button.component';
+import {
+  CLOSE_BUTTON,
+  CLOSE_OP_SOUND_MASK,
+  HOVER_RELEASE_MS,
+  ILLEGAL_LABEL,
+  ILLEGAL_NOTE,
+  INSTRUCTION,
+  Layout,
+  ReportArt,
+  ReportColour,
+  ReportFonts,
+  ReportPage,
+  ReportToggle,
+  TOGGLE_HOVER_TRANSPARENCY,
+} from './reportabuse.constants';
+import {
+  closeOnEscape,
+  isModerator,
+  nameFieldText,
+  nameLabelText,
+  openReportWebsite,
+  promptText,
+  reportabuseChatDrawn,
+  reportabuseChatTransmit,
+  reportabuseCheck,
+  reportabuseDrawnName,
+  reportabuseKey,
+  reportabuseLoad,
+  reportabusePage,
+  reportabuseShowKeyboard,
+  reportabuseToggle,
+  reportabuseWarnUntil,
+  toggleOn,
+} from './reportabuse.state';
+import { RuleHotkeys, RuleList } from './rule-list.component';
+
+export function Reportabuse(): Component {
+  return (
+    <>
+      <layer x={0} y={0} w={0} h={0} onLoad={() => reportabuseLoad()} />
+
+      <sprite x="center" y="center" w={Layout.ROOT_W} h={Layout.ROOT_H} sprite={ReportArt.BACKGROUND} />
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <ReportPages />
+      </layer>
+
+      <layer
+        ref={CLOSE_BUTTON}
+        x={{ right: Layout.CLOSE_RIGHT }}
+        y={Layout.CLOSE_Y}
+        w={Layout.CLOSE_W}
+        h={Layout.CLOSE_H}
+        options={['Close']}
+        onOptionSelect={(event) => opsound(event.option, CLOSE_OP_SOUND_MASK)}
+      >
+        <CloseFace />
+      </layer>
+    </>
+  );
+}
+
+function ReportPages(): Component {
+  const [page] = useState(reportabusePage);
+  const [drawn] = useState(reportabuseDrawnName);
+  const [warnUntil] = useState(reportabuseWarnUntil);
+  const [expiredAt, setExpiredAt] = useState(-1);
+  const mobile: Boolean = onMobile();
+  const warning: Boolean = warnUntil >= 0 && warnUntil !== expiredAt;
+  const prompt = useRef();
+
+  useInterval(
+    warning
+      ? () => {
+          if (clientClock() >= warnUntil) {
+            setExpiredAt(warnUntil);
+          }
+        }
+      : undefined,
+    prompt,
+  );
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer
+        x="center"
+        y="center"
+        w={{ fill: Layout.PAGE_INSET }}
+        h={{ fill: Layout.PAGE_INSET }}
+        hide={page !== ReportPage.NAME}
+      >
+        <text
+          ref={prompt}
+          x="center"
+          y={0}
+          w="fill"
+          h={Layout.PROMPT_H}
+          text={promptText(warning)}
+          font={ReportFonts.BODY}
+          color={ReportColour.INK}
+          align="center"
+          valign="middle"
+          lineHeight={15}
+        />
+        <text
+          x="center"
+          y={Layout.FIELD_Y}
+          w={{ fill: Layout.FIELD_INSET_W }}
+          h={{ fill: Layout.FIELD_INSET_H }}
+          text={nameFieldText(drawn)}
+          font={ReportFonts.BOLD}
+          color={ReportColour.INK}
+          align="center"
+          valign="middle"
+          onKey={(event) => reportabuseKey(event.keyCode, event.keyChar)}
+          onClick={mobile ? () => reportabuseShowKeyboard() : undefined}
+        />
+        <layer
+          x={{ right: Layout.SIDE_BUTTON_X }}
+          y={Layout.FIELD_Y}
+          w={Layout.SIDE_BUTTON_W}
+          h={{ fill: Layout.FIELD_INSET_H }}
+          options={['Next']}
+          onOptionSelect={() => reportabuseCheck(1)}
+        >
+          <ReportButton label="Next" lineHeight={15} />
+        </layer>
+        <layer
+          x={Layout.SIDE_BUTTON_X}
+          y={Layout.FIELD_Y}
+          w={Layout.SIDE_BUTTON_W}
+          h={{ fill: Layout.FIELD_INSET_H }}
+          options={[ILLEGAL_LABEL]}
+          onOptionSelect={() => openReportWebsite()}
+        >
+          <ReportButton label={ILLEGAL_LABEL} lineHeight={13} />
+        </layer>
+        <ChatLine name={drawn} />
+        <text
+          x="center"
+          y="bottom"
+          w="fill"
+          h={Layout.LINE_H}
+          text={ILLEGAL_NOTE}
+          font={ReportFonts.BODY}
+          color={ReportColour.INK}
+          align="center"
+          valign="middle"
+          lineHeight={15}
+        />
+      </layer>
+
+      <layer
+        x="center"
+        y="center"
+        w={{ fill: Layout.PAGE_INSET }}
+        h={{ fill: Layout.PAGE_INSET }}
+        hide={page !== ReportPage.RULES}
+      >
+        <ReportToggles />
+        <text
+          x={Layout.NAME_X}
+          y={0}
+          w={Layout.NAME_W}
+          h={Layout.NAME_H}
+          text={nameLabelText(drawn)}
+          font={ReportFonts.BOLD}
+          color={ReportColour.INK}
+          align="center"
+          valign="middle"
+          onClick={() => reportabuseCheck(0)}
+        />
+        <text
+          x={Layout.NAME_X}
+          y={Layout.INSTRUCTION_Y}
+          w={Layout.NAME_W}
+          h={Layout.INSTRUCTION_H}
+          text={INSTRUCTION}
+          font={ReportFonts.SMALL}
+          color={ReportColour.INK}
+          align="center"
+          valign="bottom"
+        />
+        <layer
+          x={Layout.CHECK_X}
+          y={Layout.CHECK_Y}
+          w={Layout.CHECK_W}
+          h={Layout.CHECK_H}
+          options={['Check Name']}
+          onOptionSelect={() => reportabuseCheck(0)}
+        >
+          <ReportButton label="Check Name" lineHeight={15} />
+        </layer>
+        <layer x="right" y="bottom" w={{ fill: Layout.BOX_INSET_W }} h={{ fill: Layout.BOX_INSET_H }}>
+          <rect
+            x="center"
+            y="center"
+            w={{ fill: 4 }}
+            h={{ fill: 4 }}
+            color={ReportColour.BLACK}
+            fill
+            transparency={235}
+          />
+          <rect x="center" y="center" w="fill" h="fill" color={ReportColour.BOX_OUTER} transparency={80} />
+          <rect
+            x="center"
+            y="center"
+            w={{ fill: 2 }}
+            h={{ fill: 2 }}
+            color={ReportColour.BOX_INNER}
+            transparency={80}
+          />
+          <RuleList />
+        </layer>
+        <text
+          x={Layout.NOTE_X}
+          y={{ bottom: Layout.NOTE_BOTTOM }}
+          w={Layout.NOTE_W}
+          h={Layout.NOTE_H}
+          text={ILLEGAL_NOTE}
+          font={ReportFonts.BODY}
+          color={ReportColour.INK}
+          valign="middle"
+          lineHeight={15}
+        />
+        <layer
+          x={Layout.WEB_X}
+          y={{ bottom: Layout.WEB_BOTTOM }}
+          w={Layout.WEB_W}
+          h={Layout.WEB_H}
+          options={[ILLEGAL_LABEL]}
+          onOptionSelect={() => openReportWebsite()}
+        >
+          <ReportButton label={ILLEGAL_LABEL} lineHeight={15} />
+        </layer>
+        <RuleHotkeys />
+      </layer>
+    </layer>
+  );
+}
+
+function ChatLine({ name }: { name: String }): Component {
+  const [chat] = useState(reportabuseChatDrawn);
+  const [heard, setHeard] = useState(0);
+  useWatch(Engine.CHAT, () => {
+    reportabuseChatTransmit(name);
+    setHeard(heard + 1);
+  });
+
+  return (
+    <text
+      x="center"
+      y={{ bottom: Layout.CHAT_BOTTOM }}
+      w="fill"
+      h={Layout.LINE_H}
+      text={chat}
+      font={ReportFonts.BODY}
+      color={ReportColour.INK}
+      align="center"
+      valign="bottom"
+      lineHeight={15}
+      hide={heard < 0}
+    />
+  );
+}
+
+function CloseFace(): Component {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <sprite
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      sprite={hovered === 1 ? ReportArt.CLOSE_HOVER : ReportArt.CLOSE}
+      onMouseEnter={() => {
+        if (!onMobile()) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile()) {
+          setHovered(0);
+        }
+      }}
+      onKey={(event) => closeOnEscape(event.keyCode)}
+    />
+  );
+}
+
+function ReportToggles(): Component {
+  const moderator: Boolean = isModerator();
+  return (
+    <>
+      <layer x={Layout.TOGGLE_X} y={Layout.MUTE_Y} w={Layout.TOGGLE_W} h={Layout.TOGGLE_H} hide={!moderator}>
+        {moderator ? <ReportToggleRow label="Mute player" which={ReportToggle.MUTE} /> : null}
+      </layer>
+      <layer
+        x={Layout.TOGGLE_X}
+        y={moderator ? Layout.IGNORE_Y_MOD : Layout.IGNORE_Y}
+        w={Layout.TOGGLE_W}
+        h={Layout.TOGGLE_H}
+      >
+        <ReportToggleRow label="Add player to Ignore list" which={ReportToggle.IGNORE} />
+      </layer>
+    </>
+  );
+}
+
+function ReportToggleRow({ label, which }: { label: String; which: Int }): Component {
+  const on: Boolean = toggleOn(which);
+  const mobile: Boolean = onMobile();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Change']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onOptionSelect={() => reportabuseToggle(which)}
+    >
+      {mobile ? (
+        <rect x="center" y="center" w="fill" h="fill" color={ReportColour.WHITE} fill transparency={255} />
+      ) : (
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          color={ReportColour.WHITE}
+          fill
+          transparency={255}
+          hover={{ transparency: TOGGLE_HOVER_TRANSPARENCY, releaseAfterMs: HOVER_RELEASE_MS }}
+        />
+      )}
+      <sprite
+        x={0}
+        y="center"
+        w={Layout.TOGGLE_BOX}
+        h={Layout.TOGGLE_BOX}
+        transparency={50}
+        sprite={on ? ReportArt.TICKED : ReportArt.UNTICKED}
+      />
+      <text
+        x="right"
+        y="center"
+        w={{ fill: Layout.TOGGLE_TEXT_INSET }}
+        h="fill"
+        text={label}
+        font={ReportFonts.BODY}
+        color={ReportColour.INK}
+        valign="middle"
+      />
+    </layer>
+  );
+}

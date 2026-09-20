@@ -1,0 +1,392 @@
+import { useServerState } from 'ts2';
+
+import { timeConvert } from '../0512_trailblazer_areas/time.shared';
+import { SpeedrunColor, SpeedrunFont, SpeedrunLayout, SpeedrunVars, UnlockRow } from './speedrunning-panel.constants';
+import {
+  hasQuestUnlocks,
+  itemLine,
+  itemUnlockCount,
+  pohLine,
+  questExtraLine,
+  questExtraLines,
+  recommendedStatShown,
+  requiredStatShown,
+  speedrunQuestName,
+  speedrunStatShown,
+  statLine,
+  trophyHeld,
+  trophyTime,
+  unlockCombatLevel,
+  unlockRowHeight,
+} from './speedrunning-panel.helpers';
+import {
+  SpeedrunQuestsRecommendedStats,
+  SpeedrunQuestsRequirementQuests,
+  SpeedrunQuestsRequirementStats,
+} from './speedrun-quests.data';
+import {
+  Speedruns,
+  SpeedrunsSpeedrunItemUnlocks,
+  SpeedrunsSpeedrunQuestUnlocks,
+  SpeedrunsSpeedrunStatUnlocks,
+} from './speedruns.data';
+
+export const DETAIL_LIST_W = 121;
+
+export function Trophy({ quest, trophy, sprite }: { quest: Int; trophy: Int; sprite: Sprite }): Component {
+  const time: Int = trophyTime(quest, trophy);
+  const held: Boolean = trophyHeld(quest, trophy);
+  const separate: Int = useServerState(SpeedrunVars.SEPARATE_HOURS);
+  return (
+    <>
+      <text
+        x="center"
+        y={{ bottom: SpeedrunLayout.TROPHY_TEXT_BOTTOM }}
+        w={SpeedrunLayout.TROPHY_W}
+        h={{ fill: SpeedrunLayout.TROPHY_ART_H }}
+        text={time > 0 ? timeConvert(time, separate) : '-'}
+        font={SpeedrunFont.BODY}
+        color={held && time > 0 ? SpeedrunColor.EARNED : SpeedrunColor.UNEARNED}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <sprite
+        x="center"
+        y={0}
+        w={SpeedrunLayout.TROPHY_W}
+        h={SpeedrunLayout.TROPHY_ART_H}
+        sprite={sprite}
+        transparency={held ? 0 : 110}
+      />
+    </>
+  );
+}
+
+function DetailRow({ y, text }: { y: Int; text: String }): Component {
+  return (
+    <text
+      x="center"
+      y={y}
+      w={{ fill: UnlockRow.INSET_W }}
+      h={unlockRowHeight(text, DETAIL_LIST_W)}
+      text={text}
+      font={SpeedrunFont.SMALL}
+      color={SpeedrunColor.AMBER}
+      shadow
+      align="left"
+      valign="top"
+      lineHeight={UnlockRow.LINE}
+    />
+  );
+}
+
+function DetailHeading({ y, text }: { y: Int; text: String }): Component {
+  return (
+    <text
+      x="center"
+      y={y}
+      w={{ fill: UnlockRow.HEADING_INSET_W }}
+      h={UnlockRow.HEADING_H}
+      text={text}
+      font={SpeedrunFont.BOLD}
+      color={SpeedrunColor.AMBER}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+function requiredQuestsHeight(questRow: Int): Int {
+  const count: Int = SpeedrunQuestsRequirementQuests.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunQuestsRequirementQuests.at(i);
+    if (row !== null) {
+      if (row.row === questRow) {
+        h = h + unlockRowHeight(speedrunQuestName(row.requirementQuests as Int), DETAIL_LIST_W);
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function unlockedQuestsHeight(speedrun: Int): Int {
+  const count: Int = SpeedrunsSpeedrunQuestUnlocks.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunQuestUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun) {
+        h = h + unlockRowHeight(speedrunQuestName(row.speedrunQuestUnlocks as Int), DETAIL_LIST_W);
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function requiredStatsHeight(questRow: Int, speedrun: Int, combat: Int): Int {
+  const count: Int = SpeedrunQuestsRequirementStats.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunQuestsRequirementStats.at(i);
+    if (row !== null) {
+      if (row.row === questRow) {
+        const level: Int = requiredStatShown(questRow, speedrun, row.skill, row.level, combat);
+        if (level > 0) {
+          h = h + unlockRowHeight(statLine(level, row.skill), DETAIL_LIST_W);
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function recommendedStatsHeight(questRow: Int, speedrun: Int, combat: Int): Int {
+  const count: Int = SpeedrunQuestsRecommendedStats.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunQuestsRecommendedStats.at(i);
+    if (row !== null) {
+      if (row.row === questRow) {
+        const level: Int = recommendedStatShown(questRow, speedrun, row.skill, row.level, combat);
+        if (level > 0) {
+          h = h + unlockRowHeight(statLine(level, row.skill), DETAIL_LIST_W);
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function speedrunStatsHeight(questRow: Int, speedrun: Int, combat: Int): Int {
+  const count: Int = SpeedrunsSpeedrunStatUnlocks.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunStatUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun) {
+        const level: Int = speedrunStatShown(questRow, row.skill, row.level, combat);
+        if (level > 0) {
+          h = h + unlockRowHeight(statLine(level, row.skill), DETAIL_LIST_W);
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function itemsHeight(speedrun: Int, inventory: Int): Int {
+  const count: Int = SpeedrunsSpeedrunItemUnlocks.length;
+  let h: Int = 0;
+  let i: Int = 0;
+  while (i < count) {
+    const row = SpeedrunsSpeedrunItemUnlocks.at(i);
+    if (row !== null) {
+      if (row.row === speedrun && row.inventory === inventory && row.item >= 0 && row.count > 0) {
+        h = h + unlockRowHeight(itemLine(row.item, row.count), DETAIL_LIST_W);
+      }
+    }
+    i = i + 1;
+  }
+  return h;
+}
+
+function pohOf(speedrun: Int): Int {
+  const row = Speedruns.at(speedrun);
+  if (row === null) {
+    return -1;
+  }
+  return row.speedrunPohLocation;
+}
+
+export function unlocksEnd(quest: Int, questRow: Int, speedrun: Int): Int {
+  const combat: Int = unlockCombatLevel(questRow, speedrun);
+  let y: Int = UnlockRow.FIRST;
+  y = y + requiredQuestsHeight(questRow) + unlockedQuestsHeight(speedrun);
+  y =
+    y +
+    requiredStatsHeight(questRow, speedrun, combat) +
+    recommendedStatsHeight(questRow, speedrun, combat) +
+    speedrunStatsHeight(questRow, speedrun, combat);
+  if (combat > 1) {
+    y = y + unlockRowHeight(`Level ${combat} in all combat stats`, DETAIL_LIST_W);
+  }
+  const poh: Int = pohOf(speedrun);
+  if (poh > 0) {
+    y = y + unlockRowHeight(pohLine(poh), DETAIL_LIST_W);
+  }
+  const extras: Int = questExtraLines(quest);
+  let n: Int = 0;
+  while (n < extras) {
+    y = y + unlockRowHeight(questExtraLine(quest, n), DETAIL_LIST_W);
+    n = n + 1;
+  }
+  if (hasQuestUnlocks(questRow, speedrun)) {
+    y = y + unlockRowHeight('Any requirements for the other quests unlocked', DETAIL_LIST_W);
+  }
+  if (y === UnlockRow.FIRST) {
+    y = y + unlockRowHeight('None', DETAIL_LIST_W);
+  }
+  return y + UnlockRow.GAP;
+}
+
+export function itemsEnd(speedrun: Int): Int {
+  let y: Int = UnlockRow.FIRST + itemsHeight(speedrun, 94) + itemsHeight(speedrun, 93);
+  if (y === UnlockRow.FIRST) {
+    y = y + unlockRowHeight('None', DETAIL_LIST_W);
+  }
+  if (itemUnlockCount(speedrun, 95) > 0) {
+    y = y + UnlockRow.GAP + UnlockRow.BANK_HEADING_ADVANCE + itemsHeight(speedrun, 95);
+  }
+  return y + UnlockRow.GAP;
+}
+
+export function UnlockList({ quest, questRow, speedrun }: { quest: Int; questRow: Int; speedrun: Int }): Component {
+  const combat: Int = unlockCombatLevel(questRow, speedrun);
+  const y0: Int = UnlockRow.FIRST;
+  const y1: Int = y0 + requiredQuestsHeight(questRow);
+  const y2: Int = y1 + unlockedQuestsHeight(speedrun);
+  const y3: Int = y2 + requiredStatsHeight(questRow, speedrun, combat);
+  const y4: Int = y3 + recommendedStatsHeight(questRow, speedrun, combat);
+  const y5: Int = y4 + speedrunStatsHeight(questRow, speedrun, combat);
+  const combatText: String = `Level ${combat} in all combat stats`;
+  const y6: Int = y5 + (combat > 1 ? unlockRowHeight(combatText, DETAIL_LIST_W) : 0);
+  const poh: Int = pohOf(speedrun);
+  const y7: Int = y6 + (poh > 0 ? unlockRowHeight(pohLine(poh), DETAIL_LIST_W) : 0);
+  const extras: Int = questExtraLines(quest);
+  const e1: Int = y7 + (extras > 0 ? unlockRowHeight(questExtraLine(quest, 0), DETAIL_LIST_W) : 0);
+  const e2: Int = e1 + (extras > 1 ? unlockRowHeight(questExtraLine(quest, 1), DETAIL_LIST_W) : 0);
+  const y8: Int = e2 + (extras > 2 ? unlockRowHeight(questExtraLine(quest, 2), DETAIL_LIST_W) : 0);
+  const anyText: String = 'Any requirements for the other quests unlocked';
+  const any: Boolean = hasQuestUnlocks(questRow, speedrun);
+  const y9: Int = y8 + (any ? unlockRowHeight(anyText, DETAIL_LIST_W) : 0);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <DetailHeading y={UnlockRow.HEADING_Y} text="Unlocks" />
+      {SpeedrunQuestsRequirementQuests.filter((row) => row.row === questRow).scan(
+        (row, index, y) => (
+          <DetailRow y={y} text={speedrunQuestName(row.requirementQuests as Int)} />
+        ),
+        (row) => unlockRowHeight(speedrunQuestName(row.requirementQuests as Int), DETAIL_LIST_W),
+        y0,
+      )}
+      {SpeedrunsSpeedrunQuestUnlocks.filter((row) => row.row === speedrun).scan(
+        (row, index, y) => (
+          <DetailRow y={y} text={speedrunQuestName(row.speedrunQuestUnlocks as Int)} />
+        ),
+        (row) => unlockRowHeight(speedrunQuestName(row.speedrunQuestUnlocks as Int), DETAIL_LIST_W),
+        y1,
+      )}
+      {SpeedrunQuestsRequirementStats.filter(
+        (row) => row.row === questRow && requiredStatShown(questRow, speedrun, row.skill, row.level, combat) > 0,
+      ).scan(
+        (row, index, y) => (
+          <DetailRow
+            y={y}
+            text={statLine(requiredStatShown(questRow, speedrun, row.skill, row.level, combat), row.skill)}
+          />
+        ),
+        (row) =>
+          unlockRowHeight(
+            statLine(requiredStatShown(questRow, speedrun, row.skill, row.level, combat), row.skill),
+            DETAIL_LIST_W,
+          ),
+        y2,
+      )}
+      {SpeedrunQuestsRecommendedStats.filter(
+        (row) => row.row === questRow && recommendedStatShown(questRow, speedrun, row.skill, row.level, combat) > 0,
+      ).scan(
+        (row, index, y) => (
+          <DetailRow
+            y={y}
+            text={statLine(recommendedStatShown(questRow, speedrun, row.skill, row.level, combat), row.skill)}
+          />
+        ),
+        (row) =>
+          unlockRowHeight(
+            statLine(recommendedStatShown(questRow, speedrun, row.skill, row.level, combat), row.skill),
+            DETAIL_LIST_W,
+          ),
+        y3,
+      )}
+      {SpeedrunsSpeedrunStatUnlocks.filter(
+        (row) => row.row === speedrun && speedrunStatShown(questRow, row.skill, row.level, combat) > 0,
+      ).scan(
+        (row, index, y) => (
+          <DetailRow y={y} text={statLine(speedrunStatShown(questRow, row.skill, row.level, combat), row.skill)} />
+        ),
+        (row) =>
+          unlockRowHeight(
+            statLine(speedrunStatShown(questRow, row.skill, row.level, combat), row.skill),
+            DETAIL_LIST_W,
+          ),
+        y4,
+      )}
+      {combat > 1 && <DetailRow y={y5} text={combatText} />}
+      {poh > 0 && <DetailRow y={y6} text={pohLine(poh)} />}
+      {extras > 0 && <DetailRow y={y7} text={questExtraLine(quest, 0)} />}
+      {extras > 1 && <DetailRow y={e1} text={questExtraLine(quest, 1)} />}
+      {extras > 2 && <DetailRow y={e2} text={questExtraLine(quest, 2)} />}
+      {any && <DetailRow y={y8} text={anyText} />}
+      {y9 === UnlockRow.FIRST && <DetailRow y={y9} text="None" />}
+    </layer>
+  );
+}
+
+export function ItemList({ speedrun }: { speedrun: Int }): Component {
+  const y0: Int = UnlockRow.FIRST;
+  const y1: Int = y0 + itemsHeight(speedrun, 94);
+  const y2: Int = y1 + itemsHeight(speedrun, 93);
+  const none: Boolean = y2 === UnlockRow.FIRST;
+  const y3: Int = y2 + (none ? unlockRowHeight('None', DETAIL_LIST_W) : 0);
+  const bank: Boolean = itemUnlockCount(speedrun, 95) > 0;
+  const bankHeading: Int = y3 + UnlockRow.GAP;
+  const y4: Int = bankHeading + UnlockRow.BANK_HEADING_ADVANCE;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <DetailHeading y={UnlockRow.HEADING_Y} text="Items" />
+      {SpeedrunsSpeedrunItemUnlocks.filter(
+        (row) => row.row === speedrun && row.inventory === 94 && row.item >= 0 && row.count > 0,
+      ).scan(
+        (row, index, y) => (
+          <DetailRow y={y} text={itemLine(row.item, row.count)} />
+        ),
+        (row) => unlockRowHeight(itemLine(row.item, row.count), DETAIL_LIST_W),
+        y0,
+      )}
+      {SpeedrunsSpeedrunItemUnlocks.filter(
+        (row) => row.row === speedrun && row.inventory === 93 && row.item >= 0 && row.count > 0,
+      ).scan(
+        (row, index, y) => (
+          <DetailRow y={y} text={itemLine(row.item, row.count)} />
+        ),
+        (row) => unlockRowHeight(itemLine(row.item, row.count), DETAIL_LIST_W),
+        y1,
+      )}
+      {none && <DetailRow y={y2} text="None" />}
+      {bank && <DetailHeading y={bankHeading} text="Items (bank)" />}
+      {bank &&
+        SpeedrunsSpeedrunItemUnlocks.filter(
+          (row) => row.row === speedrun && row.inventory === 95 && row.item >= 0 && row.count > 0,
+        ).scan(
+          (row, index, y) => <DetailRow y={y} text={itemLine(row.item, row.count)} />,
+          (row) => unlockRowHeight(itemLine(row.item, row.count), DETAIL_LIST_W),
+          y4,
+        )}
+    </layer>
+  );
+}

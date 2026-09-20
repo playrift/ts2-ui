@@ -1,0 +1,428 @@
+import { CS2, useServerState } from 'ts2';
+
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import { closeOnEscape } from '../0877_wgs_rune_door/close-on-escape';
+import { Varbits } from '../lib/game/varbits';
+import { Art, Colour, ComponentType, Font, Layout, PosMode, SizeMode, TextAlign } from './rune-pouch.constants';
+
+export function createGraphic(
+  container: ComponentId,
+  index: Int,
+  sprite: Sprite,
+  x: Int,
+  y: Int,
+  xMode: Int,
+  yMode: Int,
+  w: Int,
+  h: Int,
+  wMode: Int,
+  hMode: Int,
+  tiling: Boolean,
+): void {
+  CS2.cc_create(container, ComponentType.SPRITE, index, false);
+  CS2.cc_position_set(x, y, xMode, yMode);
+  CS2.cc_size_set(w, h, wMode, hMode);
+  CS2.cc_sprite_set(sprite);
+  CS2.cc_tiling_set(tiling);
+}
+
+export function thinStoneBox(container: ComponentId, index: Int): Int {
+  CS2.cc_create(container, ComponentType.RECTANGLE, index, false);
+  CS2.cc_position_set(0, 0, PosMode.ABS_CENTRE, PosMode.ABS_CENTRE);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_fill_set(false);
+  CS2.cc_colour_set(Colour.BOX_OUTER);
+
+  CS2.cc_create(container, ComponentType.RECTANGLE, index + 1, false);
+  CS2.cc_position_set(0, 0, PosMode.ABS_CENTRE, PosMode.ABS_CENTRE);
+  CS2.cc_size_set(2, 2, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_fill_set(false);
+  CS2.cc_colour_set(Colour.BOX_INNER);
+
+  return index + 2;
+}
+
+export function steelBorder(container: ComponentId, title: String): void {
+  CS2.cc_all_delete(container);
+
+  createGraphic(
+    container,
+    0,
+    Art.TRADEBACKING,
+    0,
+    0,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_CENTRE,
+    2,
+    2,
+    SizeMode.MINUS,
+    SizeMode.MINUS,
+    true,
+  );
+  CS2.cc_transparency_set(Layout.OPAQUE);
+
+  CS2.cc_create(container, ComponentType.TEXT, 1, false);
+  CS2.cc_position_set(0, 6, PosMode.ABS_CENTRE, PosMode.ABS_TOP);
+  CS2.cc_size_set(12, 24, SizeMode.MINUS, SizeMode.ABS);
+  CS2.cc_text_align_set(TextAlign.CENTRE, TextAlign.CENTRE, 0);
+  CS2.cc_colour_set(Colour.CAPTION);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_font_set(Font.BOLD_12);
+  CS2.cc_text_set(title);
+
+  createGraphic(
+    container,
+    2,
+    Art.STEEL_TOP_LEFT,
+    0,
+    0,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    25,
+    30,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    3,
+    Art.STEEL_TOP_RIGHT,
+    0,
+    0,
+    PosMode.ABS_RIGHT,
+    PosMode.ABS_TOP,
+    25,
+    30,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    4,
+    Art.STEEL_BOTTOM_LEFT,
+    0,
+    0,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_BOTTOM,
+    25,
+    30,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    5,
+    Art.STEEL_BOTTOM_RIGHT,
+    0,
+    0,
+    PosMode.ABS_RIGHT,
+    PosMode.ABS_BOTTOM,
+    25,
+    30,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    6,
+    Art.STEEL_LEFT,
+    -15,
+    0,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_CENTRE,
+    36,
+    60,
+    SizeMode.ABS,
+    SizeMode.MINUS,
+    true,
+  );
+  createGraphic(
+    container,
+    7,
+    Art.STEEL_RIGHT,
+    -15,
+    0,
+    PosMode.ABS_RIGHT,
+    PosMode.ABS_CENTRE,
+    36,
+    60,
+    SizeMode.ABS,
+    SizeMode.MINUS,
+    true,
+  );
+  createGraphic(
+    container,
+    8,
+    Art.STEEL_TOP,
+    0,
+    -15,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_TOP,
+    50,
+    36,
+    SizeMode.MINUS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    9,
+    Art.STEEL_BOTTOM,
+    0,
+    -15,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_BOTTOM,
+    50,
+    36,
+    SizeMode.MINUS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    10,
+    Art.STEEL_TITLE,
+    0,
+    14,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_TOP,
+    10,
+    26,
+    SizeMode.MINUS,
+    SizeMode.ABS,
+    true,
+  );
+
+  drawCloseButton(container);
+}
+
+function drawCloseButton(container: ComponentId): void {
+  let rest: Sprite = Art.CLOSE;
+  let hover: Sprite = Art.CLOSE_HOVER;
+  let x: Int = 3;
+  let y: Int = 6;
+  let w: Int = 26;
+  let h: Int = 23;
+  if (onMobile()) {
+    rest = Art.CLOSE_MOBILE;
+    hover = Art.CLOSE_MOBILE;
+    x = 1;
+    y = 1;
+    w = 33;
+    h = 33;
+  }
+
+  const index: Int = 11;
+  createGraphic(
+    container,
+    index,
+    rest,
+    x,
+    y,
+    PosMode.ABS_RIGHT,
+    PosMode.ABS_TOP,
+    w,
+    h,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  CS2.cc_on_mouseleave_set(() => swapSprite(container, index, rest));
+  CS2.cc_on_mouseover_set(() => swapSprite(container, index, hover));
+  CS2.cc_op_set(1, 'Close');
+  CS2.cc_onop_set(() => closeInterface());
+  CS2.cc_on_key_set((event) => closeButtonKey(event.keyCode, container, index));
+}
+
+function closeButtonKey(keyCode: Int, container: ComponentId, index: Int): void {
+  if (closeOnEscape(keyCode)) {
+    return;
+  }
+  if (keyCode === ESCAPE && useServerState(Varbits.KEYBINDING_ESC_TO_CLOSE) === 1) {
+    CS2.if_triggerop(container, index, 1);
+  }
+}
+
+const ESCAPE = 13;
+
+function swapSprite(container: ComponentId, index: Int, sprite: Sprite): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_sprite_set(sprite);
+  }
+}
+
+export function stoneButtonPressed(container: ComponentId): Int {
+  CS2.cc_all_delete(container);
+  const w: Int = CS2.if_width_get(container);
+  const h: Int = CS2.if_height_get(container);
+  const right: Int = w - 9;
+  const bottom: Int = h - 9;
+  const spanW: Int = w - 18;
+  const spanH: Int = h - 18;
+
+  createGraphic(
+    container,
+    0,
+    897,
+    0,
+    0,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_CENTRE,
+    2,
+    2,
+    SizeMode.MINUS,
+    SizeMode.MINUS,
+    true,
+  );
+  createGraphic(container, 1, 921, 0, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(container, 2, 922, right, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(
+    container,
+    3,
+    923,
+    0,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    4,
+    924,
+    right,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(container, 5, 925, 0, 9, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, spanH, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(container, 6, 926, 9, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, spanW, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(
+    container,
+    7,
+    927,
+    right,
+    9,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    spanH,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    8,
+    928,
+    9,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    spanW,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  return 9;
+}
+
+export function stoneButtonRaised(container: ComponentId): Int {
+  CS2.cc_all_delete(container);
+  const w: Int = CS2.if_width_get(container);
+  const h: Int = CS2.if_height_get(container);
+  const right: Int = w - 9;
+  const bottom: Int = h - 9;
+  const spanW: Int = w - 18;
+  const spanH: Int = h - 18;
+
+  createGraphic(
+    container,
+    0,
+    Art.BACKING,
+    0,
+    0,
+    PosMode.ABS_CENTRE,
+    PosMode.ABS_CENTRE,
+    2,
+    2,
+    SizeMode.MINUS,
+    SizeMode.MINUS,
+    true,
+  );
+  createGraphic(container, 1, 929, 0, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(container, 2, 930, right, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(
+    container,
+    3,
+    931,
+    0,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    4,
+    932,
+    right,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(container, 5, 933, 0, 9, PosMode.ABS_LEFT, PosMode.ABS_TOP, 9, spanH, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(container, 6, 934, 9, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP, spanW, 9, SizeMode.ABS, SizeMode.ABS, true);
+  createGraphic(
+    container,
+    7,
+    935,
+    right,
+    9,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    9,
+    spanH,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  createGraphic(
+    container,
+    8,
+    936,
+    9,
+    bottom,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_TOP,
+    spanW,
+    9,
+    SizeMode.ABS,
+    SizeMode.ABS,
+    true,
+  );
+  return 9;
+}

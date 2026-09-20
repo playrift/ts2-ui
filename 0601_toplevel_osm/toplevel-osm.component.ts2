@@ -1,0 +1,1940 @@
+import {
+  CS2,
+  Engine,
+  onMounted,
+  onUpdated,
+  useInterval,
+  useOnResize,
+  useRerenderOn,
+  useServerState,
+  useState,
+  useUniverse,
+  useWatch,
+} from 'ts2';
+
+import { cameraZoom } from '../0016_oculus/oculus.camera';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { chatboxOpenInput } from '../0162_chatbox/meslayer';
+import { FifthTab } from '../0629_side_journal/side-journal.constants';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { fifthTab } from '../0629_side_journal/side-journal.helpers';
+import { StoneBoxSkin } from '../0721_gim_limited_sidepanel/gim-limited-sidepanel.constants';
+import { StoneBox } from '../0721_gim_limited_sidepanel/stone-box.component';
+import { tobHudNameFlasher } from '../0773_toa_lobby/toa-lobby.helpers';
+import { SideChannelIcons, SideChannelLabels } from '../0892_osm_hotkeys/side-channels.data';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import {
+  osmChatboxDisabled,
+  osmDeadsides,
+  osmHotkeysDropdown,
+  osmTabExpansionDisabled,
+  toplevelMainmodalBgColour,
+  toplevelMainmodalBgTrans,
+  toplevelPanel,
+} from '../lib/game/varcs';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { Anchor, clampDeadSides, overlayInit } from '../lib/lib.overlay';
+import {
+  ChatColumn,
+  Compass,
+  Frame,
+  FrameColor,
+  Grave,
+  Hotkeys,
+  Inset,
+  MinimapInset,
+  NoSprite,
+  Panel,
+  SideSlots,
+  StatusPoll,
+  Strip,
+  batteryRef,
+  buffBarRef,
+  chatContainerRef,
+  chatFilterToggleRef,
+  chatToggleRef,
+  chattingButtonRef,
+  compassRef,
+  compassclickRef,
+  controlRef,
+  debugRef,
+  floaterRef,
+  gameframeRef,
+  gravestoneRef,
+  helperContentRef,
+  helperDodgerRef,
+  helperRef,
+  hotkeysRef,
+  hpbarHudRef,
+  hudContainerBackRef,
+  hudContainerFrontRef,
+  logoutContainerRef,
+  maincrmRef,
+  mainmodalBackgroundsRef,
+  mainmodalRef,
+  mapContainerRef,
+  mapMinimapRef,
+  mapNoclickRef,
+  minimapBorderRef,
+  minimapRef,
+  mouseoverRef,
+  multiwayIconRef,
+  notificationsRef,
+  orbsRef,
+  overlayAtmosphereRef,
+  overlayHudRef,
+  pmContainerRef,
+  popoutRef,
+  pvpIconsRef,
+  safezoneHudcontainerRef,
+  safezoneNoclickRef,
+  safezoneRef,
+  side0Ref,
+  side10Ref,
+  side11Ref,
+  side12Ref,
+  side13Ref,
+  side1Ref,
+  side2Ref,
+  side3Ref,
+  side4Ref,
+  side5Ref,
+  side6Ref,
+  side7Ref,
+  side8Ref,
+  side9Ref,
+  sideBackgroundRef,
+  sideContainerRef,
+  sideContainerWarningRef,
+  sideLeftBackgroundRef,
+  sideLeftChatRef,
+  sidePanelsRef,
+  sideRightBackgroundRef,
+  sideRightTabsBackgroundRef,
+  sideRightTabsRef,
+  sidecrmRef,
+  sidemodalRef,
+  statBoostsHudRef,
+  stone10BackgroundRef,
+  tabsBlockingRef,
+  tabsGroupLeftRef,
+  tabsGroupRightRef,
+  tabsLeftRef,
+  tabsRightRef,
+  uiHighlightsRef,
+  viewportRef,
+  viewportTrackerBackRef,
+  viewportTrackerFrontRef,
+  wifiRef,
+  xpDropsRef,
+  zeahRef,
+  ehcListenerRef,
+} from './toplevel-osm.constants';
+import {
+  JournalTabIcons,
+  JournalTabLabels,
+  LeagueJournalIcons,
+  MobileTabs,
+  SidePanelOps,
+  TabGroup,
+} from './toplevel-osm.data';
+import {
+  applyClientSettings,
+  applyFov,
+  applySavedZoom,
+  compassOp,
+  cutsceneHidesSide,
+  gameframeSubChanged,
+  modalCentred,
+  modalX,
+  modalY,
+  chatboxOff,
+  popoutState,
+  sideContainerOnLeft,
+  sideContainerShown,
+  sideTabOp,
+  stripWidth,
+  tapToDropWarning,
+  toggleChatbox,
+  toggleTabExpansion,
+  toplevelOsmInit,
+  touchBuffBarDodgers,
+  touchDodgers,
+} from './toplevel-osm.helpers';
+import {
+  batteryCharging,
+  batteryLevel,
+  batteryPercentUntil,
+  graveElapsed,
+  graveStart,
+  graveTicks,
+  wifiOnline,
+} from './toplevel-osm.state';
+
+export function ToplevelOsm(): Component {
+  return (
+    <>
+      <layer x={0} y={0} w={0} h={0}>
+        <GameframeWatch />
+      </layer>
+
+      <layer
+        static
+        ref={viewportRef}
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        contentType="worldView"
+        onLoad={() => toplevelOsmInit()}
+      />
+
+      <layer static ref={safezoneNoclickRef} x={0} y={0} w="fill" h="fill">
+        <SafeZoneBlockers />
+      </layer>
+
+      <layer static ref={viewportTrackerBackRef} x="center" y="center" w="fill" h="fill">
+        <layer
+          static
+          ref={overlayAtmosphereRef}
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          onScrollWheel={(event) => cameraZoom(event.mouseY)}
+        />
+        <layer static ref={hpbarHudRef} x="center" y="center" w="fill" h="fill" />
+        <layer static ref={pvpIconsRef} x="center" y="center" w="fill" h="fill" />
+        <layer
+          static
+          ref={safezoneHudcontainerRef}
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          onLoad={() => overlayInit(safezoneHudcontainerRef, -1, 8192, Anchor.LEFT, Anchor.TOP, 0)}
+        >
+          <layer
+            static
+            ref={hudContainerBackRef}
+            x={Frame.HUD_BACK_X}
+            y={Frame.HUD_BACK_Y}
+            w={{ fill: Frame.HUD_BACK_W_INSET }}
+            h={{ fill: Frame.HUD_BACK_H_INSET }}
+          >
+            <layer static ref={helperRef} x={0} y={0} w="fill" h="fill">
+              <layer
+                static
+                ref={helperDodgerRef}
+                x={0}
+                y={0}
+                w="fill"
+                h="fill"
+                onLoad={() => overlayInit(helperDodgerRef, helperContentRef, -2147299671, Anchor.LEFT, Anchor.TOP, 1)}
+              >
+                <layer static ref={helperContentRef} x={0} y={0} w={Frame.HELPER_W} h={Frame.HELPER_H} />
+              </layer>
+            </layer>
+            <layer static ref={buffBarRef} x={0} y={0} w="fill" h="fill" />
+            <layer static ref={statBoostsHudRef} x={0} y={0} w="fill" h="fill" />
+            <layer static ref={overlayHudRef} x="center" y="center" w="fill" h="fill" />
+            <layer static ref={xpDropsRef} x={0} y={0} w="fill" h="fill" />
+            <layer
+              static
+              ref={zeahRef}
+              x={0}
+              y={0}
+              w="fill"
+              h="fill"
+              onLoad={() => overlayInit(zeahRef, -1, 8, Anchor.LEFT, Anchor.TOP, 0)}
+            />
+            <layer
+              static
+              ref={notificationsRef}
+              x="center"
+              y={{ bottom: Frame.NOTIFICATIONS_BOTTOM }}
+              w={Frame.NOTIFICATIONS_W}
+              h={Frame.NOTIFICATIONS_H}
+            />
+          </layer>
+        </layer>
+        <layer static ref={mainmodalBackgroundsRef} x="center" y="center" w="fill" h="fill">
+          <ModalBackdrop />
+        </layer>
+      </layer>
+
+      <layer static ref={safezoneRef} x="center" y="center" w="98.9136%" h="98.8708%">
+        <layer static ref={gameframeRef} x="center" y={0} w="fill" h="fill">
+          <layer static ref={pmContainerRef} x={0} y={0} w={Frame.PM_W} h="fill" />
+
+          <layer static ref={mapContainerRef} x="right" y={0} w={Frame.MAP_W} h={Frame.MAP_H}>
+            <layer
+              static
+              ref={mapMinimapRef}
+              x={{ right: Frame.MAP_MINIMAP_RIGHT }}
+              y={0}
+              w={Frame.MAP_MINIMAP_W}
+              h={Frame.MAP_MINIMAP_H}
+            >
+              <layer
+                static
+                ref={mapNoclickRef}
+                x={{ right: Frame.MAP_MINIMAP_RIGHT }}
+                y={Frame.MAP_NOCLICK_Y}
+                w={Frame.MAP_NOCLICK_W}
+                h={Frame.MAP_NOCLICK_H}
+                noClickThrough
+              />
+              <sprite
+                static
+                ref={compassRef}
+                x={Frame.COMPASS_X}
+                y={Frame.COMPASS_Y}
+                w={Frame.COMPASS_SIZE}
+                h={Frame.COMPASS_SIZE}
+                sprite={Sprites.RESIZE_COMPASS_MASK}
+                contentType="compass"
+              />
+              <sprite
+                static
+                ref={minimapRef}
+                x={{ right: Frame.MAP_MINIMAP_RIGHT }}
+                y={{ center: Frame.MINIMAP_Y }}
+                w={Frame.MINIMAP_SIZE}
+                h={Frame.MINIMAP_SIZE}
+                sprite={Sprites.RESIZE_MAP_MASK}
+                contentType="minimap"
+              />
+              <layer
+                static
+                ref={compassclickRef}
+                x={Frame.COMPASSCLICK_X}
+                y={Frame.COMPASSCLICK_Y}
+                w={Frame.COMPASSCLICK_SIZE}
+                h={Frame.COMPASSCLICK_SIZE}
+              >
+                <CompassOps />
+              </layer>
+              <sprite
+                static
+                ref={minimapBorderRef}
+                x="right"
+                y="center"
+                w={Frame.MINIMAP_BORDER_W}
+                h={Frame.MINIMAP_BORDER_H}
+                sprite={Sprites.BORDER_MAP_COMPASS}
+              />
+            </layer>
+            <layer static ref={orbsRef} x="right" y={Frame.ORBS_Y} w="fill" h={Frame.ORBS_H} />
+          </layer>
+
+          <layer static ref={viewportTrackerFrontRef} x="center" y="center" w="fill" h="fill">
+            <sprite
+              static
+              ref={multiwayIconRef}
+              x={{ right: Frame.MULTIWAY_RIGHT }}
+              y={Frame.MULTIWAY_Y}
+              w={Frame.MULTIWAY_SIZE}
+              h={Frame.MULTIWAY_SIZE}
+              sprite={Sprites.OVERLAY_MULTIWAY}
+              hide
+            />
+            <layer
+              static
+              ref={gravestoneRef}
+              x={{ right: Frame.GRAVESTONE_RIGHT }}
+              y={Frame.MULTIWAY_Y}
+              w={Frame.GRAVESTONE_W}
+              h={Frame.GRAVESTONE_H}
+              options={['Grave info']}
+            >
+              <GravestoneTimer />
+            </layer>
+            <layer
+              static
+              ref={hudContainerFrontRef}
+              x={Frame.HUD_FRONT_X}
+              y={Frame.HUD_BACK_Y}
+              w={{ fill: Frame.HUD_FRONT_W_INSET }}
+              h={{ fill: Frame.HUD_BACK_H_INSET }}
+            >
+              <layer
+                static
+                ref={mainmodalRef}
+                x="center"
+                y={{ center: Frame.MODAL_Y }}
+                w={Frame.MODAL_W}
+                h={Frame.MODAL_H}
+              />
+              <layer
+                static
+                ref={maincrmRef}
+                x="center"
+                y={{ center: Frame.MODAL_Y }}
+                w={Frame.MODAL_W}
+                h={Frame.MODAL_H}
+              />
+              <layer static ref={floaterRef} x="center" y="center" w="fill" h="fill" />
+              <layer
+                static
+                ref={debugRef}
+                x={{ right: Frame.DEBUG_RIGHT }}
+                y={Frame.DEBUG_Y}
+                w={Frame.DEBUG_W}
+                h={Frame.DEBUG_H}
+                contentType="fpsCounter"
+              />
+              <ModalLayout />
+            </layer>
+          </layer>
+
+          <layer
+            static
+            ref={wifiRef}
+            x={{ right: Frame.WIFI_RIGHT }}
+            y={Frame.WIFI_Y}
+            w={Frame.STATUS_SIZE}
+            h={Frame.STATUS_SIZE}
+            contentType={6828}
+          >
+            <WifiIcon />
+          </layer>
+          <layer
+            static
+            ref={batteryRef}
+            x={{ right: Frame.BATTERY_RIGHT }}
+            y={Frame.BATTERY_Y}
+            w={Frame.STATUS_SIZE}
+            h={Frame.STATUS_SIZE}
+          >
+            <BatteryIcon />
+          </layer>
+          <layer static ref={hotkeysRef} x={0} y={0} w={Frame.HOTKEYS_W} h={Frame.HOTKEYS_H} noClickThrough />
+
+          <layer
+            static
+            ref={sideLeftChatRef}
+            x={0}
+            y={Frame.SIDE_LEFT_CHAT_Y}
+            w={Frame.SIDE_LEFT_CHAT_W}
+            h={Frame.SIDE_LEFT_CHAT_H}
+            noClickThrough
+          >
+            <layer static ref={logoutContainerRef} x="center" y={0} w="fill" h={Frame.BUTTON_H} noClickThrough>
+              <sprite
+                static
+                ref={stone10BackgroundRef}
+                x="center"
+                y={0}
+                w={Frame.BUTTON_W}
+                h={Frame.BUTTON_H}
+                sprite={Sprites.TLI_BUTTON01_RECTANGLE_58X40_0}
+              />
+              <LogoutButton />
+            </layer>
+            <layer
+              static
+              ref={chatToggleRef}
+              x="center"
+              y={Frame.CHAT_TOGGLE_Y}
+              w="fill"
+              h={Frame.BUTTON_H}
+              noClickThrough
+              options={[
+                'Toggle Chatbox',
+                'Toggle Filters',
+                'Report player abuse',
+                'Toggle report minimenu option',
+                'Report game bug',
+              ]}
+              onOptionSelect={(event) => chatToggleOp(event.option)}
+            >
+              <ChatToggleFace />
+            </layer>
+            <layer static ref={chatFilterToggleRef} x="center" y={Frame.CHATTING_Y} w="fill" h={0} noClickThrough />
+            <layer
+              static
+              ref={chattingButtonRef}
+              x="center"
+              y={Frame.CHATTING_Y}
+              w="fill"
+              h={Frame.BUTTON_H}
+              noClickThrough
+              options={['Start chatting']}
+              onOptionSelect={() => chatboxOpenInput()}
+            >
+              <sprite
+                x="center"
+                y={0}
+                w={Frame.BUTTON_W}
+                h={Frame.BUTTON_H}
+                sprite={Sprites.TLI_BUTTON01_RECTANGLE_58X40_1}
+              />
+              <sprite
+                x="center"
+                y={{ center: ChatColumn.CHAT_ICON_Y }}
+                w={Frame.ICON_W}
+                h={Frame.ICON_H}
+                sprite={Sprites.SIDE_ICONS_40}
+              />
+            </layer>
+          </layer>
+
+          <layer static ref={chatContainerRef} x={0} y={0} w={Frame.CHAT_W} h={Frame.CHAT_H} />
+
+          <layer
+            static
+            ref={sideRightTabsRef}
+            x="right"
+            y={{ center: Frame.STRIP_Y }}
+            w={Frame.STRIP_W}
+            h={Frame.STRIP_H}
+            noClickThrough
+          >
+            <layer static ref={sideRightTabsBackgroundRef} x={0} y={0} w="fill" h="fill">
+              <sprite x={0} y={0} w={Frame.SLICE} h={Frame.SLICE} sprite={5814} />
+              <sprite x="right" y={0} w={Frame.SLICE} h={Frame.SLICE} sprite={5816} />
+              <sprite x="center" y={0} w={{ fill: Frame.SLICE_INSET }} h={Frame.SLICE} sprite={5815} />
+              <sprite x={0} y="center" w={Frame.SLICE} h={{ fill: Frame.SLICE_INSET }} sprite={5817} />
+              <sprite
+                x="center"
+                y="center"
+                w={{ fill: Frame.SLICE_INSET }}
+                h={{ fill: Frame.SLICE_INSET }}
+                sprite={5818}
+              />
+              <sprite x="right" y="center" w={Frame.SLICE} h={{ fill: Frame.SLICE_INSET }} sprite={5819} />
+              <sprite x={0} y="bottom" w={Frame.SLICE} h={Frame.SLICE} sprite={5820} />
+              <sprite x="right" y="bottom" w={Frame.SLICE} h={Frame.SLICE} sprite={5822} />
+              <sprite x="center" y="bottom" w={{ fill: Frame.SLICE_INSET }} h={Frame.SLICE} sprite={5821} />
+            </layer>
+            <layer
+              static
+              ref={tabsGroupRightRef}
+              x={{ right: Frame.GROUP_INSET }}
+              y={Frame.GROUP_INSET}
+              w={Frame.GROUP_W}
+              h={Frame.GROUP_H}
+              noClickThrough
+            >
+              <layer static ref={sideLeftBackgroundRef} x="center" y="center" w="fill" h="fill">
+                <StoneBackings />
+              </layer>
+              <layer static ref={tabsRightRef} x="center" y="center" w={Frame.GROUP_W} h="fill">
+                <RightTabs />
+              </layer>
+            </layer>
+            <layer static ref={tabsBlockingRef} x="right" y={0} w={0} h="fill" noClickThrough>
+              <sprite
+                x="center"
+                y="center"
+                w={{ fill: Frame.SLICE_INSET }}
+                h={{ fill: Frame.SLICE_INSET }}
+                sprite={5818}
+                transparency={Frame.BLOCKING_TRANS}
+              />
+            </layer>
+            <layer
+              static
+              ref={tabsGroupLeftRef}
+              x={Frame.GROUP_INSET}
+              y={Frame.GROUP_INSET}
+              w={Frame.GROUP_W}
+              h={Frame.GROUP_H}
+              noClickThrough
+            >
+              <layer static ref={sideRightBackgroundRef} x="center" y="center" w="fill" h="fill">
+                <StoneBackings />
+              </layer>
+              <layer static ref={tabsLeftRef} x="center" y="center" w={Frame.GROUP_W} h="fill">
+                <LeftTabs />
+              </layer>
+            </layer>
+          </layer>
+
+          <layer
+            static
+            ref={sideContainerRef}
+            x={{ right: Frame.STRIP_W }}
+            y={{ bottom: Strip.SHORT_BOTTOM }}
+            w={Frame.SIDE_CONTAINER_W}
+            h={Frame.SIDE_CONTAINER_H}
+            noClickThrough
+          >
+            <rect
+              static
+              ref={sideContainerWarningRef}
+              x="center"
+              y="center"
+              w={{ fill: 2 }}
+              h={{ fill: 2 }}
+              color={FrameColor.WARNING}
+              fill
+              transparency={Frame.WARNING_TRANS}
+              hide
+            />
+            <sprite
+              static
+              ref={sideBackgroundRef}
+              x="center"
+              y="center"
+              w={{ fill: 2 }}
+              h={{ fill: 2 }}
+              sprite={Sprites.TRADEBACKING_DARK}
+              tiling
+              noClickThrough
+            />
+            <layer
+              static
+              ref={sidemodalRef}
+              x="center"
+              y="center"
+              w={Frame.SIDE_PANEL_W}
+              h={Frame.SIDE_PANEL_H}
+              contentType={1354}
+            />
+            <layer static ref={sidePanelsRef} x="center" y="center" w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H}>
+              <layer static ref={side0Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side1Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side2Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side3Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side4Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side5Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side6Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side7Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side8Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side9Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side10Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side11Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side12Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+              <layer static ref={side13Ref} x={0} y={0} w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+            </layer>
+            <layer static ref={sidecrmRef} x="center" y="center" w={Frame.SIDE_PANEL_W} h={Frame.SIDE_PANEL_H} hide />
+            <SideContainerFrame />
+          </layer>
+        </layer>
+
+        <layer
+          static
+          ref={popoutRef}
+          x={0}
+          y={{ bottom: Frame.POPOUT_BOTTOM }}
+          w={Frame.POPOUT_W}
+          h={{ fill: Frame.POPOUT_H_INSET }}
+        />
+        <layer static ref={mouseoverRef} x={0} y={0} w="fill" h="fill" />
+      </layer>
+
+      <layer static ref={ehcListenerRef} x={0} y={0} w={1} h={1}>
+        <EhcHooks />
+      </layer>
+      <layer static ref={uiHighlightsRef} x={0} y={0} w="fill" h="fill" />
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <CutsceneLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <ViewportLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <SafeZoneLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <SidePanelLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <HotkeysLayout />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <PopoutLayout />
+      </layer>
+      <layer x={0} y={0} w={1} h={1}>
+        <MultiwayLayout />
+      </layer>
+      <layer x={0} y={0} w={1} h={1}>
+        <SideBackdrop />
+      </layer>
+    </>
+  );
+}
+
+function GameframeWatch(): Component {
+  useWatch(Engine.SUB_CHANGE, () => gameframeSubChanged());
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function CutsceneLayout(): Component {
+  const cutscene: Int = useServerState(Varbits.CUTSCENE_STATUS);
+  const fovClamp: Int = useServerState(Varbits.FOV_CLAMP);
+  const buffBarHidden: Int = useServerState(Varbits.BUFF_BAR_HIDDEN);
+  const osmMinimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  const hideSide: Boolean = cutsceneHidesSide();
+
+  let inCutscene: Boolean = false;
+  if (cutscene === 1) {
+    inCutscene = true;
+  }
+  let mapHidden: Boolean = false;
+  if (cutscene !== 0) {
+    mapHidden = true;
+  }
+  let compassHidden: Boolean = false;
+  if (cutscene === 1 || fovClamp !== 0) {
+    compassHidden = true;
+  }
+  let buffBarShown: Boolean = false;
+  if (buffBarHidden === 0 && cutscene === 0) {
+    buffBarShown = true;
+  }
+  let chatAtBottom: Boolean = false;
+  if (cutscene === 1 && fovClamp === 3) {
+    chatAtBottom = true;
+  }
+  let minimapHidden: Boolean = false;
+  if (osmMinimapToggle !== 0) {
+    minimapHidden = true;
+  }
+  onMounted(() =>
+    cutsceneHides(inCutscene, mapHidden, compassHidden, buffBarShown, chatAtBottom, hideSide, minimapHidden),
+  );
+  onUpdated(() =>
+    cutsceneHides(inCutscene, mapHidden, compassHidden, buffBarShown, chatAtBottom, hideSide, minimapHidden),
+  );
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function cutsceneHides(
+  inCutscene: Boolean,
+  mapHidden: Boolean,
+  compassHidden: Boolean,
+  buffBarShown: Boolean,
+  chatAtBottom: Boolean,
+  hideSide: Boolean,
+  minimapHidden: Boolean,
+): void {
+  mapContainerRef.hide = mapHidden;
+  compassclickRef.hide = compassHidden;
+  buffBarRef.hide = !buffBarShown;
+  pmContainerRef.hide = inCutscene;
+  statBoostsHudRef.hide = inCutscene;
+  helperRef.hide = inCutscene;
+  hpbarHudRef.hide = inCutscene;
+  mouseoverRef.hide = inCutscene;
+  sideLeftChatRef.hide = inCutscene;
+  hotkeysRef.hide = inCutscene;
+  wifiRef.hide = inCutscene;
+  batteryRef.hide = inCutscene;
+  sideRightTabsRef.hide = hideSide;
+  mapMinimapRef.hide = minimapHidden;
+  if (chatAtBottom) {
+    chatContainerRef.props = { x: 'center', y: { bottom: 5 } };
+  } else {
+    chatContainerRef.props = { x: 0, y: 0 };
+  }
+  applyClientSettings();
+  applySavedZoom();
+}
+
+function ViewportLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const fovClamp: Int = useServerState(Varbits.FOV_CLAMP);
+  const cutscene: Int = useServerState(Varbits.CUTSCENE_STATUS);
+  const minimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  const xpdropsPosition: Int = useServerState(Varbits.XPDROPS_POSITION);
+
+  const frameW: Int = controlRef.width!;
+  const frameH: Int = controlRef.height!;
+  clampDeadSides();
+  const [deadSides] = useState(osmDeadsides);
+  const safeW: Int = safeZoneWidth(deadSides, frameW);
+  const safeH: Int = safeZoneHeight();
+  const insetW: Int = Math.max(0, frameW - safeW);
+  const insetH: Int = Math.max(0, frameH - safeH);
+
+  applyFov(fovClamp);
+  const [viewW, viewH] = CS2.viewport_effective_size_get();
+
+  let left: Int = Inset.LEFT;
+  let top: Int = Inset.TOP;
+  let right: Int = Inset.RIGHT;
+  let bottom: Int = Inset.BOTTOM;
+  let frontW: Int = viewW - insetW;
+  let frontH: Int = viewH - insetH;
+  if (fovClamp !== 0) {
+    const spareW: Int = Math.max(0, frameW - viewW);
+    const spareH: Int = Math.max(0, frameH - viewH);
+    frontW = viewW - Math.max(0, insetW - spareW);
+    frontH = viewH - Math.max(0, insetH - spareH);
+    const shiftX: Int = (spareW - insetW) / 2;
+    const shiftY: Int = (spareH - insetH) / 2;
+    left = Math.max(0, left - shiftX);
+    right = Math.max(0, right - shiftX);
+    top = Math.max(0, top - shiftY);
+    bottom = Math.max(0, bottom - shiftY);
+  }
+
+  let minimapW: Int = 0;
+  if (cutscene === 0) {
+    minimapW = minimapToggle === 0 ? MinimapInset.OPEN : MinimapInset.COLLAPSED;
+  }
+  let debugY: Int = 0;
+  if (CS2.if_sub_has(xpDropsRef) && xpdropsPosition === 0) {
+    debugY = MinimapInset.DEBUG_UNDER_XPDROPS;
+  }
+  let debugRight: Int = 0;
+  if (cutscene === 0) {
+    debugRight = minimapW + MinimapInset.DEBUG_PAD;
+  }
+  const xpDropsInset: Int = minimapToggle === 0 ? MinimapInset.OPEN : MinimapInset.COLLAPSED;
+
+  onMounted(() =>
+    placeViewport(viewW, viewH, frontW, frontH, left, top, right, bottom, debugRight, debugY, xpDropsInset),
+  );
+  onUpdated(() =>
+    placeViewport(viewW, viewH, frontW, frontH, left, top, right, bottom, debugRight, debugY, xpDropsInset),
+  );
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeViewport(
+  viewW: Int,
+  viewH: Int,
+  frontW: Int,
+  frontH: Int,
+  left: Int,
+  top: Int,
+  right: Int,
+  bottom: Int,
+  debugRight: Int,
+  debugY: Int,
+  xpDropsInset: Int,
+): void {
+  viewportTrackerBackRef.props = { w: viewW, h: viewH };
+  viewportTrackerFrontRef.props = { w: frontW, h: frontH };
+  hudContainerBackRef.props = { x: left, y: top, w: { fill: left + right }, h: { fill: top + bottom } };
+  hudContainerFrontRef.props = { x: left, y: top, w: { fill: left + right }, h: { fill: top + bottom } };
+  mainmodalRef.props = { w: Frame.MODAL_W, h: Frame.MODAL_H };
+  debugRef.props = { x: { right: debugRight }, y: debugY };
+  xpDropsRef.props = { w: { fill: xpDropsInset }, h: 'fill' };
+}
+
+function SafeZoneLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  clampDeadSides();
+  const [deadSides] = useState(osmDeadsides);
+  const frameW: Int = controlRef.width!;
+  const safeLeft: Int = Math.max(CS2.safearea_minx_get(), scaled(deadSides, 16384, frameW));
+  const safeTop: Int = CS2.safearea_miny_get();
+  const width: Int = safeZoneWidth(deadSides, frameW);
+  const height: Int = safeZoneHeight();
+
+  onMounted(() => placeSafeZone(safeLeft, safeTop, width, height));
+  onUpdated(() => placeSafeZone(safeLeft, safeTop, width, height));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function safeZoneWidth(deadSides: Int, frameW: Int): Int {
+  const side: Int = scaled(deadSides, 16384, frameW);
+  const safeLeft: Int = Math.max(CS2.safearea_minx_get(), side);
+  const safeRight: Int = Math.min(CS2.safearea_maxx_get(), frameW - side);
+  return Math.max(Frame.SAFEZONE_MIN_W, safeRight - safeLeft);
+}
+
+function safeZoneHeight(): Int {
+  return CS2.safearea_maxy_get() - CS2.safearea_miny_get();
+}
+
+function placeSafeZone(x: Int, y: Int, w: Int, h: Int): void {
+  safezoneRef.props = { x: x, y: y, w: w, h: h };
+}
+
+function SafeZoneBlockers(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  clampDeadSides();
+  const [deadSides] = useState(osmDeadsides);
+  const frameW: Int = universe.width;
+  const side: Int = scaled(deadSides, 16384, frameW);
+  const safeLeft: Int = Math.max(CS2.safearea_minx_get(), side);
+  const safeTop: Int = CS2.safearea_miny_get();
+  const safeRight: Int = Math.min(CS2.safearea_maxx_get(), frameW - side);
+  const safeBottom: Int = CS2.safearea_maxy_get();
+  return (
+    <>
+      <text x="center" y={0} w="fill" h={safeTop} font={Fonts.P11_FULL} noClickThrough onClick={() => opsound(0, 0)} />
+      <text
+        x="center"
+        y="bottom"
+        w="fill"
+        h={{ fill: safeBottom }}
+        font={Fonts.P11_FULL}
+        noClickThrough
+        onClick={() => opsound(0, 0)}
+      />
+      <text x={0} y="center" w={safeLeft} h="fill" font={Fonts.P11_FULL} noClickThrough onClick={() => opsound(0, 0)} />
+      <text
+        x="right"
+        y="center"
+        w={{ fill: safeRight }}
+        h="fill"
+        font={Fonts.P11_FULL}
+        noClickThrough
+        onClick={() => opsound(0, 0)}
+      />
+    </>
+  );
+}
+
+function SidePanelLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const [panel] = useState(toplevelPanel);
+  const width: Int = stripWidth();
+  const onLeft: Boolean = sideContainerOnLeft();
+  const shown: Boolean = sideContainerShown();
+  const modalUp: Boolean = CS2.if_sub_has(sidemodalRef);
+  const warning: Boolean = tapToDropWarning();
+  const [expansionDisabled] = useState(osmTabExpansionDisabled);
+  let tall: Boolean = false;
+  if (gameframeRef.height! >= Frame.TALL_FROM) {
+    tall = true;
+  }
+  let blockingCollapsed: Boolean = false;
+  if (expansionDisabled === 1) {
+    blockingCollapsed = true;
+  }
+
+  let openSlot: ComponentId = -1;
+  if (panel >= 0 && panel < Panel.COUNT) {
+    const slot: ComponentId = SideSlots.at(panel) ?? -1;
+    if (slot !== -1 && CS2.if_sub_has(slot)) {
+      openSlot = slot;
+    }
+  }
+
+  onMounted(() => placeSide(openSlot, modalUp, shown, tall, width, onLeft, blockingCollapsed, warning));
+  onUpdated(() => placeSide(openSlot, modalUp, shown, tall, width, onLeft, blockingCollapsed, warning));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeSide(
+  openSlot: ComponentId,
+  modalUp: Boolean,
+  shown: Boolean,
+  tall: Boolean,
+  width: Int,
+  onLeft: Boolean,
+  blockingCollapsed: Boolean,
+  warning: Boolean,
+): void {
+  side0Ref.hide = openSlot !== side0Ref;
+  side1Ref.hide = openSlot !== side1Ref;
+  side2Ref.hide = openSlot !== side2Ref;
+  side3Ref.hide = openSlot !== side3Ref;
+  side4Ref.hide = openSlot !== side4Ref;
+  side5Ref.hide = openSlot !== side5Ref;
+  side6Ref.hide = openSlot !== side6Ref;
+  side7Ref.hide = openSlot !== side7Ref;
+  side8Ref.hide = openSlot !== side8Ref;
+  side9Ref.hide = openSlot !== side9Ref;
+  side10Ref.hide = openSlot !== side10Ref;
+  side11Ref.hide = openSlot !== side11Ref;
+  side12Ref.hide = openSlot !== side12Ref;
+  side13Ref.hide = openSlot !== side13Ref;
+  sidePanelsRef.hide = modalUp;
+  sidecrmRef.hide = modalUp;
+  tabsLeftRef.hide = modalUp;
+  tabsRightRef.hide = modalUp;
+  logoutContainerRef.hide = modalUp;
+  sideContainerRef.hide = !shown;
+  sideContainerWarningRef.hide = !warning;
+  if (tall) {
+    if (onLeft) {
+      sideContainerRef.props = { x: Strip.COLLAPSED_W, y: { center: Strip.TALL_CENTRE } };
+    } else {
+      sideContainerRef.props = { x: { right: width }, y: { center: Strip.TALL_CENTRE } };
+    }
+    sideRightTabsRef.props = { x: 'right', y: { center: Strip.TALL_CENTRE }, w: width, h: Frame.STRIP_H };
+  } else {
+    if (onLeft) {
+      sideContainerRef.props = { x: Strip.COLLAPSED_W, y: { bottom: Strip.SHORT_BOTTOM } };
+    } else {
+      sideContainerRef.props = { x: { right: width }, y: { bottom: Strip.SHORT_BOTTOM } };
+    }
+    sideRightTabsRef.props = { x: 'right', y: { bottom: Strip.SHORT_BOTTOM }, w: width, h: Frame.STRIP_H };
+  }
+  if (blockingCollapsed) {
+    tabsBlockingRef.props = { w: 'fill', h: 'fill' };
+  } else {
+    tabsBlockingRef.props = { w: 0, h: 'fill' };
+  }
+  touchDodgers();
+  touchBuffBarDodgers();
+}
+
+function HotkeysLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  const [dropdown] = useState(osmHotkeysDropdown);
+  let tall: Boolean = false;
+  if (gameframeRef.height! >= Frame.TALL_FROM) {
+    tall = true;
+  }
+  let open: Boolean = false;
+  if (dropdown === 0) {
+    open = true;
+  }
+  onMounted(() => placeHotkeys(open, tall));
+  onUpdated(() => placeHotkeys(open, tall));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeHotkeys(open: Boolean, tall: Boolean): void {
+  const height: Int = open ? Hotkeys.OPEN_H : Hotkeys.DROPDOWN_H;
+  if (tall) {
+    hotkeysRef.props = {
+      x: 0,
+      y: { center: open ? Hotkeys.TALL_OPEN_Y : Hotkeys.TALL_DROPDOWN_Y },
+      w: Frame.HOTKEYS_W,
+      h: height,
+    };
+  } else {
+    hotkeysRef.props = { x: 0, y: { bottom: Hotkeys.SHORT_BOTTOM }, w: Frame.HOTKEYS_W, h: height };
+  }
+}
+
+function PopoutLayout(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  const state: Int = popoutState();
+  let tall: Boolean = false;
+  if (gameframeRef.height! >= Frame.TALL_FROM) {
+    tall = true;
+  }
+  onMounted(() => placePopout(state, tall));
+  onUpdated(() => placePopout(state, tall));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placePopout(state: Int, tall: Boolean): void {
+  if (state === 1) {
+    popoutRef.props = {
+      x: 0,
+      y: { bottom: Frame.POPOUT_BOTTOM },
+      w: Frame.POPOUT_REST_W,
+      h: { fill: Frame.POPOUT_H_INSET },
+    };
+  } else if (state === 2) {
+    popoutRef.props = {
+      x: 0,
+      y: tall ? { center: 184 } : { bottom: Frame.POPOUT_BOTTOM },
+      w: Frame.POPOUT_REST_W,
+      h: 86,
+    };
+  } else {
+    popoutRef.props = {
+      x: 0,
+      y: tall ? { center: Frame.POPOUT_TALL_Y } : { bottom: Frame.POPOUT_BOTTOM },
+      w: Frame.POPOUT_REST_W,
+      h: Frame.POPOUT_REST_H,
+    };
+  }
+}
+
+function MultiwayLayout(): Component {
+  const multiway: Int = useServerState(Varbits.MULTIWAY_INDICATOR);
+  const singlewayPlus: Int = useServerState(Varbits.SINGLEWAY_PLUS_INDICATOR);
+  const td: Int = useServerState(Varbits.TD_MULTIWAY_INDICATOR);
+  const cutscene: Int = useServerState(Varbits.CUTSCENE_STATUS);
+  const minimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  let sprite: Sprite = NoSprite.NONE;
+  let shown: Boolean = false;
+  if (multiway === 1 && cutscene === 0) {
+    sprite = Sprites.OVERLAY_MULTIWAY;
+    shown = true;
+  } else if (singlewayPlus === 1 && cutscene === 0) {
+    sprite = Sprites.OVERLAY_SINGLEWAY_PLUS;
+    shown = true;
+  } else if (td > 0 && cutscene === 0) {
+    if (td === 1) {
+      sprite = Sprites.OVERLAY_TD_MULTIWAY_0;
+    } else if (td === 2) {
+      sprite = Sprites.OVERLAY_TD_MULTIWAY_1;
+    } else if (td === 3) {
+      sprite = Sprites.OVERLAY_TD_MULTIWAY_2;
+    }
+    shown = true;
+  }
+  let collapsed: Boolean = false;
+  if (minimapToggle !== 0) {
+    collapsed = true;
+  }
+  onMounted(() => placeMultiway(sprite, shown, collapsed));
+  onUpdated(() => placeMultiway(sprite, shown, collapsed));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeMultiway(sprite: Sprite, shown: Boolean, collapsed: Boolean): void {
+  if (sprite !== NoSprite.NONE) {
+    multiwayIconRef.sprite = sprite;
+  }
+  multiwayIconRef.hide = !shown;
+  if (collapsed) {
+    multiwayIconRef.props = { x: { right: 111 }, y: 76 };
+    gravestoneRef.props = { x: { right: 109 }, y: 99 };
+  } else {
+    multiwayIconRef.props = { x: { right: 140 }, y: 177 };
+    gravestoneRef.props = { x: { right: 163 }, y: 176 };
+  }
+}
+
+function SideBackdrop(): Component {
+  const transparent: Int = useServerState(Varbits.SIDE_TRANSPARENCY);
+  let dark: Boolean = false;
+  if (transparent === 1) {
+    dark = true;
+  }
+  onMounted(() => placeBackdrop(dark));
+  onUpdated(() => placeBackdrop(dark));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeBackdrop(dark: Boolean): void {
+  if (dark) {
+    sideBackgroundRef.props = { sprite: Sprites.TRADEBACKING_DARK, transparency: 0 };
+  } else {
+    sideBackgroundRef.props = { sprite: Sprites.TRADEBACKING_LIGHT, transparency: 150 };
+  }
+}
+
+function ModalLayout(): Component {
+  const front = useUniverse();
+  useOnResize(front);
+  useRerenderOn(Engine.SUB_CHANGE);
+  const frontW: Int = front.width;
+  const frontH: Int = front.height;
+  const modalW: Int = Frame.MODAL_W;
+  const modalH: Int = Frame.MODAL_H;
+  const x: Int = modalX(modalW, modalH, frontW, frontH);
+  const y: Int = modalY(modalH, frontH);
+  const centred: Boolean = modalCentred(modalW, modalH, frontW, frontH);
+  const fromTop: Boolean = chatboxOff();
+  onMounted(() => placeModal(x, y, centred, fromTop));
+  onUpdated(() => placeModal(x, y, centred, fromTop));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeModal(x: Int, y: Int, centred: Boolean, fromTop: Boolean): void {
+  if (fromTop) {
+    mainmodalRef.props = { x: x, y: y };
+  } else if (centred) {
+    mainmodalRef.props = { x: 'center', y: { center: y } };
+  } else {
+    mainmodalRef.props = { x: x, y: { center: y } };
+  }
+  touchDodgers();
+}
+
+function ModalBackdrop(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const [colour] = useState(toplevelMainmodalBgColour);
+  const [trans] = useState(toplevelMainmodalBgTrans);
+  let shown: Boolean = false;
+  if (trans === 0 && CS2.if_sub_has(mainmodalRef)) {
+    shown = true;
+  }
+  return <>{shown && <rect x="center" y="center" w="fill" h="fill" color={colour} fill transparency={0} />}</>;
+}
+
+function EhcHooks(): Component {
+  const enhanced: Boolean = enhancedAny();
+  return (
+    <>
+      {enhanced && (
+        <>
+          <rect x={0} y={0} w={1} h={1} transparency={255} />
+          <rect x={0} y={0} w={1} h={1} transparency={255} />
+          <rect x={0} y={0} w={1} h={1} transparency={255} />
+          <rect x={0} y={0} w={1} h={1} transparency={255} />
+        </>
+      )}
+    </>
+  );
+}
+
+function StoneBackings(): Component {
+  return (
+    <>
+      <sprite x="center" y={0} w={Frame.STONE} h={Frame.STONE} sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0} />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 2}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 3}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 4}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 5}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 6}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+      />
+    </>
+  );
+}
+
+function tabHidden(panel: Int): Boolean {
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  if (flashside - 1 === panel) {
+    return false;
+  }
+  const slot: ComponentId = SideSlots.at(panel) ?? -1;
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    return false;
+  }
+  return true;
+}
+
+function stoneSprite(panel: Int): Sprite {
+  const [selected] = useState(toplevelPanel);
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  const [expansionDisabled] = useState(osmTabExpansionDisabled);
+  const slot: ComponentId = SideSlots.at(panel) ?? -1;
+  const row = MobileTabs.at(panel);
+  const highlight: Sprite = row === null ? NoSprite.NONE : row.highlight;
+  const collapsible: Int = row === null ? 0 : row.expansion;
+  let open: Boolean = false;
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    open = true;
+  }
+  const flashing: Boolean = flashside - 1 === panel;
+  if (selected === panel && (open || flashing)) {
+    return highlight;
+  }
+  if (flashing && collapsible === 1 && expansionDisabled === 1) {
+    return Sprites.TLI_BUTTON01_SQUARE_40X40_0;
+  }
+  return NoSprite.NONE;
+}
+
+function RightTabs(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const channelsTab: Int = useServerState(Varbits.SIDE_CHANNELS_TAB_SELECTED);
+  const ironman: Int = useServerState(Varbits.IRONMAN);
+  const friendsPanel: Int = useServerState(Varbits.FRIENDS_PANEL);
+
+  let channelsLabel: String = SideChannelLabels.get(channelsTab) ?? 'Chat-channel';
+  let channelsIcon: Sprite = SideChannelIcons.get(channelsTab) ?? 781;
+  const ironmanGroup: Boolean = ironman === 4 || ironman === 5 || ironman === 6;
+  if (ironmanGroup && (channelsTab === 4 || channelsTab === 5 || channelsTab === 6)) {
+    channelsLabel = SideChannelLabels.get(ironman) ?? 'Chat-channel';
+    channelsIcon = SideChannelIcons.get(ironman) ?? 781;
+  }
+  let ironmanOp: String = '';
+  if (ironmanGroup && channelsTab !== ironman) {
+    ironmanOp = SideChannelLabels.get(ironman) ?? 'Chat-channel';
+  }
+  const channel0: String = channelsTab !== 0 ? 'Chat-channel' : '';
+  const channel1: String = channelsTab !== 1 ? (SideChannelLabels.get(1) ?? '') : '';
+  const channel2: String = channelsTab !== 2 ? (SideChannelLabels.get(2) ?? '') : '';
+  const channel3: String = channelsTab !== 3 ? (SideChannelLabels.get(3) ?? '') : '';
+
+  const friendsFirst: String = friendsPanel === 0 ? 'Friends List' : 'Ignore List';
+  const friendsSecond: String = friendsPanel === 0 ? 'Ignore List' : 'Friends List';
+  const friendsIcon: Sprite = friendsPanel === 0 ? Sprites.SIDEICONS_INTERFACE_8 : Sprites.SIDEICONS_INTERFACE_9;
+
+  const skillsHidden: Boolean = tabHidden(Panel.SKILLS);
+  const emotesHidden: Boolean = tabHidden(Panel.EMOTES);
+  const musicHidden: Boolean = tabHidden(Panel.MUSIC);
+  const channelsHidden: Boolean = tabHidden(Panel.CHANNELS);
+  const friendsHidden: Boolean = tabHidden(Panel.FRIENDS);
+  const accountHidden: Boolean = tabHidden(Panel.ACCOUNT);
+  const settingsHidden: Boolean = tabHidden(Panel.SETTINGS);
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y={0}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.SKILLS)}
+        hide={skillsHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.SKILLS) ?? '']}
+        onOptionSelect={(event) => sideTabOp(Panel.SKILLS, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.EMOTES)}
+        hide={emotesHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.EMOTES) ?? '']}
+        onOptionSelect={(event) => sideTabOp(Panel.EMOTES, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 2}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.MUSIC)}
+        hide={musicHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.MUSIC) ?? '']}
+        onOptionSelect={(event) => sideTabOp(Panel.MUSIC, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 3}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.CHANNELS)}
+        hide={channelsHidden}
+        noClickThrough
+        options={[channelsLabel, ironmanOp, channel0, channel1, channel2, channel3]}
+        onOptionSelect={(event) => sideTabOp(Panel.CHANNELS, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 4}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.FRIENDS)}
+        hide={friendsHidden}
+        noClickThrough
+        options={[friendsFirst, friendsSecond]}
+        onOptionSelect={(event) => sideTabOp(Panel.FRIENDS, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 5}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.ACCOUNT)}
+        hide={accountHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.ACCOUNT) ?? '', 'Account', 'Community', 'Useful links']}
+        onOptionSelect={(event) => sideTabOp(Panel.ACCOUNT, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 6}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.SETTINGS)}
+        hide={settingsHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.SETTINGS) ?? '', 'Controls', 'Audio', 'Display']}
+        onOptionSelect={(event) => sideTabOp(Panel.SETTINGS, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_1}
+        hide={skillsHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_12}
+        hide={emotesHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 2}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_13}
+        hide={musicHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 3}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={channelsIcon}
+        hide={channelsHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 4}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={friendsIcon}
+        hide={friendsHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 5}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_22}
+        hide={accountHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 6}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_11}
+        hide={settingsHidden}
+      />
+    </>
+  );
+}
+
+function LeftTabs(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const prayerbook: Int = useServerState(Varbits.PRAYERBOOK);
+  const spellbook: Int = useServerState(Varbits.SPELLBOOK);
+  const sailing: Int = useServerState(Varbits.SAILING_SIDEPANEL_VISIBLE);
+  const journalTab: Int = useServerState(Varbits.SIDE_JOURNAL_TAB);
+  const leagueType: Int = useServerState(Varbits.LEAGUE_TYPE);
+  const [expansionDisabled] = useState(osmTabExpansionDisabled);
+
+  const combatLabel: String = sailing === 1 ? 'Sailing Options' : 'Combat Options';
+  const combatIcon: Sprite = sailing === 1 ? Sprites.SIDEICONS_INTERFACE_67 : Sprites.SIDEICONS_INTERFACE_0;
+
+  const fifth: Int = fifthTab();
+  let journalIcon: Sprite = JournalTabIcons.at(journalTab) ?? 2309;
+  let journalOp6: String = '';
+  let journalOp5: String = '';
+  if (fifth === FifthTab.FSW || fifth === FifthTab.LEAGUES || fifth === FifthTab.DEADMAN) {
+    if (journalTab === 4) {
+      journalIcon = LeagueJournalIcons.get(leagueType) ?? journalIcon;
+    } else {
+      journalOp6 = JournalTabLabels.at(4) ?? '';
+    }
+  } else if (fifth === FifthTab.PATHS) {
+    if (journalTab !== 3) {
+      journalOp5 = JournalTabLabels.at(3) ?? '';
+    }
+  }
+  const journalOp2: String = journalTab !== 0 ? (JournalTabLabels.at(0) ?? '') : '';
+  const journalOp3: String = journalTab !== 1 ? (JournalTabLabels.at(1) ?? '') : '';
+  const journalOp4: String = journalTab !== 2 ? (JournalTabLabels.at(2) ?? '') : '';
+
+  const prayerIcon: Sprite = prayerbook === 1 ? Sprites.SIDEICONS_INTERFACE_56 : Sprites.SIDEICONS_INTERFACE_5;
+  let magicIcon: Sprite = Sprites.SIDEICONS_INTERFACE_6;
+  if (spellbook === 1) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_19;
+  } else if (spellbook === 2) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_20;
+  } else if (spellbook === 3) {
+    magicIcon = Sprites.SIDEICONS_INTERFACE_21;
+  }
+
+  const expandLabel: String = expansionDisabled === 1 ? 'Show More' : 'Show Less';
+  const expandIcon: Sprite = expansionDisabled === 1 ? Sprites.SIDE_ICONS_42 : Sprites.SIDE_ICONS_41;
+
+  const inventoryHidden: Boolean = tabHidden(Panel.INVENTORY);
+  const equipmentHidden: Boolean = tabHidden(Panel.EQUIPMENT);
+  const prayerHidden: Boolean = tabHidden(Panel.PRAYER);
+  const magicHidden: Boolean = tabHidden(Panel.MAGIC);
+  const combatHidden: Boolean = tabHidden(Panel.COMBAT);
+  const journalHidden: Boolean = tabHidden(Panel.JOURNAL);
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y={0}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.INVENTORY)}
+        hide={inventoryHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.INVENTORY) ?? '']}
+        onOptionSelect={(event) => sideTabOp(Panel.INVENTORY, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.EQUIPMENT)}
+        hide={equipmentHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.EQUIPMENT) ?? '']}
+        onOptionSelect={(event) => sideTabOp(Panel.EQUIPMENT, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 2}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.PRAYER)}
+        hide={prayerHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.PRAYER) ?? '', '']}
+        onOptionSelect={(event) => sideTabOp(Panel.PRAYER, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 3}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.MAGIC)}
+        hide={magicHidden}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.MAGIC) ?? '', '']}
+        onOptionSelect={(event) => sideTabOp(Panel.MAGIC, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 4}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.COMBAT)}
+        hide={combatHidden}
+        noClickThrough
+        options={[combatLabel]}
+        onOptionSelect={(event) => sideTabOp(Panel.COMBAT, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 5}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={stoneSprite(Panel.JOURNAL)}
+        hide={journalHidden}
+        noClickThrough
+        options={[JournalTabLabels.at(journalTab) ?? '', journalOp2, journalOp3, journalOp4, journalOp5, journalOp6]}
+        onOptionSelect={(event) => sideTabOp(Panel.JOURNAL, event.option)}
+      />
+      <sprite
+        x="center"
+        y={Frame.STONE_PITCH * 6}
+        w={Frame.STONE}
+        h={Frame.STONE}
+        sprite={Sprites.TLI_BUTTON01_SQUARE_40X40_0}
+        noClickThrough
+        options={[expandLabel]}
+        onOptionSelect={() => toggleTabExpansion()}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_3}
+        hide={inventoryHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={Sprites.SIDE_ICONS_4}
+        hide={equipmentHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 2}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={prayerIcon}
+        hide={prayerHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 3}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={magicIcon}
+        hide={magicHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 4}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={combatIcon}
+        hide={combatHidden}
+      />
+      <sprite
+        x="center"
+        y={Frame.ICON_Y + Frame.STONE_PITCH * 5}
+        w={Frame.ICON_W}
+        h={Frame.ICON_H}
+        sprite={journalIcon}
+        hide={journalHidden}
+      />
+      <sprite x="center" y={Frame.EXPAND_ICON_Y} w={Frame.ICON_W} h={Frame.ICON_H} sprite={expandIcon} />
+    </>
+  );
+}
+
+function LogoutButton(): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const modalUp: Boolean = CS2.if_sub_has(sidemodalRef);
+  return (
+    <>
+      <sprite
+        x="center"
+        y={0}
+        w={Frame.BUTTON_W}
+        h={Frame.BUTTON_H}
+        sprite={stoneSprite(Panel.LOGOUT)}
+        hide={modalUp}
+        noClickThrough
+        options={[SidePanelOps.at(Panel.LOGOUT) ?? '', 'World Switcher']}
+        onOptionSelect={(event) => sideTabOp(Panel.LOGOUT, event.option)}
+      />
+      <sprite x="center" y="center" w={Frame.ICON_W} h={Frame.ICON_H} sprite={Sprites.SIDE_ICONS_39} hide={modalUp} />
+    </>
+  );
+}
+
+function WifiIcon(): Component {
+  const [online] = useState(wifiOnline);
+  const minimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  let connected: Boolean = false;
+  if (online === -1) {
+    connected = CS2.mobile_wifiavailable();
+  } else if (online === 1) {
+    connected = true;
+  }
+  let collapsed: Boolean = false;
+  if (minimapToggle !== 0) {
+    collapsed = true;
+  }
+  useInterval(() => {
+    if (clientClock() % StatusPoll.WIFI_CYCLES === 0) {
+      const [, setOnline] = useState(wifiOnline);
+      setOnline(CS2.mobile_wifiavailable() ? 1 : 0);
+    }
+  });
+  onMounted(() => placeWifi(collapsed));
+  onUpdated(() => placeWifi(collapsed));
+  return (
+    <sprite
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      sprite={connected ? Sprites.OSM_STATUS_ICONS_7 : Sprites.OSM_STATUS_ICONS_5}
+    />
+  );
+}
+
+function placeWifi(collapsed: Boolean): void {
+  if (collapsed) {
+    wifiRef.props = { x: { right: 11 }, y: 7 };
+  } else {
+    wifiRef.props = { x: { right: Frame.WIFI_RIGHT }, y: Frame.WIFI_Y };
+  }
+}
+
+function BatteryIcon(): Component {
+  const [level] = useState(batteryLevel);
+  const [charging] = useState(batteryCharging);
+  const [until] = useState(batteryPercentUntil);
+  const minimapToggle: Int = useServerState(Varbits.OSM_MINIMAP_TOGGLE);
+  let percent: Int = level;
+  if (level === -1) {
+    percent = CS2.mobile_batterylevel();
+  }
+  let bolt: Boolean = false;
+  if (charging === -1) {
+    bolt = CS2.mobile_batterycharging();
+  } else if (charging === 1) {
+    bolt = true;
+  }
+  const boltHidden: Boolean = !bolt;
+  let icon: Sprite = Sprites.OSM_STATUS_ICONS_3;
+  if (percent > StatusPoll.HIGH) {
+    icon = Sprites.OSM_STATUS_ICONS_0;
+  } else if (percent > StatusPoll.MID) {
+    icon = Sprites.OSM_STATUS_ICONS_1;
+  } else if (percent > StatusPoll.LOW) {
+    icon = Sprites.OSM_STATUS_ICONS_2;
+  }
+  let showingPercent: Boolean = false;
+  if (until !== -1) {
+    showingPercent = true;
+  }
+  let collapsed: Boolean = false;
+  if (minimapToggle !== 0) {
+    collapsed = true;
+  }
+
+  useInterval(() => {
+    const [deadline, setDeadline] = useState(batteryPercentUntil);
+    if (deadline !== -1 && clientClock() >= deadline) {
+      setDeadline(-1);
+    }
+    if (clientClock() % StatusPoll.BATTERY_CYCLES === 0) {
+      const [, setLevel] = useState(batteryLevel);
+      const [, setCharging] = useState(batteryCharging);
+      setLevel(CS2.mobile_batterylevel());
+      setCharging(CS2.mobile_batterycharging() ? 1 : 0);
+    }
+  });
+  onMounted(() => placeBattery(collapsed));
+  onUpdated(() => placeBattery(collapsed));
+
+  return (
+    <>
+      {showingPercent ? (
+        <>
+          <sprite
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            sprite={Sprites.OSM_STATUS_ICONS_4}
+            onClick={() => batteryTap()}
+          />
+          <text
+            x={{ center: -1 }}
+            y="center"
+            w="fill"
+            h="fill"
+            font={Fonts.P11_FULL}
+            color={FrameColor.WHITE}
+            align="center"
+            valign="middle"
+            text={`${Math.min(100, Math.max(0, percent))}`}
+          />
+        </>
+      ) : (
+        <>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={icon} onClick={() => batteryTap()} />
+          <sprite x="center" y="center" w="fill" h="fill" sprite={Sprites.OSM_STATUS_ICONS_6} hide={boltHidden} />
+        </>
+      )}
+    </>
+  );
+}
+
+function placeBattery(collapsed: Boolean): void {
+  if (collapsed) {
+    batteryRef.props = { x: { right: 10 }, y: 30 };
+  } else {
+    batteryRef.props = { x: { right: Frame.BATTERY_RIGHT }, y: Frame.BATTERY_Y };
+  }
+}
+
+function batteryTap(): void {
+  const [until, setUntil] = useState(batteryPercentUntil);
+  const [, setLevel] = useState(batteryLevel);
+  CS2.sound_effect(Sounds.INTERFACE_SELECT1, 1, 0);
+  if (until === -1) {
+    setLevel(CS2.mobile_batterylevel());
+    setUntil(clientClock() + StatusPoll.BATTERY_SHOW_CYCLES);
+  } else {
+    setUntil(-1);
+  }
+}
+
+function ChatToggleFace(): Component {
+  const [disabled] = useState(osmChatboxDisabled);
+  let off: Boolean = false;
+  if (disabled === 1) {
+    off = true;
+  }
+  onMounted(() => placeChatColumn(off));
+  onUpdated(() => placeChatColumn(off));
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={Frame.BUTTON_W}
+        h={Frame.BUTTON_H}
+        sprite={off ? Sprites.TLI_BUTTON01_RECTANGLE_58X40_0 : Sprites.TLI_BUTTON01_RECTANGLE_58X40_1}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={ChatColumn.ICON_SIZE}
+        h={ChatColumn.ICON_SIZE}
+        sprite={Sprites.OPTIONS_ICONS_5}
+      />
+    </>
+  );
+}
+
+function placeChatColumn(off: Boolean): void {
+  chattingButtonRef.hide = off;
+  chatFilterToggleRef.hide = off;
+  sideLeftChatRef.props = { w: Frame.SIDE_LEFT_CHAT_W, h: off ? ChatColumn.WITHOUT_CHAT_H : ChatColumn.WITH_CHAT_H };
+}
+
+function chatToggleOp(option: Int): void {
+  if (option === 1) {
+    toggleChatbox();
+  }
+}
+
+function CompassOps(): Component {
+  const state: Int = useServerState(Varbits.MINIMAP_STATE);
+  let live: Boolean = true;
+  if (state === 3 || state === 4 || state === 5) {
+    live = false;
+  }
+  return (
+    <>
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={Fonts.P11_FULL}
+        noClickThrough
+        onClick={() => opsound(0, 0)}
+      />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={Fonts.P11_FULL}
+        options={live ? ['Look North', 'Look East', 'Look South', 'Look West'] : undefined}
+        onOptionSelect={live ? (event) => compassOp(event.option) : undefined}
+      />
+    </>
+  );
+}
+
+function GravestoneTimer(): Component {
+  const duration: Int = useServerState(Varbits.GRAVESTONE_DURATION);
+  const tliHide: Int = useServerState(Varbits.GRAVESTONE_TLI_HIDE);
+  const [ticks] = useState(graveTicks);
+  const [elapsed] = useState(graveElapsed);
+  let shown: Boolean = true;
+  if (duration <= 0 || tliHide === 1) {
+    shown = false;
+  }
+  const hidden: Boolean = !shown;
+  let long: Boolean = false;
+  if (duration > Grave.LONG) {
+    long = true;
+  }
+  let label: String = '---';
+  let colour: Int = Grave.DIM;
+  if (shown && !long) {
+    let total: Int = ticks;
+    if (total === -1) {
+      total = duration * Grave.TICKS_PER_UNIT;
+    }
+    const seconds: Int = Math.max(1, (total - elapsed) / Grave.PER_SECOND);
+    const minutes: Int = seconds / 60;
+    const rest: Int = seconds % 60;
+    label = rest >= 10 ? `${minutes}:${rest}` : `${minutes}:0${rest}`;
+    colour = tobHudNameFlasher();
+  }
+  useWatch(Varbits.GRAVESTONE_DURATION, () => graveResynch());
+  useInterval(() => {
+    const [start] = useState(graveStart);
+    const [, setElapsed] = useState(graveElapsed);
+    if (start !== -1) {
+      setElapsed(Math.min(clientClock() - start, Grave.MAX_STEP));
+    }
+  });
+  return (
+    <>
+      <sprite
+        x="center"
+        y={Grave.ICON_Y}
+        w={Grave.ICON_SIZE}
+        h={Grave.ICON_SIZE}
+        sprite={Sprites.MOD_ICONS_INTERFACE_21}
+        hide={hidden}
+      />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={Fonts.P11_FULL}
+        align="center"
+        valign="bottom"
+        shadow
+        color={colour}
+        text={label}
+        hide={hidden}
+      />
+    </>
+  );
+}
+
+function graveResynch(): void {
+  const duration: Int = useServerState(Varbits.GRAVESTONE_DURATION);
+  const [, setTicks] = useState(graveTicks);
+  const [, setStart] = useState(graveStart);
+  const [, setElapsed] = useState(graveElapsed);
+  if (duration <= 0 || duration > Grave.LONG) {
+    setTicks(-1);
+    setStart(-1);
+    setElapsed(0);
+    return;
+  }
+  setTicks(duration * Grave.TICKS_PER_UNIT);
+  setStart(clientClock());
+  setElapsed(0);
+}
+
+function SideContainerFrame(): Component {
+  const steel: Int = useServerState(Varbits.SIDE_CONTAINER_STEEL);
+  let stone: Boolean = true;
+  if (steel !== 0) {
+    stone = false;
+  }
+  onMounted(() => sizeSideContainer(stone));
+  onUpdated(() => sizeSideContainer(stone));
+  return <>{stone ? <StoneBox skin={StoneBoxSkin.ORNATE} /> : <SteelFrame backdrop={false} />}</>;
+}
+
+function sizeSideContainer(stone: Boolean): void {
+  if (stone) {
+    sideContainerRef.props = { w: Frame.SIDE_CONTAINER_W, h: Frame.SIDE_CONTAINER_H };
+  } else {
+    sideContainerRef.props = { w: Frame.SIDE_CONTAINER_STEEL_W, h: Frame.SIDE_CONTAINER_STEEL_H };
+  }
+}

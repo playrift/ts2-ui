@@ -1,16 +1,22 @@
-import { CS2, useState, useUniverse } from 'ts2';
+import { CS2, useServerState, useState, useUniverse } from 'ts2';
 
 import { tooltipBuilt } from '../lib/game/varcs';
 import { textLineCount, textWidth } from '../lib/lib.engine';
-import { BarrowsFonts, Tip, Tooltip, TOOLTIP_TEXT, TooltipColor } from './barrows-overlay.constants';
-import { killcount } from './barrows-overlay.refs';
+import { toplevelComponents } from '../lib/lib.helpers';
+import {
+  BarrowsFonts,
+  BarrowsVarbits,
+  Layout,
+  Tip,
+  Tooltip,
+  TOOLTIP_TEXT,
+  TooltipColor,
+} from './barrows-overlay.constants';
+import { killcountX, killcountY } from './barrows-overlay.helpers';
+import { content } from './barrows-overlay.refs';
 
-function xOf(component: ComponentId): Int {
-  return CS2.if_x_get(component);
-}
-
-function yOf(component: ComponentId): Int {
-  return CS2.if_y_get(component);
+function widthOf(component: ComponentId): Int {
+  return CS2.if_width_get(component);
 }
 
 function heightOf(component: ComponentId): Int {
@@ -28,12 +34,15 @@ export function BarrowsTooltip(): Component {
   const boxW: Int = Tooltip.PAD + textWidth(TOOLTIP_TEXT, wrap, BarrowsFonts.LABEL);
   const boxH: Int = Tooltip.PAD + Tooltip.LINE * textLineCount(TOOLTIP_TEXT, wrap, BarrowsFonts.LABEL);
 
-  const anchorY: Int = yOf(killcount);
-  const below: Int = anchorY + heightOf(killcount) + Tooltip.GAP;
+  const frame: Int = toplevelComponents();
+  const minimapClosed: Int = useServerState(BarrowsVarbits.MINIMAP_TOGGLE);
+  const anchorX: Int = killcountX(frame, minimapClosed, widthOf(content));
+  const anchorY: Int = killcountY(frame, heightOf(content));
+  const below: Int = anchorY + Layout.KILLCOUNT_H + Tooltip.GAP;
 
   return (
     <layer
-      x={Math.min(xOf(killcount) + Tooltip.GAP, parent.width - boxW)}
+      x={Math.min(anchorX + Tooltip.GAP, parent.width - boxW)}
       y={below > parent.height - boxH ? anchorY - boxH - Tooltip.GAP : below}
       w={boxW}
       h={boxH}

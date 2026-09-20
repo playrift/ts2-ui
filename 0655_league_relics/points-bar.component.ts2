@@ -1,0 +1,158 @@
+import { useState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+
+import { RelicColour, RelicLayout } from './league-relics.constants';
+import {
+  FragmentSlotThresholds,
+  LEAGUE_SHATTERED_RELICS,
+  RelicThemes,
+  RelicTierThresholds,
+} from './league-relics.data';
+import { barTop, relicLeague, relicPoints, relicTierCount } from './league-relics.helpers';
+import { relicBarTipHide, relicBarTipShow, relicBarTipToggle } from './league-relics.state';
+
+export function PointsBar({ width }: { width: Int }): Component {
+  const league: Int = relicLeague();
+  const theme = RelicThemes.get(league);
+  const top: Int = barTop();
+  const points: Int = relicPoints();
+  const span: Int = width - RelicLayout.BAR_TRACK_INSET - 1;
+  const fill: Int = barFill(points, top, span);
+  const caption: String = points === 1 ? `${stringOf(points)} point earned` : `${stringOf(points)} points earned`;
+
+  const track: Sprite = theme === null ? 2387 : theme.barTrack;
+  const barFillSprite: Sprite = theme === null ? 2386 : theme.barFill;
+  const captionFont: Font = (theme === null ? 495 : theme.captionFont) as Font;
+  const captionColour: Int = theme === null ? RelicColour.WHITE : theme.captionColour;
+  const captionShadow: Boolean = theme === null ? true : theme.captionShadow;
+  const marker: Sprite = theme === null ? 2388 : theme.marker;
+  const fragments: Boolean = league === LEAGUE_SHATTERED_RELICS;
+  const markers: Boolean = fragments || (theme !== null && relicTierCount() > 0);
+
+  return (
+    <>
+      <rect
+        x={RelicLayout.BAR_OUTLINE_INSET}
+        y={RelicLayout.BAR_OUTLINE_INSET}
+        w={width - RelicLayout.BAR_OUTLINE_INSET * 2}
+        h={RelicLayout.BAR_H - 4}
+        color={RelicColour.BAR_OUTLINE}
+      />
+      <sprite
+        x={RelicLayout.BAR_TRACK_INSET}
+        y={RelicLayout.BAR_TRACK_INSET}
+        w={width - RelicLayout.BAR_TRACK_INSET * 2}
+        h={RelicLayout.BAR_TRACK_H}
+        sprite={track}
+        tiling
+      />
+      <sprite
+        x={RelicLayout.BAR_TRACK_INSET}
+        y={RelicLayout.BAR_TRACK_INSET}
+        w={fill}
+        h={RelicLayout.BAR_TRACK_H}
+        sprite={barFillSprite}
+        tiling
+      />
+      {markers && fragments && (
+        <layer x={0} y={0} w="fill" h="fill">
+          {[1, 2, 3, 4, 5, 6, 7].map((slot) => (
+            <BarMarker
+              threshold={FragmentSlotThresholds.at(slot - 1) ?? 0}
+              top={top}
+              width={width}
+              sprite={marker}
+              pin={slot - 1}
+              fragment
+            />
+          ))}
+        </layer>
+      )}
+      {markers && !fragments && (
+        <layer x={0} y={0} w="fill" h="fill">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((tier) => (
+            <BarMarker
+              threshold={RelicTierThresholds.at(tier) ?? 0}
+              top={top}
+              width={width}
+              sprite={marker}
+              pin={tier}
+              fragment={false}
+            />
+          ))}
+        </layer>
+      )}
+      <text
+        x={1}
+        y={1}
+        w={width - 2}
+        h={{ fill: 2 }}
+        text={caption}
+        font={captionFont}
+        color={captionColour}
+        shadow={captionShadow}
+        align="center"
+        valign="middle"
+      />
+      <rect x={0} y={0} w={width} h={RelicLayout.BAR_H} color={RelicColour.BAR_FRAME} />
+      <rect x={1} y={1} w={width - 2} h={RelicLayout.BAR_H - 2} color={RelicColour.BAR_FRAME} />
+    </>
+  );
+}
+
+function barFill(points: Int, top: Int, span: Int): Int {
+  let fill: Int = span - 2;
+  if (top !== -1 && top > 0) {
+    fill = scaled(points, top, span);
+  }
+  if (fill > span) {
+    fill = span - 1;
+  }
+  return fill;
+}
+
+function BarMarker({
+  threshold,
+  top,
+  width,
+  sprite,
+  pin,
+  fragment,
+}: {
+  threshold: Int;
+  top: Int;
+  width: Int;
+  sprite: Sprite;
+  pin: Int;
+  fragment: Boolean;
+}): Component {
+  const span: Int = width - 4;
+  const at: Int = markerX(threshold, top, span, width);
+  const mobile: Boolean = onMobile();
+  return (
+    <sprite
+      x={at - RelicLayout.BAR_MARKER_DX}
+      y={1}
+      w={RelicLayout.BAR_MARKER_W}
+      h={RelicLayout.BAR_MARKER_H}
+      sprite={sprite}
+      options={mobile ? ['Show Threshold'] : ['']}
+      onOptionSelect={mobile ? () => relicBarTipToggle(pin, fragment) : undefined}
+      onMouseRepeat={mobile ? undefined : () => relicBarTipShow(pin, fragment)}
+      onMouseLeave={mobile ? undefined : () => relicBarTipHide()}
+    />
+  );
+}
+
+function markerX(threshold: Int, top: Int, span: Int, width: Int): Int {
+  const at: Int = scaled(threshold, top, span);
+  if (at <= 2) {
+    return 0;
+  }
+  if (at >= span) {
+    return width;
+  }
+  return at + 2;
+}

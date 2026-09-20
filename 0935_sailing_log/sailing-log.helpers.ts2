@@ -1,0 +1,1099 @@
+import { CS2, predictServerState, useInventory, useServerState, useSkill, useSkillBase, useState } from 'ts2';
+import { commas } from '../0465_ge_offers/ge-offers.helpers';
+import { PortTasks } from '../0942_port_task_info/port-tasks.data';
+import { PortTaskId, dockName, logSlotTask, portTaskIndex } from '../0942_port_task_info/port-tasks.helpers';
+import { Inventories } from '../lib/game/inventories';
+import {
+  sailingChartingCompletionFilter,
+  sailingChartingLevelFilter,
+  sailingChartingOceanFilter,
+  sailingChartingOceanFilterOverride,
+  sailingChartingScrollPos,
+  sailingChartingSeaFilter,
+  sailingChartingSeaFilterOverride,
+  sailingChartingSelectedChartableId,
+} from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { chatMessage, hasBit, itemName, npcName, playSound } from '../lib/lib.engine';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { Quest, questComplete } from '../lib/lib.quests';
+import { ChartingEntries } from './sailing-charting.data';
+import { SailingSeas } from './sailing-seas.data';
+import { ChartTool, ChartToolBit, LogDropdown, LogObj, LogSkills, LogSound } from './sailing-log.constants';
+import {
+  chartDone0,
+  chartDone1,
+  chartDone10,
+  chartDone11,
+  chartDone2,
+  chartDone3,
+  chartDone4,
+  chartDone5,
+  chartDone6,
+  chartDone7,
+  chartDone8,
+  chartDone9,
+  chartHints,
+  chartNearSea,
+  chartOceanCount,
+  chartOceanHeading,
+  chartQuests,
+  chartSailing,
+  chartSailingBase,
+  chartSeaCount,
+  chartSeaHeading,
+  chartTools,
+  chartTotalCount,
+  chartTotalHeading,
+  chartVisible,
+  logBuilt,
+  logBuiltH,
+  logBuiltW,
+  logDropdown,
+  logMenuFace,
+  logMenuFrame,
+  logMenuHidden,
+  logMenuOverlay,
+  logSlot0,
+  logSlot1,
+  logSlot2,
+  logSlot3,
+  logSlot4,
+  logTab,
+  logWindowShown,
+  logWindowTask,
+} from './sailing-log.state';
+
+export function sailingLogOpen(): void {
+  const [, setBuilt] = useState(logBuilt);
+  const [, setBuiltW] = useState(logBuiltW);
+  const [, setBuiltH] = useState(logBuiltH);
+  const [, setMenuHidden] = useState(logMenuHidden);
+  const [, setMenuFrame] = useState(logMenuFrame);
+  const [, setMenuOverlay] = useState(logMenuOverlay);
+  const [, setMenuFace] = useState(logMenuFace);
+  const [, setDropdown] = useState(logDropdown);
+  const [, setWindowTask] = useState(logWindowTask);
+  const [, setWindowShown] = useState(logWindowShown);
+  setBuilt(0);
+  setBuiltW(-1);
+  setBuiltH(-1);
+  setMenuHidden(0);
+  setMenuFrame(0);
+  setMenuOverlay(0);
+  setMenuFace(0);
+  setDropdown(LogDropdown.NONE);
+  setWindowTask(-1);
+  setWindowShown(1);
+  chartingOverrides();
+  if (toplevelComponents() === ToplevelComponents.DISPLAY) {
+    chartingDefaults();
+  }
+}
+
+export function sailingLogMeasured(width: Int, height: Int): void {
+  const [seenW, setSeenW] = useState(logBuiltW);
+  const [seenH, setSeenH] = useState(logBuiltH);
+  if (seenW === width && seenH === height) {
+    return;
+  }
+  setSeenW(width);
+  setSeenH(height);
+  if (seenW === -1 && toplevelComponents() === ToplevelComponents.DISPLAY) {
+    return;
+  }
+  sailingLogBuild();
+}
+
+export function sailingLogBuild(): void {
+  const [, setBuilt] = useState(logBuilt);
+  const [, setTab] = useState(logTab);
+  const [, setMenuHidden] = useState(logMenuHidden);
+  const [, setMenuFrame] = useState(logMenuFrame);
+  const [, setMenuFace] = useState(logMenuFace);
+  const tab: Int = useServerState(Varbits.SAILING_LOG_TAB_OPENED);
+  const intro: Int = useServerState(Varbits.SAILING_INTRO);
+  setTab(tab);
+  if (intro < 46) {
+    setMenuHidden(1);
+  } else {
+    setMenuFace(0);
+  }
+  setMenuFrame(0);
+  chartingDefaults();
+  chartingCapture();
+  tasksCapture();
+  setBuilt(1);
+}
+
+function chartingDefaults(): void {
+  const [completion, setCompletion] = useState(sailingChartingCompletionFilter);
+  const [level, setLevel] = useState(sailingChartingLevelFilter);
+  if (completion === -1) {
+    setCompletion(0);
+  }
+  if (level === -1) {
+    setLevel(0);
+  }
+}
+
+function chartingCapture(): void {
+  const [, s0] = useState(chartDone0);
+  const [, s1] = useState(chartDone1);
+  const [, s2] = useState(chartDone2);
+  const [, s3] = useState(chartDone3);
+  const [, s4] = useState(chartDone4);
+  const [, s5] = useState(chartDone5);
+  const [, s6] = useState(chartDone6);
+  const [, s7] = useState(chartDone7);
+  const [, s8] = useState(chartDone8);
+  const [, s9] = useState(chartDone9);
+  const [, s10] = useState(chartDone10);
+  const [, s11] = useState(chartDone11);
+  const [, setHints] = useState(chartHints);
+  const [, setSailing] = useState(chartSailing);
+  const [, setSailingBase] = useState(chartSailingBase);
+  const [, setQuests] = useState(chartQuests);
+  const [, setTools] = useState(chartTools);
+  const [, setNear] = useState(chartNearSea);
+  s0(useServerState(Varps.SAILING_CHARTING_COMPLETION_0));
+  s1(useServerState(Varps.SAILING_CHARTING_COMPLETION_1));
+  s2(useServerState(Varps.SAILING_CHARTING_COMPLETION_2));
+  s3(useServerState(Varps.SAILING_CHARTING_COMPLETION_3));
+  s4(useServerState(Varps.SAILING_CHARTING_COMPLETION_4));
+  s5(useServerState(Varps.SAILING_CHARTING_COMPLETION_5));
+  s6(useServerState(Varps.SAILING_CHARTING_COMPLETION_6));
+  s7(useServerState(Varps.SAILING_CHARTING_COMPLETION_7));
+  s8(useServerState(Varps.SAILING_CHARTING_COMPLETION_8));
+  s9(useServerState(Varps.SAILING_CHARTING_COMPLETION_9));
+  s10(useServerState(Varps.SAILING_CHARTING_COMPLETION_10));
+  s11(useServerState(Varps.SAILING_CHARTING_COMPLETION_11));
+  setHints(useServerState(Varbits.SAILING_SHOW_CHARTING_HINTS));
+  setSailing(useSkill(LogSkills.SAILING));
+  setSailingBase(useSkillBase(LogSkills.SAILING));
+  setQuests(chartQuestMask());
+  setTools(chartToolMask());
+  setNear(useServerState(Varbits.SAILING_TRANSMIT_NEARBY_SEA_PLUS1));
+  chartingDerive();
+}
+
+function chartingDerive(): void {
+  const [completion] = useState(sailingChartingCompletionFilter);
+  const [levelFilter] = useState(sailingChartingLevelFilter);
+  const [sailing] = useState(chartSailing);
+  const [quests] = useState(chartQuests);
+  const [selected] = useState(sailingChartingSelectedChartableId);
+  const ocean: Int = oceanFilterEffective();
+  const sea: Int = seaFilterEffective();
+  const count: Int = ChartingEntries.length;
+  let at: Int = 0;
+  let visible: Int = 0;
+  while (at < count) {
+    const row = ChartingEntries.at(at);
+    if (row !== null) {
+      if (
+        hintPasses(
+          row.level,
+          row.typeQuest,
+          row.dockQuest,
+          row.seaId,
+          row.seaSecondaryId,
+          row.oceanId,
+          row.oceanSecondaryId,
+          row.word,
+          row.bit,
+          completion,
+          levelFilter,
+          sailing,
+          quests,
+          ocean,
+          sea,
+        )
+      ) {
+        visible = visible + 1;
+      }
+    }
+    at = at + 1;
+  }
+  const [, setVisible] = useState(chartVisible);
+  setVisible(visible);
+  const entry: Int = chartIndexByUid(selected);
+  completionWrite(completionSea(entry), false, 0);
+  completionWrite(completionOcean(entry), true, 1);
+  completionWrite(-1, true, 2);
+}
+
+function completionWrite(index: Int, ocean: Boolean, block: Int): void {
+  let heading: String = '';
+  let line: String = '';
+  if (index === -1 && block !== 2) {
+    heading = ocean ? '<col=b2b2b2>Ocean Completion<br>' : '<col=b2b2b2>Sea Completion<br>';
+    line = '<col=b2b2b2>None selected</col>';
+  } else {
+    const count: Int = ChartingEntries.length;
+    let at: Int = 0;
+    let total: Int = 0;
+    let charted: Int = 0;
+    while (at < count) {
+      const row = ChartingEntries.at(at);
+      if (row !== null) {
+        let hit: Boolean = block === 2;
+        if (block === 0) {
+          hit = row.sea === index;
+        } else if (block === 1) {
+          hit = seaOcean(row.sea) === index;
+        }
+        if (hit) {
+          total = total + 1;
+          if (CS2.testbit(chartWord(row.word), row.bit)) {
+            charted = charted + 1;
+          }
+        }
+      }
+      at = at + 1;
+    }
+    if (block === 0 && total <= 0) {
+      total = -1;
+      charted = -1;
+    }
+    if (block === 2) {
+      const colour: String = charted < total ? '<col=ffffff>' : '<col=0dc10d>';
+      heading = `${colour}Total Completion<br>`;
+      line = `${colour}${charted}/${total} (${commas(100000)} XP)`;
+    } else {
+      const colour: String = charted >= total ? '<col=0dc10d>' : '<col=ffffff>';
+      const row = SailingSeas.at(index);
+      let xp: Int = 0;
+      if (row !== null) {
+        xp = row.xp / 10;
+      }
+      heading = `${colour}${seaName(index)}<br>`;
+      line = `${colour}${charted}/${total} (${commas(xp)} XP)</col>`;
+    }
+  }
+  if (block === 0) {
+    const [, setHeading] = useState(chartSeaHeading);
+    const [, setLine] = useState(chartSeaCount);
+    setHeading(heading);
+    setLine(line);
+  } else if (block === 1) {
+    const [, setHeading] = useState(chartOceanHeading);
+    const [, setLine] = useState(chartOceanCount);
+    setHeading(heading);
+    setLine(line);
+  } else {
+    const [, setHeading] = useState(chartTotalHeading);
+    const [, setLine] = useState(chartTotalCount);
+    setHeading(heading);
+    setLine(line);
+  }
+}
+
+function tasksCapture(): void {
+  const [, s0] = useState(logSlot0);
+  const [, s1] = useState(logSlot1);
+  const [, s2] = useState(logSlot2);
+  const [, s3] = useState(logSlot3);
+  const [, s4] = useState(logSlot4);
+  s0(logSlotTask(0));
+  s1(logSlotTask(1));
+  s2(logSlotTask(2));
+  s3(logSlotTask(3));
+  s4(logSlotTask(4));
+}
+
+function chartQuestMask(): Int {
+  let mask: Int = 0;
+  if (questComplete(Quest.PRYING_TIMES)) {
+    mask = mask + 1;
+  }
+  if (questComplete(Quest.CURRENT_AFFAIRS)) {
+    mask = mask + 2;
+  }
+  if (questComplete(Quest.RECIPE_FOR_DISASTER_PIRATE)) {
+    mask = mask + 4;
+  }
+  if (questComplete(Quest.REGICIDE)) {
+    mask = mask + 8;
+  }
+  if (questComplete(Quest.ROYAL_TROUBLE)) {
+    mask = mask + 16;
+  }
+  if (questComplete(Quest.SONG_OF_THE_ELVES)) {
+    mask = mask + 32;
+  }
+  if (questComplete(Quest.SWAN_SONG)) {
+    mask = mask + 64;
+  }
+  if (questComplete(Quest.CORSAIR_CURSE_THE)) {
+    mask = mask + 128;
+  }
+  if (questComplete(Quest.CHILDREN_OF_THE_SUN)) {
+    mask = mask + 256;
+  }
+  if (questComplete(Quest.FREMENNIK_ISLES_THE)) {
+    mask = mask + 512;
+  }
+  if (questComplete(Quest.FREMENNIK_TRIALS_THE)) {
+    mask = mask + 1024;
+  }
+  if (questComplete(Quest.LUNAR_DIPLOMACY)) {
+    mask = mask + 2048;
+  }
+  if (questComplete(Quest.MAKING_FRIENDS_WITH_MY_ARM)) {
+    mask = mask + 4096;
+  }
+  return mask;
+}
+
+function chartToolMask(): Int {
+  const inv = useInventory(Inventories.INV);
+  const worn = useInventory(Inventories.WORN);
+  let mask: Int = 0;
+  if (inv.total(LogObj.SPYGLASS as Item) > 0) {
+    mask = mask + 2;
+  }
+  if (inv.total(LogObj.CURRENT_DUCK as Item) > 0) {
+    mask = mask + 4;
+  }
+  if (inv.total(LogObj.CROWBAR as Item) > 0) {
+    mask = mask + 8;
+  }
+  const medallion: Int =
+    worn.total(LogObj.MEDALLION_OF_THE_DEEP as Item) + inv.total(LogObj.MEDALLION_OF_THE_DEEP as Item);
+  const helmet: Int =
+    worn.total(LogObj.PIRATE_DIVING_HELMET as Item) +
+    inv.total(LogObj.PIRATE_DIVING_HELMET as Item) +
+    worn.total(LogObj.UPGRADED_DIVING_HELMET as Item) +
+    inv.total(LogObj.UPGRADED_DIVING_HELMET as Item);
+  const pack: Int =
+    worn.total(LogObj.PIRATE_DIVING_BACKPACK as Item) +
+    inv.total(LogObj.PIRATE_DIVING_BACKPACK as Item) +
+    worn.total(LogObj.UPGRADED_DIVING_BACKPACK as Item) +
+    inv.total(LogObj.UPGRADED_DIVING_BACKPACK as Item);
+  if (medallion > 0) {
+    mask = mask + 16;
+  } else if (helmet > 0 && pack > 0) {
+    mask = mask + 16;
+  }
+  return mask;
+}
+
+export function seaIndexByUid(uid: Int): Int {
+  if (uid < 0) {
+    return -1;
+  }
+  const count: Int = SailingSeas.length;
+  let index: Int = 0;
+  let found: Int = -1;
+  while (index < count) {
+    const row = SailingSeas.at(index);
+    if (row !== null) {
+      if (row.uniqueId === uid) {
+        found = index;
+        index = count;
+      }
+    }
+    index = index + 1;
+  }
+  return found;
+}
+
+export function seaName(index: Int): String {
+  const row = SailingSeas.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+export function seaUid(index: Int): Int {
+  const row = SailingSeas.at(index);
+  if (row === null) {
+    return -1;
+  }
+  return row.uniqueId;
+}
+
+export function seaOcean(index: Int): Int {
+  const row = SailingSeas.at(index);
+  if (row === null) {
+    return -1;
+  }
+  return row.ocean;
+}
+
+function seaType(index: Int): Int {
+  const row = SailingSeas.at(index);
+  if (row === null) {
+    return -1;
+  }
+  return row.type;
+}
+
+export function nearSeaIndex(plus1: Int): Int {
+  if (plus1 <= 0) {
+    return -1;
+  }
+  return seaIndexByUid(plus1 - 1);
+}
+
+export function oceanFilterEffective(): Int {
+  const [filter] = useState(sailingChartingOceanFilter);
+  if (filter === -2) {
+    const [override] = useState(sailingChartingOceanFilterOverride);
+    return override;
+  }
+  return filter;
+}
+
+export function seaFilterEffective(): Int {
+  const [filter] = useState(sailingChartingSeaFilter);
+  if (filter === -2) {
+    const [override] = useState(sailingChartingSeaFilterOverride);
+    return override;
+  }
+  return filter;
+}
+
+function chartingOverrides(): void {
+  const near: Int = nearSeaIndex(useServerState(Varbits.SAILING_TRANSMIT_NEARBY_SEA_PLUS1));
+  const [oceanFilter] = useState(sailingChartingOceanFilter);
+  const [seaFilter] = useState(sailingChartingSeaFilter);
+  const [, setOceanOverride] = useState(sailingChartingOceanFilterOverride);
+  const [, setSeaOverride] = useState(sailingChartingSeaFilterOverride);
+  let seaId: Int = -1;
+  let oceanId: Int = -1;
+  if (near !== -1) {
+    seaId = seaUid(near);
+    const ocean: Int = seaOcean(near);
+    if (ocean !== -1) {
+      oceanId = seaUid(ocean);
+    }
+  }
+  if (oceanFilter === -2) {
+    setOceanOverride(oceanId);
+  }
+  if (seaFilter === -2) {
+    setSeaOverride(seaId);
+  }
+}
+
+function chartingReconcile(clearSea: Boolean): void {
+  const ocean: Int = oceanFilterEffective();
+  const sea: Int = seaFilterEffective();
+  if (ocean === -1 || sea === -1) {
+    return;
+  }
+  const seaRow: Int = seaIndexByUid(sea);
+  const seaOceanRow: Int = seaOcean(seaRow);
+  if (seaOceanRow === -1) {
+    return;
+  }
+  if (ocean === seaUid(seaOceanRow)) {
+    return;
+  }
+  if (clearSea) {
+    const [, setSea] = useState(sailingChartingSeaFilter);
+    setSea(-1);
+  } else {
+    const [, setOcean] = useState(sailingChartingOceanFilter);
+    setOcean(-1);
+  }
+  chartingOverrides();
+}
+
+export function sailingLogExpand(which: Int): void {
+  const [, setDropdown] = useState(logDropdown);
+  playSound(LogSound.SELECT);
+  setDropdown(which);
+}
+
+export function sailingLogCollapse(): void {
+  const [, setDropdown] = useState(logDropdown);
+  setDropdown(LogDropdown.NONE);
+}
+
+export function sailingLogPick(which: Int, value: Int): void {
+  playSound(LogSound.SELECT);
+  sailingLogCollapse();
+  if (which === LogDropdown.COMPLETION) {
+    const [, setCompletion] = useState(sailingChartingCompletionFilter);
+    setCompletion(value);
+  } else if (which === LogDropdown.LEVEL) {
+    const [, setLevel] = useState(sailingChartingLevelFilter);
+    setLevel(value);
+  } else if (which === LogDropdown.OCEAN) {
+    const [, setOcean] = useState(sailingChartingOceanFilter);
+    setOcean(value);
+    chartingOverrides();
+    chartingReconcile(true);
+    chartingDefaults();
+  } else {
+    const [, setSea] = useState(sailingChartingSeaFilter);
+    setSea(value);
+    chartingOverrides();
+    chartingReconcile(false);
+    chartingDefaults();
+  }
+  chartingRedraw(-1, true);
+}
+
+function chartingRedraw(selected: Int, resetScroll: Boolean): void {
+  const [, setSelected] = useState(sailingChartingSelectedChartableId);
+  setSelected(selected);
+  if (resetScroll) {
+    const [, setScroll] = useState(sailingChartingScrollPos);
+    setScroll(0);
+  }
+  chartingCapture();
+}
+
+export function sailingLogSelectHint(uniqueId: Int): void {
+  chartingRedraw(uniqueId, false);
+}
+
+export function sailingLogNearbyChanged(): void {
+  const [oceanFilter] = useState(sailingChartingOceanFilter);
+  const [seaFilter] = useState(sailingChartingSeaFilter);
+  if (oceanFilter !== -2 && seaFilter !== -2) {
+    return;
+  }
+  const oceanBefore: Int = oceanFilterEffective();
+  const seaBefore: Int = seaFilterEffective();
+  chartingOverrides();
+  if (oceanBefore === oceanFilterEffective() && seaBefore === seaFilterEffective()) {
+    return;
+  }
+  playSound(LogSound.PAPER_TURN);
+  chartingReconcile(true);
+  chartingReconcile(false);
+  chartingDefaults();
+  chartingRedraw(-1, true);
+}
+
+export function sailingLogToggleMenu(): void {
+  if (useServerState(Varbits.SAILING_INTRO) < 46) {
+    return;
+  }
+  const [frame, setFrame] = useState(logMenuFrame);
+  const [, setOverlay] = useState(logMenuOverlay);
+  const [, setFace] = useState(logMenuFace);
+  if (frame === 1) {
+    setFrame(0);
+    setOverlay(0);
+    setFace(0);
+  } else {
+    setFrame(1);
+    setOverlay(1);
+    setFace(1);
+  }
+}
+
+export function sailingLogPickTab(tab: Int): void {
+  const [, setFrame] = useState(logMenuFrame);
+  const [, setOverlay] = useState(logMenuOverlay);
+  const [, setFace] = useState(logMenuFace);
+  playSound(LogSound.SELECT);
+  setFrame(0);
+  setOverlay(0);
+  setFace(0);
+  if (tab >= 0) {
+    predictServerState(Varbits.SAILING_LOG_TAB_OPENED, tab);
+    const [, setWindowShown] = useState(logWindowShown);
+    setWindowShown(0);
+    sailingLogBuild();
+  }
+}
+
+export function sailingLogSlotSelect(slot: Int): void {
+  const task: Int = logSlotAt(slot);
+  const row = PortTasks.at(task);
+  if (row === null) {
+    return;
+  }
+  if (row.taskId === PortTaskId.BLANK) {
+    chatMessage('You do not have a task assigned to that port task slot.');
+    playSound(LogSound.TASK_REFUSED);
+    return;
+  }
+  if (row.taskId === PortTaskId.LOCKED) {
+    const level: Int = logSlotLevel(slot);
+    if (level !== -1) {
+      chatMessage(`You need a Sailing level of ${level} to use that port task slot.`);
+    } else {
+      chatMessage('You have not unlocked that port task slot.');
+    }
+    playSound(LogSound.TASK_REFUSED);
+    return;
+  }
+  playSound(LogSound.TASK_SELECT);
+  logTaskShowIndex(task);
+}
+
+export function sailingLogTaskShow(taskId: Int): void {
+  const index: Int = portTaskIndex(taskId);
+  if (index < 0) {
+    return;
+  }
+  logTaskShowIndex(index);
+}
+
+function logTaskShowIndex(index: Int): void {
+  const [, setTask] = useState(logWindowTask);
+  const [, setShown] = useState(logWindowShown);
+  setTask(index);
+  setShown(1);
+}
+
+export function sailingLogTaskHide(): void {
+  const [, setShown] = useState(logWindowShown);
+  setShown(0);
+}
+
+export function sailingLogTaskBack(): void {
+  playSound(LogSound.TASK_SELECT);
+  sailingLogTaskHide();
+  sailingLogBuild();
+}
+
+export function sailingLogCancelSound(op: Int): void {
+  if (hasBit(2, op)) {
+    playSound(LogSound.TASK_SELECT);
+  }
+}
+
+export function sailingLogTasksChanged(): void {
+  sailingLogBuild();
+}
+
+export function logSlotLevel(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return 7;
+    case 2:
+      return 28;
+    case 3:
+      return 56;
+    case 4:
+      return 84;
+  }
+  return -1;
+}
+
+export function logSlotAt(slot: Int): Int {
+  switch (slot) {
+    case 0: {
+      const [t] = useState(logSlot0);
+      return t;
+    }
+    case 1: {
+      const [t] = useState(logSlot1);
+      return t;
+    }
+    case 2: {
+      const [t] = useState(logSlot2);
+      return t;
+    }
+    case 3: {
+      const [t] = useState(logSlot3);
+      return t;
+    }
+    case 4: {
+      const [t] = useState(logSlot4);
+      return t;
+    }
+  }
+  return -1;
+}
+
+export function logCardX(order: Int, first: Int): Int {
+  if (order < first) {
+    return 43 + order * 99;
+  }
+  return 92 + (order - first) * 99;
+}
+
+export function logCardY(order: Int, first: Int): Int {
+  if (order < first) {
+    return 6;
+  }
+  return 140;
+}
+
+export function logTaskDetails(index: Int): String {
+  const row = PortTasks.at(index);
+  if (row === null) {
+    return '';
+  }
+  if (row.taskType === 0) {
+    return `Sailing Requirement: ${row.level}<br>Cargo: ${itemName(row.cargo as Item)}<br>Location: ${dockName(row.cargoDock)}<br>Destination: ${dockName(row.endDock)}<br>Quantity: ${row.cargoCount}`;
+  }
+  return `Sailing Requirement: ${row.level}<br>Port: ${dockName(row.endDock)}<br>Target: ${npcName(row.bountyNpc)}<br>Item: ${itemName(row.bountyItem as Item)}<br>Quantity: ${row.bountyCount}`;
+}
+
+export function chartWord(word: Int): Int {
+  if (word === 0) {
+    const [v] = useState(chartDone0);
+    return v;
+  }
+  if (word === 1) {
+    const [v] = useState(chartDone1);
+    return v;
+  }
+  if (word === 2) {
+    const [v] = useState(chartDone2);
+    return v;
+  }
+  if (word === 3) {
+    const [v] = useState(chartDone3);
+    return v;
+  }
+  if (word === 4) {
+    const [v] = useState(chartDone4);
+    return v;
+  }
+  if (word === 5) {
+    const [v] = useState(chartDone5);
+    return v;
+  }
+  if (word === 6) {
+    const [v] = useState(chartDone6);
+    return v;
+  }
+  if (word === 7) {
+    const [v] = useState(chartDone7);
+    return v;
+  }
+  if (word === 8) {
+    const [v] = useState(chartDone8);
+    return v;
+  }
+  if (word === 9) {
+    const [v] = useState(chartDone9);
+    return v;
+  }
+  if (word === 10) {
+    const [v] = useState(chartDone10);
+    return v;
+  }
+  if (word === 11) {
+    const [v] = useState(chartDone11);
+    return v;
+  }
+  return 0;
+}
+
+export function chartCharted(uniqueId: Int): Boolean {
+  if (uniqueId < 0) {
+    return false;
+  }
+  return CS2.testbit(chartWord(uniqueId / 32), uniqueId % 32);
+}
+
+export function hintPasses(
+  level: Int,
+  typeQuest: Int,
+  dockQuest: Int,
+  seaId: Int,
+  seaSecondaryId: Int,
+  oceanId: Int,
+  oceanSecondaryId: Int,
+  word: Int,
+  bit: Int,
+  completion: Int,
+  levelFilter: Int,
+  sailing: Int,
+  quests: Int,
+  ocean: Int,
+  sea: Int,
+): Boolean {
+  if (completion !== 0) {
+    const done: Boolean = CS2.testbit(chartWord(word), bit);
+    if (completion === 1 && done) {
+      return false;
+    }
+    if (completion === 2 && !done) {
+      return false;
+    }
+  }
+  if (levelFilter === 0) {
+    if (sailing < level) {
+      return false;
+    }
+    if (typeQuest !== -1 && !CS2.testbit(quests, typeQuest)) {
+      return false;
+    }
+    if (dockQuest !== -1 && !CS2.testbit(quests, dockQuest)) {
+      return false;
+    }
+  }
+  if (ocean !== -1 && ocean !== oceanId && ocean !== (oceanSecondaryId === -1 ? oceanId : oceanSecondaryId)) {
+    return false;
+  }
+  if (sea !== -1 && sea !== seaId && sea !== (seaSecondaryId === -1 ? seaId : seaSecondaryId)) {
+    return false;
+  }
+  return true;
+}
+
+export function hintLabel(uniqueId: Int, hint: String): String {
+  if (chartCharted(uniqueId)) {
+    return `<col=0dc10d>${hint}`;
+  }
+  const [hints] = useState(chartHints);
+  if (hints === 0) {
+    return '???';
+  }
+  return hint;
+}
+
+export function hintBase(uniqueId: Int, visible: Int, selected: Int): Int {
+  if (selected === uniqueId) {
+    return 200;
+  }
+  if (visible % 2 === 1) {
+    return 230;
+  }
+  return 245;
+}
+
+export function chartIndexByUid(uid: Int): Int {
+  if (uid < 0) {
+    return -1;
+  }
+  const count: Int = ChartingEntries.length;
+  let index: Int = 0;
+  let found: Int = -1;
+  while (index < count) {
+    const row = ChartingEntries.at(index);
+    if (row !== null) {
+      if (row.uniqueId === uid) {
+        found = index;
+        index = count;
+      }
+    }
+    index = index + 1;
+  }
+  return found;
+}
+
+export function infoHintText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    const [hints] = useState(chartHints);
+    if (hints === 0) {
+      return '<col=b2b2b2>No hint selected. Choose an entry above to reveal a hint about what you need to chart.';
+    }
+    return '<col=b2b2b2>No hint selected. Choose one from the list above to display more information about it.';
+  }
+  if (chartCharted(row.uniqueId)) {
+    return `<col=0dc10d>${row.hint}`;
+  }
+  return `<col=f9f9f9>${row.hint}`;
+}
+
+export function infoSeaText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>Sea';
+  }
+  const done: Boolean = chartCharted(row.uniqueId);
+  const [nearPlus1] = useState(chartNearSea);
+  const near: Int = nearSeaIndex(nearPlus1);
+  const bonus: Boolean = seaType(row.sea) === 2;
+  const sea: Int = bonus ? row.secondary : row.sea;
+  const suffix: String = bonus ? ' (Bonus)' : '';
+  if (done) {
+    return `<col=0dc10d>${seaName(sea)}${suffix}`;
+  }
+  if (sea === near) {
+    return `<col=00bce6>${seaName(sea)}${suffix}`;
+  }
+  return `<col=f9f9f9>${seaName(sea)}${suffix}`;
+}
+
+export function infoOceanText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>Ocean';
+  }
+  const done: Boolean = chartCharted(row.uniqueId);
+  const [nearPlus1] = useState(chartNearSea);
+  const nearOcean: Int = seaOcean(nearSeaIndex(nearPlus1));
+  const bonus: Boolean = seaType(row.sea) === 2;
+  const ocean: Int = seaOcean(bonus ? row.secondary : row.sea);
+  const suffix: String = bonus ? ' (Bonus)' : '';
+  if (done) {
+    return `<col=0dc10d>${seaName(ocean)}${suffix}`;
+  }
+  if (ocean !== -1 && ocean === nearOcean) {
+    return `<col=00bce6>${seaName(ocean)}${suffix}`;
+  }
+  return `<col=f9f9f9>${seaName(ocean)}${suffix}`;
+}
+
+export function infoToolText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>Tool needed';
+  }
+  const done: Boolean = chartCharted(row.uniqueId);
+  const [tools] = useState(chartTools);
+  let name: String = 'No tool needed';
+  let held: Boolean = true;
+  if (row.tool === ChartTool.SPYGLASS) {
+    name = 'Spyglass';
+    held = hasBit(tools, ChartToolBit.SPYGLASS);
+  } else if (row.tool === ChartTool.CURRENT_DUCK) {
+    name = 'Current duck';
+    held = hasBit(tools, ChartToolBit.CURRENT_DUCK);
+  } else if (row.tool === ChartTool.CROWBAR) {
+    name = 'Crowbar';
+    held = hasBit(tools, ChartToolBit.CROWBAR);
+  } else if (row.tool === ChartTool.DIVING) {
+    name = 'Diving equipment';
+    held = hasBit(tools, ChartToolBit.DIVING);
+  }
+  if (done) {
+    return `<col=0dc10d>${name}`;
+  }
+  if (held) {
+    return `<col=00bce6>${name}`;
+  }
+  return `<col=f9f9f9>${name}`;
+}
+
+export function infoLevelText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>Sailing requirement';
+  }
+  if (chartCharted(row.uniqueId)) {
+    return `<col=0dc10d>Level ${row.level} Sailing`;
+  }
+  const [base] = useState(chartSailingBase);
+  if (base >= row.level) {
+    return `<col=00bce6>Level ${row.level} Sailing`;
+  }
+  return `<col=f9f9f9>Level ${row.level} Sailing`;
+}
+
+export function infoChartedText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>Charted';
+  }
+  if (chartCharted(row.uniqueId)) {
+    return '<col=0dc10d>Charted';
+  }
+  return '<col=f9f9f9>Uncharted';
+}
+
+export function infoXpText(entry: Int): String {
+  const row = ChartingEntries.at(entry);
+  if (row === null) {
+    return '<col=b2b2b2>XP awarded';
+  }
+  const colour: String = chartCharted(row.uniqueId) ? '<col=0dc10d>' : '<col=f9f9f9>';
+  const xp: Int = row.xp / 10;
+  if (xp > 0) {
+    return `${colour}${commas(xp)} XP awarded`;
+  }
+  return `${colour}No XP awarded`;
+}
+
+export function completionSea(entry: Int): Int {
+  const row = ChartingEntries.at(entry);
+  if (row !== null) {
+    return row.sea;
+  }
+  const sea: Int = seaFilterEffective();
+  if (sea !== -1) {
+    return seaIndexByUid(sea);
+  }
+  const [nearPlus1] = useState(chartNearSea);
+  return nearSeaIndex(nearPlus1);
+}
+
+export function completionOcean(entry: Int): Int {
+  const row = ChartingEntries.at(entry);
+  if (row !== null) {
+    return seaOcean(row.sea);
+  }
+  const ocean: Int = oceanFilterEffective();
+  if (ocean !== -1) {
+    return seaIndexByUid(ocean);
+  }
+  const sea: Int = seaFilterEffective();
+  if (sea !== -1) {
+    return seaOcean(seaIndexByUid(sea));
+  }
+  const [nearPlus1] = useState(chartNearSea);
+  return seaOcean(nearSeaIndex(nearPlus1));
+}
+
+export function logLocationText(): String {
+  const atSea: Int = useServerState(Varbits.SAILING_TRANSMIT_IS_AT_SEA);
+  const prefix: String = atSea === 0 ? 'Nearest Sea:' : 'Current Sea:';
+  const near: Int = nearSeaIndex(useServerState(Varbits.SAILING_TRANSMIT_NEARBY_SEA_PLUS1));
+  if (near === -1) {
+    return `<col=b2b2b2>${prefix} Unknown`;
+  }
+  const line: String = `<col=f9f9f9>${prefix} ${seaName(near)}`;
+  const ocean: Int = seaOcean(near);
+  if (ocean !== -1) {
+    return `<col=f9f9f9>${line} (${seaName(ocean)})`;
+  }
+  return line;
+}
+
+export function oceanEntryCount(): Int {
+  const count: Int = SailingSeas.length;
+  let at: Int = 0;
+  let entries: Int = 2;
+  while (at < count) {
+    const row = SailingSeas.at(at);
+    if (row !== null) {
+      if (row.ocean === -1) {
+        entries = entries + 1;
+      }
+    }
+    at = at + 1;
+  }
+  return entries;
+}
+
+export function seaListed(index: Int): Boolean {
+  const ocean: Int = seaOcean(index);
+  if (ocean === -1) {
+    return false;
+  }
+  const filter: Int = oceanFilterEffective();
+  return filter === -1 || filter === seaUid(ocean);
+}
+
+export function seaEntryCount(): Int {
+  const count: Int = SailingSeas.length;
+  let at: Int = 0;
+  let entries: Int = 2;
+  while (at < count) {
+    if (seaListed(at)) {
+      entries = entries + 1;
+    }
+    at = at + 1;
+  }
+  return entries;
+}
+
+export function seaFilterLabel(value: Int): String {
+  if (value === -2) {
+    return 'Nearest';
+  }
+  if (value === -1) {
+    return 'All';
+  }
+  return seaName(seaIndexByUid(value));
+}

@@ -1,0 +1,521 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { VoteAnswerRow, VoteTransmit } from './vote.component';
+import {
+  VOTE_SKIP_ROW_LABEL,
+  VoteMetric,
+  voteBlobLabel,
+  voteRankDragX,
+  voteRankDragY,
+  voteRankDragging,
+  voteRankDrawSlot,
+  voteRankFrom,
+  voteRankHoverQuestion,
+  voteRankHoverSlot,
+  voteRankOrderShifted,
+  voteRankQuestion,
+  voteRankSend,
+  voteRankShift,
+  voteRankTargetSlot,
+  voteRankTo,
+  voteRowHeight,
+} from './vote.state';
+
+const VOTE_RANK_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+] as const;
+
+const VoteRankMetric = {
+  LABEL_X: 17,
+  LABEL_FILL: 70,
+  LINE_H: 24,
+  GRIP_X: 4,
+  GRIP_W: 7,
+  GRIP_H: 11,
+  ARROW: 16,
+  HIT: 24,
+  UP_RIGHT: 28,
+  UP_HIT_RIGHT: 24,
+  DOWN_RIGHT: 4,
+  ARROW_Y: 4,
+  FLASH_CYCLES: 25,
+  DRAG_ZONE: 5,
+  DRAG_TIME: 5,
+} as const;
+
+const VoteRankAlpha = {
+  WASH_ODD: 220,
+  WASH_EVEN: 170,
+  WASH_HOVER: 120,
+  ARROW_OFF: 180,
+  ARROW_ON: 0,
+  GRIP: 0,
+  GHOST_GRIP: 100,
+  GHOST_WASH: 170,
+  GHOST_BACK: 0,
+  HIT_REST: 255,
+  HIT_FLASH: 220,
+} as const;
+
+const VoteRankColour = {
+  WASH: 0x726451,
+  LABEL: 0xff981f,
+  LABEL_LOCKED: 0xc0c0c0,
+  LABEL_DISABLED: 0x808080,
+  LABEL_HOVER: 0xffffff,
+  HIT: 0xffffff,
+} as const;
+
+const VoteRankFlash = { NONE: 0, UP: 1, DOWN: 2 } as const;
+
+function voteRankArrowAlpha(slot: Int, neighbour: Int, rows: Int, mask: Int, enabled: Boolean): Int {
+  if (CS2.testbit(mask, slot)) {
+    return VoteRankAlpha.ARROW_OFF;
+  }
+  if (neighbour >= 0 && neighbour < rows && CS2.testbit(mask, neighbour)) {
+    return VoteRankAlpha.ARROW_OFF;
+  }
+  if (enabled) {
+    return VoteRankAlpha.ARROW_ON;
+  }
+  return VoteRankAlpha.ARROW_OFF;
+}
+
+interface VoteRankRowProps {
+  question: Int;
+  slot: Int;
+  label: String;
+  blob: String;
+  rows: Int;
+  mask: Int;
+  enabled: Boolean;
+  votable: Boolean;
+  live: Boolean;
+  from: Int;
+  to: Int;
+}
+
+function VoteRankRow({
+  question,
+  slot,
+  label,
+  blob,
+  rows,
+  mask,
+  enabled,
+  votable,
+  live,
+  from,
+  to,
+}: VoteRankRowProps): Component {
+  const row = useRef();
+  const [hoverQuestion, setHoverQuestion] = useState(voteRankHoverQuestion);
+  const [hoverSlot, setHoverSlot] = useState(voteRankHoverSlot);
+  const [flashUntil, setFlashUntil] = useState(-1);
+  const [flashArrow, setFlashArrow] = useState(VoteRankFlash.NONE);
+
+  const flashing: Boolean = flashUntil !== -1;
+
+  useInterval(
+    flashing
+      ? () => {
+          if (clientClock() >= flashUntil) {
+            setFlashUntil(-1);
+            setFlashArrow(VoteRankFlash.NONE);
+          }
+        }
+      : undefined,
+    row,
+  );
+
+  const locked: Boolean = CS2.testbit(mask, slot);
+  const hovered: Boolean = hoverQuestion === question && hoverSlot === slot;
+  const drawn: Int = voteRankDrawSlot(slot, from, to);
+  const startY: Int = slot * VoteMetric.RANK_ROW_H;
+
+  const wash: Int = live
+    ? VoteRankAlpha.WASH_ODD
+    : (slot + 1) % 2 === 0
+      ? VoteRankAlpha.WASH_ODD
+      : VoteRankAlpha.WASH_EVEN;
+
+  const painted: Int = !enabled
+    ? VoteRankColour.LABEL_DISABLED
+    : locked
+      ? VoteRankColour.LABEL_LOCKED
+      : VoteRankColour.LABEL;
+
+  const subject: String = `<col=ff9040>${label}</col>`;
+
+  return (
+    <layer
+      ref={row}
+      x="center"
+      y={drawn * VoteMetric.RANK_ROW_H}
+      w="fill"
+      h={VoteMetric.RANK_ROW_H}
+      hide={live && slot === from}
+    >
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={VoteRankColour.WASH}
+        fill
+        transparency={wash}
+        hover={{ transparency: locked || live ? wash : VoteRankAlpha.WASH_HOVER }}
+      />
+
+      <text
+        x={VoteRankMetric.LABEL_X}
+        y="center"
+        w={{ fill: VoteRankMetric.LABEL_FILL }}
+        h="fill"
+        text={`${slot + 1}. ${label}`}
+        font={Fonts.P12_FULL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={VoteRankMetric.LINE_H}
+        color={hovered ? VoteRankColour.LABEL_HOVER : painted}
+      />
+
+      {!locked && (
+        <sprite
+          x={VoteRankMetric.GRIP_X}
+          y="center"
+          w={VoteRankMetric.GRIP_W}
+          h={VoteRankMetric.GRIP_H}
+          sprite={Sprites.DRAG_HANDLE}
+          transparency={VoteRankAlpha.GRIP}
+        />
+      )}
+
+      {slot > 0 && (
+        <sprite
+          x={{ right: VoteRankMetric.UP_RIGHT }}
+          y={VoteRankMetric.ARROW_Y}
+          w={VoteRankMetric.ARROW}
+          h={VoteRankMetric.ARROW}
+          sprite={Sprites.DIRECTIONAL_LOCK_ARROWS_0}
+          transparency={voteRankArrowAlpha(slot, slot - 1, rows, mask, enabled)}
+        />
+      )}
+      {slot > 0 && (
+        <sprite
+          x={{ right: VoteRankMetric.UP_HIT_RIGHT }}
+          y={0}
+          w={VoteRankMetric.HIT}
+          h={VoteRankMetric.HIT}
+          transparency={flashing && flashArrow === VoteRankFlash.UP ? VoteRankAlpha.HIT_FLASH : VoteRankAlpha.HIT_REST}
+          options={['Move up']}
+          optionSubject={subject}
+          onMouseRepeat={
+            enabled
+              ? () => {
+                  setHoverQuestion(question);
+                  setHoverSlot(slot);
+                }
+              : undefined
+          }
+          onMouseLeave={
+            enabled
+              ? () => {
+                  setHoverQuestion(-1);
+                  setHoverSlot(-1);
+                }
+              : undefined
+          }
+          onOptionSelect={(event) => {
+            if (!votable) {
+              playSound(Sounds.PILLORY_WRONG);
+              return;
+            }
+            if (!enabled) {
+              voteRankSend(question, voteRankOrderShifted(blob, 0, -1, -1), event.component, event.subId);
+              return;
+            }
+            if (CS2.testbit(mask, slot) || CS2.testbit(mask, slot - 1)) {
+              playSound(Sounds.PILLORY_WRONG);
+              return;
+            }
+            playSound(Sounds.INTERFACE_SELECT1);
+            setFlashArrow(VoteRankFlash.UP);
+            setFlashUntil(clientClock() + VoteRankMetric.FLASH_CYCLES);
+            voteRankSend(question, voteRankOrderShifted(blob, rows, slot, slot - 1), event.component, event.subId);
+          }}
+        />
+      )}
+
+      {slot < rows - 1 && (
+        <sprite
+          x={{ right: VoteRankMetric.DOWN_RIGHT }}
+          y={VoteRankMetric.ARROW_Y}
+          w={VoteRankMetric.ARROW}
+          h={VoteRankMetric.ARROW}
+          sprite={Sprites.DIRECTIONAL_LOCK_ARROWS_2}
+          transparency={voteRankArrowAlpha(slot, slot + 1, rows, mask, enabled)}
+        />
+      )}
+      {slot < rows - 1 && (
+        <sprite
+          x="right"
+          y={0}
+          w={VoteRankMetric.HIT}
+          h={VoteRankMetric.HIT}
+          transparency={
+            flashing && flashArrow === VoteRankFlash.DOWN ? VoteRankAlpha.HIT_FLASH : VoteRankAlpha.HIT_REST
+          }
+          options={['Move down']}
+          optionSubject={subject}
+          onMouseRepeat={
+            enabled
+              ? () => {
+                  setHoverQuestion(question);
+                  setHoverSlot(slot);
+                }
+              : undefined
+          }
+          onMouseLeave={
+            enabled
+              ? () => {
+                  setHoverQuestion(-1);
+                  setHoverSlot(-1);
+                }
+              : undefined
+          }
+          onOptionSelect={(event) => {
+            if (!votable) {
+              playSound(Sounds.PILLORY_WRONG);
+              return;
+            }
+            if (!enabled) {
+              voteRankSend(question, voteRankOrderShifted(blob, 0, -1, -1), event.component, event.subId);
+              return;
+            }
+            if (CS2.testbit(mask, slot) || CS2.testbit(mask, slot + 1)) {
+              playSound(Sounds.PILLORY_WRONG);
+              return;
+            }
+            playSound(Sounds.INTERFACE_SELECT1);
+            setFlashArrow(VoteRankFlash.DOWN);
+            setFlashUntil(clientClock() + VoteRankMetric.FLASH_CYCLES);
+            voteRankSend(question, voteRankOrderShifted(blob, rows, slot, slot + 1), event.component, event.subId);
+          }}
+        />
+      )}
+    </layer>
+  );
+}
+
+interface VoteRankDragProps {
+  question: Int;
+  slot: Int;
+  blob: String;
+  rows: Int;
+  mask: Int;
+  enabled: Boolean;
+  votable: Boolean;
+  container: Ref;
+}
+
+function VoteRankDragRect({
+  question,
+  slot,
+  blob,
+  rows,
+  mask,
+  enabled,
+  votable,
+  container,
+}: VoteRankDragProps): Component {
+  const [, setDragQuestion] = useState(voteRankQuestion);
+  const [, setDragFrom] = useState(voteRankFrom);
+  const [, setDragTo] = useState(voteRankTo);
+  const [, setDragging] = useState(voteRankDragging);
+  const [, setDragX] = useState(voteRankDragX);
+  const [, setDragY] = useState(voteRankDragY);
+
+  const startY: Int = slot * VoteMetric.RANK_ROW_H;
+
+  return (
+    <rect
+      x={0}
+      y={startY}
+      w="fill"
+      h={VoteMetric.RANK_ROW_H}
+      color={VoteRankColour.HIT}
+      fill
+      transparency={VoteRankAlpha.HIT_REST}
+      draggable={container}
+      dragMoves
+      dragDeadZone={VoteRankMetric.DRAG_ZONE}
+      dragDeadTime={VoteRankMetric.DRAG_TIME}
+      onDrag={(event) => {
+        setDragQuestion(question);
+        setDragFrom(slot);
+        setDragTo(voteRankTargetSlot(slot, voteRankShift(event.mouseY, startY), rows, mask));
+        setDragging(1);
+        setDragX(event.mouseX);
+        setDragY(event.mouseY);
+      }}
+      onDragComplete={(event) => {
+        let target: Int = slot;
+        if (votable) {
+          if (enabled) {
+            target = voteRankTargetSlot(slot, voteRankShift(event.mouseY, startY), rows, mask);
+          } else {
+            playSound(Sounds.INTERFACE_SELECT1);
+          }
+        }
+        setDragQuestion(question);
+        setDragFrom(slot);
+        setDragTo(target);
+        setDragging(0);
+        voteRankSend(question, voteRankOrderShifted(blob, rows, slot, target), event.component, event.subId);
+      }}
+    />
+  );
+}
+
+interface VoteRankProps {
+  question: Int;
+  blob: String;
+  count: Int;
+  mask: Int;
+  skipped: Boolean;
+  readOnly: Boolean;
+  allowSkipRow: Boolean;
+  width: Int;
+  votable: Boolean;
+}
+
+export function VoteRank({
+  question,
+  blob,
+  count,
+  mask,
+  skipped,
+  readOnly,
+  allowSkipRow,
+  width,
+  votable,
+}: VoteRankProps): Component {
+  const rank = useRef();
+  const [dragQuestion] = useState(voteRankQuestion);
+  const [dragFrom] = useState(voteRankFrom);
+  const [dragTo] = useState(voteRankTo);
+  const [dragging] = useState(voteRankDragging);
+  const [dragX] = useState(voteRankDragX);
+  const [dragY] = useState(voteRankDragY);
+
+  const mine: Boolean = dragQuestion === question;
+  const from: Int = mine ? dragFrom : -1;
+  const to: Int = mine ? dragTo : -1;
+  const live: Boolean = mine && dragging === 1;
+  const enabled: Boolean = !readOnly && !skipped;
+
+  const ghost: String = from >= 0 && from < count ? `${from + 1}. ${voteBlobLabel(blob, from)}` : '';
+
+  return (
+    <layer ref={rank} x={0} y={0} w="fill" h="fill">
+      {VOTE_RANK_SLOTS.map(
+        (_, k) =>
+          k < count && (
+            <VoteRankRow
+              question={question}
+              slot={k}
+              label={voteBlobLabel(blob, k)}
+              blob={blob}
+              rows={count}
+              mask={mask}
+              enabled={enabled}
+              votable={votable}
+              live={live}
+              from={from}
+              to={to}
+            />
+          ),
+      )}
+
+      {VOTE_RANK_SLOTS.map(
+        (_, k) =>
+          k < count &&
+          !CS2.testbit(mask, k) && (
+            <VoteRankDragRect
+              question={question}
+              slot={k}
+              blob={blob}
+              rows={count}
+              mask={mask}
+              enabled={enabled}
+              votable={votable}
+              container={rank}
+            />
+          ),
+      )}
+
+      <layer x={live ? dragX : 0} y={live ? dragY : 0} w="fill" h={VoteMetric.RANK_ROW_H} hide={!live}>
+        <sprite
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          sprite={Sprites.TRADEBACKING}
+          tiling
+          transparency={VoteRankAlpha.GHOST_BACK}
+        />
+        <rect x={0} y={0} w="fill" h="fill" color={VoteRankColour.WASH} fill transparency={VoteRankAlpha.GHOST_WASH} />
+        <text
+          x={VoteRankMetric.LABEL_X}
+          y="center"
+          w={{ fill: VoteRankMetric.LABEL_FILL }}
+          h="fill"
+          text={ghost}
+          font={Fonts.P12_FULL}
+          shadow
+          align="left"
+          valign="middle"
+          lineHeight={VoteRankMetric.LINE_H}
+          color={VoteRankColour.LABEL}
+        />
+        <sprite
+          x={VoteRankMetric.GRIP_X}
+          y="center"
+          w={VoteRankMetric.GRIP_W}
+          h={VoteRankMetric.GRIP_H}
+          sprite={Sprites.DRAG_HANDLE}
+          transparency={VoteRankAlpha.GHOST_GRIP}
+        />
+      </layer>
+
+      {allowSkipRow && (
+        <layer
+          x={0}
+          y={count * VoteMetric.RANK_ROW_H + VoteMetric.ROW_GAP}
+          w="fill"
+          h={voteRowHeight(VOTE_SKIP_ROW_LABEL, width)}
+        >
+          <VoteAnswerRow
+            label={VOTE_SKIP_ROW_LABEL}
+            answer={-1}
+            question={question}
+            y={0}
+            h={voteRowHeight(VOTE_SKIP_ROW_LABEL, width)}
+            enabled={!readOnly}
+            multi
+            selected={skipped}
+            votable={votable}
+            transmit={VoteTransmit.RANK_SKIP}
+            rankBlob={blob}
+            rankRows={count}
+          />
+        </layer>
+      )}
+    </layer>
+  );
+}

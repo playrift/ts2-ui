@@ -1,0 +1,899 @@
+import { CS2, intArray, useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { keyboardHide } from '../0162_chatbox/meslayer';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { itemName } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { settingsSearchString } from '../lib/game/varcs';
+import { collectionItemClick } from './collection-log.component';
+import {
+  Build,
+  CollectionColor,
+  CollectionFonts,
+  CollectionScrollbar,
+  CollectionSprites,
+  Copy,
+  Key,
+  KeyRepeat,
+  KeypressGate,
+  Layout,
+  keyARef,
+  keyBRef,
+  keyBackspaceRef,
+  keyCRef,
+  keyDRef,
+  keyERef,
+  keyFRef,
+  keyGRef,
+  keyHRef,
+  keyIRef,
+  keyJRef,
+  keyKRef,
+  keyLRef,
+  keyMRef,
+  keyNRef,
+  keyORef,
+  keyPRef,
+  keyQRef,
+  keyRRef,
+  keySRef,
+  keySpaceRef,
+  keyTRef,
+  keyTabRef,
+  keyURef,
+  keyVRef,
+  keyWRef,
+  keyXRef,
+  keyYRef,
+  keyZRef,
+} from './collection.constants';
+import { CollectionCategories, CollectionItems } from './collection.data';
+import {
+  collectionSearchOpen,
+  collectionSearchQuery,
+  collectionTab,
+  populateSearchResults,
+  searchButtonPress,
+  searchPickCategory,
+  searchbarOp,
+  settingsShowKeyboard,
+  toggleSearch,
+} from './collection.state';
+
+export function SearchToggle(): Component {
+  const [open] = useState(collectionSearchOpen);
+  const [pressed, setPressed] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[open === 1 ? Copy.BACK : Copy.SEARCH]}
+      onOptionSelect={() => toggleSearch(0)}
+      onMouseEnter={mobile ? undefined : () => setPressed(1)}
+      onMouseLeave={mobile ? undefined : () => setPressed(0)}
+    >
+      {pressed === 1 ? (
+        <StoneButtonPressedFilled>
+          <SearchToggleFace open={open === 1} />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <SearchToggleFace open={open === 1} />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}
+
+function SearchToggleFace({ open }: { open: Boolean }): Component {
+  if (open) {
+    return (
+      <text
+        x="center"
+        y={{ center: Build.SEARCH_LABEL_DY }}
+        w={{ fill: Build.SEARCH_LABEL_INSET_W }}
+        h="fill"
+        text={Copy.BACK_LABEL}
+        font={CollectionFonts.SMALL}
+        align="center"
+        valign="middle"
+      />
+    );
+  }
+  return (
+    <>
+      <sprite
+        x={Build.SEARCH_ICON_X}
+        y="center"
+        w={Build.SEARCH_ICON_W}
+        h={Build.SEARCH_ICON_H}
+        sprite={CollectionSprites.SEARCH_ICON}
+      />
+      <text
+        x={Build.SEARCH_LABEL_X}
+        y={{ center: Build.SEARCH_LABEL_DY }}
+        w={{ fill: Build.SEARCH_LABEL_INSET_W }}
+        h="fill"
+        text={Copy.SEARCH_LABEL}
+        font={CollectionFonts.SMALL}
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function SearchToggleClickzone(): Component {
+  const [open] = useState(collectionSearchOpen);
+  if (!onMobile()) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill" options={[open === 1 ? Copy.BACK : Copy.SEARCH]} onOptionSelect={() => toggleSearch(0)} />
+  );
+}
+
+export function MobileSearchButton(): Component {
+  const [open] = useState(collectionSearchOpen);
+  const [tab] = useState(collectionTab);
+  if (!onMobile()) {
+    return null;
+  }
+  if (tab !== -1 && open === 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill" options={[Copy.SEARCH]} onOptionSelect={() => searchButtonPress()}>
+      <StoneButtonFilled>
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={Copy.SEARCH_LABEL}
+          font={CollectionFonts.SMALL}
+          align="center"
+          valign="middle"
+        />
+      </StoneButtonFilled>
+    </layer>
+  );
+}
+
+export function SearchContent(): Component {
+  const [open] = useState(collectionSearchOpen);
+  if (open === 0) {
+    return null;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <SearchPage />
+    </layer>
+  );
+}
+
+function SearchPage(): Component {
+  const mobile: Boolean = onMobile();
+  const box = useUniverse();
+  const pane = useRef();
+  const [committed] = useState(collectionSearchQuery);
+  const log = useInventory(Inventories.COLLECTION_TRANSMIT);
+  const female: Boolean = useServerState(Varbits.COLLECTION_PLAYER_BODYTYPE) === 1;
+  const [message, eggItem, eggCount] = searchEasterEgg();
+  const query: String = committed.toLowerCase();
+
+  const paneH: Int = box.height - Layout.RESULTS_INSET_H;
+  const paneW: Int = box.width - Layout.SEARCH_INSET_W;
+  const columns: Int = (paneW - Build.RESULT_X - Build.CELL_STRIDE) / Build.CELL_STRIDE + 1;
+
+  const nameMatch = intArray(CATEGORY_SLOTS);
+  const matches = intArray(CATEGORY_SLOTS);
+  let c: Int = 0;
+  while (c < CollectionCategories.length) {
+    const cat = CollectionCategories.get(c);
+    if (cat !== null) {
+      if (cat.name.toLowerCase().indexOf(query) !== -1) {
+        nameMatch[c] = 1;
+      }
+    }
+    c = c + 1;
+  }
+  let total: Int = 0;
+  let i: Int = 0;
+  while (i < CollectionItems.length) {
+    const row = CollectionItems.at(i);
+    if (row !== null) {
+      if (nameMatch[row.category] === 1 || itemName(row.item).toLowerCase().indexOf(query) !== -1) {
+        matches[row.category] = matches[row.category] + 1;
+        total = total + 1;
+      }
+    }
+    i = i + 1;
+  }
+
+  const before = intArray(CATEGORY_SLOTS);
+  const plateY = intArray(CATEGORY_SLOTS);
+  const plateH = intArray(CATEGORY_SLOTS);
+  const headingY = intArray(CATEGORY_SLOTS);
+  const rowY = intArray(CATEGORY_SLOTS);
+  let y: Int = 0;
+  let seen: Int = 0;
+  c = 0;
+  while (c < CollectionCategories.length) {
+    before[c] = seen;
+    const n: Int = matches[c];
+    if (n > 0) {
+      if (y !== 0) {
+        y = y + Build.RESULT_BLOCK_GAP;
+        plateY[c] = y;
+        y = y + Build.RESULT_BLOCK_PAD;
+      } else {
+        plateY[c] = 0;
+      }
+      if (y === 0) {
+        y = Build.RESULT_X;
+      }
+      headingY[c] = y;
+      y = y + Build.RESULT_HEADING_ADVANCE;
+      rowY[c] = y;
+      y = y + ((n - 1) / columns) * Build.CELL_ROW;
+      plateH[c] = y - plateY[c] + Build.RESULT_BLOCK_GAP;
+      seen = seen + n;
+    }
+    c = c + 1;
+  }
+
+  const extent: Int = searchExtent(message, eggItem, total, y);
+  const plates: Boolean = message.length === 0 && eggItem === -1 && total > 0 && total < Build.RESULT_CAP;
+
+  return (
+    <>
+      <layer
+        x={0}
+        y={0}
+        w={{ fill: mobile ? Layout.SEARCHBAR_INSET_W_MOBILE : Layout.SEARCHBAR_INSET_W }}
+        h={Layout.SEARCHBAR_H}
+      >
+        <SearchBar mobile={mobile} />
+      </layer>
+      <layer x={0} y={0} w={{ fill: Layout.SEARCH_INSET_W }} h="fill">
+        <layer
+          ref={pane}
+          x={0}
+          y="bottom"
+          w="fill"
+          h={{ fill: Layout.RESULTS_INSET_H }}
+          scrollHeight={extent > paneH ? extent : 0}
+        >
+          <layer x={0} y="bottom" w="fill" h="fill">
+            {CollectionCategories.filter((cat, key) => plates && matches[key] > 0).map((cat, key, index) => (
+              <SearchPlate
+                tab={cat.tab}
+                category={key}
+                name={cat.name}
+                y={plateY[key]}
+                h={plateH[key]}
+                even={index % 2 === 0}
+                mobile={mobile}
+              />
+            ))}
+          </layer>
+          <layer x={0} y="bottom" w="fill" h="fill">
+            {message.length !== 0 ? (
+              <SearchNotice text={message} />
+            ) : eggItem !== -1 ? (
+              <SearchCell
+                item={eggItem}
+                female={-1}
+                useFemale={false}
+                count={eggCount}
+                known
+                x={Build.RESULT_X}
+                y={Build.EGG_Y}
+              />
+            ) : total === 0 ? (
+              <SearchNotice text={Copy.NO_MATCH} />
+            ) : total >= Build.RESULT_CAP ? (
+              <SearchNotice text={Copy.TOO_MANY} />
+            ) : null}
+            {CollectionItems.filter(
+              (row, index) =>
+                plates && (nameMatch[row.category] === 1 || itemName(row.item).toLowerCase().indexOf(query) !== -1),
+            ).map((row, index) => (
+              <SearchMatch
+                item={row.item}
+                female={row.female ?? -1}
+                useFemale={female}
+                count={log.total(row.item)}
+                category={row.category}
+                ordinal={index - before[row.category]}
+                columns={columns}
+                headingY={headingY[row.category]}
+                rowY={rowY[row.category]}
+              />
+            ))}
+          </layer>
+        </layer>
+        <layer x={0} y="bottom" w="fill" h={{ fill: Layout.RESULTS_INSET_H }}>
+          <ThinBoxOutline />
+        </layer>
+      </layer>
+      <layer right={0} y="bottom" w={Layout.SCROLLBAR_W} h={{ fill: Layout.SEARCH_SCROLLBAR_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={CollectionScrollbar.TRACK}
+          capTopSprite={CollectionScrollbar.CAP_TOP}
+          thumbSprite={CollectionScrollbar.THUMB}
+          capBottomSprite={CollectionScrollbar.CAP_BOTTOM}
+          arrowUp={CollectionScrollbar.ARROW_UP}
+          arrowDown={CollectionScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SearchBar({ mobile }: { mobile: Boolean }): Component {
+  const searching: Boolean = useServerState(Varbits.FLOATER_IS_SEARCHING) === 1;
+  const [query] = useState(settingsSearchString);
+  if (searching) {
+    searchKeyboardListener();
+  }
+
+  return (
+    <>
+      <SearchFieldImage
+        mode={searching ? (mobile ? FieldMode.KEYBOARD : FieldMode.TYPING) : FieldMode.IDLE}
+        mobile={mobile}
+      />
+      {searching ? (
+        <text
+          x={Layout.FIELD_TEXT_X}
+          y="center"
+          w={{ fill: Layout.FIELD_TEXT_INSET_W }}
+          h={{ fill: Layout.FIELD_TEXT_INSET_H }}
+          text={query.concat(Copy.CARET_TAIL)}
+          font={CollectionFonts.BODY}
+          color={CollectionColor.ORANGE}
+          shadow
+          align="left"
+          valign="middle"
+          onKey={(event) => searchbarKeypress(event.keyCode, event.keyChar)}
+        />
+      ) : (
+        <text
+          x={Layout.FIELD_TEXT_X}
+          y="center"
+          w={{ fill: Layout.FIELD_TEXT_INSET_W }}
+          h={{ fill: Layout.FIELD_TEXT_INSET_H }}
+          text={Copy.CARET}
+          font={CollectionFonts.BODY}
+          color={CollectionColor.ORANGE}
+          shadow
+          align="left"
+          valign="middle"
+          onMouseEnter={(event) => searchbarMouseover(event.self)}
+          onMouseLeave={(event) => searchbarMouseleave(event.self)}
+        />
+      )}
+      <text
+        x={0}
+        y={0}
+        w={Layout.SEARCH_TITLE_W}
+        h="fill"
+        text={Copy.SEARCH_TITLE}
+        font={CollectionFonts.BODY}
+        color={CollectionColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+enum FieldMode {
+  IDLE = 0,
+  TYPING = 1,
+  KEYBOARD = 2,
+}
+
+function SearchFieldImage({ mode, mobile }: { mode: FieldMode; mobile: Boolean }): Component {
+  const inset: Int = mobile ? Layout.FIELD_INSET_H_MOBILE : Layout.FIELD_INSET_H;
+  if (mode === FieldMode.KEYBOARD) {
+    return (
+      <layer
+        x={Layout.FIELD_X}
+        y="center"
+        w={{ fill: Layout.FIELD_INSET_W }}
+        h={{ fill: inset }}
+        options={[Copy.SHOW_KEYBOARD]}
+        onOptionSelect={() => settingsShowKeyboard()}
+      >
+        <FieldSlices />
+      </layer>
+    );
+  }
+  if (mode === FieldMode.TYPING) {
+    return (
+      <layer x={Layout.FIELD_X} y="center" w={{ fill: Layout.FIELD_INSET_W }} h={{ fill: inset }} options={['']}>
+        <FieldSlices />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      x={Layout.FIELD_X}
+      y="center"
+      w={{ fill: Layout.FIELD_INSET_W }}
+      h={{ fill: inset }}
+      options={[Copy.SEARCH]}
+      onOptionSelect={() => searchbarOp()}
+    >
+      <FieldSlices />
+    </layer>
+  );
+}
+
+function FieldSlices(): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.FIELD_MID_INSET }}
+        h="fill"
+        sprite={CollectionSprites.FIELD_MID}
+      />
+      <sprite x={0} y="center" w={Layout.FIELD_CAP_W} h="fill" sprite={CollectionSprites.FIELD_LEFT} />
+      <sprite x="right" y="center" w={Layout.FIELD_CAP_W} h="fill" sprite={CollectionSprites.FIELD_RIGHT} />
+    </>
+  );
+}
+
+function searchbarMouseover(field: ComponentId): void {
+  field.color = CollectionColor.WHITE;
+}
+
+function searchbarMouseleave(field: ComponentId): void {
+  field.color = CollectionColor.ORANGE;
+}
+
+function searchbarKeypress(keyCode: Int, keyChar: Char): void {
+  if (dialogueMayAdvance(KeypressGate.NO_TOPLEVEL, KeypressGate.THIS_PANEL) === false) {
+    return;
+  }
+  if (useServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD) === 0) {
+    return;
+  }
+  if (useServerState(Varbits.FLOATER_IS_SEARCHING) === 0) {
+    return;
+  }
+  const [query, setQuery] = useState(settingsSearchString);
+  if (keyCode === Key.DELETE) {
+    setQuery('');
+    populateSearchResults(1);
+    return;
+  }
+  if (keyCode === Key.RETURN) {
+    if (onMobile()) {
+      keyboardHide();
+    }
+    populateSearchResults(1);
+    return;
+  }
+  if (keyCode === Key.BACKSPACE) {
+    if (query.length > 0) {
+      setQuery(query.substring(0, query.length - 1));
+    }
+    populateSearchResults(0);
+    return;
+  }
+  if (CS2.char_printable_is(keyChar) === false && CS2.string_indexof_char(' -/,', keyChar) === -1) {
+    return;
+  }
+  const next: String = CS2.append_char(query, keyChar);
+  if (next.length > Build.QUERY_LIMIT) {
+    return;
+  }
+  setQuery(next);
+  populateSearchResults(0);
+}
+
+function searchKeyboardListener(): void {
+  CS2.if_op_key_set(1, Key.A, 0, keyARef);
+  CS2.if_op_key_set(1, Key.B, 0, keyBRef);
+  CS2.if_op_key_set(1, Key.C, 0, keyCRef);
+  CS2.if_op_key_set(1, Key.D, 0, keyDRef);
+  CS2.if_op_key_set(1, Key.E, 0, keyERef);
+  CS2.if_op_key_set(1, Key.F, 0, keyFRef);
+  CS2.if_op_key_set(1, Key.G, 0, keyGRef);
+  CS2.if_op_key_set(1, Key.H, 0, keyHRef);
+  CS2.if_op_key_set(1, Key.I, 0, keyIRef);
+  CS2.if_op_key_set(1, Key.J, 0, keyJRef);
+  CS2.if_op_key_set(1, Key.K, 0, keyKRef);
+  CS2.if_op_key_set(1, Key.L, 0, keyLRef);
+  CS2.if_op_key_set(1, Key.M, 0, keyMRef);
+  CS2.if_op_key_set(1, Key.N, 0, keyNRef);
+  CS2.if_op_key_set(1, Key.O, 0, keyORef);
+  CS2.if_op_key_set(1, Key.P, 0, keyPRef);
+  CS2.if_op_key_set(1, Key.Q, 0, keyQRef);
+  CS2.if_op_key_set(1, Key.R, 0, keyRRef);
+  CS2.if_op_key_set(1, Key.S, 0, keySRef);
+  CS2.if_op_key_set(1, Key.T, 0, keyTRef);
+  CS2.if_op_key_set(1, Key.U, 0, keyURef);
+  CS2.if_op_key_set(1, Key.V, 0, keyVRef);
+  CS2.if_op_key_set(1, Key.W, 0, keyWRef);
+  CS2.if_op_key_set(1, Key.X, 0, keyXRef);
+  CS2.if_op_key_set(1, Key.Y, 0, keyYRef);
+  CS2.if_op_key_set(1, Key.Z, 0, keyZRef);
+  CS2.if_op_key_set(1, Key.SPACE, 0, keySpaceRef);
+  CS2.if_op_key_set(1, Key.BACKSPACE, 0, keyBackspaceRef);
+  CS2.if_op_key_rate_set(1, KeyRepeat.REPEAT, KeyRepeat.INITIAL, keySpaceRef);
+  CS2.if_op_key_rate_set(1, KeyRepeat.REPEAT, KeyRepeat.INITIAL, keyBackspaceRef);
+}
+
+export function bindSearchToggleKey(): void {
+  CS2.if_op_key_set(1, Key.TAB, 0, keyTabRef);
+}
+
+const CATEGORY_SLOTS = 122;
+
+function searchExtent(message: String, eggItem: Item, total: Int, lastRowY: Int): Int {
+  if (message.length !== 0) {
+    return Build.RESULT_X + Build.RESULT_HEADING_ADVANCE + Build.RESULT_EXTENT_TAIL;
+  }
+  if (eggItem !== -1) {
+    return Build.EGG_Y + Build.RESULT_EXTENT_TAIL;
+  }
+  if (total === 0 || total >= Build.RESULT_CAP) {
+    return Build.RESULT_X + Build.RESULT_HEADING_ADVANCE + Build.RESULT_EXTENT_TAIL;
+  }
+  return lastRowY + Build.RESULT_EXTENT_TAIL;
+}
+
+function SearchNotice({ text }: { text: String }): Component {
+  return (
+    <text
+      x={0}
+      y={Build.RESULT_X}
+      w="fill"
+      h={Build.RESULT_HEADING_H}
+      text={text}
+      font={CollectionFonts.BODY}
+      color={CollectionColor.ORANGE}
+      shadow
+      align="center"
+      valign="top"
+    />
+  );
+}
+
+function SearchPlate({
+  tab,
+  category,
+  name,
+  y,
+  h,
+  even,
+  mobile,
+}: {
+  tab: Int;
+  category: Int;
+  name: String;
+  y: Int;
+  h: Int;
+  even: Boolean;
+  mobile: Boolean;
+}): Component {
+  const rest: Int = even ? Build.ROW_EVEN : Build.ROW_ODD;
+  return (
+    <rect
+      x="center"
+      y={y}
+      w="fill"
+      h={h}
+      color={CollectionColor.WHITE}
+      fill
+      transparency={rest}
+      options={[Copy.CHECK]}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onOptionSelect={() => searchPickCategory(tab, category)}
+      onMouseEnter={mobile ? undefined : (event) => ccSetTrans(event.self, rest - Build.ROW_HOVER_LIFT)}
+      onMouseLeave={mobile ? undefined : (event) => ccSetTrans(event.self, rest)}
+    />
+  );
+}
+
+function SearchMatch({
+  item,
+  female,
+  useFemale,
+  count,
+  category,
+  ordinal,
+  columns,
+  headingY,
+  rowY,
+}: {
+  item: Item;
+  female: Item;
+  useFemale: Boolean;
+  count: Int;
+  category: Int;
+  ordinal: Int;
+  columns: Int;
+  headingY: Int;
+  rowY: Int;
+}): Component {
+  const cat = CollectionCategories.get(category);
+  if (cat === null) {
+    return null;
+  }
+  return (
+    <>
+      {ordinal === 0 ? (
+        <text
+          x={Build.RESULT_X}
+          y={headingY}
+          w="fill"
+          h={Build.RESULT_HEADING_H}
+          text={cat.name}
+          font={CollectionFonts.BODY}
+          color={CollectionColor.NOTICE}
+          shadow
+          align="left"
+          valign="top"
+        />
+      ) : null}
+      <SearchCell
+        item={item}
+        female={female}
+        useFemale={useFemale}
+        count={count}
+        known={false}
+        x={Build.RESULT_X + (ordinal % columns) * Build.CELL_STRIDE}
+        y={rowY + (ordinal / columns) * Build.CELL_ROW}
+      />
+    </>
+  );
+}
+
+function SearchCell({
+  item,
+  female,
+  useFemale,
+  count,
+  known,
+  x,
+  y,
+}: {
+  item: Item;
+  female: Item;
+  useFemale: Boolean;
+  count: Int;
+  known: Boolean;
+  x: Int;
+  y: Int;
+}): Component {
+  const shown: Item = useFemale && female !== -1 ? female : item;
+  if (known) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Build.CELL_W}
+        h={Build.CELL_H}
+        outline={1}
+        item={shown}
+        itemCount={count}
+        transparency={count > 0 ? 0 : Build.CELL_MISSING}
+        options={[Copy.CHECK]}
+        optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+        onOptionSelect={() => collectionItemClick(shown, count)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Build.CELL_W}
+      h={Build.CELL_H}
+      outline={1}
+      item={shown}
+      itemCount={1}
+      itemCountMode="never"
+      transparency={Build.CELL_MISSING}
+      options={[Copy.CHECK]}
+      optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+      onOptionSelect={() => collectionItemClick(shown, 0)}
+    />
+  );
+}
+
+function searchEasterEgg(): [String, Item, Int] {
+  const [committed] = useState(collectionSearchQuery);
+  const query: String = committed.toLowerCase();
+  const count: Int = useServerState(Varps.COLLECTION_COUNT);
+  const max: Int = useServerState(Varps.COLLECTION_COUNT_MAX);
+  if (query.length === 0 && onMobile()) {
+    return [
+      'To search for an item, type the item or category of items you are looking for<br><br>and tap the search button.',
+      -1,
+      -1,
+    ];
+  }
+  if (query.length === 0) {
+    return [
+      'To search for an item, type the item or category of items you are looking for.<br><br><br>Press TAB to toggle on/off search.<br><br>Press DEL to clear the search field.',
+      -1,
+      -1,
+    ];
+  }
+  if (CS2.compare(query, 'joy') === 0) {
+    return ['', Egg.AGS, 73];
+  }
+  if (CS2.compare(query, 'b0aty') === 0) {
+    return ['', Egg.BERZERKER_RING, 0];
+  }
+  if (CS2.compare(query, 'monkfish') === 0) {
+    return ['Please only search for real items.', -1, -1];
+  }
+  if (CS2.compare(query, 'rng') === 0) {
+    return ['Just get lucky?', -1, -1];
+  }
+  if (CS2.compare(query, 'mmorpg') === 0) {
+    return ['', Egg.ELYSIAN_SIGIL, 0];
+  }
+  if (CS2.compare(query, 'jackrs') === 0) {
+    return ['', Egg.ELYSIAN_SIGIL, 0];
+  }
+  if (CS2.compare(query, 'updog') === 0) {
+    return ["What's updog?", -1, -1];
+  }
+  if (CS2.compare(query, 'settled') === 0 && Random.int(2) === 1) {
+    return ['', Egg.DRAGON_WARHAMMER, 0];
+  }
+  if (CS2.compare(query, 'settled') === 0) {
+    return ['', Egg.RUNITE_CROSSBOW, 0];
+  }
+  if (CS2.compare(query, 'droprate') === 0) {
+    return ["50:50 You either get it or you don't.", -1, -1];
+  }
+  if (CS2.compare(query, 'woox') === 0) {
+    return ['', Egg.INFERNAL_CAPE, 1];
+  }
+  if (CS2.compare(query, 'tedious') === 0) {
+    return [
+      'Theeeeeeeeeeeeeeeeeeeeeeeeeeeeee-<br><br>eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-<br><br>eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-<br><br>Collection log!',
+      -1,
+      -1,
+    ];
+  }
+  if (CS2.compare(query, 'lake') === 0) {
+    return ['', Egg.TWISTED_BOW, 0];
+  }
+  if (CS2.compare(query, 'kacy') === 0) {
+    return ['', Egg.BLOODHOUND, 0];
+  }
+  if (CS2.compare(query, 'dubur') === 0) {
+    return ['', Egg.DRAGON_PICKAXE, 0];
+  }
+  if (CS2.compare(query, 'you not lucky') === 0) {
+    return ['', Egg.JAD_PET, 0];
+  }
+  if (CS2.compare(query, 'synq') === 0) {
+    return ['', Egg.OLMLET, 0];
+  }
+  if (CS2.compare(query, 'operators') === 0) {
+    return ['~~~~~~~~~~ WOOOOOOOOO!!! ~~~~~~~~~~', -1, -1];
+  }
+  if (CS2.compare(query, 'never lucky') === 0) {
+    return [
+      'How to get lucky - Author: Mod Flippy<br><br>1. Close the Collection log.<br><br>2. Obtain the item.',
+      -1,
+      -1,
+    ];
+  }
+  if (CS2.compare(query, 'ricecup') === 0) {
+    return ['', Egg.MOSS_ESSENCE, 0];
+  }
+  if (CS2.compare(query, 'only trails') === 0) {
+    return ['', Egg.MOSS_ESSENCE, 0];
+  }
+  if (CS2.compare(query, 'mr mammal') === 0) {
+    return ['', Egg.PRIMORDIAL_CRYSTAL, 0];
+  }
+  if (CS2.compare(query, 'faux') === 0) {
+    return ['', Egg.PEGASIAN_CRYSTAL, 0];
+  }
+  if (CS2.compare(query, 'storgie') === 0) {
+    return ['', Egg.BABY_MOLE, 0];
+  }
+  if (CS2.compare(query, 'verf') === 0) {
+    return ['', Egg.RAKE, 1];
+  }
+  if (CS2.compare(query, 'solomission') === 0) {
+    return ['', Egg.BLOWPIPE_FANG, 0];
+  }
+  if (CS2.compare(query, 'daisyfletchy') === 0) {
+    return ['', Egg.VOLCANO_TABLET, 100000000];
+  }
+  if (CS2.compare(query, 'totus') === 0) {
+    return ['This is the Collection log, not the Completion log.', -1, -1];
+  }
+  if (CS2.compare(query, 'uwu') === 0) {
+    return ['OwO', -1, -1];
+  }
+  if (CS2.compare(query, 'elf ears') === 0) {
+    return ['Ayiza waz ear.', -1, -1];
+  }
+  if (CS2.compare(query, 'mod flippy') === 0) {
+    return ["Don't forget to do your farm runs! :)", -1, -1];
+  }
+  if (CS2.compare(query, 'jad slippers') === 0) {
+    return ['One day.', -1, -1];
+  }
+  if (CS2.compare(query, 'g4uafs') === 0) {
+    return ['', Egg.ETERNAL_GLORY, 0];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count === max) {
+    return ["Wait, you're not actually supposed to complete the log... JMODS, CODE RED!", -1, -1];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count > 1300) {
+    return [`${stringOf(count)} unique items? Okay, you're nuts.`, -1, -1];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count > 1000) {
+    return [`Seriously impressive collection. Only ${stringOf(max - count)} items to go!`, -1, -1];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count > 500) {
+    return [`${stringOf(count)} unique items is not bad at all. Keep it up!`, -1, -1];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count > 200) {
+    return ["That's a decent collection you got there. I believe in you champion.", -1, -1];
+  }
+  if (CS2.compare(query, 'collection log') === 0 && count === 0) {
+    return [
+      "Why are you looking for easter eggs in an empty Collection log?<br><br>C'mon, you're better than this.",
+      -1,
+      -1,
+    ];
+  }
+  if (CS2.compare(query, 'collection log') === 0) {
+    return [`Only ${stringOf(max - count)} items to go. :')`, -1, -1];
+  }
+  return ['', -1, -1];
+}
+
+enum Egg {
+  AGS = 11802,
+  BERZERKER_RING = 6737,
+  ELYSIAN_SIGIL = 12819,
+  DRAGON_WARHAMMER = 13576,
+  RUNITE_CROSSBOW = 23601,
+  INFERNAL_CAPE = 21295,
+  TWISTED_BOW = 20997,
+  BLOODHOUND = 19730,
+  DRAGON_PICKAXE = 11920,
+  JAD_PET = 13225,
+  OLMLET = 20851,
+  MOSS_ESSENCE = 22372,
+  PRIMORDIAL_CRYSTAL = 13231,
+  PEGASIAN_CRYSTAL = 13229,
+  BABY_MOLE = 12646,
+  RAKE = 5341,
+  BLOWPIPE_FANG = 12922,
+  VOLCANO_TABLET = 21541,
+  ETERNAL_GLORY = 19707,
+}

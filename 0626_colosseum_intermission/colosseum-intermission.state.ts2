@@ -1,0 +1,85 @@
+import { createRef, sessionState, useInventory, useState } from 'ts2';
+
+import { ColosseumInventories } from '../0864_colosseum_reward_chest_2/colosseum.constants';
+import { ColosseumModifiers, modifierHeld } from '../0864_colosseum_reward_chest_2/colosseum.helpers';
+import { colosseumSelectedModifierClient } from '../lib/game/varcs';
+
+export const SUMMARY_PANE = createRef();
+export const PROCEED_PANE = createRef();
+export const SUMMARY_LIST = createRef();
+
+export function intermissionHeldCount(held: Int): Int {
+  let count: Int = 0;
+  let key: Int = 0;
+  while (key < ColosseumModifiers.length) {
+    const row = ColosseumModifiers.at(key);
+    if (row !== null && modifierHeld(row, held)) {
+      count = count + 1;
+    }
+    key = key + 1;
+  }
+  return count;
+}
+
+function writeIntermissionPanes(mode: Int, held: Int): void {
+  SUMMARY_PANE.hide = mode !== 0;
+  PROCEED_PANE.hide = mode !== 1;
+  const extent: Int = intermissionHeldCount(held) * 28 + 32 + 10;
+  SUMMARY_LIST.scrollHeight = extent >= SUMMARY_LIST.height ? extent : 0;
+}
+
+export const intermissionMode = sessionState(0);
+export const intermissionWave = sessionState(0);
+export const intermissionHeld = sessionState(0);
+export const CONFIRM_LAYER = createRef();
+export const CLAIMING_LAYER = createRef();
+export const CONFIRM_BODY = createRef();
+
+const PET = 28960;
+
+function writeConfirmBody(): void {
+  const nextWave = useInventory(ColosseumInventories.NEXT_WAVE);
+  CONFIRM_BODY.text =
+    nextWave.total(PET) > 0
+      ? 'Claiming your loot early will <col=ffff00>forfeit your run</col>, not allowing you to proceed any further. You might not see that pet again for a while...'
+      : 'Claiming your loot early will <col=ffff00>forfeit your run</col>, not allowing you to proceed any further.';
+}
+
+export const intermissionHovered = sessionState(0);
+export const intermissionChestHover = sessionState(0);
+export const intermissionClaimCancelled = sessionState(0);
+
+export function colosseumIntermissionOpen(mode: Int, wave: Int, held: Int, resetChoice: Int): void {
+  const [, setMode] = useState(intermissionMode);
+  const [, setWave] = useState(intermissionWave);
+  const [, setHeld] = useState(intermissionHeld);
+  const [, setSelected] = useState(colosseumSelectedModifierClient);
+  const [, setHovered] = useState(intermissionHovered);
+  const [, setChestHover] = useState(intermissionChestHover);
+  const [, setCancelled] = useState(intermissionClaimCancelled);
+  if (resetChoice === 1) {
+    setSelected(0);
+  }
+  setMode(mode);
+  setWave(wave);
+  setHeld(held);
+  setHovered(0);
+  setChestHover(0);
+  setCancelled(0);
+  writeIntermissionPanes(mode, held);
+  writeConfirmBody();
+}
+
+export function switchIntermissionPane(mode: Int): void {
+  const [, setMode] = useState(intermissionMode);
+  const [, setHovered] = useState(intermissionHovered);
+  const [, setChestHover] = useState(intermissionChestHover);
+  const [, setCancelled] = useState(intermissionClaimCancelled);
+  const [held] = useState(intermissionHeld);
+  setMode(mode);
+  setHovered(0);
+  setChestHover(0);
+  setCancelled(0);
+  writeIntermissionPanes(mode, held);
+  writeConfirmBody();
+}

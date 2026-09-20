@@ -1,0 +1,421 @@
+import { CS2, useOnResize, useState, useUniverse } from 'ts2';
+
+import { mobileFrameCentred, mobileFrameX, mobileFrameY } from '../0119_questjournal/questjournal.layout';
+import { guideDraggable, guideTopInset } from '../0214_skill_guide/skill-guide.helpers';
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { breakpointOf } from '../0754_giants_foundry_hud/giants-foundry-hud.helpers';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { graphicSwapper, onMobile, opsound, toplevelComponents } from '../lib/lib.helpers';
+import { clientClock } from '../lib/lib.engine';
+import { mobileGameframe } from '../lib/lib.overlay';
+import { ToplevelComponents } from '../lib/lib.constants';
+import {
+  collectionHasBeenLoadedBefore,
+  collectionHasBeenMoved,
+  collectionHeight,
+  collectionOverviewX,
+  collectionOverviewY,
+  collectionWidth,
+  collectionX,
+  collectionY,
+  osmTlidodgersUpdate,
+  responsiveCurrentBreakpoint,
+} from '../lib/game/varcs';
+import {
+  Build,
+  CLOSE_SOUND_MASK,
+  CollectionSprites,
+  Copy,
+  Key,
+  Layout,
+  burgerButtonRef,
+  burgerFrameRef,
+  contentRef,
+  infinityRef,
+  resizePreviewRef,
+  universeRef,
+} from './collection.constants';
+import { collectionTab } from './collection.state';
+
+export function collectionInit(): void {
+  const slot: ComponentId = gameframeSlot(GameframeSlot.VIEWPORT);
+  const [loaded, setLoaded] = useState(collectionHasBeenLoadedBefore);
+  const [, setOverviewX] = useState(collectionOverviewX);
+  const [, setOverviewY] = useState(collectionOverviewY);
+  const [width, setWidth] = useState(collectionWidth);
+  const [height, setHeight] = useState(collectionHeight);
+  const [x, setX] = useState(collectionX);
+  const [y, setY] = useState(collectionY);
+
+  if (onMobile()) {
+    infinityRef.onTimer = () => mobileDodgerTick(infinityRef, 0);
+  } else {
+    infinityRef.onTimer = () => breakpointTick(infinityRef, -1);
+  }
+
+  if (slot === -1) {
+    return;
+  }
+
+  if (loaded !== 1) {
+    setOverviewX(CS2.if_x_get(slot));
+    setOverviewY(CS2.if_y_get(slot));
+    setWidth(CS2.if_width_get(slot));
+    setHeight(CS2.if_height_get(slot));
+    setX(CS2.if_x_get(slot));
+    setY(CS2.if_y_get(slot));
+    setLoaded(1);
+  }
+
+  if (!onMobile()) {
+    if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+      setWidth(CS2.if_width_get(slot));
+      setHeight(CS2.if_height_get(slot));
+      setX(CS2.if_x_get(slot));
+      setY(CS2.if_y_get(slot));
+    }
+  }
+
+  if (toplevelComponents() === ToplevelComponents.DISPLAY) {
+    CS2.if_position_set(Build.MARGIN, Build.MARGIN, POS_CENTRE, POS_CENTRE, universeRef);
+    CS2.if_size_set(Build.MARGIN * 2, Build.MARGIN * 2, SIZE_MINUS, SIZE_MINUS, universeRef);
+    collectionDrawShell(0);
+  }
+}
+
+export function collectionDrawShell(tab: Int): void {
+  const [, setTab] = useState(collectionTab);
+  layoutPanel();
+  setTab(tab);
+}
+
+export function CollectionClose(): Component {
+  if (onMobile()) {
+    return (
+      <sprite
+        right={Layout.CLOSE_MOBILE_XY}
+        y={Layout.CLOSE_MOBILE_XY}
+        w={Layout.CLOSE_MOBILE}
+        h={Layout.CLOSE_MOBILE}
+        sprite={CollectionSprites.CLOSE_MOBILE}
+        options={[Copy.CLOSE, { label: '', hotkey: Key.ESCAPE }]}
+        onOptionSelect={(event) => opsound(event.option, CLOSE_SOUND_MASK)}
+      />
+    );
+  }
+  return (
+    <sprite
+      right={Layout.CLOSE_X}
+      y={Layout.CLOSE_Y}
+      w={Layout.CLOSE_W}
+      h={Layout.CLOSE_H}
+      sprite={CollectionSprites.CLOSE}
+      options={[Copy.CLOSE, { label: '', hotkey: Key.ESCAPE }]}
+      onOptionSelect={(event) => opsound(event.option, CLOSE_SOUND_MASK)}
+      onMouseEnter={(event) => graphicSwapper(event.self, CollectionSprites.CLOSE_LIT)}
+      onMouseLeave={(event) => graphicSwapper(event.self, CollectionSprites.CLOSE)}
+    />
+  );
+}
+
+export function panelAtDefaultBox(): Boolean {
+  const [moved] = useState(collectionHasBeenMoved);
+  if (!guideDraggable()) {
+    return true;
+  }
+  if (moved === 0) {
+    return true;
+  }
+  return false;
+}
+
+export function panelBox(): [Int, Int, Int, Int] {
+  const slot: ComponentId = gameframeSlot(GameframeSlot.VIEWPORT);
+  const [storedW] = useState(collectionWidth);
+  const [storedH] = useState(collectionHeight);
+  const [storedX] = useState(collectionX);
+  const [storedY] = useState(collectionY);
+
+  let w: Int = Build.PANEL_W;
+  let h: Int = Build.PANEL_H;
+  let x: Int = 0;
+  let y: Int = 0;
+  if (slot !== -1) {
+    x = CS2.if_x_get(slot);
+    y = CS2.if_y_get(slot);
+  }
+  const room: Int = infinityRef.width;
+  const top: Int = guideTopInset();
+  const tall: Int = infinityRef.height - top;
+  if (!panelAtDefaultBox()) {
+    w = Math.max(Build.MIN_W, Math.min(storedW, room));
+    h = Math.max(Build.MIN_H, Math.min(storedH, tall));
+    x = Math.max(0, Math.min(storedX, room - w));
+    y = Math.max(top, Math.min(storedY, top + tall - h));
+  }
+  return [x, y, w, h];
+}
+
+export function layoutPanel(): void {
+  const [x, y, w, h] = panelBox();
+  const slot: ComponentId = gameframeSlot(GameframeSlot.VIEWPORT);
+  universeRef.hide = false;
+  resizePreviewRef.hide = true;
+  if (!onMobile() && slot !== -1) {
+    CS2.if_position_set(x, y, POS_LEFT, POS_TOP, universeRef);
+    CS2.if_size_set(w, h, SIZE_ABS, SIZE_ABS, universeRef);
+  }
+  contentBox();
+  burgerBoxes();
+}
+
+function burgerBoxes(): void {
+  const mobile: Boolean = onMobile();
+  const box: Int = mobile ? Layout.BURGER_MOBILE : Layout.BURGER;
+  const inset: Int = mobile ? Layout.BURGER_MOBILE_XY : Layout.BURGER_XY;
+  CS2.if_size_set(box, box, SIZE_ABS, SIZE_ABS, burgerButtonRef);
+  CS2.if_position_set(inset, inset, POS_LEFT, POS_TOP, burgerButtonRef);
+  const menuW: Int = mobile ? Build.MENU_W_MOBILE : Build.MENU_W;
+  const menuH: Int = (mobile ? Build.MENU_ROWS_H_MOBILE : Build.MENU_ROWS_H) + Build.MENU_PAD;
+  CS2.if_size_set(menuW, menuH, SIZE_ABS, SIZE_ABS, burgerFrameRef);
+}
+
+function contentBox(): void {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  let top: Int = Build.CONTENT_Y;
+  if (breakpoint === 1 || breakpoint === 2) {
+    top = Build.CONTENT_Y_BP1;
+  } else if (breakpoint === 3) {
+    top = Build.CONTENT_Y_BP3;
+  }
+  CS2.if_position_set(0, top, POS_CENTRE, POS_TOP, contentRef);
+  CS2.if_size_set(Build.CONTENT_INSET_W, top + Build.MARGIN, SIZE_MINUS, SIZE_MINUS, contentRef);
+}
+
+export function CollectionChrome(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  const [tab] = useState(collectionTab);
+  const [x, y, w, h] = panelBox();
+  const live: Boolean = tab !== -1 && !panelAtDefaultBox();
+  if (tab !== -1) {
+    layoutPanel();
+  }
+
+  const innerW: Int = w - Build.MARGIN * 2;
+  const innerH: Int = h - Build.MARGIN * 2;
+  const titleH: Int = contentRef.y - Build.MARGIN * 2;
+  const right: Int = x + w - Build.MARGIN;
+  const bottom: Int = y + h - Build.MARGIN;
+  const top: Int = guideTopInset();
+
+  return (
+    <>
+      <DragHandle
+        index={0}
+        live={live}
+        top={top}
+        x={x + Build.TITLE_HANDLE_DX}
+        y={y + Build.MARGIN}
+        w={innerW - Build.TITLE_HANDLE_INSET_W}
+        h={titleH}
+      />
+      <DragHandle index={1} live={live} top={top} x={x + Build.MARGIN} y={bottom} w={innerW} h={Build.MARGIN} />
+      <DragHandle index={2} live={live} top={top} x={x} y={y + Build.MARGIN} w={Build.MARGIN} h={innerH} />
+      <DragHandle index={3} live={live} top={top} x={right} y={y + Build.MARGIN} w={Build.MARGIN} h={innerH} />
+      <DragHandle index={4} live={live} top={top} x={x} y={y} w={Build.MARGIN} h={Build.MARGIN} />
+      <DragHandle index={5} live={live} top={top} x={right} y={y} w={Build.MARGIN} h={Build.MARGIN} />
+      <DragHandle index={6} live={live} top={top} x={x} y={bottom} w={Build.MARGIN} h={Build.MARGIN} />
+      <DragHandle index={7} live={live} top={top} x={right} y={bottom} w={Build.MARGIN} h={Build.MARGIN} />
+      <DragHandle
+        index={8}
+        live={live}
+        top={top}
+        x={x + Build.MARGIN + Build.BURGER_SKIP}
+        y={y}
+        w={innerW - Build.BURGER_SKIP}
+        h={Build.MARGIN}
+      />
+    </>
+  );
+}
+
+function DragHandle({
+  index,
+  live,
+  top,
+  x,
+  y,
+  w,
+  h,
+}: {
+  index: Int;
+  live: Boolean;
+  top: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  const universe = useUniverse();
+  if (!live) {
+    return (
+      <sprite
+        x={0}
+        y={0}
+        w={0}
+        h={0}
+        tiling
+        transparency={Layout.HANDLE_REST}
+        draggable={universe}
+        dragDeadZone={Layout.DRAG_DEAD_ZONE}
+        dragDeadTime={Layout.DRAG_DEAD_TIME}
+        onMouseRepeat={(event) => ccSetTrans(event.self, Layout.HANDLE_HOVER)}
+        onMouseLeave={(event) => ccSetTrans(event.self, Layout.HANDLE_REST)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      sprite={CollectionSprites.BACKDROP_LIGHT}
+      tiling
+      transparency={Layout.HANDLE_REST}
+      draggable={universe}
+      dragDeadZone={Layout.DRAG_DEAD_ZONE}
+      dragDeadTime={Layout.DRAG_DEAD_TIME}
+      onMouseRepeat={(event) => ccSetTrans(event.self, Layout.HANDLE_HOVER)}
+      onMouseLeave={(event) => ccSetTrans(event.self, Layout.HANDLE_REST)}
+      onDrag={(event) => resizeDrag(event.self, index, event.mouseX, event.mouseY, x, y, top)}
+    />
+  );
+}
+
+function resizeDrag(handle: ComponentId, index: Int, mouseX: Int, mouseY: Int, fromX: Int, fromY: Int, top: Int): void {
+  const [storedW] = useState(collectionWidth);
+  const [storedH] = useState(collectionHeight);
+  const [storedX] = useState(collectionX);
+  const [storedY] = useState(collectionY);
+  let w: Int = storedW;
+  let h: Int = storedH;
+  let x: Int = storedX;
+  let y: Int = storedY;
+  const room: Int = infinityRef.width;
+  const tall: Int = infinityRef.height - top;
+  const dx: Int = mouseX - fromX;
+  const dy: Int = mouseY - fromY;
+
+  handle.sprite = -1;
+  if (index === 0) {
+    x = x + dx;
+    y = y + dy;
+  } else if (index === 1) {
+    h = h + dy;
+  } else if (index === 2) {
+    w = w - dx;
+    x = x + dx;
+  } else if (index === 3) {
+    w = w + dx;
+  } else if (index === 4) {
+    w = w - dx;
+    x = x + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (index === 5) {
+    w = w + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (index === 6) {
+    w = w - dx;
+    x = x + dx;
+    h = h + dy;
+  } else if (index === 7) {
+    w = w + dx;
+    h = h + dy;
+  } else if (index === 8) {
+    h = h - dy;
+    y = y + dy;
+  }
+
+  if (x < Build.DRAG_EDGE) {
+    w = w + Math.max(0, x);
+    x = 0;
+  }
+  let slack: Int = room - (x + w);
+  if (slack < Build.DRAG_EDGE) {
+    w = w + slack;
+  }
+  if (y < top + Build.DRAG_EDGE) {
+    h = h + Math.max(0, y - top);
+    y = top;
+  }
+  slack = tall + top - (y + h);
+  if (slack < Build.DRAG_EDGE) {
+    h = h + slack;
+  }
+  w = Math.max(Build.MIN_W, Math.min(w, room));
+  h = Math.max(Build.MIN_H, Math.min(h, tall));
+  x = Math.max(0, Math.min(x, room - w));
+  y = Math.max(top, Math.min(y, top + tall - h));
+
+  CS2.if_position_set(x, y, POS_LEFT, POS_TOP, resizePreviewRef);
+  CS2.if_size_set(w, h, SIZE_ABS, SIZE_ABS, resizePreviewRef);
+  resizePreviewRef.hide = false;
+  universeRef.hide = true;
+  const settle: Int = clientClock() + Build.DRAG_SETTLE_CYCLES;
+  handle.onTimer = () => resizeCommit(settle, w, h, x, y);
+}
+
+function resizeCommit(settleAt: Int, w: Int, h: Int, x: Int, y: Int): void {
+  if (clientClock() < settleAt) {
+    return;
+  }
+  const [, setWidth] = useState(collectionWidth);
+  const [, setHeight] = useState(collectionHeight);
+  const [, setX] = useState(collectionX);
+  const [, setY] = useState(collectionY);
+  const [, setMoved] = useState(collectionHasBeenMoved);
+  setWidth(w);
+  setHeight(h);
+  setX(x);
+  setY(y);
+  setMoved(1);
+}
+
+function breakpointTick(host: ComponentId, previous: Int): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const level: Int = breakpointOf(infinityRef.width, infinityRef.height);
+  setBreakpoint(level);
+  host.onTimer = () => breakpointTick(host, level);
+}
+
+function mobileDodgerTick(host: ComponentId, seen: Int): void {
+  const [stamp, setStamp] = useState(osmTlidodgersUpdate);
+  if (stamp === seen) {
+    return;
+  }
+  if (mobileGameframe(toplevelComponents())) {
+    setStamp(clientClock());
+    const frameW: Int = universeRef.width;
+    const frameH: Int = universeRef.height;
+    const parent: ComponentId = CS2.if_layer_get(universeRef);
+    const parentW: Int = CS2.if_width_get(parent);
+    const parentH: Int = CS2.if_height_get(parent);
+    const left: Int = mobileFrameX(frameW, parentW, parentH, frameH);
+    const centred: Boolean = mobileFrameCentred(frameW, parentW, parentH, frameH);
+    CS2.if_position_set(left, mobileFrameY(parentH, frameH), centred ? POS_CENTRE : POS_LEFT, POS_CENTRE, universeRef);
+  } else {
+    CS2.if_position_set(0, 0, POS_CENTRE, POS_CENTRE, universeRef);
+  }
+  const [now] = useState(osmTlidodgersUpdate);
+  host.onTimer = () => mobileDodgerTick(host, now);
+}
+
+const POS_LEFT = 0;
+const POS_CENTRE = 1;
+const POS_TOP = 0;
+const SIZE_ABS = 0;
+const SIZE_MINUS = 1;

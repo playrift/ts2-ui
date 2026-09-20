@@ -1,0 +1,802 @@
+import { intArray, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
+
+import { ellipsize } from '../0946_patchy/patchy.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { deadmanprotectTab } from '../lib/game/varcs';
+import { SteelborderColor } from '../lib/lib.constants';
+import { debugMessage } from '../lib/lib.debug';
+import { clientClock, hasBit, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { CaBurgerMenu, CaPage, CaTasksProgressBar } from './ca-shared.local';
+import { CaColour, CaFilter, CaFont, CaSprite, Filter, Layout, Row, caTasksRef } from './ca-tasks.constants';
+import {
+  CaFilterEntry,
+  CaTask,
+  CaTaskList,
+  FilterTitles,
+  MonsterNames,
+  TierIcons,
+  TierPoints,
+  TypeNames,
+} from './ca-tasks.data';
+import {
+  caTaskFilterCancel,
+  caTaskFilterClose,
+  caTaskFilterOpen,
+  dropdownEntryHeight,
+  filterLabel,
+  filterTable,
+  filterOpens,
+  openFilter,
+  selectTask,
+  selectedTask,
+} from './ca-tasks.state';
+import { ScrollPane } from './scroll-pane.component';
+
+export function CaTasks(): Component {
+  const mobile: Boolean = onMobile();
+  const [selected] = useState(selectedTask);
+  const [open] = useState(openFilter);
+  const [opens] = useState(filterOpens);
+  const [pendingId, setPendingId] = useState(deadmanprotectTab);
+  const [consumedTop, setConsumedTop] = useState(-1);
+  const [consumedKey, setConsumedKey] = useState(0);
+  const [rootSeen, setRootSeen] = useState(0);
+  const universe = useRef();
+
+  const [buildAt, setBuildAt] = useState(-2);
+  const [builtFor, setBuiltFor] = useState(-1);
+  const [built, setBuilt] = useState(0);
+  const [group, setGroup] = useState(0);
+  const [word0, setWord0] = useState(0);
+  const [word1, setWord1] = useState(0);
+  const [word2, setWord2] = useState(0);
+  const [word3, setWord3] = useState(0);
+  const [word4, setWord4] = useState(0);
+  const [word5, setWord5] = useState(0);
+  const [word6, setWord6] = useState(0);
+  const [word7, setWord7] = useState(0);
+  const [word8, setWord8] = useState(0);
+  const [word9, setWord9] = useState(0);
+  const [word10, setWord10] = useState(0);
+  const [word11, setWord11] = useState(0);
+  const [word12, setWord12] = useState(0);
+  const [word13, setWord13] = useState(0);
+  const [word14, setWord14] = useState(0);
+  const [word15, setWord15] = useState(0);
+  const [word16, setWord16] = useState(0);
+  const [word17, setWord17] = useState(0);
+  const [word18, setWord18] = useState(0);
+  const [word19, setWord19] = useState(0);
+
+  useInterval(() => {
+    const height: Int = caTasksRef.height;
+    if (height !== rootSeen) {
+      setRootSeen(height);
+    }
+    const now: Int = selectedNow();
+    const clock: Int = clientClock();
+    if (buildAt === -2) {
+      setBuildAt(clock + 1);
+    } else if ((buildAt !== -1 && clock >= buildAt) || (built === 1 && now !== builtFor)) {
+      setWord0(completionWord(0));
+      setWord1(completionWord(1));
+      setWord2(completionWord(2));
+      setWord3(completionWord(3));
+      setWord4(completionWord(4));
+      setWord5(completionWord(5));
+      setWord6(completionWord(6));
+      setWord7(completionWord(7));
+      setWord8(completionWord(8));
+      setWord9(completionWord(9));
+      setWord10(completionWord(10));
+      setWord11(completionWord(11));
+      setWord12(completionWord(12));
+      setWord13(completionWord(13));
+      setWord14(completionWord(14));
+      setWord15(completionWord(15));
+      setWord16(completionWord(16));
+      setWord17(completionWord(17));
+      setWord18(completionWord(18));
+      setWord19(completionWord(19));
+      setGroup(groupSizeNow());
+      setBuildAt(built === 0 ? clock + 2 : -1);
+      setBuiltFor(now);
+      setBuilt(1);
+    }
+  }, universe);
+
+  useWatch(
+    [Varps.CA_GENERAL, Varps.CA_GENERAL2],
+    () => {
+      setBuildAt(clientClock() + 1);
+    },
+    universe,
+  );
+
+  const tier: Int = useServerState(Varbits.CA_TASK_FILTER_TIER);
+  const type: Int = useServerState(Varbits.CA_TASK_FILTER_TYPE);
+  const monster: Int = useServerState(Varbits.CA_TASK_FILTER_MONSTER);
+  const completed: Int = useServerState(Varbits.CA_TASK_FILTER_COMPLETED);
+  const groupSize: Int = group;
+  const done = intArray(20);
+  done[0] = word0;
+  done[1] = word1;
+  done[2] = word2;
+  done[3] = word3;
+  done[4] = word4;
+  done[5] = word5;
+  done[6] = word6;
+  done[7] = word7;
+  done[8] = word8;
+  done[9] = word9;
+  done[10] = word10;
+  done[11] = word11;
+  done[12] = word12;
+  done[13] = word13;
+  done[14] = word14;
+  done[15] = word15;
+  done[16] = word16;
+  done[17] = word17;
+  done[18] = word18;
+  done[19] = word19;
+
+  const paneW: Int = Layout.listArea.w - Layout.scrollbar.w;
+
+  const pending: Int = selected === -1 && built === 1 ? pendingId : -1;
+
+  const shown = intArray(CaTaskList.length);
+  const isDone = intArray(CaTaskList.length);
+  const advance = intArray(CaTaskList.length);
+  let content: Int = 0;
+  let visible: Int = 0;
+  let expanded: Int = selected;
+  let scrollTo: Int = -1;
+  let i: Int = 0;
+  while (i < CaTaskList.length) {
+    const task: CaTask | null = CaTaskList.at(i);
+    shown[i] = 0;
+    isDone[i] = 0;
+    advance[i] = 0;
+    if (task !== null) {
+      const bit: Int = hasBit(done[task.id / 32], task.id % 32) ? 1 : 0;
+      isDone[i] = bit;
+      if (taskShown(task, bit, tier, type, monster, completed, groupSize)) {
+        shown[i] = 1;
+        if (pending !== -1 && task.id === pending) {
+          expanded = task.id;
+          scrollTo = content;
+        }
+        if (task.id === expanded) {
+          debugMessage(`Selected task ID = ${stringOf(task.id)}. `);
+        }
+        advance[i] = rowAdvance(task, expanded, paneW);
+        content = content + advance[i];
+        visible = visible + 1;
+      }
+    }
+    i = i + 1;
+  }
+  const listContent: Int = built === 1 ? content : 0;
+  const listVisible: Int = built === 1 ? visible : 0;
+  if (expanded !== selected) {
+    selectTask(expanded);
+    setBuiltFor(expanded);
+    setPendingId(-1);
+    setConsumedTop(scrollTo);
+    setConsumedKey(consumedKey + 1);
+  }
+
+  const rootHeight: Int = rootSeen !== 0 ? rootSeen : caTasksRef.height;
+  const wantedH: Int = Math.max(
+    Layout.resize.minH,
+    Math.max(Layout.resize.minContent, listContent) + Layout.resize.chrome,
+  );
+  const panelH: Int = Math.min(Math.min(Layout.resize.maxH, rootHeight - Layout.resize.rootInset), wantedH);
+  const paneH: Int = panelH - Layout.listArea.insetH;
+  const extent: Int = listContent > paneH ? listContent : 0;
+
+  const entryH: Int = dropdownEntryHeight(mobile);
+  const entries: Int = open === -1 ? 0 : filterTable(open).length;
+  const dropContent: Int = entries * entryH;
+  const dropWanted: Int = dropContent + Filter.dropdown.pad;
+  const universeX: Int = (caTasksRef.width - Layout.universe.w) / 2;
+  const universeY: Int = (rootHeight - panelH) / 2;
+  const cellX: Int = Layout.filters.rowX + Layout.filters.x + universeX + caTasksRef.x;
+  const cellY: Int =
+    Layout.filterRow.firstY + Layout.filterRow.pitch * open + Layout.filters.y + universeY + caTasksRef.y;
+  let boxY: Int = 0;
+  let boxH: Int = 0;
+  if (cellY > rootHeight / 2) {
+    const edge: Int = cellY + Filter.dropdown.aboveNudge;
+    boxH = Math.min(dropWanted, edge);
+    boxY = edge - boxH;
+  } else {
+    const edge: Int = cellY + Layout.filterRow.h - 1;
+    boxH = Math.min(dropWanted, rootHeight - edge);
+    boxY = edge;
+  }
+  const dropPaneH: Int = boxH - Layout.dropdownPane.insetH;
+  const dropExtent: Int = dropWanted > boxH ? dropContent : 0;
+  const dropPaneW: Int = Layout.filterRow.w - Layout.dropdownPane.insetW;
+
+  return (
+    <>
+      <layer ref={universe} x="center" y="center" w={Layout.universe.w} h={panelH}>
+        <layer x="center" y={0} w="fill" h="fill">
+          <SteelBorder title="Combat Achievements - Tasks" titleColor={SteelborderColor.TITLE} flags={0} />
+        </layer>
+
+        <layer x="center" y={Layout.progress.y} w={{ fill: Layout.progress.insetW }} h={Layout.progress.h}>
+          <CaTasksProgressBar mode={0} groupSize={group} />
+        </layer>
+
+        <sprite
+          x="center"
+          y={Layout.dividerH.y}
+          w={{ fill: Layout.dividerH.insetW }}
+          h={Layout.dividerH.h}
+          sprite={CaSprite.DIVIDER_H}
+          tiling
+        />
+        <sprite
+          x={Layout.dividerV.x}
+          y={{ bottom: Layout.dividerV.y }}
+          w={Layout.dividerV.w}
+          h={{ fill: Layout.dividerV.insetH }}
+          sprite={CaSprite.DIVIDER_V}
+          tiling
+        />
+
+        <layer x={Layout.listArea.x} y={Layout.listArea.y} w={Layout.listArea.w} h={{ fill: Layout.listArea.insetH }}>
+          <ScrollPane
+            paneX={0}
+            paneInsetW={Layout.scrollbar.w}
+            insetH={0}
+            barRight={0}
+            extent={extent}
+            paneH={paneH}
+            pendingTop={consumedTop}
+            pendingKey={consumedKey}
+          >
+            <text
+              x="center"
+              y="center"
+              w={{ fill: Layout.none.inset }}
+              h={{ fill: Layout.none.inset }}
+              text="There are no tasks available to you<br>that match your filters."
+              font={CaFont.BODY}
+              color={CaColour.ORANGE}
+              shadow
+              align="center"
+              valign="middle"
+              hide={listVisible !== 0}
+            />
+            <layer x={0} y={0} w={paneW} h={Math.max(content, paneH)} hide={built === 0}>
+              {CaTaskList.scan(
+                (task, at, top, seen) =>
+                  shown[at] === 1 ? (
+                    <TaskRow
+                      task={task}
+                      index={seen}
+                      y={top}
+                      selected={expanded}
+                      done={isDone[at]}
+                      mobile={mobile}
+                      paneWidth={paneW}
+                    />
+                  ) : null,
+                [(task, at) => advance[at], (task, at) => shown[at]],
+                [0, 0],
+              )}
+            </layer>
+          </ScrollPane>
+        </layer>
+
+        <layer x={Layout.filters.x} y={Layout.filters.y} w={Layout.filters.w} h={Layout.filters.h}>
+          <text
+            x="center"
+            y={Layout.filters.titleY}
+            w="fill"
+            h={Layout.filters.titleH}
+            text="Filters"
+            font={CaFont.BOLD}
+            color={CaColour.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <FilterRow
+            filter={CaFilter.TIER}
+            y={Layout.filterRow.firstY}
+            isOpen={open === CaFilter.TIER}
+            opens={opens}
+            label={filterLabel(CaFilter.TIER, tier)}
+            mobile={mobile}
+          />
+          <FilterRow
+            filter={CaFilter.TYPE}
+            y={Layout.filterRow.firstY + Layout.filterRow.pitch}
+            isOpen={open === CaFilter.TYPE}
+            opens={opens}
+            label={filterLabel(CaFilter.TYPE, type)}
+            mobile={mobile}
+          />
+          <FilterRow
+            filter={CaFilter.MONSTER}
+            y={Layout.filterRow.firstY + Layout.filterRow.pitch * 2}
+            isOpen={open === CaFilter.MONSTER}
+            opens={opens}
+            label={filterLabel(CaFilter.MONSTER, monster)}
+            mobile={mobile}
+          />
+          <FilterRow
+            filter={CaFilter.COMPLETED}
+            y={Layout.filterRow.firstY + Layout.filterRow.pitch * 3}
+            isOpen={open === CaFilter.COMPLETED}
+            opens={opens}
+            label={filterLabel(CaFilter.COMPLETED, completed)}
+            mobile={mobile}
+          />
+        </layer>
+
+        <layer w="fill" h="fill">
+          <CaBurgerMenu current={CaPage.TASKS} mobile={mobile} />
+        </layer>
+
+        <layer x={0} y={0} w="fill" h="fill" />
+      </layer>
+
+      <layer
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        hide={open === -1}
+        noClickThrough
+        onClick={() => caTaskFilterCancel()}
+      >
+        {open !== -1 ? (
+          <layer x={cellX} y={boxY} w={Layout.filterRow.w} h={boxH} noClickThrough>
+            <sprite x="center" y="center" w="fill" h="fill" sprite={CaSprite.TRADEBACKING} tiling />
+            <ScrollPane
+              paneX={Layout.dropdownPane.x}
+              paneInsetW={Layout.dropdownPane.insetW}
+              insetH={Layout.dropdownPane.insetH}
+              barRight={Layout.dropdownScrollbar.right}
+              extent={dropExtent}
+              paneH={dropPaneH}
+              pendingTop={-1}
+              pendingKey={0}
+            >
+              <DropdownEntries filter={open} entryH={entryH} paneW={dropPaneW} mobile={mobile} />
+            </ScrollPane>
+            <rect x="center" y="center" w="fill" h="fill" color={CaColour.INK_OUTER} />
+            <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={CaColour.INK_INNER} />
+          </layer>
+        ) : null}
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </>
+  );
+}
+
+function completionWord(k: Int): Int {
+  switch (k) {
+    case 0:
+      return useServerState(Varps.CA_TASK_COMPLETED_0);
+    case 1:
+      return useServerState(Varps.CA_TASK_COMPLETED_1);
+    case 2:
+      return useServerState(Varps.CA_TASK_COMPLETED_2);
+    case 3:
+      return useServerState(Varps.CA_TASK_COMPLETED_3);
+    case 4:
+      return useServerState(Varps.CA_TASK_COMPLETED_4);
+    case 5:
+      return useServerState(Varps.CA_TASK_COMPLETED_5);
+    case 6:
+      return useServerState(Varps.CA_TASK_COMPLETED_6);
+    case 7:
+      return useServerState(Varps.CA_TASK_COMPLETED_7);
+    case 8:
+      return useServerState(Varps.CA_TASK_COMPLETED_8);
+    case 9:
+      return useServerState(Varps.CA_TASK_COMPLETED_9);
+    case 10:
+      return useServerState(Varps.CA_TASK_COMPLETED_10);
+    case 11:
+      return useServerState(Varps.CA_TASK_COMPLETED_11);
+    case 12:
+      return useServerState(Varps.CA_TASK_COMPLETED_12);
+    case 13:
+      return useServerState(Varps.CA_TASK_COMPLETED_13);
+    case 14:
+      return useServerState(Varps.CA_TASK_COMPLETED_14);
+    case 15:
+      return useServerState(Varps.CA_TASK_COMPLETED_15);
+    case 16:
+      return useServerState(Varps.CA_TASK_COMPLETED_16);
+    case 17:
+      return useServerState(Varps.CA_TASK_COMPLETED_17);
+    case 18:
+      return useServerState(Varps.CA_TASK_COMPLETED_18);
+    case 19:
+      return useServerState(Varps.CA_TASK_COMPLETED_19);
+    default:
+      return 0;
+  }
+}
+
+function groupSizeNow(): Int {
+  return useServerState(Varbits.GIM_GROUPSIZE);
+}
+
+function selectedNow(): Int {
+  const [selected] = useState(selectedTask);
+  return selected;
+}
+
+function taskShown(
+  task: CaTask,
+  done: Int,
+  tier: Int,
+  type: Int,
+  monster: Int,
+  completed: Int,
+  groupSize: Int,
+): Boolean {
+  if (groupSize > 1 && groupSize <= 5 && groupSize <= task.gimGroupLimit) {
+    return false;
+  }
+  if (tier !== 0 && tier !== task.tier) {
+    return false;
+  }
+  if (type !== 0 && type !== task.type) {
+    return false;
+  }
+  if (monster !== 0 && monster !== task.monster) {
+    return false;
+  }
+  if (completed !== 0 && completed - 1 !== done) {
+    return false;
+  }
+  return true;
+}
+
+function descriptionLines(task: CaTask, paneWidth: Int): Int {
+  return textLineCount(`Description: ${task.description}`, paneWidth - Row.DESCRIPTION_INSET, CaFont.SMALL);
+}
+
+function rowAdvance(task: CaTask, selected: Int, paneWidth: Int): Int {
+  if (task.id === selected) {
+    return Row.H + Row.LINE * descriptionLines(task, paneWidth) + Row.EXPAND_PAD;
+  }
+  return Row.H;
+}
+
+function TaskRow({
+  task,
+  index,
+  y,
+  selected,
+  done,
+  mobile,
+  paneWidth,
+}: {
+  task: CaTask;
+  index: Int;
+  y: Int;
+  selected: Int;
+  done: Int;
+  mobile: Boolean;
+  paneWidth: Int;
+}): Component {
+  const [face, setFace] = useState(0);
+  const [faceKey, setFaceKey] = useState(-1);
+  const isSelected: Boolean = task.id === selected;
+  const lines: Int = isSelected ? descriptionLines(task, paneWidth) : 0;
+  const height: Int = isSelected ? Row.H + Row.LINE * lines + Row.EXPAND_PAD : Row.H;
+  const stripe: Int = index % 2 === 1 ? Row.trans.odd : Row.trans.even;
+  const built: Int = isSelected && !mobile ? Row.trans.selected : stripe;
+  const iconRest: Sprite = isSelected ? CaSprite.COLLAPSE : CaSprite.EXPAND;
+  const iconHover: Sprite = isSelected ? CaSprite.COLLAPSE_HOVER : CaSprite.EXPAND_HOVER;
+  const shownFace: Int = faceKey === selected ? face : 0;
+  const transparency: Int = shownFace === 1 ? Row.trans.selected : shownFace === 2 ? stripe : built;
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={y}
+        w="fill"
+        h={height}
+        fill
+        color={CaColour.WHITE}
+        transparency={transparency}
+        onMouseRepeat={
+          mobile
+            ? undefined
+            : () => {
+                setFace(1);
+                setFaceKey(selected);
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : () => {
+                setFace(2);
+                setFaceKey(selected);
+              }
+        }
+        optionSubject={`<col=ff981f>${task.name}</col>`}
+        options={[isSelected ? 'Collapse' : 'Expand']}
+        onOptionSelect={() => selectTask(isSelected ? -1 : task.id)}
+      />
+      <sprite
+        x={Row.expand.x}
+        y={y + (Row.H - Row.expand.size) / 2}
+        w={Row.expand.size}
+        h={Row.expand.size}
+        sprite={shownFace === 1 ? iconHover : iconRest}
+      />
+      <sprite
+        x={Row.tier.x}
+        y={y + (Row.H - Row.tier.size) / 2}
+        w={Row.tier.size}
+        h={Row.tier.size}
+        sprite={TierIcons.get(task.tier) ?? -1}
+      />
+      <text
+        x={Row.name.x}
+        y={y + Row.name.dy}
+        w={{ fill: Row.name.insetW }}
+        h={Row.name.h}
+        text={task.name}
+        font={CaFont.BODY}
+        shadow
+        align="left"
+        valign="middle"
+        color={done === 1 ? CaColour.DONE : CaColour.TODO}
+      />
+      <text
+        x={Row.monster.x}
+        y={y + Row.monster.dy}
+        w={{ fill: Row.monster.insetW }}
+        h={Row.monster.h}
+        text={`Monster: <col=ffffff>${MonsterNames.get(task.monster) ?? 'None'}</col>`}
+        font={CaFont.SMALL}
+        shadow
+        color={CaColour.ORANGE}
+        align="left"
+        valign="middle"
+      />
+      {isSelected ? <ExpandedLines task={task} y={y} lines={lines} /> : null}
+    </>
+  );
+}
+
+function ExpandedLines({ task, y, lines }: { task: CaTask; y: Int; lines: Int }): Component {
+  const points: Int = TierPoints.get(task.tier) ?? -1;
+  const type: String = TypeNames.get(task.type) ?? '';
+  const typeLine: String =
+    points > 1
+      ? `Type: <col=ffffff>${type}</col> <col=dfdfdf>(+${stringOf(points)} points)</col>`
+      : `Type: <col=ffffff>${type}</col> <col=dfdfdf>(+${stringOf(points)} point)</col>`;
+  return (
+    <>
+      <text
+        x={Row.type.x}
+        y={y + Row.type.dy}
+        w={{ fill: Row.type.insetW }}
+        h={Row.type.h}
+        text={typeLine}
+        font={CaFont.SMALL}
+        shadow
+        color={CaColour.ORANGE}
+        align="left"
+        valign="middle"
+      />
+      <text
+        x={Row.description.x}
+        y={y + Row.description.dy}
+        w={{ fill: Row.description.insetW }}
+        h={Row.LINE * lines}
+        text={`Description: <col=ffffff>${task.description}</col>`}
+        font={CaFont.SMALL}
+        shadow
+        color={CaColour.ORANGE}
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function FilterRow({
+  filter,
+  y,
+  isOpen,
+  opens,
+  label,
+  mobile,
+}: {
+  filter: Int;
+  y: Int;
+  isOpen: Boolean;
+  opens: Int;
+  label: String;
+  mobile: Boolean;
+}): Component {
+  const [lit, setLit] = useState(-1);
+  const textWidth: Int = Layout.filterRow.w - Filter.value.insetW - Filter.value.textInset;
+  const hovered: Boolean = lit === opens && !isOpen;
+
+  return (
+    <layer x="center" y={y} w={Layout.filterRow.w} h={Layout.filterRow.h}>
+      <sprite
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Filter.box.h}
+        sprite={CaSprite.TRADEBACKING}
+        tiling
+        transparency={isOpen ? Filter.trans.open : hovered ? Filter.trans.hover : Filter.trans.rest}
+        onMouseEnter={
+          isOpen || mobile
+            ? undefined
+            : () => {
+                setLit(opens);
+              }
+        }
+        onMouseLeave={
+          isOpen || mobile
+            ? undefined
+            : () => {
+                setLit(-1);
+              }
+        }
+        onClick={() => {
+          caTaskFilterOpen(filter);
+        }}
+      />
+      <rect x="center" y="bottom" w="fill" h={Filter.box.h} color={CaColour.INK_OUTER} />
+      <rect
+        x="center"
+        y={{ bottom: Filter.box.innerBottom }}
+        w={{ fill: Filter.box.innerInsetW }}
+        h={Filter.box.innerH}
+        color={CaColour.INK_INNER}
+      />
+      <sprite
+        x={{ right: Filter.arrow.inset }}
+        y={{ bottom: Filter.arrow.inset }}
+        w={Filter.arrow.size}
+        h={Filter.arrow.size}
+        sprite={isOpen ? CaSprite.ARROW_OPEN : CaSprite.ARROW_CLOSED}
+        transparency={hovered ? Filter.arrowHover : 0}
+      />
+      <text
+        x={Filter.value.x}
+        y={{ bottom: Filter.value.bottom }}
+        w={{ fill: Filter.value.insetW }}
+        h={Filter.value.h}
+        text={ellipsize(label, textWidth, CaFont.SMALL)}
+        font={CaFont.SMALL}
+        shadow
+        color={CaColour.ORANGE}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={Filter.caption.x}
+        y={0}
+        w={{ fill: Filter.caption.insetW }}
+        h={Filter.caption.h}
+        text={`${FilterTitles.at(filter) ?? ''}:`}
+        font={CaFont.BODY}
+        shadow
+        color={CaColour.ORANGE}
+        align="left"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+const DropdownSlots = listOf<Int>([
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+  61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+]);
+
+function entryLabelAt(filter: Int, slot: Int): String {
+  const entry: CaFilterEntry | null = filterTable(filter).at(slot);
+  if (entry === null) {
+    return '';
+  }
+  return entry.label;
+}
+
+function entryOrderAt(filter: Int, slot: Int): Int {
+  const entry: CaFilterEntry | null = filterTable(filter).at(slot);
+  if (entry === null) {
+    return -1;
+  }
+  return entry.order;
+}
+
+function entryKeyAt(filter: Int, slot: Int): Int {
+  const entry: CaFilterEntry | null = filterTable(filter).at(slot);
+  if (entry === null) {
+    return -1;
+  }
+  return entry.key;
+}
+
+function DropdownEntries({
+  filter,
+  entryH,
+  paneW,
+  mobile,
+}: {
+  filter: Int;
+  entryH: Int;
+  paneW: Int;
+  mobile: Boolean;
+}): Component {
+  const [stripAt, setStripAt] = useState(-1);
+  const textWidth: Int = paneW - Filter.entry.textInset;
+  const contentH: Int = filterTable(filter).length * entryH;
+
+  return (
+    <layer x={0} y={0} w={paneW} h={contentH}>
+      <rect
+        x={0}
+        y={stripAt === -1 ? 0 : stripAt}
+        w="fill"
+        h={entryH}
+        fill
+        color={CaColour.WHITE}
+        transparency={Filter.strip.trans}
+        hide={stripAt === -1}
+      />
+      {DropdownSlots.map((slot) =>
+        entryOrderAt(filter, slot) !== -1 ? (
+          <text
+            x="center"
+            y={entryOrderAt(filter, slot) * entryH}
+            w="fill"
+            h={entryH}
+            text={ellipsize(entryLabelAt(filter, slot), textWidth, CaFont.SMALL)}
+            font={CaFont.SMALL}
+            shadow
+            color={CaColour.ORANGE}
+            align="center"
+            valign="middle"
+            options={['Select']}
+            onMouseRepeat={
+              mobile
+                ? undefined
+                : () => {
+                    setStripAt(entryOrderAt(filter, slot) * entryH);
+                  }
+            }
+            onMouseLeave={
+              mobile
+                ? undefined
+                : () => {
+                    setStripAt(-1);
+                  }
+            }
+            onOptionSelect={(event) => caTaskFilterClose(event.option, entryKeyAt(filter, slot), filter)}
+          />
+        ) : null,
+      )}
+    </layer>
+  );
+}

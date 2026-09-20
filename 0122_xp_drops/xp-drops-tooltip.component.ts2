@@ -1,0 +1,156 @@
+import { useState, useUniverse } from 'ts2';
+
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, TooltipChrome, tooltipUp } from '../lib/tooltip.component';
+import { counterTipLabels, counterTipValues, progressTipLabels, progressTipValues } from './xp-drops.tips';
+import { tipH, tipRow, tipX, tipY } from './xp-drops.state';
+import { XpDropsFont, XpDropsLayout } from './xp-drops.constants';
+
+export function XpDropsTooltip(): Component {
+  const [row] = useState(tipRow);
+  const [anchorX] = useState(tipX);
+  const [anchorY] = useState(tipY);
+  const [anchorH] = useState(tipH);
+
+  let labels: String = '';
+  let values: String = '';
+  if (tooltipUp() && row === 0) {
+    labels = counterTipLabels();
+    values = counterTipValues();
+  }
+  if (tooltipUp() && row === 1) {
+    labels = progressTipLabels();
+    values = progressTipValues();
+  }
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+
+  const wideW: Int = TwoColumn.padX + widestRow(labels, values);
+  const wideRows: Int = rowCount(labels, values);
+  const wideH: Int = wideRows * TwoColumn.line + TwoColumn.padY;
+
+  const wideLabels: String = brJoin(labels, wideRows);
+  const wideValues: String = brJoin(values, wideRows);
+
+  let measure: Int = ONE_COLUMN_WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const narrowW: Int = TooltipBox.padX + textWidth(labels, measure, XpDropsFont.MEDIUM);
+  const narrowH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(labels, measure, XpDropsFont.MEDIUM);
+
+  const twoColumn: Boolean = values.length > 0;
+  const boxW: Int = twoColumn ? wideW : narrowW;
+  const boxH: Int = twoColumn ? wideH : narrowH;
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (labels.length === 0) {
+    return <layer w={XpDropsLayout.tooltip.w} h={XpDropsLayout.tooltip.h} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <TooltipChrome text={twoColumn ? wideLabels : labels} font={XpDropsFont.MEDIUM} lineHeight={0} />
+      {twoColumn && (
+        <text
+          x="center"
+          y={{ bottom: 0 }}
+          w={{ fill: TooltipBox.padX }}
+          h={{ fill: 1 }}
+          text={wideValues}
+          align="right"
+          valign="top"
+          lineHeight={0}
+          font={XpDropsFont.MEDIUM}
+          color={TooltipBox.ink}
+        />
+      )}
+    </layer>
+  );
+}
+
+function brJoin(text: String, rows: Int): String {
+  let rest: String = text;
+  let out: String = pipeHead(rest);
+  let row: Int = 1;
+  while (row < 32) {
+    if (row >= rows) {
+      return out;
+    }
+    rest = pipeTail(rest);
+    out = `${out}<br>${pipeHead(rest)}`;
+    row = row + 1;
+  }
+  return out;
+}
+
+const TwoColumn = {
+  line: 12,
+  gap: 4,
+  padX: 4,
+  padY: 7,
+  unwrapped: 2147483647,
+} as const;
+
+const ONE_COLUMN_WRAP = 512;
+
+function widestRow(left: String, right: String): Int {
+  let heads: String = left;
+  let tails: String = right;
+  let widest: Int = 0;
+  let rows: Int = 0;
+  while (rows < 32) {
+    const label: String = pipeHead(heads);
+    const value: String = pipeHead(tails);
+    let width: Int = 0;
+    if (label.length > 0) {
+      width = textWidth(label, TwoColumn.unwrapped, XpDropsFont.MEDIUM);
+    }
+    if (value.length > 0) {
+      width = width + TwoColumn.gap + textWidth(value, TwoColumn.unwrapped, XpDropsFont.MEDIUM);
+    }
+    if (widest < width) {
+      widest = width;
+    }
+    if (heads.length === 0 && tails.length === 0) {
+      return widest;
+    }
+    heads = pipeTail(heads);
+    tails = pipeTail(tails);
+    rows = rows + 1;
+    if (heads.length === 0 && tails.length === 0) {
+      return widest;
+    }
+  }
+  return widest;
+}
+
+function rowCount(left: String, right: String): Int {
+  let heads: String = left;
+  let tails: String = right;
+  let rows: Int = 0;
+  while (rows < 32) {
+    rows = rows + 1;
+    if (heads.length === 0 && tails.length === 0) {
+      return rows;
+    }
+    heads = pipeTail(heads);
+    tails = pipeTail(tails);
+    if (heads.length === 0 && tails.length === 0) {
+      return rows;
+    }
+  }
+  return rows;
+}

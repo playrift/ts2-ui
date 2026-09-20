@@ -1,0 +1,362 @@
+import { CS2, intArray, stopTimer, useRef, useUniverse } from 'ts2';
+import { clientClock, itemName, playSound } from '../lib.engine';
+import { ScrollbarVertical } from '../scrollbar-vertical.component';
+import { hideDragProxy, showDragProxy } from './drag-proxy';
+import { dropZone } from './drop-zone';
+import { addItem, insertFromList, statsBlock } from './loadout-edit';
+import { itemOf } from './loadout-state';
+import {
+  DRAG_DEAD,
+  FLASH_CYCLES,
+  LOADOUT_KEYS,
+  Row,
+  STACK_SHOWN,
+  SuppliesColor,
+  SuppliesFonts,
+  SuppliesSounds,
+  SuppliesSprites,
+  Wash,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+
+const SORT_STACK = 512;
+
+export function ItemList({
+  build,
+  pane,
+  proxy,
+  icon,
+  label,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  build: Int;
+  pane: Ref;
+  proxy: Ref;
+  icon: Ref;
+  label: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const box = useUniverse();
+  const order = intArray(LOADOUT_KEYS);
+  let filled: Int = 0;
+  let key: Int = 0;
+  while (key < LOADOUT_KEYS) {
+    const candidate: Item = itemOf(key);
+    if (candidate !== -1) {
+      if (!statsBlock(build, candidate)) {
+        order[filled] = key;
+        filled = filled + 1;
+      }
+    }
+    key = key + 1;
+  }
+  const rows: Int = filled;
+  let pad: Int = filled;
+  while (pad < LOADOUT_KEYS) {
+    order[pad] = -1;
+    pad = pad + 1;
+  }
+
+  const stackLo = intArray(SORT_STACK);
+  const stackHi = intArray(SORT_STACK);
+  let pending: Int = 0;
+  if (rows > 1) {
+    stackLo[0] = 0;
+    stackHi[0] = rows - 1;
+    pending = 1;
+  }
+  while (pending > 0) {
+    pending = pending - 1;
+    const lo: Int = stackLo[pending];
+    const hi: Int = stackHi[pending];
+    const mid: Int = (lo + hi) / 2;
+    const pivot: Int = order[mid];
+    order[mid] = order[hi];
+    order[hi] = pivot;
+    const pivotName: String = itemName(itemOf(pivot));
+    let store: Int = lo;
+    let scan: Int = lo;
+    while (scan < hi) {
+      if (CS2.compare(itemName(itemOf(order[scan])), pivotName) <= 0) {
+        const moved: Int = order[scan];
+        order[scan] = order[store];
+        order[store] = moved;
+        store = store + 1;
+      }
+      scan = scan + 1;
+    }
+    order[hi] = order[store];
+    order[store] = pivot;
+    if (lo < store - 1) {
+      stackLo[pending] = lo;
+      stackHi[pending] = store - 1;
+      pending = pending + 1;
+    }
+    if (store + 1 < hi) {
+      stackLo[pending] = store + 1;
+      stackHi[pending] = hi;
+      pending = pending + 1;
+    }
+  }
+
+  const extent: Int = rows * Row.HEIGHT;
+  if (extent > box.height) {
+    pane.scrollHeight = extent;
+  } else {
+    pane.scrollHeight = 0;
+  }
+  pane.scrollY = 0;
+
+  const labelWidth: Int = box.width - Row.LABEL_INSET;
+
+  return (
+    <>
+      {order.map(
+        (rowKey, rank) =>
+          rowKey !== -1 && (
+            <ItemRow
+              build={build}
+              rowKey={rowKey}
+              rank={rank}
+              labelWidth={labelWidth}
+              proxy={proxy}
+              icon={icon}
+              label={label}
+              bin={bin}
+              grid={grid}
+              w0={w0}
+              w1={w1}
+              w2={w2}
+              w3={w3}
+              w4={w4}
+              w5={w5}
+              w7={w7}
+              w9={w9}
+              w10={w10}
+              w12={w12}
+              w13={w13}
+            />
+          ),
+      )}
+    </>
+  );
+}
+
+function ItemRow({
+  build,
+  rowKey,
+  rank,
+  labelWidth,
+  proxy,
+  icon,
+  label,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  build: Int;
+  rowKey: Int;
+  rank: Int;
+  labelWidth: Int;
+  proxy: Ref;
+  icon: Ref;
+  label: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const item: Item = itemOf(rowKey);
+  const name: String = itemName(item);
+  const even: Boolean = rank % 2 === 0;
+  const stackable: Boolean = CS2.item_stackable(item);
+  const top: Int = rank * Row.HEIGHT;
+  const restColor: Int = even ? SuppliesColor.WHITE : SuppliesColor.BLACK;
+  const restWash: Int = even ? Wash.ROW_EVEN : Wash.ROW_ODD;
+  const backing = useRef();
+  const wash = useRef();
+
+  return (
+    <>
+      <sprite
+        ref={backing}
+        x="center"
+        y={top}
+        w="fill"
+        h={Row.HEIGHT}
+        sprite={SuppliesSprites.ROW_BACK}
+        tiling
+        transparency={Wash.CLEAR}
+        options={['Add', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        draggable={proxy}
+        dragDeadZone={DRAG_DEAD}
+        dragDeadTime={DRAG_DEAD}
+        onMouseRepeat={() => {
+          wash.color = SuppliesColor.WHITE;
+          wash.transparency = Wash.ROW_HOVER;
+        }}
+        onMouseLeave={() => {
+          wash.color = restColor;
+          wash.transparency = restWash;
+        }}
+        onOptionSelect={(event) => {
+          pressRow(backing, wash, restColor, restWash);
+          if (event.option === 1) {
+            addItem(build, 0, rowKey);
+          }
+        }}
+        onDrag={(event) => {
+          showDragProxy(icon, label, item, name, Row.ITEM_INSET, event.mouseX, event.mouseY);
+        }}
+        onDragComplete={(event) => {
+          hideDragProxy(icon, label);
+          insertFromList(
+            build,
+            rowKey,
+            dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13),
+          );
+        }}
+      />
+      <rect ref={wash} x="center" y={top} w="fill" h={Row.HEIGHT} fill color={restColor} transparency={restWash} />
+      {stackable ? (
+        <sprite
+          x={Row.PAD}
+          y={top + Row.ITEM_INSET}
+          w={Row.ITEM_W}
+          h={Row.ITEM_H}
+          item={item}
+          itemCount={STACK_SHOWN}
+          outline={1}
+          shadowColor={SuppliesColor.ITEM_SHADOW}
+        />
+      ) : (
+        <sprite
+          x={Row.PAD}
+          y={top + Row.ITEM_INSET}
+          w={Row.ITEM_W}
+          h={Row.ITEM_H}
+          item={item}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={SuppliesColor.ITEM_SHADOW}
+        />
+      )}
+      <text
+        x={{ right: Row.PAD }}
+        y={top}
+        w={{ fill: Row.LABEL_INSET }}
+        h={Row.HEIGHT}
+        color={SuppliesColor.LABEL}
+        font={SuppliesFonts.SMALL}
+        shadow
+        align="left"
+        valign="middle"
+        text={ellipsised(name, labelWidth, SuppliesFonts.SMALL)}
+      />
+    </>
+  );
+}
+
+function pressRow(backing: ComponentId, wash: ComponentId, restColor: Int, restWash: Int): void {
+  playSound(SuppliesSounds.CLICK);
+  backing.onMouseRepeat = null;
+  backing.onMouseLeave = null;
+  wash.color = SuppliesColor.WHITE;
+  wash.transparency = Wash.ROW_HOVER;
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  wash.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    backing.onMouseRepeat = () => {
+      wash.color = SuppliesColor.WHITE;
+      wash.transparency = Wash.ROW_HOVER;
+    };
+    backing.onMouseLeave = () => {
+      wash.color = restColor;
+      wash.transparency = restWash;
+    };
+    wash.color = restColor;
+    wash.transparency = restWash;
+    stopTimer(wash);
+  };
+}
+
+function ellipsised(text: String, width: Int, font: Font): String {
+  let out: String = text;
+  let cut: Int = out.length;
+  if (cut <= 0) {
+    out = '-';
+    cut = 1;
+  }
+  if (cut > 0 && CS2.parawidth(out, Row.MEASURE_W, font) > width) {
+    let done: Int = 0;
+    while (cut > 1 && done === 0) {
+      cut = cut - 1;
+      const candidate: String = `${out.substring(0, cut)}...`;
+      if (CS2.parawidth(candidate, Row.MEASURE_W, font) <= width) {
+        out = candidate;
+        done = 1;
+      }
+    }
+  }
+  return out;
+}
+
+export function ItemListScrollbar({ pane }: { pane: Ref }): Component {
+  return (
+    <ScrollbarVertical
+      content={pane}
+      track={SuppliesSprites.SCROLL_TRACK}
+      capTopSprite={SuppliesSprites.SCROLL_CAP_TOP}
+      thumbSprite={SuppliesSprites.SCROLL_THUMB}
+      capBottomSprite={SuppliesSprites.SCROLL_CAP_BOTTOM}
+      arrowUp={SuppliesSprites.SCROLL_ARROW_UP}
+      arrowDown={SuppliesSprites.SCROLL_ARROW_DOWN}
+    />
+  );
+}

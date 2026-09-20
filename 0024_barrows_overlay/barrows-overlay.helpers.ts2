@@ -1,16 +1,14 @@
-import { CS2, sessionState, useServerState, useState } from 'ts2';
+import { CS2 } from 'ts2';
 
 import { OverlayInsetRight } from '../lib/lib.overlay.data';
 import { ToplevelComponents } from '../lib/lib.constants';
-import { hasBit, playerCoord, textWidth } from '../lib/lib.engine';
-import { coordInBox, toplevelComponents } from '../lib/lib.helpers';
-import { Anchor, mobileGameframe } from '../lib/lib.overlay';
+import { playerCoord, textWidth } from '../lib/lib.engine';
+import { coordInBox } from '../lib/lib.helpers';
+import { mobileGameframe } from '../lib/lib.overlay';
 import {
   AHRIM,
   BarrowsColor,
   BarrowsFonts,
-  BarrowsVarbits,
-  BarrowsVarps,
   Crypt,
   DHAROK,
   Framed,
@@ -22,12 +20,6 @@ import {
   VERAC,
   Zoom,
 } from './barrows-overlay.constants';
-
-const enum SizeMode {
-  ABS = 0,
-}
-
-const lastDodgerHeight = sessionState(-2147483648);
 
 function nameWidth(name: String): Int {
   return textWidth(name, Layout.NAME_WRAP, BarrowsFonts.LABEL);
@@ -58,74 +50,17 @@ export function widestBrotherName(): Int {
   return widest;
 }
 
-function gameframeInset(layout: Int): Int {
-  return OverlayInsetRight.get(layout) ?? 0;
+export function gameframeInset(frame: Int): Int {
+  return OverlayInsetRight.get(frame) ?? 0;
 }
 
-export function barrowsReward(label: ComponentId): void {
-  if (useServerState(BarrowsVarbits.GRAVESTONE_DURATION) > 0) {
-    if (gameframeInset(toplevelComponents()) <= 0) {
-      label.text = '';
-      return;
-    }
-  }
-  const killed: Int =
-    useServerState(BarrowsVarbits.KILLED_AHRIM) +
-    useServerState(BarrowsVarbits.KILLED_DHAROK) +
-    useServerState(BarrowsVarbits.KILLED_GUTHAN) +
-    useServerState(BarrowsVarbits.KILLED_KARIL) +
-    useServerState(BarrowsVarbits.KILLED_TORAG) +
-    useServerState(BarrowsVarbits.KILLED_VERAC);
-  const score: Int = useServerState(BarrowsVarbits.KILLED_MONSTER) + killed * 2;
-  label.text = `Rewards potential: ${stringOf(CS2.interpolate(0, 100, 0, REWARD_MAX, score))}%`;
+export enum Zone {
+  TUNNELS = 0,
+  MOUNDS = 1,
+  AWAY = 2,
 }
 
-function brotherKilled(tick: ComponentId, index: Int): void {
-  if (hasBit(useServerState(BarrowsVarps.KILLS), index)) {
-    tick.hide = false;
-  } else {
-    tick.hide = true;
-  }
-}
-
-export function barrowsBrother(label: ComponentId, tick: ComponentId, index: Int): void {
-  brotherKilled(tick, index);
-
-  const layout: Int = toplevelComponents();
-  if (layout === ToplevelComponents.NONE) {
-    return;
-  }
-
-  let colour: Int = BarrowsColor.REST;
-  let labelAnchor: Int = Anchor.RIGHT;
-  let tickAnchor: Int = Anchor.LEFT;
-  if (gameframeInset(layout) > 0) {
-    colour = BarrowsColor.FRAMED;
-    labelAnchor = Anchor.LEFT;
-    tickAnchor = Anchor.RIGHT;
-  }
-
-  CS2.if_position_set(0, index * Layout.ROW_H, labelAnchor, Anchor.TOP, label);
-  CS2.if_position_set(0, index * Layout.ROW_H, tickAnchor, Anchor.TOP, tick);
-  label.color = colour;
-}
-
-export function barrowsLayout(
-  hudLayer: ComponentId,
-  column: ComponentId,
-  label: ComponentId,
-  ahrim: ComponentId,
-  dharok: ComponentId,
-  guthan: ComponentId,
-  karil: ComponentId,
-  torag: ComponentId,
-  verac: ComponentId,
-): void {
-  const layout: Int = toplevelComponents();
-  if (layout === ToplevelComponents.NONE) {
-    return;
-  }
-
+export function barrowsZone(): Int {
   if (
     coordInBox(
       tileOf(Crypt.TUNNEL_MIN_X, Crypt.TUNNEL_MIN_Z, Crypt.TUNNEL_MIN_PLANE),
@@ -133,114 +68,87 @@ export function barrowsLayout(
       playerCoord(),
     )
   ) {
-    hudLayer.hide = false;
-    label.hide = false;
-    column.hide = false;
-  } else if (
+    return Zone.TUNNELS;
+  }
+  if (
     coordInBox(
       tileOf(Crypt.MOUNDS_MIN_X, Crypt.MOUNDS_MIN_Z, Crypt.PLANE),
       tileOf(Crypt.MOUNDS_MAX_X, Crypt.MOUNDS_MAX_Z, Crypt.PLANE),
       playerCoord(),
     )
   ) {
-    hudLayer.hide = true;
-    label.hide = false;
-    column.hide = false;
-  } else {
-    hudLayer.hide = true;
-    label.hide = true;
-    column.hide = true;
+    return Zone.MOUNDS;
   }
+  return Zone.AWAY;
+}
 
-  let colour: Int = BarrowsColor.REST;
-  let killcountRight: Int = gameframeInset(layout);
-  let brothersLeft: Int = Framed.BROTHERS_LEFT;
-  let killcountTop: Int = Framed.KILLCOUNT_TOP;
-  let brothersTop: Int = Framed.BROTHERS_TOP;
-  let brothersAnchor: Int = Anchor.LEFT;
-
-  if (killcountRight > 0) {
-    if (mobileGameframe(layout)) {
-      if (useServerState(BarrowsVarbits.MINIMAP_TOGGLE) === 0) {
-        killcountRight = Framed.MOBILE_KILLCOUNT_RIGHT_OPEN;
-        brothersLeft = Framed.MOBILE_BROTHERS_OPEN;
-      } else {
-        killcountRight = Framed.MOBILE_KILLCOUNT_RIGHT_CLOSED;
-        brothersLeft = Framed.MOBILE_BROTHERS_CLOSED;
-      }
-      killcountTop = Framed.MOBILE_KILLCOUNT_TOP;
-      brothersTop = Framed.MOBILE_BROTHERS_TOP;
-      brothersAnchor = Anchor.RIGHT;
-    } else {
-      killcountRight = Framed.KILLCOUNT_RIGHT;
-    }
-    CS2.if_position_set(killcountRight, killcountTop, Anchor.RIGHT, Anchor.TOP, label);
-    CS2.if_position_set(brothersLeft, brothersTop, brothersAnchor, Anchor.TOP, column);
-    colour = BarrowsColor.FRAMED;
-  } else {
-    CS2.if_position_set(Layout.KILLCOUNT_X, Layout.KILLCOUNT_Y, Anchor.RIGHT, Anchor.BOTTOM, label);
-    CS2.if_position_set(Layout.BROTHERS_X, Layout.BROTHERS_Y, Anchor.RIGHT, Anchor.BOTTOM, column);
+export function killcountRight(frame: Int, minimapClosed: Int): Int {
+  if (gameframeInset(frame) <= 0) {
+    return Layout.KILLCOUNT_X;
   }
-  label.color = colour;
-
-  let height: Int = CS2.if_height_get(hudLayer);
-  if (height < Zoom.MIN_HEIGHT) {
-    height = Zoom.MIN_HEIGHT;
-  } else if (height > Zoom.MAX_HEIGHT) {
-    height = Zoom.MAX_HEIGHT;
+  if (mobileGameframe(frame)) {
+    return minimapClosed === 0 ? Framed.MOBILE_KILLCOUNT_RIGHT_OPEN : Framed.MOBILE_KILLCOUNT_RIGHT_CLOSED;
   }
+  return Framed.KILLCOUNT_RIGHT;
+}
 
-  const [seen, setSeen] = useState(lastDodgerHeight);
-  if (height === seen) {
-    return;
+export function killcountTop(frame: Int): Int {
+  return mobileGameframe(frame) ? Framed.MOBILE_KILLCOUNT_TOP : Framed.KILLCOUNT_TOP;
+}
+
+export function brothersOffset(frame: Int, minimapClosed: Int): Int {
+  if (mobileGameframe(frame)) {
+    return minimapClosed === 0 ? Framed.MOBILE_BROTHERS_OPEN : Framed.MOBILE_BROTHERS_CLOSED;
   }
-  setSeen(height);
+  return Framed.BROTHERS_LEFT;
+}
 
-  const zoom: Int =
+export function brothersTop(frame: Int): Int {
+  return mobileGameframe(frame) ? Framed.MOBILE_BROTHERS_TOP : Framed.BROTHERS_TOP;
+}
+
+export function barrowsColour(frame: Int): Int {
+  return gameframeInset(frame) > 0 ? BarrowsColor.FRAMED : BarrowsColor.REST;
+}
+
+export function barrowsZoom(height: Int): Int {
+  let clamped: Int = height;
+  if (clamped < Zoom.MIN_HEIGHT) {
+    clamped = Zoom.MIN_HEIGHT;
+  } else if (clamped > Zoom.MAX_HEIGHT) {
+    clamped = Zoom.MAX_HEIGHT;
+  }
+  return (
     Zoom.BASE -
     CS2.interpolate(
       0,
-      Math.sqrt(height - Zoom.MIN_HEIGHT),
+      Math.sqrt(clamped - Zoom.MIN_HEIGHT),
       0,
       Math.sqrt(Zoom.MAX_HEIGHT - Zoom.MIN_HEIGHT),
       Zoom.RANGE,
-    );
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, ahrim);
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, dharok);
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, guthan);
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, karil);
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, torag);
-  CS2.if_model_angle_set(0, 0, 0, 0, 0, zoom, verac);
-  ahrim.hide = true;
-  dharok.hide = true;
-  guthan.hide = true;
-  karil.hide = true;
-  torag.hide = true;
-  verac.hide = true;
-}
-
-export function barrowsOverlayTick(
-  hudLayer: ComponentId,
-  column: ComponentId,
-  label: ComponentId,
-  ahrim: ComponentId,
-  dharok: ComponentId,
-  guthan: ComponentId,
-  karil: ComponentId,
-  torag: ComponentId,
-  verac: ComponentId,
-): void {
-  CS2.if_size_set(
-    widestBrotherName() + Layout.BROTHERS_PAD,
-    Layout.BROTHERS_FITTED_H,
-    SizeMode.ABS,
-    SizeMode.ABS,
-    column,
+    )
   );
-  barrowsLayout(hudLayer, column, label, ahrim, dharok, guthan, karil, torag, verac);
-  barrowsReward(label);
 }
 
-export function modelTransparentInit(model: ComponentId): void {
-  CS2.if_model_transparent_set(true, model);
+export function rewardText(gravestone: Int, frame: Int, brothersKilled: Int, monstersKilled: Int): string {
+  if (gravestone > 0 && gameframeInset(frame) <= 0) {
+    return '';
+  }
+  const score: Int = monstersKilled + brothersKilled * 2;
+  return `Rewards potential: ${stringOf(CS2.interpolate(0, 100, 0, REWARD_MAX, score))}%`;
+}
+
+export function killcountX(frame: Int, minimapClosed: Int, contentWidth: Int): Int {
+  return contentWidth - Layout.KILLCOUNT_W - killcountRight(frame, minimapClosed);
+}
+
+export function killcountY(frame: Int, contentHeight: Int): Int {
+  if (gameframeInset(frame) > 0) {
+    return killcountTop(frame);
+  }
+  return contentHeight - Layout.KILLCOUNT_H - Layout.KILLCOUNT_Y;
+}
+
+export function laidOut(frame: Int): Boolean {
+  return frame !== ToplevelComponents.NONE;
 }

@@ -1,0 +1,164 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { SettingsCategories, SettingsCategory } from '../0134_settings/settings-categories.data';
+import { SettingsRow, SettingsRows } from '../0134_settings/settings-rows.data';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/game/sounds';
+import { Varbits } from '../lib/game/varbits';
+import {
+  IgnoreSetting,
+  IgnoreVector,
+  ignoreListJoined,
+  lootIgnoreListsChanged,
+  saveItemIgnoreList,
+  saveSourceIgnoreList,
+} from './loot-ignore-lists';
+import { CsvColors, CsvCopy } from './textfield-csv.constants';
+import {
+  textfieldCsvClosed,
+  textfieldCsvFadeDirection,
+  textfieldCsvFadeStartedAt,
+  textfieldCsvInitialText,
+  textfieldCsvInstructions,
+  textfieldCsvOpens,
+  textfieldCsvRowKey,
+} from './textfield-csv.state';
+
+const KIND_TEXT_FIELD = 10;
+
+export function textFieldRowKey(categoryId: Int, settingId: Int): Int {
+  const category: SettingsCategory | null = SettingsCategories.at(categoryId);
+  if (category === null) {
+    return -1;
+  }
+  let key: Int = category.rowBase;
+  const end: Int = category.rowBase + category.rowCount;
+  while (key < end) {
+    const row: SettingsRow | null = SettingsRows.at(key);
+    if (row !== null) {
+      const kind: Int = row.kind ?? 0;
+      const setting: Int = row.settingId ?? 0;
+      if (kind === KIND_TEXT_FIELD && setting === settingId) {
+        return key;
+      }
+    }
+    key = key + 1;
+  }
+  return -1;
+}
+
+export function initialFieldText(settingId: Int): String {
+  if (settingId === IgnoreSetting.ITEMS) {
+    return ignoreListJoined(IgnoreVector.ITEMS, 0);
+  }
+  if (settingId === IgnoreSetting.SOURCES) {
+    return ignoreListJoined(IgnoreVector.SOURCES, 0);
+  }
+  return '';
+}
+
+function instructionsFor(settingId: Int, current: String): String {
+  if (settingId === IgnoreSetting.ITEMS) {
+    return CsvCopy.ITEMS_INSTRUCTIONS;
+  }
+  if (settingId === IgnoreSetting.SOURCES) {
+    return CsvCopy.SOURCES_INSTRUCTIONS;
+  }
+  return current;
+}
+
+export function textfieldCsvOpen(): void {
+  const categoryId: Int = useServerState(Varbits.SETTINGS_CATEGORY);
+  const settingId: Int = useServerState(Varbits.SETTINGS_SELECTED_SETTING);
+  const rowKey: Int = textFieldRowKey(categoryId, settingId);
+  if (rowKey < 0) {
+    return;
+  }
+  const [opens, setOpens] = useState(textfieldCsvOpens);
+  const [, setRowKey] = useState(textfieldCsvRowKey);
+  const [, setClosed] = useState(textfieldCsvClosed);
+  const [, setFadeDirection] = useState(textfieldCsvFadeDirection);
+  const [, setFadeStartedAt] = useState(textfieldCsvFadeStartedAt);
+  const [instructions, setInstructions] = useState(textfieldCsvInstructions);
+
+  setOpens(opens + 1);
+  setRowKey(rowKey);
+  setClosed(0);
+  setFadeDirection(1);
+  setFadeStartedAt(clientClock());
+
+  const initial: String = initialFieldText(settingId);
+  setInstructions(instructionsFor(settingId, instructions));
+
+  const [, setInitialText] = useState(textfieldCsvInitialText);
+  setInitialText(initial);
+}
+
+export function textfieldCsvClearInstructions(): void {
+  const [, setInstructions] = useState(textfieldCsvInstructions);
+  setInstructions('');
+}
+
+function hideWindow(): void {
+  const [, setClosed] = useState(textfieldCsvClosed);
+  const [, setFadeDirection] = useState(textfieldCsvFadeDirection);
+  const [, setFadeStartedAt] = useState(textfieldCsvFadeStartedAt);
+  setClosed(1);
+  setFadeDirection(2);
+  setFadeStartedAt(clientClock());
+}
+
+export function textfieldCsvDismiss(answer: Int): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  hideWindow();
+  CS2.countdialog_resume(CS2.tostring(answer));
+}
+
+export function textfieldCsvCancel(): void {
+  textfieldCsvDismiss(0);
+}
+
+export function textfieldCsvBackdropClick(): void {
+  const [opens] = useState(textfieldCsvOpens);
+  const [closed] = useState(textfieldCsvClosed);
+  const opened: Int = opens;
+  const shut: Int = closed;
+  if (opened === 0 || shut === 1) {
+    return;
+  }
+  hideWindow();
+  const floater: Int = useServerState(Varbits.FLOATER_CHATBOX_OPENED);
+  const colourModal: Int = useServerState(Varbits.SETTINGS_COLOUR_MODAL_OPENED);
+  const csvModal: Int = useServerState(Varbits.SETTINGS_TEXTFIELD_CSV_MODAL_OPENED);
+  if (floater === 1 || colourModal === 1 || csvModal === 1) {
+    return;
+  }
+  CS2.countdialog_resume('0');
+}
+
+export function textfieldCsvSave(): void {
+  textfieldCsvDismiss(1);
+}
+
+export function textfieldCsvSaveText(typed: String): void {
+  const settingId: Int = useServerState(Varbits.SETTINGS_SELECTED_SETTING);
+  if (settingId === IgnoreSetting.ITEMS) {
+    saveItemIgnoreList(typed);
+    lootIgnoreListsChanged();
+  } else if (settingId === IgnoreSetting.SOURCES) {
+    saveSourceIgnoreList(typed);
+    lootIgnoreListsChanged();
+  }
+}
+
+export const enum CsvButton {
+  CANCEL = 0,
+  SAVE = 1,
+}
+
+export function textfieldCsvButton(action: Int): void {
+  if (action === CsvButton.SAVE) {
+    textfieldCsvSave();
+    return;
+  }
+  textfieldCsvCancel();
+}

@@ -1,0 +1,266 @@
+import { useState } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneBorderEntrypoint } from '../lib/stone-border-entrypoint.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Sprites } from '../lib/game/sprites';
+
+import { AvailableRows, SlottedRows } from './telenexus.rows.component';
+import { CostCardLayer } from './telenexus.cost.component';
+import { DoneButton } from './telenexus.done.component';
+import { LeftClickPanel } from './telenexus.leftclick.component';
+import {
+  Layout,
+  TelenexusColor,
+  TelenexusFonts,
+  TelenexusOrder,
+  confirmRef,
+  scrolling1Ref,
+  scrolling2Ref,
+} from './telenexus.constants';
+import { availableCount, rowHeight, slottedCount } from './telenexus.lists';
+import { ConfirmHidden, CostRow } from './telenexus.state';
+import { isSlotted, slotCapacity } from './telenexus.slots';
+
+export function Telenexus(): Component {
+  return (
+    <>
+      <layer w="fill" h="fill">
+        <StoneBorderEntrypoint title="Portal Nexus" />
+      </layer>
+
+      <TelenexusContents />
+    </>
+  );
+}
+
+function TelenexusContents(): Component {
+  const [costRow, setCostRow] = useState(CostRow);
+
+  return (
+    <layer x="center" y={Layout.CONTENTS_Y} w={{ fill: Layout.CONTENTS_W_INSET }} h={{ fill: Layout.CONTENTS_H_INSET }}>
+      <LeftClickPanel />
+
+      <DoneButton />
+
+      <text
+        x={Layout.ARROW1_X}
+        y={Layout.ARROW_Y}
+        w={Layout.ARROW_SIZE}
+        h={Layout.ARROW_SIZE}
+        text="<lt><lt><br><gt><gt>"
+        font={TelenexusFonts.BUTTON}
+        color={TelenexusColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={Layout.ARROW2_X}
+        y={Layout.ARROW_Y}
+        w={Layout.ARROW_SIZE}
+        h={Layout.ARROW_SIZE}
+        text="<gt><gt>"
+        font={TelenexusFonts.BUTTON}
+        color={TelenexusColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={0}
+        y={Layout.AVAILABLE_Y}
+        w={Layout.LABEL_W}
+        h={Layout.LABEL_H}
+        text={`Available ${availableCount()}/${TelenexusOrder.length}`}
+        font={TelenexusFonts.LABEL}
+        color={TelenexusColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <layer x={0} y={Layout.LIST_Y} w={Layout.LIST_W} h={{ fill: Layout.LIST_H_INSET }} dragTarget>
+        <rect x="center" y="center" w="fill" h="fill" color={0} />
+
+        <layer
+          ref={scrolling1Ref}
+          x={Layout.PANE_X}
+          y={Layout.PANE_Y}
+          w={{ fill: Layout.PANE_W_INSET }}
+          h={{ fill: Layout.PANE_H_INSET }}
+          scrollHeight={availableScrollHeight()}
+        >
+          <AvailableRows />
+        </layer>
+
+        <layer x={{ right: Layout.PANE_X }} y={Layout.PANE_Y} w={Layout.BAR_W} h={{ fill: Layout.BAR_H_INSET }}>
+          <ScrollbarVertical
+            content={scrolling1Ref}
+            track={Sprites.SCROLLBAR_DRAGGER_V2_3}
+            capTopSprite={Sprites.SCROLLBAR_DRAGGER_V2_0}
+            thumbSprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+            capBottomSprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+            arrowUp={Sprites.SCROLLBAR_V2_0}
+            arrowDown={Sprites.SCROLLBAR_V2_1}
+          />
+        </layer>
+      </layer>
+
+      <text
+        x="center"
+        y={Layout.SLOTS_Y}
+        w={Layout.SLOTS_W}
+        h={Layout.LABEL_H}
+        text={`Slots ${slottedCount()}/${slotCapacity()}`}
+        font={TelenexusFonts.LABEL}
+        color={TelenexusColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <layer
+        x={{ center: Layout.LIST2_X }}
+        y={Layout.LIST_Y}
+        w={Layout.LIST_W}
+        h={{ fill: Layout.LIST_H_INSET }}
+        dragTarget
+      >
+        <rect x="center" y="center" w="fill" h="fill" color={0} />
+
+        <layer
+          ref={scrolling2Ref}
+          x={Layout.PANE_X}
+          y={Layout.PANE_Y}
+          w={{ fill: Layout.PANE_W_INSET }}
+          h={{ fill: Layout.PANE_H_INSET }}
+          scrollHeight={slottedScrollHeight()}
+        >
+          <SlottedRows />
+        </layer>
+
+        <layer x={{ right: Layout.PANE_X }} y={Layout.PANE_Y} w={Layout.BAR_W} h={{ fill: Layout.BAR_H_INSET }}>
+          <ScrollbarVertical
+            content={scrolling2Ref}
+            track={Sprites.SCROLLBAR_DRAGGER_V2_3}
+            capTopSprite={Sprites.SCROLLBAR_DRAGGER_V2_0}
+            thumbSprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+            capBottomSprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+            arrowUp={Sprites.SCROLLBAR_V2_0}
+            arrowDown={Sprites.SCROLLBAR_V2_1}
+          />
+        </layer>
+      </layer>
+
+      <layer
+        x={Layout.COST_BOUNDS_X}
+        y={Layout.COST_BOUNDS_Y}
+        w={{ fill: Layout.COST_BOUNDS_W_INSET }}
+        h={{ fill: Layout.COST_BOUNDS_H_INSET }}
+        onClick={() => setCostRow(-1)}
+      >
+        <CostCardLayer />
+      </layer>
+
+      <ConfirmCard />
+    </layer>
+  );
+}
+
+function availableScrollHeight(): Int {
+  return visibleAvailable() * rowHeight();
+}
+
+function slottedScrollHeight(): Int {
+  return slottedCount() * rowHeight();
+}
+
+function visibleAvailable(): Int {
+  let at: Int = 0;
+  let visible: Int = 0;
+  while (at < TelenexusOrder.length) {
+    if (isSlottedAt(at) === false) {
+      visible = visible + 1;
+    }
+    at = at + 1;
+  }
+  return visible;
+}
+
+function isSlottedAt(position: Int): Boolean {
+  return isSlotted(TelenexusOrder.at(position) ?? -1);
+}
+
+function ConfirmCard(): Component {
+  const [hidden] = useState(ConfirmHidden);
+  return (
+    <layer ref={confirmRef} x="center" y="center" w="fill" h="fill" hide={hidden === 1} noClickThrough>
+      <rect x="center" y="center" w="fill" h="fill" fill color={0} transparency={Layout.WASH_OPACITY} />
+
+      <text
+        x="center"
+        y={Layout.CONFIRM_TEXT_Y}
+        w={{ fill: Layout.CONFIRM_TEXT_W_INSET }}
+        h={Layout.CONFIRM_TEXT_H}
+        text="These changes to your portal nexus will cost:"
+        font={TelenexusFonts.LABEL}
+        color={TelenexusColor.CONFIRM}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <layer
+        x="center"
+        y={Layout.CONFIRM_DETAILS_Y}
+        w={{ fill: Layout.CONFIRM_DETAILS_INSET }}
+        h={{ fill: Layout.CONFIRM_DETAILS_INSET }}
+      />
+
+      <ConfirmButton label="Confirm" x={Layout.CONFIRM_X} dismiss={0} />
+
+      <ConfirmButton label="Cancel" x={Layout.CANCEL_X} dismiss={1} />
+    </layer>
+  );
+}
+
+function ConfirmButton({ label, x, dismiss }: { label: String; x: Int; dismiss: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [, setHidden] = useState(ConfirmHidden);
+
+  return (
+    <layer
+      x={{ center: x }}
+      y={{ bottom: Layout.CONFIRM_BUTTON_BOTTOM }}
+      w={Layout.CONFIRM_BUTTON_W}
+      h={Layout.CONFIRM_BUTTON_H}
+      options={['Confirm']}
+      onOptionSelect={() => {
+        setHovered(0);
+        if (dismiss === 1) {
+          setHidden(1);
+        }
+      }}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={TelenexusFonts.BUTTON}
+        color={TelenexusColor.BUTTON}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

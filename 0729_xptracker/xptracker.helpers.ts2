@@ -1,0 +1,315 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { scaled } from '../lib/lib.engine';
+import { XpForLevel } from '../lib/skills.data';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { xptrackerLastHp } from '../lib/game/varcs';
+import { stringToInt } from '../0162_chatbox/chatbox.strings';
+import { privateEventWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { xpdropsDataGet } from '../0137_xpdrops_setup/xpdrops-setup.state';
+import { LevelForXp } from '../0137_xpdrops_setup/xpdrops-setup.data';
+import { XpDropRowBySkill } from '../0122_xp_drops/xp-drops.data';
+import { trackerDrop, trackerLastXp, trackerPaused, trackerStartXp, trackerTimeTrained } from './xptracker.cells';
+import { combatStyleRate } from './xptracker.data';
+
+export const enum TrackedSkill {
+  OVERALL = -1,
+  ATTACK = 0,
+  DEFENCE = 1,
+  STRENGTH = 2,
+  HITPOINTS = 3,
+  RANGED = 4,
+  SLAYER = 18,
+}
+
+export const enum TrackerMode {
+  LEVEL = 0,
+  GOAL = 1,
+  DONE = 2,
+  MAXED = 3,
+}
+
+export const XP_CAP = 200000000;
+
+export function trackerXp(skill: Int): Int {
+  return CS2.skill_visible_xp(skill as Skill);
+}
+
+export function trackerGoal(skill: Int): [Int, Int] {
+  return xpdropsDataGet(XpDropRowBySkill.get(skill as Skill) ?? 0);
+}
+
+export function trackerGoalStart(skill: Int): Int {
+  const [start, end] = trackerGoal(skill);
+  return end === end ? start : start;
+}
+
+export function trackerGoalEnd(skill: Int): Int {
+  const [start, end] = trackerGoal(skill);
+  return start === start ? end : end;
+}
+
+export function trackerLevel(xp: Int): Int {
+  let low: Int = 1;
+  let high: Int = 126;
+  while (low < high) {
+    const mid: Int = (low + high + 1) / 2;
+    if (xp >= (XpForLevel.get(mid) ?? 0)) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return low;
+}
+
+export function trackerMode(xp: Int, goalEnd: Int): Int {
+  if (xp >= XP_CAP) {
+    return TrackerMode.DONE;
+  }
+  if (goalEnd <= 0) {
+    if (xp >= (XpForLevel.get(126) ?? 0)) {
+      return TrackerMode.MAXED;
+    }
+    return TrackerMode.LEVEL;
+  }
+  if (xp >= goalEnd) {
+    return TrackerMode.DONE;
+  }
+  return TrackerMode.GOAL;
+}
+
+export function trackerTarget(mode: Int, level: Int, goalEnd: Int): Int {
+  switch (mode) {
+    case TrackerMode.LEVEL:
+      return XpForLevel.get(level + 1) ?? 0;
+    case TrackerMode.GOAL:
+      return goalEnd;
+    case TrackerMode.MAXED:
+      return XP_CAP;
+  }
+  return 0;
+}
+
+export function trackerBase(mode: Int, level: Int, goalStart: Int): Int {
+  if (mode === TrackerMode.GOAL) {
+    return goalStart;
+  }
+  return XpForLevel.get(level) ?? 0;
+}
+
+export function trackerBarWidth(xp: Int, base: Int, target: Int): Int {
+  return scaled(xp - base, target - base, 16384);
+}
+
+export function trackerPercentText(paused: Int, mode: Int, xp: Int, base: Int, target: Int): String {
+  if (paused === 1) {
+    return 'Paused.';
+  }
+  if (mode === TrackerMode.DONE) {
+    return 'Done!';
+  }
+  let text: String = `${scaled(xp - base, target - base, 10000)}`;
+  if (text.length === 1) {
+    text = `  00${text}`;
+  } else if (text.length === 2) {
+    text = `  0${text}`;
+  } else if (text.length === 3) {
+    text = `  ${text}`;
+  } else if (text.length === 4) {
+    text = ` ${text}`;
+  }
+  return `${text.substring(0, 3)}.${text.substring(3, 5)}%`;
+}
+
+export function trackerLeftText(mode: Int, level: Int, goalStart: Int): String {
+  switch (mode) {
+    case TrackerMode.LEVEL:
+    case TrackerMode.MAXED:
+      return `Lvl. ${level}`;
+    case TrackerMode.GOAL: {
+      const exact: Int = LevelForXp.get(goalStart) ?? -1;
+      if (exact !== -1) {
+        return `Lvl. ${exact}`;
+      }
+      return 'Start';
+    }
+  }
+  return '';
+}
+
+export function trackerRightText(mode: Int, level: Int, goalEnd: Int): String {
+  switch (mode) {
+    case TrackerMode.LEVEL:
+      return `Lvl. ${level + 1}`;
+    case TrackerMode.GOAL: {
+      const exact: Int = LevelForXp.get(goalEnd) ?? -1;
+      if (exact !== -1) {
+        return `Lvl. ${exact}`;
+      }
+      return 'Goal';
+    }
+    case TrackerMode.MAXED:
+      return 'Max!';
+  }
+  return '';
+}
+
+export function trackerNumber(value: Int): String {
+  if (value < 0) {
+    return '0';
+  }
+  const text: String = `${value}`;
+  if (text.length === 6) {
+    return `${groupDigits(stringToInt(text.substring(0, 3)), ',')}.${text.substring(3, 5)}k`;
+  }
+  if (text.length === 7) {
+    return `${groupDigits(stringToInt(text.substring(0, 4)), ',')}.${text.substring(4, 5)}k`;
+  }
+  if (text.length === 8) {
+    return `${groupDigits(stringToInt(text.substring(0, 2)), ',')}.${text.substring(2, 5)}M`;
+  }
+  if (text.length > 8) {
+    return '99.999M';
+  }
+  return groupDigits(value, ',');
+}
+
+export function trackerXpPerHour(skill: Int): Int {
+  return xpPerHourOf(trackerLastXp(skill) - trackerStartXp(skill), trackerTimeTrained(skill));
+}
+
+export function xpPerHourOf(gained: Int, trainedCycles: Int): Int {
+  let trained: Int = trainedCycles;
+  if (trained < 0) {
+    return 0;
+  }
+  if (trained < 3000) {
+    trained = 3000;
+  }
+  return scaled(gained, trained, 180000);
+}
+
+export function trackerGained(skill: Int): Int {
+  return trackerLastXp(skill) - trackerStartXp(skill);
+}
+
+export function trackerDropAverage(skill: Int): Int {
+  let slot: Int = 0;
+  let count: Int = 0;
+  let sum: Int = 0;
+  while (slot < 10) {
+    const drop: Int = trackerDrop(skill, slot);
+    sum = sum + drop;
+    if (drop > 0) {
+      count = count + 1;
+    } else {
+      slot = 10;
+    }
+    slot = slot + 1;
+  }
+  if (count <= 0) {
+    return -1;
+  }
+  return sum / count;
+}
+
+export function trackerActsLeft(xp: Int, target: Int, average: Int): Int {
+  if (average > 0) {
+    return (target - xp - 1) / average + 1;
+  }
+  return -1;
+}
+
+export function trackerIsCombat(skill: Int): Boolean {
+  return (
+    skill === TrackedSkill.ATTACK ||
+    skill === TrackedSkill.STRENGTH ||
+    skill === TrackedSkill.RANGED ||
+    skill === TrackedSkill.DEFENCE ||
+    skill === TrackedSkill.HITPOINTS ||
+    skill === TrackedSkill.SLAYER
+  );
+}
+
+export function trackerKillsLeft(skill: Int, target: Int): Int {
+  const xp: Int = trackerXp(skill);
+  const world: Int = privateEventWorld();
+  if (skill === TrackedSkill.SLAYER) {
+    const slayerRaw: Int = useServerState(Varbits.XPTRACKER_SLAYER_MULTIPLIER);
+    const slayerMultiplier: Int = world === 3 ? slayerRaw * 10 : slayerRaw;
+    const slayerPerKill: Int =
+      scaled(useServerState(Varbits.XPTRACKER_SLAYER_LASTKILLXP), 100, Math.max(100, slayerMultiplier)) / 10;
+    const drift: Int = trackerDrop(TrackedSkill.SLAYER, 0) - slayerPerKill;
+    if (slayerPerKill !== 0 && (drift < 0 ? -drift : drift) <= 1) {
+      return (target - xp - 1) / slayerPerKill + 1;
+    }
+    return -1;
+  }
+  if (!trackerIsCombat(skill)) {
+    return -1;
+  }
+  const lastHp: Int = trackerRefreshedHp();
+  const category: Int = useServerState(Varbits.COMBAT_WEAPON_CATEGORY);
+  const comMode: Int = useServerState(Varps.COM_MODE);
+  const defensiveCast: Int = useServerState(Varbits.AUTOCAST_DEFMODE);
+  const style: Int = comMode === 4 && defensiveCast === 1 ? 5 : comMode;
+  const fixedDefence: Boolean = category === 24 || category === 29;
+  let rate: Int = 0;
+  let multiplier: Int = 0;
+  if (((fixedDefence && comMode === 3) || defensiveCast === 1) && skill === TrackedSkill.DEFENCE) {
+    multiplier = trackerMultiplier(TrackedSkill.DEFENCE);
+    rate = 3;
+  } else {
+    rate = combatStyleRate(category, style, skill);
+    multiplier = trackerMultiplier(skill);
+  }
+  if (world === 3) {
+    multiplier = multiplier * 10;
+  }
+  if (rate <= 0) {
+    return -2;
+  }
+  let perKill: Int = scaled(lastHp, 3, Math.max(3, rate));
+  if (perKill <= 0) {
+    return -2;
+  }
+  perKill = scaled(perKill, 100, Math.max(100, multiplier));
+  return (target - xp - 1) / perKill + 1;
+}
+
+function trackerMultiplier(skill: Int): Int {
+  switch (skill) {
+    case TrackedSkill.ATTACK:
+      return useServerState(Varbits.XPTRACKER_ATTACK_MULTIPLIER);
+    case TrackedSkill.STRENGTH:
+      return useServerState(Varbits.XPTRACKER_STRENGTH_MULTIPLIER);
+    case TrackedSkill.RANGED:
+      return useServerState(Varbits.XPTRACKER_RANGED_MULTIPLIER);
+    case TrackedSkill.DEFENCE:
+      return useServerState(Varbits.XPTRACKER_DEFENCE_MULTIPLIER);
+    case TrackedSkill.HITPOINTS:
+      return useServerState(Varbits.XPTRACKER_HITPOINTS_MULTIPLIER);
+  }
+  return 0;
+}
+
+export function trackerRefreshedHp(): Int {
+  const [lastHp] = useState(xptrackerLastHp);
+  const baseHp: Int = useServerState(Varbits.HPBAR_HUD_BASEHP);
+  if (lastHp !== baseHp && baseHp !== 0) {
+    return baseHp;
+  }
+  return lastHp;
+}
+
+export function refreshTrackerLastHp(): void {
+  const [, setLastHp] = useState(xptrackerLastHp);
+  setLastHp(trackerRefreshedHp());
+}
+
+export function trackerIsPaused(skill: Int): Int {
+  return trackerPaused(skill);
+}

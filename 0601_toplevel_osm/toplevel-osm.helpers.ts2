@@ -1,0 +1,371 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { cameraDoZoom, zoomPositionSlider } from '../0016_oculus/oculus.camera';
+import { onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { chatmodalRef } from '../0162_chatbox/chatbox.constants';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  buffBarDodgerUpdate,
+  cameraZoomBig,
+  cameraZoomBigMax,
+  cameraZoomBigMin,
+  cameraZoomSmall,
+  cameraZoomSmallMax,
+  cameraZoomSmallMin,
+  chatView,
+  osmChatboxDisabled,
+  osmPopoutState,
+  osmSidepanelOnLeft,
+  osmTabExpansionDisabled,
+  osmTlidodgersUpdate,
+  toplevelMainmodalBgColour,
+  toplevelMainmodalBgTrans,
+  toplevelPanel,
+} from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { Anchor, mobileSidePanelOnLeft } from '../lib/lib.overlay';
+import { setMobileFullscreen, setMobileSideModalOpen } from '../lib/lib.toplevel';
+import {
+  CAMERA_ZOOM_DEFAULT,
+  Compass,
+  Fov,
+  Modal,
+  Panel,
+  SideSlots,
+  Strip,
+  mainmodalRef,
+  sidemodalRef,
+} from './toplevel-osm.constants';
+import { DESELECTS_OPEN_TAB } from './toplevel-osm.data';
+
+export function toplevelOsmInit(): void {
+  const [, setBgColour] = useState(toplevelMainmodalBgColour);
+  const [, setBgTrans] = useState(toplevelMainmodalBgTrans);
+  setBgColour(-1);
+  setBgTrans(-1);
+  CS2.show_mouseover_text_set(true);
+  CS2.show_mouse_cross_set(true);
+  CS2.show_loading_messages_set(true);
+  feedbackSprite();
+  CS2.feedback_show_popup_text_set(true);
+  zoomPositionSlider();
+  const [panel] = useState(toplevelPanel);
+  switchSidePanel(panel, 0);
+  gameframeSubChanged();
+}
+
+export function feedbackSprite(): void {
+  if (onEnhancedMobile() && useServerState(Varbits.INTERACT_ENTITY_HIGHLIGHTS_DISABLED) === 0) {
+    CS2.feedback_sprite_set(Sprites.CLICKCIRCLE_FILLED_YELLOW_ONLY, true);
+  } else {
+    CS2.feedback_sprite_set(Sprites.CLICKCIRCLE_FILLED, true);
+  }
+}
+
+export function sideTabOp(panel: Int, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  let target: Int = panel;
+  const [selected] = useState(toplevelPanel);
+  if (selected === panel && DESELECTS_OPEN_TAB) {
+    target = Panel.NONE;
+  }
+  switchSidePanel(target, 0);
+}
+
+export function switchSidePanel(panel: Int, onLeft: Int): void {
+  const [, setPanel] = useState(toplevelPanel);
+  const [, setOnLeft] = useState(osmSidepanelOnLeft);
+  if (panel >= 0 && panel < Panel.COUNT) {
+    setPanel(panel);
+  } else {
+    setPanel(Panel.NONE);
+  }
+  setOnLeft(onLeft);
+}
+
+export function toggleTabExpansion(): void {
+  const [disabled, setDisabled] = useState(osmTabExpansionDisabled);
+  if (disabled === 1) {
+    setDisabled(0);
+  } else {
+    setDisabled(1);
+  }
+}
+
+export function toggleChatbox(): void {
+  const [disabled, setDisabled] = useState(osmChatboxDisabled);
+  if (disabled === 1) {
+    setDisabled(0);
+  } else {
+    setDisabled(1);
+  }
+  touchDodgers();
+}
+
+export function touchDodgers(): void {
+  const [, setUpdate] = useState(osmTlidodgersUpdate);
+  setUpdate(clientClock());
+}
+
+export function touchBuffBarDodgers(): void {
+  const [, setUpdate] = useState(buffBarDodgerUpdate);
+  setUpdate(clientClock());
+}
+
+export function compassOp(option: Int): void {
+  if (
+    option > Compass.OPS ||
+    useServerState(Varbits.CUTSCENE_STATUS) === 1 ||
+    useServerState(Varbits.FOV_CLAMP) !== 0
+  ) {
+    return;
+  }
+  CS2.sound_effect(Sounds.INTERFACE_SELECT1, 1, 0);
+  let pitch: Int = CS2.cam_angle_xa_get();
+  if (useServerState(Varbits.COMPASS_REORIENTATION_SETHEIGHT) === 1) {
+    pitch = Compass.PITCH_BASE + CS2.randominc(Compass.PITCH_RANGE);
+    if (pitch === CS2.cam_angle_xa_get()) {
+      pitch = pitch + 1;
+    }
+  }
+  if (option === 1) {
+    CS2.cam_forceangle(pitch, Compass.NORTH);
+  } else if (option === 2) {
+    CS2.cam_forceangle(pitch, Compass.EAST);
+  } else if (option === 3) {
+    CS2.cam_forceangle(pitch, Compass.SOUTH);
+  } else if (option === 4) {
+    CS2.cam_forceangle(pitch, Compass.WEST);
+  }
+}
+
+export function gameframeSubChanged(): void {
+  if (!CS2.if_sub_has(mainmodalRef)) {
+    setMobileFullscreen(0);
+  }
+  setMobileSideModalOpen(CS2.if_sub_has(sidemodalRef) ? 1 : 0);
+}
+
+export function cutsceneHidesSide(): Boolean {
+  if (useServerState(Varbits.CUTSCENE_STATUS) === 0) {
+    return false;
+  }
+  if (useServerState(Varbits.CUTSCENE_FORCE_SIDEPANEL) === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function tapToDropWarning(): Boolean {
+  const [panel] = useState(toplevelPanel);
+  if (panel !== Panel.INVENTORY) {
+    return false;
+  }
+  if (useServerState(Varbits.SETTINGS_MOBILE_TAPTODROP_ENABLED) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function selectedSideSlot(): ComponentId {
+  const [panel] = useState(toplevelPanel);
+  if (panel < 0 || panel >= Panel.COUNT) {
+    return -1;
+  }
+  return SideSlots.at(panel) ?? -1;
+}
+
+export function sideContainerShown(): Boolean {
+  const slot: ComponentId = selectedSideSlot();
+  let open: Boolean = CS2.if_sub_has(sidemodalRef);
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    open = true;
+  }
+  if (open && !cutsceneHidesSide()) {
+    return true;
+  }
+  return false;
+}
+
+export function sideStripMode(): Int {
+  const [expansionDisabled] = useState(osmTabExpansionDisabled);
+  const slot: ComponentId = selectedSideSlot();
+  if (CS2.if_sub_has(sidemodalRef) && CS2.if_sub_has(mainmodalRef)) {
+    return expansionDisabled === 1 ? 3 : 4;
+  }
+  if (slot !== -1) {
+    return expansionDisabled === 1 ? 3 : 4;
+  }
+  if (CS2.if_sub_has(sidemodalRef)) {
+    return expansionDisabled === 1 ? 3 : 4;
+  }
+  if (expansionDisabled !== 1) {
+    return 2;
+  }
+  return 1;
+}
+
+export function stripWidth(): Int {
+  const [expansionDisabled] = useState(osmTabExpansionDisabled);
+  if (expansionDisabled === 1) {
+    return Strip.COLLAPSED_W;
+  }
+  return Strip.EXPANDED_W;
+}
+
+export function sideContainerOnLeft(): Boolean {
+  if (mobileSidePanelOnLeft() === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function modalX(modalW: Int, modalH: Int, frontW: Int, frontH: Int): Int {
+  const mode: Int = sideStripMode();
+  const tall: Boolean = modalH >= frontH - Modal.MINIMAP_H + Modal.MINIMAP_PAD;
+  const withMinimap: Int = frontW - Modal.MINIMAP_W + Modal.MINIMAP_W_PAD;
+  const xBesideMinimap: Int = withMinimap / 2 - modalW / 2;
+  let inset: Int = 0;
+  if (mode === 2) {
+    inset = Modal.TABS_W;
+  } else if (mode === 3) {
+    inset = Modal.SIDE_W;
+  } else if (mode === 4) {
+    inset = Modal.SIDE_W + Modal.TABS_W;
+  }
+  if (chatboxOff()) {
+    return Math.max(0, (withMinimap - Modal.CHAT_INSET) / 2 - modalW / 2);
+  }
+  if (modalW + inset * 2 + Modal.GAP <= frontW && !tall) {
+    return 0;
+  }
+  if (mode > 1) {
+    const withSide: Int = frontW - inset + Modal.SIDE_PAD;
+    const xBesideSide: Int = withSide / 2 - modalW / 2;
+    if (tall && xBesideMinimap + modalW + inset + Modal.PANEL_PAD <= frontW) {
+      return Math.max(0, xBesideMinimap);
+    }
+    return Math.max(0, xBesideSide);
+  }
+  if (!tall) {
+    return 0;
+  }
+  return Math.max(0, xBesideMinimap);
+}
+
+export function modalY(modalH: Int, frontH: Int): Int {
+  if (chatboxOff()) {
+    return Modal.CHATBOX_HIDDEN_Y;
+  }
+  return Math.min(Modal.MAX_Y, (frontH - modalH) / 2);
+}
+
+export function modalCentred(modalW: Int, modalH: Int, frontW: Int, frontH: Int): Boolean {
+  const mode: Int = sideStripMode();
+  const tall: Boolean = modalH >= frontH - Modal.MINIMAP_H + Modal.MINIMAP_PAD;
+  let inset: Int = 0;
+  if (mode === 2) {
+    inset = Modal.TABS_W;
+  } else if (mode === 3) {
+    inset = Modal.SIDE_W;
+  } else if (mode === 4) {
+    inset = Modal.SIDE_W + Modal.TABS_W;
+  }
+  if (chatboxOff()) {
+    return false;
+  }
+  if (modalW + inset * 2 + Modal.GAP <= frontW && !tall) {
+    return true;
+  }
+  if (mode > 1) {
+    return false;
+  }
+  if (!tall) {
+    return true;
+  }
+  return false;
+}
+
+export function chatboxOff(): Boolean {
+  const [view] = useState(chatView);
+  const [disabled] = useState(osmChatboxDisabled);
+  if (
+    (view === Modal.CHAT_VIEW_OFF || disabled === 1) &&
+    !CS2.if_sub_has(chatmodalRef) &&
+    useServerState(Varbits.OSM_MODAL_CHECK) === 1
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function applyFov(clamp: Int): void {
+  if (clamp !== 0) {
+    if (clamp === 2) {
+      CS2.viewport_fov_set(Fov.WIDE_Y, Fov.WIDE_X);
+      CS2.viewport_clampfov(0, 0, 0, 0);
+    } else if (clamp === 3) {
+      CS2.viewport_fov_set(Fov.NARROW, Fov.NARROW);
+      CS2.viewport_clampfov(Fov.CLAMP_MIN_FOV, Fov.CLAMP_MAX_FOV, Fov.CLAMP_MIN_ZOOM, Fov.CLAMP_MAX_ZOOM);
+    } else {
+      CS2.viewport_fov_set(Fov.NARROW, Fov.NARROW);
+      CS2.viewport_clampfov(Fov.CLAMP_FIXED, Fov.CLAMP_FIXED, Fov.CLAMP_FIXED, Fov.CLAMP_FIXED);
+    }
+    CS2.cam_follow_height_set(Fov.FOLLOW_HEIGHT);
+    return;
+  }
+  CS2.viewport_clampfov(0, 0, 0, 0);
+  const [small] = useState(cameraZoomSmall);
+  const [big] = useState(cameraZoomBig);
+  const [smallMin] = useState(cameraZoomSmallMin);
+  const [smallMax] = useState(cameraZoomSmallMax);
+  const [bigMin] = useState(cameraZoomBigMin);
+  const [bigMax] = useState(cameraZoomBigMax);
+  if (small >= smallMin && small <= smallMax && big >= bigMin && big <= bigMax) {
+    cameraDoZoom(small, big);
+  } else {
+    cameraDoZoom(CAMERA_ZOOM_DEFAULT, CAMERA_ZOOM_DEFAULT);
+  }
+}
+
+export function applySavedZoom(): void {
+  const [small] = useState(cameraZoomSmall);
+  const [big] = useState(cameraZoomBig);
+  const [fovSmall, fovBig] = CS2.viewport_fov_get();
+  if (small > 0 && big > 0 && (fovSmall !== small || fovBig !== big)) {
+    cameraDoZoom(small, big);
+  }
+}
+
+export function applyClientSettings(): void {
+  if (useServerState(Varbits.MOUSECAM_DISABLED) === 1) {
+    CS2.mouse_cam_set(false);
+  } else {
+    CS2.mouse_cam_set(true);
+  }
+  if (useServerState(Varbits.FOLLOWEROPS_DEPRIORITISED) === 1) {
+    CS2.follower_ops_low_priority_set(true);
+  } else {
+    CS2.follower_ops_low_priority_set(false);
+  }
+}
+
+export function popoutState(): Int {
+  const [state] = useState(osmPopoutState);
+  if (state !== 1 && state !== 2 && state !== 0) {
+    return 0;
+  }
+  return state;
+}
+
+export function leftOrRight(onLeft: Boolean): Int {
+  if (onLeft) {
+    return Anchor.LEFT;
+  }
+  return Anchor.RIGHT;
+}

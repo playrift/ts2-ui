@@ -1,0 +1,211 @@
+import { useServerState } from 'ts2';
+
+import { xpdropsDataGet } from '../0137_xpdrops_setup/xpdrops-setup.state';
+import { XpDropRowBySkill } from './xp-drops.data';
+import {
+  barState,
+  counterSkill,
+  dimTag,
+  grouped,
+  levelOf,
+  percentText,
+  progressSkill,
+  skillName,
+  totalXpString,
+  xpAtLevel,
+  xpTotal,
+  xpVisible,
+} from './xp-drops.helpers';
+import { XpDropsVars } from './xp-drops.constants';
+
+export function counterTipLabels(): String {
+  const counter: Int = counterSkill();
+  if (counter >= 0) {
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(counter as Skill) ?? 0);
+    if (end === -1) {
+      if (xpVisible(counter) - start >= 0) {
+        return `${skillName(counter)} tracker:|Tracking from:|Total XP:`;
+      }
+      return `Your ${skillName(counter)} tracker is invalid.<br>Set a lower starting point.`;
+    }
+    if (levelOf(counter) < 99) {
+      return `${skillName(counter)} XP:|${dimTag()}Next level:</col>|Remaining:`;
+    }
+    return `${skillName(counter)} XP:`;
+  }
+  if (counter === -2) {
+    return '';
+  }
+  const [high, low] = xpTotal();
+  if (useServerState(XpDropsVars.TOTAL_END) === -1) {
+    const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+    const thousands: Int = high * 1000000 + low / 1000;
+    if (thousands >= totalStart) {
+      return 'Total XP tracker:|Tracking from:|Total XP:';
+    }
+    return 'Your Total XP tracker is invalid.<br>Set a lower starting point.';
+  }
+  return 'Total XP:';
+}
+
+export function counterTipValues(): String {
+  const counter: Int = counterSkill();
+  if (counter >= 0) {
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(counter as Skill) ?? 0);
+    const xp: Int = xpVisible(counter);
+    if (end === -1) {
+      const delta: Int = xp - start;
+      if (delta >= 0) {
+        return `${grouped(delta)}|${grouped(start)}|${grouped(xp)}`;
+      }
+      return '';
+    }
+    const base: Int = levelOf(counter);
+    if (base < 99) {
+      const next: Int = xpAtLevel(base + 1);
+      return `${grouped(xp)}|${dimTag()}${grouped(next)}</col>|${grouped(next - xp)}`;
+    }
+    return grouped(xp);
+  }
+  if (counter === -2) {
+    return '';
+  }
+  const [high, low] = xpTotal();
+  const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+  if (useServerState(XpDropsVars.TOTAL_END) === -1) {
+    const units: Int = low % 1000;
+    const thousands: Int = high * 1000000 + low / 1000;
+    if (thousands > totalStart) {
+      return `${grouped(thousands - totalStart)},${padded(units)}|${trackedFrom(totalStart)}|${totalXpString(high, low)}`;
+    }
+    if (thousands === totalStart && units >= 0) {
+      return `${stringOf(units)}|${trackedFrom(totalStart)}|${totalXpString(high, low)}`;
+    }
+    return '';
+  }
+  return totalXpString(high, low);
+}
+
+export function progressTipLabels(): String {
+  const progress: Int = progressSkill();
+  if (progress >= 0) {
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(progress as Skill) ?? 0);
+    const xp: Int = xpVisible(progress);
+    if (end !== -1 && end > start) {
+      if (xp < end) {
+        return `${skillName(progress)} goal|${dimTag()}Start:</col>|Current:|${dimTag()}End:</col>|Remaining:`;
+      }
+      return `${skillName(progress)} goal|${dimTag()}Start:</col>|Current:|${dimTag()}End:</col>`;
+    }
+    if (levelOf(progress) < 99) {
+      return `${skillName(progress)}|Current XP:|${dimTag()}Next level:</col>|Remaining:`;
+    }
+    return `${skillName(progress)} XP:`;
+  }
+  if (progress !== -2) {
+    return '';
+  }
+  const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+  const totalEnd: Int = useServerState(XpDropsVars.TOTAL_END);
+  if (totalEnd === -1 || totalEnd <= totalStart) {
+    return 'Use the setup menu to set a Total XP goal.';
+  }
+  const [remHigh, remLow] = totalGoalRemaining();
+  if (remHigh > 0 || remLow > 0) {
+    return `Total XP goal|${dimTag()}Start:</col>|Current:|${dimTag()}End:</col>|Remaining:`;
+  }
+  return `Total XP goal|${dimTag()}Start:</col>|Current:|${dimTag()}End:</col>`;
+}
+
+export function progressTipValues(): String {
+  const progress: Int = progressSkill();
+  if (progress >= 0) {
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(progress as Skill) ?? 0);
+    const xp: Int = xpVisible(progress);
+    if (end !== -1 && end > start) {
+      const [barW, barColour, perMille] = barState(start, xp, end, 1, TRACK);
+      if (xp < end) {
+        return `${percentText(perMille)}|${dimTag()}${grouped(start)}</col>|${grouped(xp)}|${dimTag()}${grouped(end)}</col>|${grouped(end - xp)}`;
+      }
+      return `${percentText(perMille)}|${dimTag()}${grouped(start)}</col>|${grouped(xp)}|${dimTag()}${grouped(end)}</col>`;
+    }
+    const base: Int = levelOf(progress);
+    let target: Int = base + 1;
+    if (target > 99) {
+      target = 99;
+    }
+    const next: Int = xpAtLevel(target);
+    const [barW, barColour, perMille] = barState(xpAtLevel(base), xp, next, 0, TRACK);
+    if (base < 99) {
+      return `${percentText(perMille)}|${grouped(xp)}|${dimTag()}${grouped(next)}</col>|${grouped(next - xp)}`;
+    }
+    return grouped(xp);
+  }
+  if (progress !== -2) {
+    return '';
+  }
+  const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+  const totalEnd: Int = useServerState(XpDropsVars.TOTAL_END);
+  if (totalEnd === -1 || totalEnd <= totalStart) {
+    return '';
+  }
+  const [high, low] = xpTotal();
+  let perMille: Int = 0;
+  if (high < 2 && totalEnd <= MAX_INT / 1000) {
+    const [barW, barColour, pm] = barState(totalStart * 1000, high * 1000000000 + low, totalEnd * 1000, 1, TRACK);
+    perMille = pm;
+  } else {
+    const [barW, barColour, pm] = barState(totalStart, high * 1000000 + low / 1000, totalEnd, 1, TRACK);
+    perMille = pm;
+  }
+  const head: String = `${percentText(perMille)}|${dimTag()}${trackedFrom(totalStart)}</col>|${totalXpString(high, low)}|${dimTag()}${grouped(totalEnd)},000</col>`;
+  const [remHigh, remLow] = totalGoalRemaining();
+  if (remHigh > 0 || remLow > 0) {
+    return `${head}|${totalXpString(remHigh, remLow)}`;
+  }
+  return head;
+}
+
+function totalGoalRemaining(): [Int, Int] {
+  const [high, low] = xpTotal();
+  const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+  const totalEnd: Int = useServerState(XpDropsVars.TOTAL_END);
+  if (high < 2 && totalEnd <= MAX_INT / 1000) {
+    return [0, totalEnd * 1000 - (high * 1000000000 + low)];
+  }
+  const current: Int = high * 1000000 + low / 1000;
+  if (current >= totalEnd) {
+    return [0, 0];
+  }
+  let short: Int = totalEnd - current;
+  const units: Int = low % 1000;
+  if (units > 0) {
+    short = short - 1;
+    return [short / 1000000, (short % 1000000) * 1000 + (1000 - units)];
+  }
+  return [short / 1000000, (short % 1000000) * 1000];
+}
+
+const TRACK = 100;
+
+const MAX_INT = 2147483647;
+
+function padded(units: Int): String {
+  if (units > 99) {
+    return stringOf(units);
+  }
+  if (units > 9) {
+    return `0${stringOf(units)}`;
+  }
+  if (units >= 0) {
+    return `00${stringOf(units)}`;
+  }
+  return stringOf(units);
+}
+
+function trackedFrom(totalStart: Int): String {
+  if (totalStart > 0) {
+    return `${grouped(totalStart)},000`;
+  }
+  return '0';
+}

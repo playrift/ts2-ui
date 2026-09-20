@@ -1,0 +1,936 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  talentTreeDragDelay,
+  talentTreeDragFocusX,
+  talentTreeDragFocusY,
+  talentTreeHorizontalScrollPos,
+  talentTreeMobileOpToggle,
+  talentTreeOverlayHeight,
+  talentTreeOverlayWidth,
+  talentTreeOverlayX,
+  talentTreeOverlayY,
+  talentTreeSelectedNodeAmount,
+  talentTreeShowingInfoPanel,
+  talentTreeVerticalScrollPos,
+  talentTreeZoomScalar,
+} from '../lib/game/varcs';
+import { chatMessage, playSound, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { debugMessage, debugMessageAlias, errorMessage } from '../lib/lib.debug';
+import { debugWarn } from '../0922_jigsaw/jigsaw.state';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { floaterPlace, floaterPlaced } from '../0372_cr_ui/floater';
+import {
+  PactBar,
+  PactSideLook,
+  PactSound,
+  PactState,
+  PactStyle,
+  PANE_SIDE,
+  ROOT_NODE,
+  TALENT_TREE_FLOATER,
+  TUTORIAL_DONE,
+} from './talent-tree.constants';
+import { PactLinks, PactNode, PactNodes } from './talent-tree.data';
+import {
+  pactBarCounted,
+  pactBarKind,
+  pactDeselect0,
+  pactDeselect1,
+  pactDeselect2,
+  pactDeselect3,
+  pactDeselect4,
+  pactHotfix,
+  pactPending,
+  pactPulsing,
+  pactRootRule,
+  pactTipKey,
+  pactTipSeen,
+  pactTipShown,
+  pactTipText,
+  pactTipTimed,
+} from './talent-tree.state';
+
+export function keyRun(key: Int): String {
+  return `${key}`.padStart(3, '0');
+}
+
+export function runCount(run: String): Int {
+  return run.length / 3;
+}
+
+export function runAt(run: String, position: Int): Int {
+  return parseInt(run.substring(position * 3, position * 3 + 3));
+}
+
+export function runHas(run: String, key: Int): Boolean {
+  const needle: String = keyRun(key);
+  let at: Int = run.indexOf(needle, 0);
+  while (at !== -1 && at % 3 !== 0) {
+    at = run.indexOf(needle, at + 1);
+  }
+  return at !== -1;
+}
+
+export function runIndexOf(run: String, key: Int): Int {
+  const needle: String = keyRun(key);
+  let at: Int = run.indexOf(needle, 0);
+  while (at !== -1 && at % 3 !== 0) {
+    at = run.indexOf(needle, at + 1);
+  }
+  if (at === -1) {
+    return -1;
+  }
+  return at / 3;
+}
+
+export function pactUnlocked(key: Int): Boolean {
+  const bit: Int = key % 32;
+  const word: Int = key / 32;
+  if (word === 0) {
+    return CS2.testbit(useServerState(Varps.VARP_5498), bit);
+  } else if (word === 1) {
+    return CS2.testbit(useServerState(Varps.VARP_5499), bit);
+  } else if (word === 2) {
+    return CS2.testbit(useServerState(Varps.VARP_5500), bit);
+  } else if (word === 3) {
+    return CS2.testbit(useServerState(Varps.VARP_5501), bit);
+  } else if (word === 4) {
+    return CS2.testbit(useServerState(Varps.VARP_5502), bit);
+  } else if (word === 5) {
+    return CS2.testbit(useServerState(Varps.VARP_5503), bit);
+  }
+  debugMessageAlias(
+    `Missing plugin for ID ${key} We're probably missing a plugin for var ${word} in talent_tree_tracking_get_set_unlocked`,
+  );
+  return false;
+}
+
+export function pactsEarned(): Int {
+  return useServerState(Varps.VARP_5484);
+}
+
+export function pactsSpent(): Int {
+  return useServerState(Varps.VARP_5486);
+}
+
+export function pactResets(): Int {
+  return useServerState(Varbits.VARBIT_20260);
+}
+
+export function pactDebugIds(): Boolean {
+  return useServerState(Varbits.FAIRYRINGS_DEPRECATED) === 1;
+}
+
+export function pactNodeState(key: Int, earned: Int, spent: Int, pending: String, rootRule: Int): Int {
+  if (pactUnlocked(key)) {
+    return PactState.ACTIVE;
+  }
+  if (runHas(pending, key)) {
+    return PactState.SELECTED;
+  }
+  if (spent + runCount(pending) >= earned) {
+    return PactState.LOCKED;
+  }
+  if (key === ROOT_NODE && rootRule === 1) {
+    return PactState.SELECTABLE;
+  }
+  const links: String = PactLinks.at(key) ?? '';
+  const count: Int = runCount(links);
+  let i: Int = 0;
+  while (i < count) {
+    const other: Int = runAt(links, i);
+    if (pactUnlocked(other)) {
+      return PactState.SELECTABLE;
+    }
+    if (runHas(pending, other)) {
+      return PactState.SELECTABLE;
+    }
+    i = i + 1;
+  }
+  return PactState.LOCKED;
+}
+
+export function pactLineState(a: Int, b: Int): Int {
+  if (a === PactState.ACTIVE) {
+    return b;
+  }
+  if (a === PactState.SELECTED) {
+    if (b === PactState.LOCKED) {
+      return PactState.LOCKED;
+    }
+    if (b === PactState.SELECTABLE) {
+      return PactState.SELECTABLE;
+    }
+    return PactState.SELECTED;
+  }
+  if (a === PactState.SELECTABLE) {
+    if (b === PactState.ACTIVE || b === PactState.SELECTED) {
+      return PactState.SELECTABLE;
+    }
+    return PactState.LOCKED;
+  }
+  return PactState.LOCKED;
+}
+
+export function pactLineColour(state: Int): Int {
+  if (state === PactState.LOCKED) {
+    return 0x000001;
+  } else if (state === PactState.ACTIVE) {
+    return 0xfae17d;
+  } else if (state === PactState.SELECTED) {
+    return 0xf17113;
+  } else if (state === PactState.SELECTABLE) {
+    return 0xbd000b;
+  }
+  return 0x000000;
+}
+
+export function zoomOf(zoom: Int): Int {
+  if (zoom <= 0) {
+    return 100;
+  }
+  return zoom;
+}
+
+export function pactNodeSide(size: Int, zoom: Int): Int {
+  let side: Int = 0;
+  if (size === 2) {
+    side = 24;
+  } else if (size === 1) {
+    side = 48;
+  } else if (size === 3) {
+    side = 72;
+  }
+  return scaled(side, 100, zoom);
+}
+
+export function pactNodeX(node: PactNode, zoom: Int): Int {
+  return scaled(node.x, 100, zoom);
+}
+
+export function pactNodeY(node: PactNode, zoom: Int): Int {
+  return scaled(node.y, 100, zoom);
+}
+
+export function pactLineWidth(zoom: Int): Int {
+  if (zoom <= 125) {
+    return 2;
+  }
+  if (zoom <= 175) {
+    return 3;
+  }
+  return 4;
+}
+
+export function pactIconSide(size: Int, side: Int): Int {
+  if (size === 2) {
+    return (8192 * side) / 16384;
+  }
+  return (16384 * side) / 16384;
+}
+
+export function pactPaneExtent(zoom: Int): Int {
+  return scaled(PANE_SIDE, 100, zoom);
+}
+
+export function pactRingSprite(size: Int, side: Int, state: Int): Sprite {
+  if (size === 3) {
+    if (side > 48) {
+      if (state === 0) {
+        return 7670;
+      } else if (state === 1) {
+        return 7667;
+      } else if (state === 2) {
+        return 7668;
+      } else if (state === 3) {
+        return 7669;
+      }
+    } else {
+      if (state === 0) {
+        return 7660;
+      } else if (state === 1) {
+        return 7657;
+      } else if (state === 2) {
+        return 7658;
+      } else if (state === 3) {
+        return 7659;
+      }
+    }
+  } else {
+    if (side > 48) {
+      if (state === 0) {
+        return 7665;
+      } else if (state === 1) {
+        return 7662;
+      } else if (state === 2) {
+        return 7663;
+      } else if (state === 3) {
+        return 7664;
+      }
+    } else {
+      if (state === 0) {
+        return 7655;
+      } else if (state === 1) {
+        return 7652;
+      } else if (state === 2) {
+        return 7653;
+      } else if (state === 3) {
+        return 7654;
+      }
+    }
+  }
+  return -1;
+}
+
+export function pactIconSprite(effect: Int, size: Int, iconSide: Int, state: Int): Sprite {
+  let limit: Int = 48;
+  if (size === 2) {
+    limit = 16;
+  }
+  let slot: Int = 3;
+  if (state === PactState.ACTIVE || state === PactState.SELECTED) {
+    slot = 1;
+    if (iconSide > limit) {
+      slot = 0;
+    }
+  } else if (iconSide > limit) {
+    slot = 2;
+  }
+  return effectIcon(effect, size, slot);
+}
+
+export function effectIcon(effect: Int, size: Int, slot: Int): Sprite {
+  if (effect === 1) {
+    if (size === 2) {
+      return pick(slot, 7691, 7677, 7698, 7684);
+    }
+    return pick(slot, 7707, 7887, 7727, 7907);
+  } else if (effect === 12 || effect === 57) {
+    if (size === 2) {
+      return pick(slot, 7688, 7674, 7695, 7681);
+    }
+    return pick(slot, 7711, 7891, 7731, 7911);
+  } else if (effect === 13) {
+    if (size === 2) {
+      return pick(slot, 7689, 7675, 7696, 7682);
+    }
+    return pick(slot, 7699, 7879, 7719, 7899);
+  } else if (effect === 40) {
+    return pick(slot, 7690, 7676, 7697, 7683);
+  } else if (effect === 18) {
+    return pick(slot, 7712, 7892, 7732, 7912);
+  } else if (effect === 16) {
+    return pick(slot, 7704, 7884, 7724, 7904);
+  } else if (effect === 76) {
+    return pick(slot, 7703, 7883, 7723, 7903);
+  } else if (effect === 24) {
+    return pick(slot, 7706, 7886, 7726, 7906);
+  } else if (effect === 75) {
+    return pick(slot, 7701, 7881, 7721, 7901);
+  } else if (effect === 61) {
+    return pick(slot, 7702, 7882, 7722, 7902);
+  } else if (effect === 23) {
+    return pick(slot, 7700, 7880, 7720, 7900);
+  } else if (effect === 62) {
+    return pick(slot, 7705, 7885, 7725, 7905);
+  } else if (effect === 7) {
+    return pick(slot, 7685, 7671, 7692, 7678);
+  } else if (effect === 34) {
+    return pick(slot, 7748, 7928, 7778, 7958);
+  } else if (effect === 81) {
+    return pick(slot, 7759, 7939, 7789, 7969);
+  } else if (effect === 78) {
+    return pick(slot, 7747, 7927, 7777, 7957);
+  } else if (effect === 3) {
+    return pick(slot, 7742, 7922, 7772, 7952);
+  } else if (effect === 83) {
+    return pick(slot, 7741, 7921, 7771, 7951);
+  } else if (effect === 30) {
+    return pick(slot, 7739, 7919, 7769, 7949);
+  } else if (effect === 45) {
+    return pick(slot, 7740, 7920, 7770, 7950);
+  } else if (effect === 4) {
+    return pick(slot, 7746, 7926, 7776, 7956);
+  } else if (effect === 29) {
+    return pick(slot, 7745, 7925, 7775, 7955);
+  } else if (effect === 31) {
+    return pick(slot, 7743, 7923, 7773, 7953);
+  } else if (effect === 46) {
+    return pick(slot, 7744, 7924, 7774, 7954);
+  } else if (effect === 5) {
+    return pick(slot, 7756, 7936, 7786, 7966);
+  } else if (effect === 32) {
+    return pick(slot, 7755, 7935, 7785, 7965);
+  } else if (effect === 33) {
+    return pick(slot, 7753, 7933, 7783, 7963);
+  } else if (effect === 47) {
+    return pick(slot, 7754, 7934, 7784, 7964);
+  } else if (effect === 6) {
+    return pick(slot, 7752, 7932, 7782, 7962);
+  } else if (effect === 42) {
+    return pick(slot, 7751, 7931, 7781, 7961);
+  } else if (effect === 41) {
+    return pick(slot, 7749, 7929, 7779, 7959);
+  } else if (effect === 48) {
+    return pick(slot, 7750, 7930, 7780, 7960);
+  } else if (effect === 79) {
+    return pick(slot, 7760, 7940, 7790, 7970);
+  } else if (effect === 35) {
+    return pick(slot, 7761, 7941, 7791, 7971);
+  } else if (effect === 80) {
+    return pick(slot, 7762, 7942, 7792, 7972);
+  } else if (effect === 36) {
+    return pick(slot, 7763, 7943, 7793, 7973);
+  } else if (effect === 15) {
+    return pick(slot, 7687, 7673, 7694, 7680);
+  } else if (effect === 11) {
+    return pick(slot, 7848, 8028, 7868, 8048);
+  } else if (effect === 58) {
+    return pick(slot, 7853, 8033, 7873, 8053);
+  } else if (effect === 49) {
+    return pick(slot, 7854, 8034, 7874, 8054);
+  } else if (effect === 52) {
+    return pick(slot, 7847, 8027, 7867, 8047);
+  } else if (effect === 9) {
+    return pick(slot, 7842, 8022, 7862, 8042);
+  } else if (effect === 53) {
+    return pick(slot, 7841, 8021, 7861, 8041);
+  } else if (effect === 60) {
+    return pick(slot, 7840, 8020, 7860, 8040);
+  } else if (effect === 59) {
+    return pick(slot, 7839, 8019, 7859, 8039);
+  } else if (effect === 8) {
+    return pick(slot, 7846, 8026, 7866, 8046);
+  } else if (effect === 50) {
+    return pick(slot, 7845, 8025, 7865, 8045);
+  } else if (effect === 51) {
+    return pick(slot, 7843, 8023, 7863, 8043);
+  } else if (effect === 82) {
+    return pick(slot, 7844, 8024, 7864, 8044);
+  } else if (effect === 10) {
+    return pick(slot, 7852, 8032, 7872, 8052);
+  } else if (effect === 17) {
+    return pick(slot, 7851, 8031, 7871, 8051);
+  } else if (effect === 55) {
+    return pick(slot, 7850, 8030, 7870, 8050);
+  } else if (effect === 56) {
+    return pick(slot, 7849, 8029, 7869, 8049);
+  } else if (effect === 14) {
+    return pick(slot, 7686, 7672, 7693, 7679);
+  } else if (effect === 66) {
+    return pick(slot, 7809, 7989, 7829, 8009);
+  } else if (effect === 73) {
+    return pick(slot, 7808, 7988, 7828, 8008);
+  } else if (effect === 67) {
+    return pick(slot, 7802, 7982, 7822, 8002);
+  } else if (effect === 20) {
+    return pick(slot, 7807, 7987, 7827, 8007);
+  } else if (effect === 25) {
+    return pick(slot, 7815, 7995, 7835, 8015);
+  } else if (effect === 70) {
+    return pick(slot, 7814, 7994, 7834, 8014);
+  } else if (effect === 26) {
+    return pick(slot, 7816, 7996, 7836, 8016);
+  } else if (effect === 71) {
+    return pick(slot, 7806, 7986, 7826, 8006);
+  } else if (effect === 69) {
+    return pick(slot, 7813, 7993, 7833, 8013);
+  } else if (effect === 44) {
+    return pick(slot, 7805, 7985, 7825, 8005);
+  } else if (effect === 72) {
+    return pick(slot, 7804, 7984, 7824, 8004);
+  } else if (effect === 68) {
+    return pick(slot, 7803, 7983, 7823, 8003);
+  } else if (effect === 43) {
+    return pick(slot, 7811, 7991, 7831, 8011);
+  } else if (effect === 65) {
+    return pick(slot, 7810, 7990, 7830, 8010);
+  } else if (effect === 77) {
+    return pick(slot, 7812, 7992, 7832, 8012);
+  } else if (effect === 19) {
+    return pick(slot, 7801, 7981, 7821, 8001);
+  } else if (effect === 64) {
+    return pick(slot, 7800, 7980, 7820, 8000);
+  } else if (effect === 84) {
+    return pick(slot, 7799, 7979, 7819, 7999);
+  }
+  return 2532;
+}
+
+function pick(slot: Int, a: Sprite, b: Sprite, c: Sprite, d: Sprite): Sprite {
+  if (slot === 0) {
+    return a;
+  } else if (slot === 1) {
+    return b;
+  } else if (slot === 2) {
+    return c;
+  }
+  return d;
+}
+
+export function pactFormat(text: String, value: String): String {
+  return stringFindAndReplace(stringFindAndReplace(text, '#', value), '*', 'F47113');
+}
+
+export function hotfixText(hotfix: String, effect: Int): String {
+  const needle: String = `|T${keyRun(effect)}`;
+  const at: Int = hotfix.indexOf(needle, 0);
+  if (at === -1) {
+    return '';
+  }
+  let end: Int = hotfix.indexOf('|', at + 5);
+  if (end === -1) {
+    end = hotfix.length;
+  }
+  return hotfix.substring(at + 5, end);
+}
+
+export function hotfixValue(hotfix: String, key: Int): Int {
+  const needle: String = `|V${keyRun(key)}:`;
+  const at: Int = hotfix.indexOf(needle, 0);
+  if (at === -1) {
+    return 0;
+  }
+  let end: Int = hotfix.indexOf('|', at + 6);
+  if (end === -1) {
+    end = hotfix.length;
+  }
+  return parseInt(hotfix.substring(at + 6, end));
+}
+
+export function pactEffectText(key: Int, hotfix: String, short: Boolean): String {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return '';
+  }
+  const fixed: String = hotfixText(hotfix, node.effect);
+  if (fixed.length > 0) {
+    return fixed;
+  }
+  if (short) {
+    if (node.effect === 15) {
+      return '+#% Ranged damage.';
+    } else if (node.effect === 14) {
+      return '+#% Melee damage.';
+    } else if (node.effect === 7) {
+      return "+#% Magic damage<br><br>This bonus is multiplied by the Tumeken's Shadow special effect.";
+    }
+  }
+  return node.text;
+}
+
+export function pactEffectValue(key: Int, hotfix: String): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  const fixed: Int = hotfixValue(hotfix, key);
+  if (fixed > 0) {
+    return fixed;
+  }
+  return node.value;
+}
+
+export function pactTooltip(key: Int, hotfix: String, zoom: Int, debug: Boolean): String {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return '';
+  }
+  let text: String = pactFormat(pactEffectText(key, hotfix, false), `${pactEffectValue(key, hotfix)}`);
+  if (debug) {
+    text = `ID - ${key + 1} [${node.debug}]<br>${text}<br>X: ${pactNodeX(node, zoom)}, Y: ${pactNodeY(node, zoom)}`;
+  }
+  return text;
+}
+
+export function pactStyleName(style: Int): String {
+  if (style === PactStyle.MELEE) {
+    return 'Melee';
+  } else if (style === PactStyle.RANGED) {
+    return 'Ranged';
+  } else if (style === PactStyle.MAGIC) {
+    return 'Magic';
+  } else if (style === PactStyle.NEUTRAL) {
+    return 'Neutral';
+  }
+  return '';
+}
+
+export function pactEffectDisabled(effect: Int): Boolean {
+  return false;
+}
+
+export function pactEffectLevel(effect: Int): Int {
+  if (useServerState(Varbits.LEAGUE_TYPE) !== 6) {
+    return 0;
+  }
+  if (pactEffectDisabled(effect)) {
+    return 0;
+  }
+  if (effect === 1) {
+    return useServerState(Varbits.VARBIT_20261);
+  } else if (effect === 7) {
+    return useServerState(Varbits.VARBIT_20267);
+  } else if (effect === 14) {
+    return useServerState(Varbits.VARBIT_20274);
+  } else if (effect === 15) {
+    return useServerState(Varbits.VARBIT_20275);
+  } else if (effect === 2) {
+    return useServerState(Varbits.VARBIT_20262);
+  } else if (effect === 3) {
+    return useServerState(Varbits.VARBIT_20341);
+  } else if (effect === 4) {
+    return useServerState(Varbits.VARBIT_20264);
+  } else if (effect === 5) {
+    return useServerState(Varbits.VARBIT_20336);
+  } else if (effect === 6) {
+    return useServerState(Varbits.VARBIT_20266);
+  } else if (effect === 8) {
+    return useServerState(Varbits.VARBIT_20268);
+  } else if (effect === 9) {
+    return useServerState(Varbits.VARBIT_20269);
+  } else if (effect === 10) {
+    return useServerState(Varbits.VARBIT_20344);
+  } else if (effect === 11) {
+    return useServerState(Varbits.VARBIT_20271);
+  } else if (effect === 12) {
+    return useServerState(Varbits.VARBIT_20272);
+  } else if (effect === 13) {
+    return useServerState(Varbits.VARBIT_20273);
+  } else if (effect === 16) {
+    return useServerState(Varbits.VARBIT_20276);
+  } else if (effect === 17) {
+    return useServerState(Varbits.VARBIT_20277);
+  } else if (effect === 18) {
+    return useServerState(Varbits.VARBIT_20278);
+  } else if (effect === 19) {
+    return useServerState(Varbits.VARBIT_20279);
+  } else if (effect === 20) {
+    return useServerState(Varbits.VARBIT_20280);
+  } else if (effect === 21) {
+    return useServerState(Varbits.VARBIT_20281);
+  } else if (effect === 22) {
+    return useServerState(Varbits.VARBIT_20282);
+  } else if (effect === 23) {
+    return useServerState(Varbits.VARBIT_20283);
+  } else if (effect === 24) {
+    return useServerState(Varbits.VARBIT_20284);
+  } else if (effect === 25) {
+    return useServerState(Varbits.VARBIT_20285);
+  } else if (effect === 26) {
+    return useServerState(Varbits.VARBIT_20286);
+  } else if (effect === 27) {
+    return useServerState(Varbits.VARBIT_20287);
+  } else if (effect === 28) {
+    return useServerState(Varbits.VARBIT_20288);
+  } else if (effect === 29) {
+    return useServerState(Varbits.VARBIT_20289);
+  } else if (effect === 30) {
+    return useServerState(Varbits.VARBIT_20342);
+  } else if (effect === 31) {
+    return useServerState(Varbits.VARBIT_20291);
+  } else if (effect === 32) {
+    return useServerState(Varbits.VARBIT_20292);
+  } else if (effect === 33) {
+    return useServerState(Varbits.VARBIT_20293);
+  } else if (effect === 34) {
+    return useServerState(Varbits.VARBIT_20294);
+  } else if (effect === 81) {
+    return useServerState(Varbits.VARBIT_20340);
+  } else if (effect === 35) {
+    return useServerState(Varbits.VARBIT_20295);
+  } else if (effect === 36) {
+    return useServerState(Varbits.VARBIT_20296);
+  } else if (effect === 37) {
+    return useServerState(Varbits.VARBIT_20297);
+  } else if (effect === 38) {
+    return useServerState(Varbits.VARBIT_20298);
+  } else if (effect === 39) {
+    return useServerState(Varbits.VARBIT_20299);
+  } else if (effect === 40) {
+    return useServerState(Varbits.VARBIT_20300);
+  } else if (effect === 41) {
+    return useServerState(Varbits.VARBIT_20345);
+  } else if (effect === 42) {
+    return useServerState(Varbits.VARBIT_20301);
+  } else if (effect === 43) {
+    return useServerState(Varbits.VARBIT_20302);
+  } else if (effect === 44) {
+    return useServerState(Varbits.VARBIT_20303);
+  } else if (effect === 45) {
+    return useServerState(Varbits.VARBIT_20304);
+  } else if (effect === 46) {
+    return useServerState(Varbits.VARBIT_20305);
+  } else if (effect === 47) {
+    return useServerState(Varbits.VARBIT_20306);
+  } else if (effect === 48) {
+    return useServerState(Varbits.VARBIT_20307);
+  } else if (effect === 49) {
+    return useServerState(Varbits.VARBIT_20308);
+  } else if (effect === 50) {
+    return useServerState(Varbits.VARBIT_20309);
+  } else if (effect === 51) {
+    return useServerState(Varbits.VARBIT_20310);
+  } else if (effect === 52) {
+    return useServerState(Varbits.VARBIT_20311);
+  } else if (effect === 53) {
+    return useServerState(Varbits.VARBIT_20312);
+  } else if (effect === 54) {
+    return useServerState(Varbits.VARBIT_20313);
+  } else if (effect === 56) {
+    return useServerState(Varbits.VARBIT_20315);
+  } else if (effect === 55) {
+    return useServerState(Varbits.VARBIT_20314);
+  } else if (effect === 57) {
+    return useServerState(Varbits.VARBIT_20316);
+  } else if (effect === 58) {
+    return useServerState(Varbits.VARBIT_20317);
+  } else if (effect === 59) {
+    return useServerState(Varbits.VARBIT_20318);
+  } else if (effect === 60) {
+    return useServerState(Varbits.VARBIT_20319);
+  } else if (effect === 61) {
+    return useServerState(Varbits.VARBIT_20320);
+  } else if (effect === 62) {
+    return useServerState(Varbits.VARBIT_20323);
+  } else if (effect === 63) {
+    return useServerState(Varbits.VARBIT_20324);
+  } else if (effect === 64) {
+    return useServerState(Varbits.VARBIT_20325);
+  } else if (effect === 65) {
+    return useServerState(Varbits.VARBIT_20326);
+  } else if (effect === 66) {
+    return useServerState(Varbits.VARBIT_20334);
+  } else if (effect === 67) {
+    return useServerState(Varbits.VARBIT_20328);
+  } else if (effect === 68) {
+    return useServerState(Varbits.VARBIT_20346);
+  } else if (effect === 69) {
+    return useServerState(Varbits.VARBIT_20330);
+  } else if (effect === 70) {
+    return useServerState(Varbits.VARBIT_20333);
+  } else if (effect === 71) {
+    return useServerState(Varbits.VARBIT_20331);
+  } else if (effect === 72) {
+    return useServerState(Varbits.VARBIT_20332);
+  } else if (effect === 73) {
+    return useServerState(Varbits.VARBIT_20347);
+  } else if (effect === 74) {
+    return useServerState(Varbits.VARBIT_20335);
+  } else if (effect === 75) {
+    return useServerState(Varbits.VARBIT_20327);
+  } else if (effect === 76) {
+    return useServerState(Varbits.VARBIT_20265);
+  } else if (effect === 77) {
+    return useServerState(Varbits.VARBIT_20338);
+  } else if (effect === 78) {
+    return useServerState(Varbits.VARBIT_20339);
+  } else if (effect === 79) {
+    return useServerState(Varbits.VARBIT_20263);
+  } else if (effect === 80) {
+    return useServerState(Varbits.VARBIT_20290);
+  } else if (effect === 82) {
+    return useServerState(Varbits.VARBIT_20270);
+  } else if (effect === 83) {
+    return useServerState(Varbits.VARBIT_20343);
+  } else if (effect === 84) {
+    return useServerState(Varbits.VARBIT_20348);
+  }
+  debugMessageAlias(`Missing plugin for effect type ${effect}`);
+  return 0;
+}
+
+export function talentTreeOpen(recentre: Int): void {
+  const [zoomRaw, setZoom] = useState(talentTreeZoomScalar);
+  if (zoomRaw <= 0) {
+    setZoom(100);
+  }
+  const zoom: Int = zoomOf(zoomRaw);
+
+  const [px] = useState(talentTreeOverlayX);
+  const [py] = useState(talentTreeOverlayY);
+  const [pw] = useState(talentTreeOverlayWidth);
+  const [ph] = useState(talentTreeOverlayHeight);
+  let wantW: Int = pw;
+  let wantH: Int = ph;
+  let wantX: Int = px;
+  let wantY: Int = py;
+  if (onMobile()) {
+    const [, setDelay] = useState(talentTreeDragDelay);
+    setDelay(10);
+    wantX = 16;
+    wantY = 16;
+    wantW = 684;
+    wantH = 418;
+  }
+  const [placedX, placedY, placedW, placedH] = floaterPlaced(TALENT_TREE_FLOATER, wantX, wantY, wantW, wantH);
+  floaterPlace(TALENT_TREE_FLOATER, wantX, wantY, wantW, wantH);
+
+  if (recentre === 1) {
+    const extent: Int = pactPaneExtent(zoom);
+    const [, setScrollX] = useState(talentTreeHorizontalScrollPos);
+    const [, setScrollY] = useState(talentTreeVerticalScrollPos);
+    setScrollX((extent - (placedW - 12)) / 2);
+    setScrollY((extent - (placedH - 41)) / 2);
+  }
+
+  const [, setCount] = useState(talentTreeSelectedNodeAmount);
+  const [, setPending] = useState(pactPending);
+  const [, setBar] = useState(pactBarKind);
+  const [, setCounted] = useState(pactBarCounted);
+  const [, setDeselect0] = useState(pactDeselect0);
+  const [, setDeselect1] = useState(pactDeselect1);
+  const [, setDeselect2] = useState(pactDeselect2);
+  const [, setDeselect3] = useState(pactDeselect3);
+  const [, setDeselect4] = useState(pactDeselect4);
+  const [, setRootRule] = useState(pactRootRule);
+  const [, setPulsing] = useState(pactPulsing);
+  setCount(0);
+  setPending('');
+  setBar(PactBar.HIDDEN);
+  setCounted(0);
+  setDeselect0(0);
+  setDeselect1(0);
+  setDeselect2(0);
+  setDeselect3(0);
+  setDeselect4(0);
+  setRootRule(1);
+  if (!pactUnlocked(ROOT_NODE) && useServerState(Varbits.LEAGUE_TUTORIAL_COMPLETED) < TUTORIAL_DONE) {
+    setPulsing(1);
+  } else {
+    setPulsing(0);
+  }
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  if (showing === PactSideLook.INFO) {
+    const [, setShown] = useState(pactTipShown);
+    setShown(0);
+  }
+}
+
+export function pactInterfaceOpened(): void {
+  const [, setHotfix] = useState(pactHotfix);
+  const [, setShown] = useState(pactTipShown);
+  const [, setKey] = useState(pactTipKey);
+  const [, setText] = useState(pactTipText);
+  const [, setTimed] = useState(pactTipTimed);
+  const [, setSeen] = useState(pactTipSeen);
+  setHotfix('');
+  setShown(0);
+  setKey(-1);
+  setText('');
+  setTimed(0);
+  setSeen(-1);
+}
+
+export function talentTreeHotfixClear(): void {
+  const [, setHotfix] = useState(pactHotfix);
+  setHotfix('');
+}
+
+export function talentTreeHotfixText(effect: Int, text: String): void {
+  const [hotfix, setHotfix] = useState(pactHotfix);
+  if (hotfix.indexOf(`|T${keyRun(effect)}`, 0) !== -1) {
+    debugWarn(
+      'Hotfix',
+      `Duplicate $effect name change in hotfix layer, for $effect = ${effect}. Ensure you arent hotfixing this effect more than once.`,
+    );
+    return;
+  }
+  setHotfix(`${hotfix}|T${keyRun(effect)}${text}`);
+}
+
+export function talentTreeHotfixValue(key: Int, value: Int): void {
+  if (key < 0) {
+    return;
+  }
+  const [hotfix, setHotfix] = useState(pactHotfix);
+  if (hotfix.indexOf(`|V${keyRun(key)}:`, 0) !== -1) {
+    const node: PactNode | null = PactNodes.at(key);
+    let name: String = '';
+    if (node !== null) {
+      name = node.debug;
+    }
+    debugWarn(
+      'Hotfix',
+      `Duplicate [${name}] value hotfix data in hotfix layer. Ensure you arent hotfixing this node more than once.`,
+    );
+    return;
+  }
+  setHotfix(`${hotfix}|V${keyRun(key)}:${value}`);
+}
+
+export function pactZoom(next: Int): void {
+  const [zoom, setZoom] = useState(talentTreeZoomScalar);
+  const before: Int = pactPaneExtent(zoom);
+  setZoom(next);
+  const after: Int = pactPaneExtent(next);
+  const [scrollX, setScrollX] = useState(talentTreeHorizontalScrollPos);
+  const [scrollY, setScrollY] = useState(talentTreeVerticalScrollPos);
+  setScrollX(Math.max(0, scrollX + (after - before) / 2));
+  setScrollY(Math.max(0, scrollY + (after - before) / 2));
+  if (pactDebugIds()) {
+    debugMessage(`Zoom is ${next}`);
+  }
+}
+
+export function pactDragStart(mouseX: Int, mouseY: Int): void {
+  const [, setFocusX] = useState(talentTreeDragFocusX);
+  const [, setFocusY] = useState(talentTreeDragFocusY);
+  setFocusX(mouseX);
+  setFocusY(mouseY);
+}
+
+export function pactDrag(mouseX: Int, mouseY: Int): void {
+  const [delay, setDelay] = useState(talentTreeDragDelay);
+  const left: Int = Math.max(0, delay - 2);
+  setDelay(left);
+  if (left > 2) {
+    return;
+  }
+  const [focusX, setFocusX] = useState(talentTreeDragFocusX);
+  const [focusY, setFocusY] = useState(talentTreeDragFocusY);
+  const [scrollX, setScrollX] = useState(talentTreeHorizontalScrollPos);
+  const [scrollY, setScrollY] = useState(talentTreeVerticalScrollPos);
+  setScrollX(scrollX + (focusX - mouseX));
+  setScrollY(scrollY + (focusY - mouseY));
+  setFocusX(mouseX);
+  setFocusY(mouseY);
+}
+
+export function pactDragDelayTick(): void {
+  const [delay, setDelay] = useState(talentTreeDragDelay);
+  setDelay(Math.min(10, delay + 1));
+}
+
+export function pactToggleInfoOnTap(): void {
+  const [toggle, setToggle] = useState(talentTreeMobileOpToggle);
+  if (toggle === 1) {
+    setToggle(0);
+  } else {
+    setToggle(1);
+  }
+}
+
+export function pactShowInfo(show: Boolean): void {
+  const [, setShowing] = useState(talentTreeShowingInfoPanel);
+  if (show) {
+    playSound(PactSound.EXPAND);
+    setShowing(1);
+  } else {
+    setShowing(0);
+  }
+}
+
+export function pactResetAllowed(): Boolean {
+  if (pactResets() <= 0) {
+    chatMessage(
+      '<col=ff0000>You need atleast one pact reset point to do that. You can see which tasks give you these points, within the tasks interface.',
+    );
+    playSound(PactSound.REFUSED);
+    return false;
+  }
+  return true;
+}

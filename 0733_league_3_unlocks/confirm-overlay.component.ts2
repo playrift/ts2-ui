@@ -1,0 +1,223 @@
+import { CS2, useState } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { BossUnlocks } from './boss-unlocks.data';
+import { ButtonStyle, ButtonStyles } from './button-styles.data';
+import type { ButtonStyleRow } from './button-styles.data';
+import { CappedStructBox } from './capped-struct-box.component';
+import { UnlockColor, UnlockFonts, UnlockSounds, UnlockSprites, UnlockTab } from './league-3-unlocks.constants';
+import { desktop } from './league-3-unlocks.helpers';
+import { confirmationOpen, infoOverlayOpen } from './league-3-unlocks.state';
+import { SkillUnlocks } from './skill-unlocks.data';
+import { QuestUnlocks } from './quest-unlocks.data';
+
+export function ConfirmOverlay({ tab, selection, colour }: { tab: Int; selection: Int; colour: Int }): Component {
+  const [open, setOpen] = useState(confirmationOpen);
+
+  const key: Int = selection - 1;
+  const skillRow = tab === UnlockTab.SKILLS ? SkillUnlocks.at(key) : null;
+  const bossRow = tab === UnlockTab.BOSSES ? BossUnlocks.at(key) : null;
+  const questRow = tab === UnlockTab.QUESTS ? QuestUnlocks.at(key) : null;
+
+  let name: String = '';
+  if (skillRow !== null) {
+    name = skillRow.name;
+  }
+  if (bossRow !== null) {
+    name = bossRow.name;
+  }
+  if (questRow !== null) {
+    name = questRow.name;
+  }
+
+  let icon: Sprite = -1;
+  if (skillRow !== null) {
+    icon = skillRow.bigIcon;
+  }
+  if (bossRow !== null) {
+    icon = bossRow.bigIcon;
+  }
+
+  const quests: Boolean = tab === UnlockTab.QUESTS;
+  const swap: Boolean = desktop();
+
+  return (
+    <layer w="fill" h="fill" noClickThrough hide={open === 1 ? false : true}>
+      <rect x="center" y="center" w="fill" h="fill" fill color={UnlockColor.BLACK} transparency={200} />
+
+      <layer x="center" y="center" w={270} h={200}>
+        <SteelFrame backdrop />
+
+        <text
+          x={16}
+          y={16}
+          w={{ fill: 32 }}
+          h={40}
+          align="center"
+          valign="top"
+          shadow
+          lineHeight={20}
+          font={UnlockFonts.BOLD}
+          color={colour}
+          text={
+            quests
+              ? `<col=cfcfcf>Are you sure you wish to complete:<br>${name}`
+              : `<col=cfcfcf>Are you sure you wish to unlock:<br>${name}`
+          }
+        />
+
+        {quests ? (
+          <text
+            x={16}
+            y={70}
+            w={{ fill: 32 }}
+            h={40}
+            align="center"
+            valign="top"
+            shadow
+            lineHeight={20}
+            font={UnlockFonts.BOLD}
+            color={UnlockColor.MUTED}
+            text="You will <col=c46820>NOT</col> receive any<br>quest reward XP."
+          />
+        ) : (
+          <sprite x="center" y={{ center: -10 }} w={50} h={50} sprite={icon} />
+        )}
+
+        <text
+          x={16}
+          y={125}
+          w={{ fill: 32 }}
+          h={40}
+          align="center"
+          valign="top"
+          shadow
+          lineHeight={20}
+          font={UnlockFonts.BOLD}
+          color={UnlockColor.MUTED}
+          text="This process is irreversible."
+        />
+      </layer>
+
+      <ConfirmButton
+        x={-50}
+        skin={ButtonStyles.at(ButtonStyle.DECLINE)}
+        hoverSkin={ButtonStyles.at(ButtonStyle.DECLINE_HOVER)}
+        option="Decline"
+        swap={swap}
+        action={ConfirmAction.CLOSE_CONFIRM}
+        bottom={71}
+      />
+
+      <text
+        x={153}
+        y={{ bottom: 72 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={14857104}
+        text="Decline"
+      />
+      <text
+        x={152}
+        y={{ bottom: 73 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={UnlockColor.BLACK}
+        text="Decline"
+      />
+
+      <ConfirmButton
+        x={50}
+        skin={ButtonStyles.at(ButtonStyle.ACCEPT)}
+        hoverSkin={ButtonStyles.at(ButtonStyle.ACCEPT_HOVER)}
+        option="Accept"
+        swap={swap}
+        action={ConfirmAction.NONE}
+        bottom={71}
+      />
+
+      <text
+        x={253}
+        y={{ bottom: 72 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={9495240}
+        text="Accept"
+      />
+      <text
+        x={252}
+        y={{ bottom: 73 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={UnlockColor.BLACK}
+        text="Accept"
+      />
+    </layer>
+  );
+}
+
+export enum ConfirmAction {
+  CLOSE_CONFIRM = 0,
+  CLOSE_INFO = 1,
+  NONE = 2,
+}
+
+export function ConfirmButton({
+  x,
+  bottom,
+  skin,
+  hoverSkin,
+  option,
+  swap,
+  action,
+}: {
+  x: Int;
+  bottom: Int;
+  skin: ButtonStyleRow;
+  hoverSkin: ButtonStyleRow;
+  option: String;
+  swap: Boolean;
+  action: ConfirmAction;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const [, setConfirm] = useState(confirmationOpen);
+  const [, setInfo] = useState(infoOverlayOpen);
+  const style: ButtonStyleRow = hovered === 1 ? hoverSkin : skin;
+  return (
+    <layer
+      x={{ center: x }}
+      y={{ bottom: bottom }}
+      w={75}
+      h={36}
+      options={[option]}
+      onOptionSelect={
+        action === ConfirmAction.NONE
+          ? undefined
+          : () => {
+              CS2.sound_effect(UnlockSounds.CLICK, 1, 0);
+              if (action === ConfirmAction.CLOSE_CONFIRM) {
+                setConfirm(0);
+              } else {
+                setInfo(0);
+              }
+            }
+      }
+      onMouseEnter={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    >
+      <CappedStructBox x={0} y={0} w={75} h={36} style={style} />
+    </layer>
+  );
+}

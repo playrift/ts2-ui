@@ -1,0 +1,241 @@
+import { useRef, useState } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { onMobile } from '../lib/lib.helpers';
+import { hasBit, scaled } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+import { ClanMemberColumns } from './clans-members.data';
+import {
+  ClanMembersColor,
+  ClanMembersFonts,
+  ClanMembersOps,
+  ClanMembersSprites,
+  ClanMembersWash,
+  Layout,
+} from './clans-members.constants';
+import { openHeader, openHeaderWhich } from './clans-members.state';
+import { chooseColumn, closeColumnList } from './column-header.component';
+
+export function Dropdown(): Component {
+  const [open] = useState(openHeader);
+  const which: Int = openHeaderWhich(open);
+
+  let mobile: Int = 0;
+  if (onMobile()) {
+    mobile = 1;
+  }
+  const rowHeight: Int = mobile === 1 ? scaled(8, 5, Layout.DROPDOWN_ROW_H) : Layout.DROPDOWN_ROW_H;
+  const count: Int = ClanMemberColumns.length;
+
+  const extent: Int = count * rowHeight + Layout.DROPDOWN_ROW_PAD;
+  const framed: Int = extent + Layout.DROPDOWN_FRAME;
+
+  let boxX: Int = 0;
+  let boxY: Int = 0;
+  let boxW: Int = Layout.DROPDOWN_BOX;
+  let boxH: Int = Layout.DROPDOWN_BOX;
+  let scrollHeight: Int = 0;
+  if (which === 1) {
+    boxX = Layout.LIST_BOX_W - Layout.HEADER1_RIGHT - Layout.HEADER_W;
+  } else if (which === 2) {
+    boxX = Layout.LIST_BOX_W - Layout.HEADER2_RIGHT - Layout.HEADER_W;
+  }
+  if (which !== 0) {
+    boxY = Layout.HEADER_Y + Layout.HEADER_H;
+    boxW = Layout.HEADER_W;
+    if (framed > Layout.DROPDOWN_MAX_H) {
+      boxH = Layout.DROPDOWN_MAX_H;
+      scrollHeight = extent;
+    } else {
+      boxH = framed;
+    }
+  }
+
+  const [drawn, setDrawn] = useState(0);
+  const [drawnFor, setDrawnFor] = useState(-1);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbKey, setThumbKey] = useState(-1);
+  const gutter = useRef();
+
+  const listH: Int = boxH - Layout.DROPDOWN_LIST_INSET_H;
+  const scrolls: Boolean = scrollHeight > 0;
+  const range: Int = scrolls ? extent - listH : 0;
+  const at: Int = scrolls && drawnFor === open ? Math.clamp(0, range, drawn) : 0;
+  const measured: Int = scrolls ? extent : listH;
+  const barH: Int = boxH - Layout.DROPDOWN_BAR_INSET_H;
+  const thumbH: Int = thumbHeightOf(barH, listH, measured, false);
+  const travel: Int = barH - ARROW * 2 - thumbH;
+  const key: Int = measured * 1024 + barH;
+  const thumbY: Int = thumbKey === key && drawnFor === open ? thumbAt : ARROW + (travel * at) / Math.max(1, range);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={which === 0} noClickThrough onClick={() => closeColumnList()}>
+      <layer x={boxX} y={boxY} w={boxW} h={boxH}>
+        <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={Sprites.TRADEBACKING} tiling />
+
+        <layer
+          x={Layout.DROPDOWN_LIST_X}
+          y="center"
+          w={{ fill: Layout.DROPDOWN_LIST_INSET_W }}
+          h={{ fill: Layout.DROPDOWN_LIST_INSET_H }}
+          scrollHeight={scrollHeight}
+          scrollY={at}
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+            setDrawn(next);
+            setDrawnFor(open);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        >
+          {which !== 0 && <DropdownEntries which={which} rowHeight={rowHeight} mobile={mobile} />}
+        </layer>
+
+        <layer
+          x={{ right: Layout.DROPDOWN_BAR_RIGHT }}
+          y="center"
+          w={Layout.BAR_W}
+          h={{ fill: Layout.DROPDOWN_BAR_INSET_H }}
+        >
+          <sprite
+            ref={gutter}
+            y="center"
+            w="fill"
+            h={{ fill: ARROW * 2 }}
+            sprite={ClanMembersSprites.TRACK}
+            noClickThrough
+            onScrollWheel={(event) => {
+              const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+              setDrawn(next);
+              setDrawnFor(open);
+              setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+              setThumbKey(key);
+            }}
+            onClick={(event) => {
+              const span: Int = Math.max(1, travel);
+              const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+              const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+              setDrawn(next);
+              setDrawnFor(open);
+              setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+              setThumbKey(key);
+            }}
+          />
+          <sprite
+            y={thumbY}
+            w="fill"
+            h={thumbH}
+            sprite={ClanMembersSprites.THUMB}
+            noClickThrough
+            draggable={gutter}
+            dragMoves
+            onDrag={(event) => {
+              const offset: Int = event.mouseY;
+              const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+              setDrawn(next);
+              setDrawnFor(open);
+              setThumbAt(offset + ARROW);
+              setThumbKey(key);
+            }}
+          />
+          <sprite y={thumbY} w="fill" h={CAP} sprite={ClanMembersSprites.CAP_TOP} />
+          <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={ClanMembersSprites.CAP_BOTTOM} />
+          <sprite
+            y="top"
+            w="fill"
+            h={ARROW}
+            sprite={ClanMembersSprites.ARROW_UP}
+            noClickThrough
+            onHold={() => {
+              const next: Int = scrolls ? Math.clamp(0, range, at - STEP) : 0;
+              setDrawn(next);
+              setDrawnFor(open);
+              setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+              setThumbKey(key);
+            }}
+          />
+          <sprite
+            y="bottom"
+            w="fill"
+            h={ARROW}
+            sprite={ClanMembersSprites.ARROW_DOWN}
+            noClickThrough
+            onHold={() => {
+              const next: Int = scrolls ? Math.clamp(0, range, at + STEP) : 0;
+              setDrawn(next);
+              setDrawnFor(open);
+              setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+              setThumbKey(key);
+            }}
+          />
+        </layer>
+
+        <ThinBoxOutline />
+      </layer>
+    </layer>
+  );
+}
+
+function DropdownEntries({ which, rowHeight, mobile }: { which: Int; rowHeight: Int; mobile: Int }): Component {
+  const [litMask, setLitMask] = useState(0);
+  const [highlightY, setHighlightY] = useState(-1);
+
+  const contentH: Int = ClanMemberColumns.length * rowHeight + Layout.DROPDOWN_ROW_PAD;
+
+  return (
+    <layer x={0} y={0} w="fill" h={contentH}>
+      <rect
+        y={highlightY === -1 ? 0 : highlightY}
+        w="fill"
+        h={rowHeight + Layout.DROPDOWN_ROW_PAD}
+        fill
+        color={ClanMembersColor.WHITE}
+        transparency={ClanMembersWash.ENTRY_HIGHLIGHT}
+        hide={highlightY === -1}
+      />
+
+      {ClanMemberColumns.map((label, index) => (
+        <text
+          x="center"
+          y={index * rowHeight}
+          w="fill"
+          h={rowHeight}
+          text={label}
+          font={ClanMembersFonts.BODY}
+          color={hasBit(litMask, index) ? ClanMembersColor.LABEL_HOT : ClanMembersColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+          options={[ClanMembersOps.SELECT]}
+          onMouseEnter={
+            mobile === 1
+              ? undefined
+              : () => {
+                  setLitMask(litMask | bitOf(index));
+                  setHighlightY(index * rowHeight);
+                }
+          }
+          onMouseLeave={() => {
+            setLitMask(litMask & (ALL_ENTRY_BITS - bitOf(index)));
+            setHighlightY(-1);
+          }}
+          onOptionSelect={(event) => chooseColumn(event.option, index, which)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+const ALL_ENTRY_BITS = 127;
+
+function bitOf(index: Int): Int {
+  let bit: Int = 1;
+  let at: Int = 0;
+  while (at < index) {
+    bit = bit * 2;
+    at = at + 1;
+  }
+  return bit;
+}

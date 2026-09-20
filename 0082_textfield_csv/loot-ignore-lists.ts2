@@ -1,0 +1,130 @@
+import { CS2, predictServerState, sessionState, useState } from 'ts2';
+import { stringTrim } from '../0162_chatbox/chatbox.strings';
+import { Varbits } from '../lib/game/varbits';
+import { optionLoottrackerIgnorelistSourcesHasText } from '../lib/game/varcs';
+
+export const enum IgnoreVector {
+  SOURCES = 1,
+  ITEMS = 2,
+}
+
+export const enum IgnoreSetting {
+  ITEMS = 345,
+  SOURCES = 349,
+}
+
+export const lootIgnoreListRevision = sessionState(0);
+
+export function ignoreListJoined(vector: Int, maxLength: Int): String {
+  let joined: String = '';
+  const size: Int = CS2.native_string_array_size(vector as StringArray);
+  if (size < 1) {
+    return joined;
+  }
+  let index: Int = 0;
+  while (index < size) {
+    const entry: String = CS2.native_string_array_get(vector as StringArray, index);
+    if (index === 0) {
+      joined = entry;
+    } else {
+      joined = `${joined}, ${entry}`;
+    }
+    index = index + 1;
+  }
+  if (maxLength > 0) {
+    joined = truncateWithEllipsis(joined, maxLength);
+  }
+  return joined;
+}
+
+export function truncateWithEllipsis(text: String, maxLength: Int): String {
+  if (CS2.string_length(text) > maxLength) {
+    return `${CS2.substring(text, 0, maxLength - 3)}...`;
+  }
+  return text;
+}
+
+export function removeAll(text: String, needle: String): String {
+  let index: Int = 0;
+  const length: Int = CS2.string_length(text);
+  const needleLength: Int = CS2.string_length(needle);
+  let kept: String = '';
+  while (index < length) {
+    const window: String = CS2.substring(text, index, index + needleLength);
+    if (CS2.compare(window, needle) === 0) {
+      index = index + needleLength;
+    } else {
+      kept = `${kept}${CS2.substring(text, index, index + 1)}`;
+      index = index + 1;
+    }
+  }
+  return kept;
+}
+
+export function stripLineBreaks(text: String): String {
+  return removeAll(text, '<br>');
+}
+
+export function saveItemIgnoreList(text: String): void {
+  CS2.native_loottracker_ignorelootclear();
+  CS2.native_string_array_clear(IgnoreVector.ITEMS as StringArray);
+  const source: String = stripLineBreaks(CS2.lowercase(text));
+  let start: Int = 0;
+  let comma: Int = CS2.string_indexof_string(source, ',', 0);
+  let taken: Int = 0;
+  while (comma !== -1 && taken < 50) {
+    const entry: String = stringTrim(CS2.substring(source, start, comma));
+    if (CS2.string_length(entry) > 0) {
+      CS2.native_loottracker_ignorelootadd(entry);
+      CS2.native_string_array_unique_add(IgnoreVector.ITEMS as StringArray, entry, false);
+    }
+    start = comma + 1;
+    comma = CS2.string_indexof_string(source, ',', start);
+    taken = taken + 1;
+  }
+  const last: String = stringTrim(CS2.substring(source, start, CS2.string_length(source)));
+  if (CS2.string_length(last) > 0) {
+    CS2.native_loottracker_ignorelootadd(last);
+    CS2.native_string_array_unique_add(IgnoreVector.ITEMS as StringArray, last, false);
+  }
+  if (CS2.native_string_array_size(IgnoreVector.ITEMS as StringArray) > 0) {
+    predictServerState(Varbits.OPTION_LOOTTRACKER_IGNORELIST_HAS_TEXT, 1);
+  } else {
+    predictServerState(Varbits.OPTION_LOOTTRACKER_IGNORELIST_HAS_TEXT, 0);
+  }
+}
+
+export function saveSourceIgnoreList(text: String): void {
+  CS2.native_loottracker_ignoresourceclear();
+  CS2.native_string_array_clear(IgnoreVector.SOURCES as StringArray);
+  const source: String = stripLineBreaks(CS2.lowercase(text));
+  let start: Int = 0;
+  let comma: Int = CS2.string_indexof_string(source, ',', 0);
+  let taken: Int = 0;
+  while (comma !== -1 && taken < 50) {
+    const entry: String = stringTrim(CS2.substring(source, start, comma));
+    if (CS2.string_length(entry) > 0) {
+      CS2.native_loottracker_ignoresourceadd(entry);
+      CS2.native_string_array_unique_add(IgnoreVector.SOURCES as StringArray, entry, false);
+    }
+    start = comma + 1;
+    comma = CS2.string_indexof_string(source, ',', start);
+    taken = taken + 1;
+  }
+  const last: String = stringTrim(CS2.substring(source, start, CS2.string_length(source)));
+  if (CS2.string_length(last) > 0) {
+    CS2.native_loottracker_ignoresourceadd(last);
+    CS2.native_string_array_unique_add(IgnoreVector.SOURCES as StringArray, last, false);
+  }
+  const [, setHasText] = useState(optionLoottrackerIgnorelistSourcesHasText);
+  if (CS2.native_string_array_size(IgnoreVector.SOURCES as StringArray) > 0) {
+    setHasText(1);
+  } else {
+    setHasText(0);
+  }
+}
+
+export function lootIgnoreListsChanged(): void {
+  const [revision, setRevision] = useState(lootIgnoreListRevision);
+  setRevision(revision + 1);
+}

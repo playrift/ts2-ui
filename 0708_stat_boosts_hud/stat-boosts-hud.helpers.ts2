@@ -1,0 +1,399 @@
+import { predictServerState, useServerState, useSkill, useSkillBase, useState } from 'ts2';
+
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { Varbits } from '../lib/game/varbits';
+import {
+  sbhCyclesToNextRestoreDown,
+  sbhCyclesToNextRestoreUp,
+  sbhLastUpdateTimeRestoreDown,
+  sbhLastUpdateTimeRestoreUp,
+  sbhRestoreDownRate,
+  sbhRestoreUpRate,
+} from '../lib/game/varcs';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { SkillByIndex } from '../lib/skills.data';
+import {
+  Colour,
+  CombatSkill,
+  LAST_STAND_FLOOR_ABOVE_BASE,
+  Layout,
+  Skills,
+  SkippedSkill,
+} from './stat-boosts-hud.constants';
+import {
+  statBoostsDynamic,
+  statBoostsLastStandShown,
+  statBoostsRestoreDownPx,
+  statBoostsRestoreUpPx,
+  statBoostsTransmitted,
+} from './stat-boosts-hud.state';
+
+export function skillLevel(skill: Skill): Int {
+  if (skill === Skills.ATTACK) {
+    return useSkill(Skills.ATTACK);
+  }
+  if (skill === Skills.DEFENCE) {
+    return useSkill(Skills.DEFENCE);
+  }
+  if (skill === Skills.STRENGTH) {
+    return useSkill(Skills.STRENGTH);
+  }
+  if (skill === Skills.HITPOINTS) {
+    return useSkill(Skills.HITPOINTS);
+  }
+  if (skill === Skills.RANGED) {
+    return useSkill(Skills.RANGED);
+  }
+  if (skill === Skills.PRAYER) {
+    return useSkill(Skills.PRAYER);
+  }
+  if (skill === Skills.MAGIC) {
+    return useSkill(Skills.MAGIC);
+  }
+  if (skill === Skills.COOKING) {
+    return useSkill(Skills.COOKING);
+  }
+  if (skill === Skills.WOODCUTTING) {
+    return useSkill(Skills.WOODCUTTING);
+  }
+  if (skill === Skills.FLETCHING) {
+    return useSkill(Skills.FLETCHING);
+  }
+  if (skill === Skills.FISHING) {
+    return useSkill(Skills.FISHING);
+  }
+  if (skill === Skills.FIREMAKING) {
+    return useSkill(Skills.FIREMAKING);
+  }
+  if (skill === Skills.CRAFTING) {
+    return useSkill(Skills.CRAFTING);
+  }
+  if (skill === Skills.SMITHING) {
+    return useSkill(Skills.SMITHING);
+  }
+  if (skill === Skills.MINING) {
+    return useSkill(Skills.MINING);
+  }
+  if (skill === Skills.HERBLORE) {
+    return useSkill(Skills.HERBLORE);
+  }
+  if (skill === Skills.AGILITY) {
+    return useSkill(Skills.AGILITY);
+  }
+  if (skill === Skills.THIEVING) {
+    return useSkill(Skills.THIEVING);
+  }
+  if (skill === Skills.SLAYER) {
+    return useSkill(Skills.SLAYER);
+  }
+  if (skill === Skills.FARMING) {
+    return useSkill(Skills.FARMING);
+  }
+  if (skill === Skills.RUNECRAFT) {
+    return useSkill(Skills.RUNECRAFT);
+  }
+  if (skill === Skills.HUNTER) {
+    return useSkill(Skills.HUNTER);
+  }
+  if (skill === Skills.CONSTRUCTION) {
+    return useSkill(Skills.CONSTRUCTION);
+  }
+  if (skill === Skills.SAILING) {
+    return useSkill(Skills.SAILING);
+  }
+  return 0;
+}
+
+export function skillBaseLevel(skill: Skill): Int {
+  if (skill === Skills.ATTACK) {
+    return useSkillBase(Skills.ATTACK);
+  }
+  if (skill === Skills.DEFENCE) {
+    return useSkillBase(Skills.DEFENCE);
+  }
+  if (skill === Skills.STRENGTH) {
+    return useSkillBase(Skills.STRENGTH);
+  }
+  if (skill === Skills.HITPOINTS) {
+    return useSkillBase(Skills.HITPOINTS);
+  }
+  if (skill === Skills.RANGED) {
+    return useSkillBase(Skills.RANGED);
+  }
+  if (skill === Skills.PRAYER) {
+    return useSkillBase(Skills.PRAYER);
+  }
+  if (skill === Skills.MAGIC) {
+    return useSkillBase(Skills.MAGIC);
+  }
+  if (skill === Skills.COOKING) {
+    return useSkillBase(Skills.COOKING);
+  }
+  if (skill === Skills.WOODCUTTING) {
+    return useSkillBase(Skills.WOODCUTTING);
+  }
+  if (skill === Skills.FLETCHING) {
+    return useSkillBase(Skills.FLETCHING);
+  }
+  if (skill === Skills.FISHING) {
+    return useSkillBase(Skills.FISHING);
+  }
+  if (skill === Skills.FIREMAKING) {
+    return useSkillBase(Skills.FIREMAKING);
+  }
+  if (skill === Skills.CRAFTING) {
+    return useSkillBase(Skills.CRAFTING);
+  }
+  if (skill === Skills.SMITHING) {
+    return useSkillBase(Skills.SMITHING);
+  }
+  if (skill === Skills.MINING) {
+    return useSkillBase(Skills.MINING);
+  }
+  if (skill === Skills.HERBLORE) {
+    return useSkillBase(Skills.HERBLORE);
+  }
+  if (skill === Skills.AGILITY) {
+    return useSkillBase(Skills.AGILITY);
+  }
+  if (skill === Skills.THIEVING) {
+    return useSkillBase(Skills.THIEVING);
+  }
+  if (skill === Skills.SLAYER) {
+    return useSkillBase(Skills.SLAYER);
+  }
+  if (skill === Skills.FARMING) {
+    return useSkillBase(Skills.FARMING);
+  }
+  if (skill === Skills.RUNECRAFT) {
+    return useSkillBase(Skills.RUNECRAFT);
+  }
+  if (skill === Skills.HUNTER) {
+    return useSkillBase(Skills.HUNTER);
+  }
+  if (skill === Skills.CONSTRUCTION) {
+    return useSkillBase(Skills.CONSTRUCTION);
+  }
+  if (skill === Skills.SAILING) {
+    return useSkillBase(Skills.SAILING);
+  }
+  return 0;
+}
+
+export function tileShown(skill: Skill): Boolean {
+  if (!enhancedAny()) {
+    return false;
+  }
+  if (skill === SkippedSkill.HITPOINTS || skill === SkippedSkill.PRAYER) {
+    return false;
+  }
+  if (skillLevel(skill) === skillBaseLevel(skill)) {
+    return false;
+  }
+  return true;
+}
+
+export function tilesDrawn(cap: Int): Int {
+  let drawn: Int = 0;
+  let key: Int = 1;
+  const rows: Int = SkillByIndex.length;
+  while (key <= rows && drawn <= cap) {
+    const skill: Skill = SkillByIndex.get(key) ?? -1;
+    if (tileShown(skill)) {
+      drawn = drawn + 1;
+    }
+    key = key + 1;
+  }
+  return drawn;
+}
+
+export function anyBoosted(): Boolean {
+  let key: Int = 1;
+  const rows: Int = SkillByIndex.length;
+  while (key <= rows) {
+    const skill: Skill = SkillByIndex.get(key) ?? -1;
+    if (tileShown(skill) && skillLevel(skill) > skillBaseLevel(skill)) {
+      return true;
+    }
+    key = key + 1;
+  }
+  return false;
+}
+
+export function lastStandLevel(skill: Skill): Int {
+  const live: Int = skillLevel(skill);
+  if (
+    skill !== CombatSkill.ATTACK &&
+    skill !== CombatSkill.STRENGTH &&
+    skill !== CombatSkill.DEFENCE &&
+    skill !== CombatSkill.RANGED &&
+    skill !== CombatSkill.MAGIC
+  ) {
+    return live;
+  }
+  const [fake] = useState(statBoostsLastStandShown);
+  return Math.max(fake, skillBaseLevel(skill) + LAST_STAND_FLOOR_ABOVE_BASE);
+}
+
+export function tileCaption(skill: Skill): String {
+  const base: Int = skillBaseLevel(skill);
+  const [fake] = useState(statBoostsLastStandShown);
+  let shown: Int = skillLevel(skill);
+  if (fake > 0) {
+    shown = lastStandLevel(skill);
+  }
+  if (useServerState(Varbits.STAT_BOOSTS_HUD_DISPLAY_RELATIVE) !== 1) {
+    return stringOf(shown);
+  }
+  const delta: Int = shown - base;
+  if (delta > 0) {
+    return `+${stringOf(delta)}`;
+  }
+  return stringOf(delta);
+}
+
+export function tileColour(skill: Skill): Int {
+  if (skillLevel(skill) < skillBaseLevel(skill)) {
+    return Colour.DRAINED;
+  }
+  return Colour.BOOSTED;
+}
+
+function interpolated(from: Int, to: Int, start: Int, end: Int, at: Int): Int {
+  return from + ((to - from) * (at - start)) / (end - start);
+}
+
+function restoreColumnPx(up: Boolean): Int {
+  const travel: Int = Layout.BAR_TRAVEL;
+  let from: Int = Layout.BAR_MIN;
+  let to: Int = travel;
+  const [upRate] = useState(sbhRestoreUpRate);
+  const [upCycles] = useState(sbhCyclesToNextRestoreUp);
+  const [upStamp] = useState(sbhLastUpdateTimeRestoreUp);
+  const [downRate] = useState(sbhRestoreDownRate);
+  const [downCycles] = useState(sbhCyclesToNextRestoreDown);
+  const [downStamp] = useState(sbhLastUpdateTimeRestoreDown);
+  let rate: Int = upRate;
+  let cycles: Int = upCycles;
+  let stamp: Int = upStamp;
+  if (!up) {
+    rate = downRate;
+    cycles = downCycles;
+    stamp = downStamp;
+    from = travel;
+    to = Layout.BAR_MIN;
+  }
+  if (rate <= 0) {
+    return 0;
+  }
+  const span: Int = Math.max(rate, 1) * Layout.CYCLES_PER_TICK;
+  const left: Int = Math.max(cycles, 1) * Layout.CYCLES_PER_TICK;
+  const due: Int = stamp + left;
+  const start: Int = interpolated(from, to, 0, span, span - left);
+  return interpolated(start, to, stamp, due, clientClock());
+}
+
+export function stepRestoreBars(): void {
+  const [, setUp] = useState(statBoostsRestoreUpPx);
+  const [, setDown] = useState(statBoostsRestoreDownPx);
+  setUp(restoreColumnPx(true));
+  setDown(restoreColumnPx(false));
+}
+
+export function columnY(px: Int): Int {
+  if (px === -1) {
+    return Layout.BAR_UNTICKED_Y;
+  }
+  return Layout.BAR_TRAVEL - px;
+}
+
+export function columnH(px: Int): Int {
+  if (px === -1) {
+    return Layout.BAR_UNTICKED_H;
+  }
+  return px;
+}
+
+export function statBoostsHudDynamicTimer(): void {
+  if (!enhancedAny()) {
+    return;
+  }
+  const [, setDynamic] = useState(statBoostsDynamic);
+  setDynamic(1);
+}
+
+export function statBoostsHudDynamicTimerStop(): void {
+  predictServerState(Varbits.LAST_STAND_FAKELEVEL, 0);
+  if (!enhancedAny()) {
+    return;
+  }
+  const [, setDynamic] = useState(statBoostsDynamic);
+  setDynamic(0);
+}
+
+export function dynamicTick(): void {
+  const [dynamic] = useState(statBoostsDynamic);
+  if (dynamic !== 1) {
+    return;
+  }
+  const [, setShown] = useState(statBoostsLastStandShown);
+  const fake: Int = useServerState(Varbits.LAST_STAND_FAKELEVEL);
+  if (clientClock() % 2 === 0) {
+    const decayed: Int = Math.max(0, fake - 1);
+    predictServerState(Varbits.LAST_STAND_FAKELEVEL, decayed);
+    setShown(decayed);
+    return;
+  }
+  setShown(fake);
+}
+
+export function statBoostsHudRedraw(): void {
+  const [, setShown] = useState(statBoostsLastStandShown);
+  const [, setTransmitted] = useState(statBoostsTransmitted);
+  setShown(useServerState(Varbits.LAST_STAND_FAKELEVEL));
+  setTransmitted(1);
+}
+
+export function statBoostsHudOpened(): void {
+  const [, setTransmitted] = useState(statBoostsTransmitted);
+  const [, setUp] = useState(statBoostsRestoreUpPx);
+  const [, setDown] = useState(statBoostsRestoreDownPx);
+  setTransmitted(0);
+  setUp(-1);
+  setDown(-1);
+}
+
+export function intClient(legacy: Int, enhanced: Int): Int {
+  if (!enhancedAny()) {
+    return legacy;
+  }
+  return enhanced;
+}
+
+export function timeConvert(ticks: Int, keepMinutes: Int): String {
+  let out: String = '';
+  let seconds: Int = scaled(60, 100, ticks);
+  if (((ticks % 10) * 6) % 10 >= 5) {
+    seconds = seconds + 1;
+  }
+  let minutes: Int = seconds / 60;
+  const hours: Int = minutes / 60;
+  seconds = seconds % 60;
+  if (keepMinutes === 0) {
+    minutes = minutes % 60;
+  }
+  if (hours > 0 && keepMinutes === 0) {
+    out = `${out}${stringOf(hours)}:`;
+  }
+  if (minutes < 10 && hours > 0) {
+    out = `${out}0${stringOf(minutes)}:`;
+  } else {
+    out = `${out}${stringOf(minutes)}:`;
+  }
+  if (seconds < 10) {
+    out = `${out}0${stringOf(seconds)}`;
+  } else {
+    out = `${out}${stringOf(seconds)}`;
+  }
+  return out;
+}

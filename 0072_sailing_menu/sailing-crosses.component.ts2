@@ -1,0 +1,89 @@
+import { onMounted, useRef } from 'ts2';
+
+import { chatDefaultStopInput } from '../0608_fossil_mushtrees/chatdefault-input';
+import { Charter } from '../0885_chartering_menu_side/chartering-destinations.data';
+import { charterAvailable, currentCharter } from '../0885_chartering_menu_side/chartering.helpers';
+import { opsound } from '../lib/lib.helpers';
+import { Layout, SailArt } from './sailing-menu.constants';
+import { SailingCrosses } from './sailing-menu.data';
+
+export function SailingCrossLayer(): Component {
+  const here: Charter = currentCharter();
+  onMounted(() => {
+    chatDefaultStopInput();
+  });
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={Layout.PANEL_H}>
+      {SailingCrosses.map((row, index) => (
+        <ChartCross
+          x={row.x}
+          y={row.y}
+          name={row.name}
+          here={here === index}
+          available={charterAvailable(here, index)}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function ChartCross({
+  x,
+  y,
+  name,
+  here,
+  available,
+}: {
+  x: Int;
+  y: Int;
+  name: String;
+  here: Boolean;
+  available: Boolean;
+}): Component {
+  const cross = useRef();
+  return (
+    <>
+      <sprite
+        ref={cross}
+        x={x + Layout.CROSS_DX}
+        y={{ bottom: y + Layout.CROSS_DY }}
+        w={Layout.CROSS_W}
+        h={Layout.CROSS_H}
+        sprite={here ? SailArt.CROSS_HERE : SailArt.CROSS}
+        hide={!available}
+      />
+      {!here && available ? (
+        <rect
+          x={x}
+          y={{ bottom: y }}
+          w={Layout.HIT_WH}
+          h={Layout.HIT_WH}
+          color={0x000000}
+          fill
+          transparency={Layout.HIT_TRANSPARENCY}
+          noClickThrough
+          options={[name]}
+          onOptionSelect={(event) => opsound(event.option, Layout.OPSOUND_MASK)}
+          onMouseEnter={() => {
+            cross.sprite = SailArt.CROSS_HOVER;
+          }}
+          onMouseLeave={() => {
+            cross.sprite = SailArt.CROSS;
+          }}
+        />
+      ) : (
+        <rect
+          x={x}
+          y={{ bottom: y }}
+          w={Layout.HIT_WH}
+          h={Layout.HIT_WH}
+          color={0x000000}
+          fill
+          transparency={Layout.HIT_TRANSPARENCY}
+          noClickThrough
+          hide={!available}
+        />
+      )}
+    </>
+  );
+}

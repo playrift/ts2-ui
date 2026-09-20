@@ -1,0 +1,379 @@
+import { CS2, intArray, predictServerState, useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { banFromChatRank } from '../0701_clans_sidepanel/clan-channel-pane.component';
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { clanMembersFilterNameIn } from '../0693_clans_members/clan-members-shared.search';
+import {
+  COLUMNS,
+  ClanBannedColor,
+  ClanBannedFonts,
+  ClanBannedOps,
+  ClanBannedSounds,
+  ClanBannedSprites,
+  ClanBannedText,
+  ClanBannedVarbits,
+  ClanBannedWash,
+  Layout,
+  MAX_ROWS,
+  PRESS_CYCLES,
+  UNBAN_CYCLES,
+} from './clans-banned.constants';
+import { blockerName, blockerWash, unbanDeadline, unbanName } from './clans-banned.state';
+
+export function BanPane({
+  extent,
+  paneH,
+  fitGen,
+  children,
+}: {
+  extent: Int;
+  paneH: Int;
+  fitGen: Int;
+  children?: Children;
+}): Component {
+  const [drawn, setDrawn] = useState(0);
+  const [drawnGen, setDrawnGen] = useState(-1);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbKey, setThumbKey] = useState(-1);
+  const gutter = useRef();
+
+  const scrolls: Boolean = extent > paneH;
+  const range: Int = scrolls ? extent - paneH : 0;
+  const current: Boolean = drawnGen === fitGen;
+  const at: Int = scrolls && current ? Math.clamp(0, range, drawn) : 0;
+
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const key: Int = measured * 1024 + paneH;
+  const thumbY: Int = thumbKey === key && current ? thumbAt : ARROW + (travel * at) / Math.max(1, range);
+
+  return (
+    <>
+      <layer
+        x={Layout.LIST_X}
+        y="center"
+        w={{ fill: Layout.LIST_INSET_W }}
+        h={{ fill: Layout.LIST_INSET_H }}
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={at}
+        onScrollWheel={(event) => {
+          const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+          setDrawn(next);
+          setDrawnGen(fitGen);
+          setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+          setThumbKey(key);
+        }}
+      >
+        {children}
+      </layer>
+
+      <layer x={{ right: Layout.BAR_RIGHT }} y="center" w={Layout.BAR_W} h={{ fill: Layout.BAR_INSET_H }}>
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={ClanBannedSprites.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={ClanBannedSprites.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(offset + ARROW);
+            setThumbKey(key);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={ClanBannedSprites.CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={ClanBannedSprites.CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={ClanBannedSprites.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at - STEP) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={ClanBannedSprites.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + STEP) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function bannedShownCount(count: Int, filter: String): Int {
+  let shown: Int = 0;
+  let k: Int = 0;
+  while (k < count && k < MAX_ROWS) {
+    if (clanMembersFilterNameIn(CS2.activeclansettings_banned_display_name_get(k), filter) !== -1) {
+      shown = shown + 1;
+    }
+    k = k + 1;
+  }
+  return shown;
+}
+
+export function BanList({
+  count,
+  message,
+  filter,
+  filterLength,
+  rowHeight,
+  mobile,
+}: {
+  count: Int;
+  message: String;
+  filter: String;
+  filterLength: Int;
+  rowHeight: Int;
+  mobile: Int;
+}): Component {
+  const slots = intArray(MAX_ROWS);
+  const matches = intArray(MAX_ROWS);
+  let shown: Int = 0;
+  let k: Int = 0;
+  while (k < MAX_ROWS) {
+    if (k < count) {
+      const match: Int = clanMembersFilterNameIn(CS2.activeclansettings_banned_display_name_get(k), filter);
+      if (match !== -1) {
+        slots[shown] = k;
+        matches[shown] = match;
+        shown = shown + 1;
+      }
+    }
+    k = k + 1;
+  }
+  let rest: Int = shown;
+  while (rest < MAX_ROWS) {
+    slots[rest] = -1;
+    rest = rest + 1;
+  }
+
+  let line: String = message;
+  if (count > 0 && shown <= 0) {
+    line = ClanBannedText.NO_MATCH;
+  }
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <rect
+        x="center"
+        y="center"
+        w="33.33%"
+        h="fill"
+        fill
+        color={ClanBannedColor.WHITE}
+        transparency={ClanBannedWash.STRIPE_ODD}
+      />
+      {slots.map(
+        (slot, index) =>
+          slot !== -1 && (
+            <BanRow
+              slot={slot}
+              top={(index / COLUMNS) * rowHeight}
+              column={index % COLUMNS}
+              rowHeight={rowHeight}
+              stripe={(index / COLUMNS) % 2 === 0 ? ClanBannedWash.STRIPE_EVEN : ClanBannedWash.STRIPE_ODD}
+              match={matches[index]}
+              filterLength={filterLength}
+              mobile={mobile}
+            />
+          ),
+      )}
+
+      {line.length > 0 && (
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          text={line}
+          font={ClanBannedFonts.BODY}
+          color={ClanBannedColor.LABEL_HOT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+    </layer>
+  );
+}
+
+function BanRow({
+  slot,
+  top,
+  column,
+  rowHeight,
+  stripe,
+  match,
+  filterLength,
+  mobile,
+}: {
+  slot: Int;
+  top: Int;
+  column: Int;
+  rowHeight: Int;
+  stripe: Int;
+  match: Int;
+  filterLength: Int;
+  mobile: Int;
+}): Component {
+  const name: String = CS2.activeclansettings_banned_display_name_get(slot);
+  const length: Int = name.length;
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  let shown: String = name;
+  if (match < length) {
+    const end: Int = Math.min(length, match + filterLength);
+    shown = `${name.slice(0, match)}<col=ffffff>${name.slice(match, end)}</col>${name.slice(end, length)}`;
+  }
+
+  const cell = useRef();
+  const [hovered, setHovered] = useState(0);
+  const [pressedAt, setPressedAt] = useState(-1);
+  const pressed: Int = pressedAt !== -1 ? 1 : 0;
+  let wash: Int = stripe;
+  if (pressed === 1) {
+    wash = ClanBannedWash.PRESSED;
+  } else if (hovered === 1) {
+    wash = ClanBannedWash.HOVER;
+  }
+
+  useInterval(
+    pressed === 1
+      ? () => {
+          const since: Int = pressedAt;
+          if (clientClock() >= since + PRESS_CYCLES) {
+            setPressedAt(-1);
+            setHovered(0);
+          }
+        }
+      : undefined,
+    cell,
+  );
+
+  return (
+    <>
+      <rect
+        ref={cell}
+        x={column === 0 ? 'left' : column === 1 ? 'center' : 'right'}
+        y={top}
+        w="33.33%"
+        h={rowHeight}
+        fill
+        color={ClanBannedColor.WHITE}
+        transparency={wash}
+        optionSubject={subject}
+        options={[ClanBannedOps.UNBAN]}
+        onMouseRepeat={pressed === 1 || mobile === 1 ? undefined : () => setHovered(1)}
+        onMouseLeave={pressed === 1 ? undefined : () => setHovered(0)}
+        onOptionSelect={
+          pressed === 1
+            ? undefined
+            : (event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                playSound(ClanBannedSounds.CLICK);
+                setPressedAt(clientClock());
+                clanBannedOp(name);
+              }
+        }
+      />
+      <text
+        x={column === 0 ? 'left' : column === 1 ? 'center' : 'right'}
+        y={top}
+        w="33.33%"
+        h={rowHeight}
+        text={shown}
+        font={ClanBannedFonts.BODY}
+        color={ClanBannedColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function clanBannedOp(name: String): void {
+  const [, setCaption] = useState(blockerName);
+  setCaption(`${ClanBannedText.REQUESTING_PREFIX}${name}${ClanBannedText.REQUESTING_SUFFIX}`);
+  const [, setUnbanName] = useState(unbanName);
+  setUnbanName(name);
+  const [, setDeadline] = useState(unbanDeadline);
+  setDeadline(clientClock() + UNBAN_CYCLES);
+
+  if (CS2.activeclansettings_affined_find(0)) {
+    const mySlot: Int = CS2.activeclansettings_affined_slot_get(CS2.tags_remove(CS2.chat_playername()));
+    if (CS2.activeclansettings_affined_rank_get(mySlot) >= banFromChatRank()) {
+      predictServerState(ClanBannedVarbits.LOOKUP_IN_PROGRESS, 1);
+      blockerStep();
+    }
+  }
+}
+
+export function blockerStep(): void {
+  const inProgress: Int = useServerState(ClanBannedVarbits.LOOKUP_IN_PROGRESS);
+  const [current, setWash] = useState(blockerWash);
+  let wash: Int = 0;
+  if (inProgress === 1) {
+    wash = Math.max(
+      ClanBannedWash.BLOCKER_FLOOR,
+      minmax(ClanBannedWash.BLOCKER_FLOOR, ClanBannedWash.BLOCKER_CLEAR, current) - ClanBannedWash.BLOCKER_IN_STEP,
+    );
+  } else {
+    wash = Math.min(
+      ClanBannedWash.BLOCKER_CLEAR,
+      minmax(ClanBannedWash.BLOCKER_FLOOR, ClanBannedWash.BLOCKER_CLEAR, current) + ClanBannedWash.BLOCKER_OUT_STEP,
+    );
+  }
+  setWash(wash);
+}

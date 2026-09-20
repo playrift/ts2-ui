@@ -1,4 +1,4 @@
-import { useInterval, useRef, useState } from 'ts2';
+import { stopTimer, useRef, useState } from 'ts2';
 
 import { StoneButtonFilled } from '../lib/stone-button-filled.component';
 import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
@@ -8,13 +8,6 @@ import { LightButtonOp, LightButtonSkin, LightPuzzleSounds, LightPuzzleTiming } 
 
 export function LightBoxButton(): Component {
   const timerHost = useRef();
-
-  useInterval(() => {
-    if (pressedUntil !== 0 && clientClock() >= pressedUntil) {
-      setSkin(LightButtonSkin.REST);
-      setPressedUntil(0);
-    }
-  }, timerHost);
 
   const [skin, setSkin] = useState(LightButtonSkin.REST);
 
@@ -31,7 +24,16 @@ export function LightBoxButton(): Component {
       onOptionSelect={() => {
         setSkin(LightButtonSkin.PRESSED);
         playSound(LightPuzzleSounds.PRESS);
-        setPressedUntil(clientClock() + LightPuzzleTiming.PRESS_CYCLES);
+        const restoreAt: Int = clientClock() + LightPuzzleTiming.PRESS_CYCLES;
+        setPressedUntil(restoreAt);
+        timerHost.onTimer = () => {
+          if (clientClock() < restoreAt) {
+            return;
+          }
+          setSkin(LightButtonSkin.REST);
+          setPressedUntil(0);
+          stopTimer(timerHost);
+        };
       }}
       ref={timerHost}
     >

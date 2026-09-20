@@ -1,0 +1,183 @@
+import { useServerState, useState } from 'ts2';
+
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+
+import { KeybindingDropdown } from './keybinding-dropdown.component';
+import { KeyNames } from './keybinding.data';
+import { pressedTile } from './keybinding.helpers';
+import {
+  KeyRows,
+  KeybindingColor,
+  KeybindingFonts,
+  KeybindingSprites,
+  KeybindingText,
+  Layout,
+  dropdownBoxRef,
+} from './keybinding.constants';
+import {
+  DropdownOpen,
+  closeDropdown,
+  escClosesInterface,
+  openDropdown,
+  selectedStone,
+  toggleEscCloses,
+} from './keybinding.state';
+
+export function Keybinding(): Component {
+  return (
+    <>
+      <layer w="fill" h="fill">
+        <SteelBorderEntrypoint title={KeybindingText.TITLE} />
+      </layer>
+
+      <KeybindingBody />
+    </>
+  );
+}
+
+function KeybindingBody(): Component {
+  const [open] = useState(DropdownOpen);
+  const stone: Int = selectedStone();
+  const open_tile: Sprite = pressedTile();
+
+  return (
+    <layer x={Layout.BODY_X} y={Layout.BODY_Y} w={{ fill: Layout.BODY_W_INSET }} h={{ fill: Layout.BODY_H_INSET }}>
+      {KeyRows.map((row) => (
+        <KeyRow
+          icon={row.icon}
+          label={KeyNames.get(useServerState(row.key)) ?? KeybindingText.NO_KEY}
+          stone={row.stone}
+          x={row.x}
+          y={row.y}
+          tile={open === 1 && stone === row.stone ? open_tile : KeybindingSprites.TILE}
+        />
+      ))}
+
+      <EscToggle />
+
+      <RestoreDefaults />
+
+      {open === 1 ? (
+        <layer ref={dropdownBoxRef} w="fill" h="fill" noClickThrough onClick={() => closeDropdown()}>
+          <KeybindingDropdown stone={stone} />
+        </layer>
+      ) : null}
+    </layer>
+  );
+}
+
+function KeyRow({
+  icon,
+  label,
+  stone,
+  x,
+  y,
+  tile,
+}: {
+  icon: Sprite;
+  label: String;
+  stone: Int;
+  x: Int;
+  y: Int;
+  tile: Sprite;
+}): Component {
+  return (
+    <layer x={x} y={y} w={Layout.ROW_W} h={Layout.ROW_H}>
+      <sprite x={Layout.ICON_X} y={Layout.ICON_Y} w={Layout.ICON_W} h={Layout.ICON_H} sprite={tile} tiling />
+      <sprite x={Layout.ICON_X} y={Layout.ICON_Y} w={Layout.ICON_W} h={Layout.ICON_H} sprite={icon} />
+      <rect x={Layout.WELL_X} y={Layout.WELL_Y} w={Layout.WELL_W} h={Layout.WELL_H} fill color={KeybindingColor.WELL} />
+      <rect
+        x={Layout.WELL_EDGE_X}
+        y={Layout.WELL_EDGE_Y}
+        w={Layout.WELL_EDGE_W}
+        h={Layout.WELL_EDGE_H}
+        color={KeybindingColor.WELL_EDGE}
+      />
+      <text
+        x={Layout.LABEL_X}
+        y={Layout.LABEL_Y}
+        w={Layout.LABEL_W}
+        h={Layout.LABEL_H}
+        text={label}
+        font={KeybindingFonts.BODY}
+        color={KeybindingColor.TEXT}
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={Layout.CHEVRON_X}
+        y={Layout.CHEVRON_Y}
+        w={Layout.CHEVRON_SIZE}
+        h={Layout.CHEVRON_SIZE}
+        sprite={KeybindingSprites.CHEVRON}
+        vflip
+        options={[KeybindingText.SELECT]}
+        onOptionSelect={() => openDropdown(stone)}
+      />
+    </layer>
+  );
+}
+
+function EscToggle(): Component {
+  const on: Boolean = escClosesInterface() !== 0;
+
+  return (
+    <layer x={Layout.ESC_X} y={Layout.ESC_Y} w={Layout.ESC_W} h={Layout.ESC_H}>
+      <text
+        x={Layout.ESC_TEXT_X}
+        y={Layout.ESC_TEXT_Y}
+        w={Layout.ESC_TEXT_W}
+        h={Layout.ESC_TEXT_H}
+        text={KeybindingText.ESC}
+        font={KeybindingFonts.BODY}
+        color={KeybindingColor.TEXT}
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={Layout.RADIO_X}
+        y="center"
+        w={Layout.RADIO_SIZE}
+        h={Layout.RADIO_SIZE}
+        sprite={on ? KeybindingSprites.RADIO_ON : KeybindingSprites.RADIO_OFF}
+        options={[KeybindingText.SELECT]}
+        onClick={() => toggleEscCloses()}
+      />
+    </layer>
+  );
+}
+
+function RestoreDefaults(): Component {
+  const [hovered, setHovered] = useState(0);
+
+  return (
+    <layer
+      x={Layout.RESTORE_X}
+      y={Layout.RESTORE_Y}
+      w={Layout.RESTORE_W}
+      h={Layout.RESTORE_H}
+      options={[KeybindingText.RESTORE]}
+      onMouseEnter={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    >
+      <layer w="fill" h="fill">
+        {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      </layer>
+
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={KeybindingText.RESTORE}
+        font={KeybindingFonts.BUTTON}
+        color={KeybindingColor.TEXT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

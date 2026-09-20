@@ -1,4 +1,4 @@
-import { sessionState, stopTimer, useServerState, useState } from 'ts2';
+import { stopTimer, useServerState, useState } from 'ts2';
 
 import { clientClock } from '../lib/lib.engine';
 import { scaled } from '../lib/lib.engine';
@@ -105,15 +105,20 @@ export function rawHeight(): Int {
 }
 
 export function resizeDrag(
+  self: ComponentId,
   index: Int,
-  dx: Int,
-  dy: Int,
+  mouseX: Int,
+  mouseY: Int,
   top: Int,
   availW: Int,
   dodgerHeight: Int,
   preview: ComponentId,
   content: ComponentId,
 ): void {
+  self.sprite = -1;
+  const dx: Int = mouseX - self.x!;
+  const dy: Int = mouseY - self.y!;
+
   const rounds: Int = roundCount();
   const availH: Int = dodgerHeight - top;
 
@@ -179,43 +184,21 @@ export function resizeDrag(
   preview.hide = false;
   content.hide = true;
 
-  const [, setW] = useState(pendingWidth);
-  const [, setH] = useState(pendingHeight);
-  const [, setX] = useState(pendingX);
-  const [, setY] = useState(pendingY);
-  setW(w);
-  setH(h);
-  setX(x);
-  setY(y);
-}
-
-export const pendingWidth = sessionState(-1);
-export const pendingHeight = sessionState(-1);
-export const pendingX = sessionState(-1);
-export const pendingY = sessionState(-1);
-
-export function armResizeCommit(self: ComponentId): void {
   const deadline: Int = clientClock() + Layout.COMMIT_CYCLES;
-  self.onTimer = () => {
-    if (clientClock() < deadline) {
-      return;
-    }
-    commitResize();
-    stopTimer(self);
-  };
+  self.onTimer = () => commitResize(self, deadline, w, h, x, y);
 }
 
-function commitResize(): void {
-  const [w] = useState(pendingWidth);
-  const [h] = useState(pendingHeight);
-  const [px] = useState(pendingX);
-  const [py] = useState(pendingY);
+function commitResize(self: ComponentId, deadline: Int, w: Int, h: Int, x: Int, y: Int): void {
+  if (clientClock() < deadline) {
+    return;
+  }
   const [, setW] = useState(infoWidth);
   const [, setH] = useState(infoHeight);
   const [, setX] = useState(infoX);
   const [, setY] = useState(infoY);
   setW(w);
   setH(h);
-  setX(px);
-  setY(py);
+  setX(x);
+  setY(y);
+  stopTimer(self);
 }

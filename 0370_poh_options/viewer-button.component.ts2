@@ -1,47 +1,31 @@
-import { useRef, useServerState } from 'ts2';
+import { useState } from 'ts2';
 import { opsound } from '../lib/lib.helpers';
 import { ButtonBackground } from './button-background.component';
-import { Colors, Fonts, Sprites, Varbits } from './poh-options.constants';
+import { Colors, Fonts, Sprites } from './poh-options.constants';
+import { pohBuildingMode } from './poh-options.state';
 
 export function ViewerButton(): Component {
-  const buildingMode = useServerState(Varbits.BUILDING_MODE);
-  const label = useRef();
+  const [enabled] = useState(pohBuildingMode);
+  const [hover, setHover] = useState(0);
 
-  return buildingMode === 1 ? (
+  let labelColor: Int = Colors.DIM;
+  if (enabled === 1) {
+    labelColor = hover === 1 ? Colors.WHITE : Colors.LABEL;
+  }
+
+  return (
     <layer
       x={10}
       y={25}
       w={105}
       h={40}
       options={['Viewer']}
-      onMouseRepeat={() => {
-        label.color = Colors.WHITE;
-      }}
-      onMouseLeave={(event) => {
-        label.color = Colors.LABEL;
-      }}
-      onOptionSelect={(event) => opsound(event.option, 2)}
+      onMouseRepeat={enabled === 1 ? () => setHover(1) : undefined}
+      onMouseLeave={enabled === 1 ? () => setHover(0) : undefined}
+      onOptionSelect={enabled === 1 ? (event) => opsound(event.option, 2) : undefined}
     >
       <ButtonBackground />
-      <sprite x={-2} y="center" w={64} h={32} sprite={Sprites.VIEWER_ICON} transparency={0} />
-      <text
-        ref={label}
-        x={{ right: 0 }}
-        y="center"
-        w={{ fill: 56 }}
-        h="fill"
-        text="Viewer"
-        font={Fonts.BODY}
-        color={Colors.LABEL}
-        shadow
-        align="center"
-        valign="middle"
-      />
-    </layer>
-  ) : (
-    <layer x={10} y={25} w={105} h={40} options={['Viewer']}>
-      <ButtonBackground />
-      <sprite x={-2} y="center" w={64} h={32} sprite={Sprites.VIEWER_ICON} transparency={120} />
+      <sprite x={-2} y="center" w={64} h={32} sprite={Sprites.VIEWER_ICON} transparency={enabled === 1 ? 0 : 120} />
       <text
         x={{ right: 0 }}
         y="center"
@@ -49,7 +33,7 @@ export function ViewerButton(): Component {
         h="fill"
         text="Viewer"
         font={Fonts.BODY}
-        color={Colors.DIM}
+        color={labelColor}
         shadow
         align="center"
         valign="middle"

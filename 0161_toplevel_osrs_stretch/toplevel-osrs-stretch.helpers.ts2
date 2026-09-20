@@ -1,0 +1,129 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { zoomPositionSlider } from '../0016_oculus/oculus.camera';
+import { switchSidePanel } from '../0601_toplevel_osm/toplevel-osm.helpers';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import {
+  buffBarDodgerUpdate,
+  toplevelMainmodalBgColour,
+  toplevelMainmodalBgTrans,
+  toplevelPanel,
+} from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { FovClamp, Frame, NoSprite, SideSlots, StoneX } from './toplevel-osrs-stretch.constants';
+import { StoneHighlights } from './toplevel-osrs-stretch.data';
+
+export function stretchInit(): void {
+  const [current, setPanel] = useState(toplevelPanel);
+  const [, setBgColour] = useState(toplevelMainmodalBgColour);
+  const [, setBgTrans] = useState(toplevelMainmodalBgTrans);
+  let panel: Int = current;
+  if (panel <= 0) {
+    panel = 3;
+    setPanel(3);
+  }
+  setBgColour(-1);
+  setBgTrans(-1);
+  zoomPositionSlider();
+  CS2.show_mouseover_text_set(true);
+  CS2.show_mouse_cross_set(true);
+  CS2.show_loading_messages_set(true);
+  CS2.feedback_sprite_set(Sprites.CROSS, false);
+  CS2.feedback_show_popup_text_set(false);
+  switchSidePanel(panel, 0);
+}
+
+export function stretchTabOp(panel: Int, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  switchSidePanel(panel, 0);
+}
+
+export function touchStretchBuffBar(): void {
+  const [, setUpdate] = useState(buffBarDodgerUpdate);
+  setUpdate(clientClock());
+}
+
+export function mountOpen(panel: Int): Boolean {
+  const slot: ComponentId = SideSlots.at(panel) ?? -1;
+  if (slot !== -1 && CS2.if_sub_has(slot)) {
+    return true;
+  }
+  return false;
+}
+
+export function tabHidden(panel: Int): Boolean {
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  if (flashside - 1 === panel) {
+    return false;
+  }
+  if (mountOpen(panel)) {
+    return false;
+  }
+  return true;
+}
+
+export function stoneSprite(panel: Int): Sprite {
+  const [selected] = useState(toplevelPanel);
+  const flashside: Int = useServerState(Varbits.FLASHSIDE);
+  if (selected === panel && (mountOpen(panel) || flashside - 1 === panel)) {
+    return StoneHighlights.at(panel) ?? NoSprite.NONE;
+  }
+  return NoSprite.NONE;
+}
+
+export function tabIconX(tab: Int): Int {
+  if (tab === 0 || tab === 7) return StoneX.ICON_END_LEFT;
+  if (tab === 1 || tab === 9) return StoneX.X1;
+  if (tab === 2 || tab === 8) return StoneX.X2;
+  if (tab === 3 || tab === 10) return StoneX.X3;
+  if (tab === 4 || tab === 11) return StoneX.X4;
+  if (tab === 5 || tab === 12) return StoneX.X5;
+  return StoneX.ICON_END_RIGHT;
+}
+
+export function tabRowFromBottom(tab: Int): Int {
+  if (tab < 7) {
+    return Frame.TOP_ROW_BOTTOM;
+  }
+  return 0;
+}
+
+export function filterOption(hidden: Int, enable: String, disable: String): String {
+  if (onMobile()) {
+    return '';
+  }
+  if (hidden === 1) {
+    return enable;
+  }
+  return disable;
+}
+
+export function hudRightInset(fovClamp: Int, frameW: Int, viewW: Int): Int {
+  if (fovClamp === FovClamp.NONE) {
+    return Frame.HUD_W_INSET;
+  }
+  const shift: Int = Math.max(0, frameW - viewW) / 2;
+  return Math.max(0, Frame.HUD_W_INSET - shift);
+}
+
+export function hudBottomInset(fovClamp: Int, frameH: Int, viewH: Int): Int {
+  if (fovClamp === FovClamp.NONE) {
+    return Frame.HUD_H_INSET;
+  }
+  const shift: Int = Math.max(0, frameH - viewH) / 2;
+  return Math.max(0, Frame.HUD_H_INSET - shift);
+}
+
+export function minimapClickMask(): Sprite {
+  if (useServerState(Varbits.ORBS_DISABLED) === 1) {
+    return Sprites.RESIZE_MAP_MASK;
+  }
+  if (useServerState(Varbits.TLI_STOREBUTTON_TOGGLE_DESKTOP) === 1) {
+    return Sprites.RESIZE_MAP_CLICKMASK_BOND;
+  }
+  return Sprites.RESIZE_MAP_CLICKMASK;
+}

@@ -1,0 +1,393 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { StonePanel } from '../0648_target_streaks/stone-panel.component';
+import { SkillByIndex, SkillNames } from '../lib/skills.data';
+import { chooseSetupType, pressSetupButton, xpdropsToString, xpdropsToStringThousands } from './xpdrops-setup.state';
+import {
+  XpdropsColor,
+  XpdropsFont,
+  XpdropsLayout,
+  XpdropsSound,
+  XpdropsSprite,
+  XpdropsVars,
+  XpdropsWash,
+} from './xpdrops-setup.constants';
+
+export function XpdropsSkillSetup(): Component {
+  const setupSkill: Int = useServerState(XpdropsVars.SETUP_SKILL);
+  const setupType: Int = useServerState(XpdropsVars.SETUP_TYPE);
+  const editStart: Int = useServerState(XpdropsVars.EDIT_START);
+  const editEnd: Int = useServerState(XpdropsVars.EDIT_END);
+  const skill: Skill | null = SkillByIndex.get(setupSkill);
+  const total: Boolean = skill === null;
+  const title: String = total ? 'Total XP' : (SkillNames.get(skill ?? 0) ?? 'Skill');
+
+  const setToLevel: String = total ? '' : 'Set to level';
+
+  const startText: String = total ? xpdropsToStringThousands(editStart) : xpdropsToString(editStart, 1);
+  const endText: String = total ? xpdropsToStringThousands(editEnd) : xpdropsToString(editEnd, 1);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" noClickThrough>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={XpdropsSprite.CONTROL} tiling />
+
+      <SetupOption
+        top={25}
+        height={50}
+        heading="No tracker or goal"
+        blurb="When focused on this skill, the counter shows your <col=ffffff>current XP</col>, and the progress bar shows progress <col=ffffff>to the next level</col>."
+        option="None"
+        chosen={setupType === 0}
+        pick={0}
+        rows={0}
+        startValue=""
+        endValue=""
+        setToLevel={setToLevel}
+      />
+
+      <SetupOption
+        top={78}
+        height={72}
+        heading="Tracker"
+        blurb="When focused on this skill, the counter shows <col=ffffff>XP above the start point</col>, and the progress bar shows progress to the next level."
+        option="Tracker"
+        chosen={setupType === 1}
+        pick={1}
+        rows={1}
+        startValue={setupType === 1 ? startText : ''}
+        endValue=""
+        setToLevel={setToLevel}
+      />
+
+      <SetupOption
+        top={154}
+        height={94}
+        heading="Goal"
+        blurb="When focused on this skill, the progress bar shows progress <col=ffffff>between the goal's start and end</col>, and the counter shows your current XP."
+        option="Goal"
+        chosen={setupType === 2}
+        pick={2}
+        rows={2}
+        startValue={setupType === 2 ? startText : ''}
+        endValue={setupType === 2 ? endText : ''}
+        setToLevel={setToLevel}
+      />
+
+      <SetupButton left save={false} label="Discard" color={XpdropsColor.RED} />
+
+      <SetupButton left={false} save label="Save" color={XpdropsColor.GREEN} />
+
+      <text
+        x="center"
+        y={XpdropsLayout.setupTitle.y}
+        w={{ fill: XpdropsLayout.setupTitle.inset }}
+        h={XpdropsLayout.setupTitle.h}
+        text={title}
+        font={XpdropsFont.HEADING}
+        color={XpdropsColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <StonePanel divider={-1} />
+    </layer>
+  );
+}
+
+function SetupOption({
+  top,
+  height,
+  heading,
+  blurb,
+  option,
+  chosen,
+  pick,
+  rows,
+  startValue,
+  endValue,
+  setToLevel,
+}: {
+  top: Int;
+  height: Int;
+  heading: String;
+  blurb: String;
+  option: String;
+  chosen: Boolean;
+  pick: Int;
+  rows: Int;
+  startValue: String;
+  endValue: String;
+  setToLevel: String;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const backingWash: Int = chosen ? XpdropsWash.BAND : hovered === 1 ? XpdropsWash.ROW_HOVER : XpdropsWash.FULL;
+
+  return (
+    <layer
+      x="center"
+      y={top}
+      w={{ fill: 10 }}
+      h={height}
+      options={[option]}
+      onMouseRepeat={() => setHovered(chosen ? 0 : 1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={() => {
+        if (!chosen) {
+          chooseSetupType(pick);
+        }
+      }}
+    >
+      <rect x="center" y="center" w="fill" h="fill" fill color={XpdropsColor.WHITE} transparency={backingWash} />
+
+      <text
+        x={{ right: 3 }}
+        y={3}
+        w={{ fill: 26 }}
+        h={17}
+        text={heading}
+        font={XpdropsFont.HEADING}
+        color={XpdropsColor.LABEL_HOT}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      {rows >= 1 && (
+        <SetupValueRow y={20} label="Start point:" value={startValue} lit={chosen} setToLevel={setToLevel} currentXp />
+      )}
+      {rows >= 2 && (
+        <SetupValueRow
+          y={42}
+          label="End point:"
+          value={endValue}
+          lit={chosen}
+          setToLevel={setToLevel}
+          currentXp={false}
+        />
+      )}
+
+      <text
+        x={{ right: 3 }}
+        y={{ bottom: 3 }}
+        w={{ fill: 26 }}
+        h={{ fill: blurbInset(height) }}
+        text={blurb}
+        font={XpdropsFont.STATUS}
+        color={XpdropsColor.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={XpdropsLayout.radio.x}
+        y="center"
+        w={XpdropsLayout.radio.size}
+        h={XpdropsLayout.radio.size}
+        sprite={chosen ? XpdropsSprite.RADIO_ON : XpdropsSprite.RADIO_OFF}
+      />
+      <ThinBox />
+    </layer>
+  );
+}
+
+function blurbInset(height: Int): Int {
+  return height - 27;
+}
+
+function SetupValueRow({
+  y,
+  label,
+  value,
+  lit,
+  setToLevel,
+  currentXp,
+}: {
+  y: Int;
+  label: String;
+  value: String;
+  lit: Boolean;
+  setToLevel: String;
+  currentXp: Boolean;
+}): Component {
+  const [plateHovered, setPlateHovered] = useState(0);
+  const plateColor: Int = lit ? (plateHovered === 1 ? XpdropsColor.WHITE : XpdropsColor.LABEL) : XpdropsColor.DIM;
+
+  return (
+    <>
+      <text
+        x={{ right: 3 }}
+        y={y}
+        w={{ fill: 26 }}
+        h={22}
+        text={label}
+        font={XpdropsFont.VALUE}
+        color={XpdropsColor.LABEL}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={{ right: 3 }}
+        y={y}
+        w={{ fill: 26 }}
+        h={22}
+        text={value}
+        font={XpdropsFont.VALUE}
+        color={XpdropsColor.LABEL_HOT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <sprite
+        x={{ right: 3 }}
+        y={y}
+        w={85}
+        h={22}
+        sprite={XpdropsSprite.SET_PLATE}
+        noClickThrough={setToLevel.length > 0}
+        options={['', '', '', '', '', setToLevel, 'Set to XP value', '', '', currentXp ? 'Set to current XP' : '']}
+        onMouseRepeat={() => setPlateHovered(lit ? 1 : 0)}
+        onMouseLeave={() => setPlateHovered(0)}
+        onOptionSelect={(event) => plateSound(event.option, lit, currentXp)}
+      />
+
+      <text
+        x={{ right: 3 }}
+        y={y}
+        w={85}
+        h={22}
+        text="Set..."
+        font={XpdropsFont.STATUS}
+        color={plateColor}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function SetupButton({
+  left,
+  save,
+  label,
+  color,
+}: {
+  left: Boolean;
+  save: Boolean;
+  label: String;
+  color: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const [flashUntil, setFlashUntil] = useState(-1);
+  const textColor: Int = flashUntil < 0 ? color : XpdropsColor.WHITE;
+  const flashClock = useRef();
+  useInterval(() => {
+    if (clientClock() >= flashUntil) {
+      setFlashUntil(-1);
+    }
+  }, flashClock);
+
+  return (
+    <>
+      {left && (
+        <layer
+          x={70}
+          y={{ bottom: 5 }}
+          w={100}
+          h={{ fill: 256 }}
+          options={[label]}
+          onMouseEnter={() => {
+            if (!onMobile()) {
+              setHovered(1);
+            }
+          }}
+          onMouseLeave={() => {
+            if (!onMobile()) {
+              setHovered(0);
+            }
+          }}
+          onOptionSelect={() => {
+            pressSetupButton(save);
+          }}
+        >
+          <SetupButtonFace hovered={hovered} />
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={label}
+            font={XpdropsFont.VALUE}
+            color={color}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        </layer>
+      )}
+      {!left && (
+        <layer
+          x={{ right: 70 }}
+          y={{ bottom: 5 }}
+          w={100}
+          h={{ fill: 256 }}
+          options={[label]}
+          onMouseEnter={() => {
+            if (!onMobile()) {
+              setHovered(1);
+            }
+          }}
+          onMouseLeave={() => {
+            if (!onMobile()) {
+              setHovered(0);
+            }
+          }}
+          onOptionSelect={() => {
+            const until: Int = pressSetupButton(save);
+            if (until >= 0) {
+              setFlashUntil(until);
+            }
+          }}
+        >
+          <SetupButtonFace hovered={hovered} />
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={label}
+            font={XpdropsFont.VALUE}
+            color={textColor}
+            align="center"
+            valign="middle"
+            shadow
+          />
+          <layer ref={flashClock} x={0} y={0} w={1} h={1} hide={flashUntil < 0} />
+        </layer>
+      )}
+    </>
+  );
+}
+
+function SetupButtonFace({ hovered }: { hovered: Int }): Component {
+  if (hovered === 1) {
+    return <StoneButtonPressedFilled />;
+  }
+  return <StoneButtonOutFilled />;
+}
+
+function plateSound(option: Int, lit: Boolean, currentXp: Boolean): void {
+  if (lit) {
+    opsound(option, currentXp ? 1216 : 192);
+  }
+}

@@ -1,0 +1,532 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import {
+  autochatPause,
+  autotyper,
+  buffBarDodgerUpdate,
+  chatView,
+  chatinput,
+  friendtomessage,
+  meslayerinput,
+  meslayermode,
+  objdialogUpdatedelay,
+  osmChatKeyboard,
+  osmLastKeyboard,
+  osmLastKeyboardLimit,
+  snapshotOpen,
+} from '../lib/game/varcs';
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import { inLeagueTutorial } from '../0654_league_info/league-info.helpers';
+import { speedrunWorld } from './chatbox.helpers';
+import { CHAT_VIEW_COLLAPSED } from './chatbox.data';
+import {
+  ChatboxColor,
+  ChatboxFonts,
+  chatboxRef,
+  chatdisplayRef,
+  chatmodalRef,
+  chatoverlayRef,
+  mesButton1Ref,
+  mesButton2Ref,
+  mesButton3Ref,
+  mesKeyboardRef,
+  mesLayerRef,
+  mesListRef,
+  mesScrollAreaRef,
+  mesScrollBarRef,
+  mesText2Ref,
+  mesToggleRef,
+} from './chatbox.constants';
+import { chatboxBackground, mobileChatboxResize, redrawChatInput } from './chatbox-chrome';
+import { MESLAYER_MODE_MESBOX } from './meslayer.component';
+import {
+  MESLAYER_ARM_CENTRED,
+  MESLAYER_ARM_NONE,
+  MESLAYER_ARM_TOP_LEFT,
+  MESLAYER_ARM_UNDER_PROMPT,
+  meslayerEchoOverflow,
+  meslayerEchoText,
+  meslayerKeyboardArm,
+  meslayerPromptText,
+} from './chatbox.state';
+
+export function keyboardHide(): void {
+  if (!onMobile()) {
+    return;
+  }
+  const [, setKeyboard] = useState(osmChatKeyboard);
+  setKeyboard(0);
+  CS2.mobile_keyboardhide();
+}
+
+export function keyboardShowString(mode: Int, limit: Int, initial: String): void {
+  if (!onMobile()) {
+    return;
+  }
+  const [, setLast] = useState(osmLastKeyboard);
+  const [, setLimit] = useState(osmLastKeyboardLimit);
+  setLast(mode);
+  setLimit(limit);
+  if (mode === KEYBOARD_STRING) {
+    CS2.mobile_keyboardshowstring(initial, limit);
+  } else if (mode === KEYBOARD_INTEGER) {
+    CS2.mobile_keyboardshowinteger(initial, limit);
+  }
+}
+
+export function keyboardShow(mode: Int, limit: Int): void {
+  keyboardShowString(mode, limit, '');
+}
+
+export const KEYBOARD_STRING = 0;
+export const KEYBOARD_INTEGER = 1;
+
+export function meslayerKeyboardShow(): void {
+  if (!onMobile()) {
+    return;
+  }
+  const [mode] = useState(osmLastKeyboard);
+  const [limit] = useState(osmLastKeyboardLimit);
+  const [typed] = useState(meslayerinput);
+  keyboardShowString(mode, limit, typed);
+}
+
+export function chatDefaultSetOnKey(on: Int): void {
+  if (on === 1) {
+    return;
+  }
+  CS2.if_on_key_set(null, chatboxRef);
+}
+
+export function chatboxOpenInput(): void {
+  if (CS2.if_sub_has(chatmodalRef) || CS2.if_sub_has(chatoverlayRef) || !CS2.if_hide_get(mesLayerRef)) {
+    return;
+  }
+  const [keyboard, setKeyboard] = useState(osmChatKeyboard);
+  const [typed] = useState(chatinput);
+  if (keyboard === 0) {
+    setKeyboard(1);
+    keyboardShowString(KEYBOARD_STRING, CHAT_LIMIT, typed);
+  } else {
+    setKeyboard(0);
+    keyboardHide();
+  }
+}
+
+export const CHAT_LIMIT = 80;
+
+export function meslayerEcho(prefix: String): void {
+  const [typed] = useState(meslayerinput);
+  const [mode] = useState(meslayermode);
+  const [, setDelay] = useState(objdialogUpdatedelay);
+  const [, setEcho] = useState(meslayerEchoText);
+  const [, setOverflow] = useState(meslayerEchoOverflow);
+  let echo: String = CS2.escape(typed);
+  let limit: Int = CHAT_LIMIT;
+
+  if (mode === 6 || mode === 9 || mode === 11 || mode === 13) {
+    limit = CHAT_LIMIT;
+  } else if (mode === 7 || mode === 12 || mode === 18) {
+    limit = 10;
+  } else if (mode === 14 || mode === 17) {
+    limit = 25;
+    echo = CS2.append(`<col=000000>${prefix}</col> `, echo);
+    setDelay(20);
+  } else if (mode === 19) {
+    limit = 4;
+    if (CS2.string_length(typed) >= 2) {
+      echo = `${CS2.substring(typed, 0, 2)}:${CS2.substring(typed, 2, CS2.string_length(typed))}`;
+    }
+  } else if (mode === 22) {
+    limit = 6;
+    echo = CS2.append('#', echo);
+  } else if (mode === 23 || mode === 24 || mode === 25) {
+    limit = 3;
+  } else if (mode === 27) {
+    limit = 8;
+  } else {
+    limit = 12;
+  }
+
+  if (CS2.string_length(typed) < limit) {
+    echo = CS2.append(echo, '*');
+  }
+  let overflow: Int = 0;
+  if (CS2.parawidth(echo, MAX_INT, ChatboxFonts.PROMPT) > mesText2Ref.width!) {
+    overflow = 1;
+  }
+  setOverflow(overflow);
+  setEcho(echo);
+}
+
+export function meslayerOpen(mode: Int): void {
+  meslayerClose(true, false, false);
+  const [, setMode] = useState(meslayermode);
+  const [, setArm] = useState(meslayerKeyboardArm);
+  setMode(mode);
+  mesLayerRef.hide = false;
+
+  if (onMobile()) {
+    mobileChatboxResize();
+    if (mode === MESLAYER_MODE_MESBOX) {
+      setArm(MESLAYER_ARM_NONE);
+      mesKeyboardRef.onClick = null;
+    } else if (mode === 8 || mode === 10 || mode === 20) {
+      setArm(MESLAYER_ARM_UNDER_PROMPT);
+      mesKeyboardRef.onClick = () => meslayerKeyboardShow();
+    } else if (mode === 14 || mode === 17) {
+      setArm(MESLAYER_ARM_TOP_LEFT);
+      mesKeyboardRef.onClick = () => meslayerKeyboardShow();
+    } else {
+      setArm(MESLAYER_ARM_CENTRED);
+      mesKeyboardRef.onClick = () => meslayerKeyboardShow();
+    }
+  } else {
+    setArm(MESLAYER_ARM_NONE);
+    mesKeyboardRef.onClick = null;
+  }
+
+  const [, setDodgerUpdate] = useState(buffBarDodgerUpdate);
+  setDodgerUpdate(CS2.clientclock());
+  chatdisplayRef.hide = true;
+  chatboxBackground();
+  chatDefaultSetOnKey(0);
+}
+
+export function meslayerClose(clearInput: Boolean, refresh: Boolean, cancel: Boolean): void {
+  mesLayerRef.hide = true;
+  chatdisplayRef.hide = false;
+  chatboxBackground();
+
+  const [mode, setMode] = useState(meslayermode);
+  const [, setTyped] = useState(meslayerinput);
+  const [, setEcho] = useState(meslayerEchoText);
+  const [, setOverflow] = useState(meslayerEchoOverflow);
+
+  if (refresh) {
+    redrawChatInput();
+    chatDefaultSetOnKey(1);
+    if (onMobile()) {
+      keyboardHide();
+    }
+  }
+  if (onMobile()) {
+    mobileChatboxResize();
+  }
+  if (cancel) {
+    if (mode === 7 || mode === 19) {
+      CS2.countdialog_resume('0');
+    } else if (mode === 8) {
+      CS2.namedialog_resume('');
+    } else if (mode === 9 || mode === 15 || mode === 20 || mode === 21 || mode === 27) {
+      CS2.stringdialog_resume('');
+    }
+  }
+  setMode(0);
+  if (clearInput) {
+    setTyped('');
+  }
+  setEcho('');
+  setOverflow(0);
+
+  mesListRef.hide = true;
+  mesToggleRef.hide = true;
+  mesScrollAreaRef.scrollY = 0;
+  CS2.cc_all_delete(mesScrollAreaRef);
+  CS2.cc_all_delete(mesScrollBarRef);
+
+  mesText2Ref.onMouseRepeat = null;
+  mesText2Ref.onMouseLeave = null;
+  mesLayerRef.onClick = null;
+  mesText2Ref.onClick = null;
+  mesText2Ref.onKey = null;
+  mesLayerRef.onTimer = null;
+  CS2.cc_all_delete(mesLayerRef);
+  CS2.cc_all_delete(mesButton1Ref);
+  CS2.cc_all_delete(mesButton2Ref);
+  CS2.cc_all_delete(mesButton3Ref);
+  mesButton1Ref.hide = true;
+  mesButton2Ref.hide = true;
+  mesButton3Ref.hide = true;
+  mesButton1Ref.onMouseRepeat = null;
+  mesButton2Ref.onMouseRepeat = null;
+  mesButton3Ref.onMouseRepeat = null;
+  mesButton1Ref.onMouseLeave = null;
+  mesButton2Ref.onMouseLeave = null;
+  mesButton3Ref.onMouseLeave = null;
+  mesButton1Ref.onTimer = null;
+  mesButton2Ref.onTimer = null;
+  mesButton3Ref.onTimer = null;
+  mesButton1Ref.onClick = null;
+  mesButton2Ref.onClick = null;
+  mesButton3Ref.onClick = null;
+
+  const [view] = useState(chatView);
+  const [, setDodgerUpdate] = useState(buffBarDodgerUpdate);
+  if (view === CHAT_VIEW_COLLAPSED) {
+    setDodgerUpdate(CS2.clientclock());
+  }
+  if (onMobile()) {
+    mobileChatboxResize();
+  }
+}
+
+export function meslayerCloseEntrypoint(mode: Int): void {
+  const [open] = useState(meslayermode);
+  if (open === mode || open <= 0 || mode <= 0) {
+    meslayerClose(true, true, true);
+  }
+}
+
+export function meslayerKeyClose(mode: Int, keycode: Int): void {
+  if (keycode !== KEY_ESCAPE) {
+    return;
+  }
+  meslayerCloseEntrypoint(mode);
+}
+
+const KEY_ESCAPE = 83;
+export const KEY_ENTER = 84;
+
+export function meslayerMode1(text: String): void {
+  const [mode] = useState(meslayermode);
+  if (mode > 0 && mode !== MESLAYER_MODE_MESBOX) {
+    return;
+  }
+  meslayerOpen(MESLAYER_MODE_MESBOX);
+
+  const [, setPrompt] = useState(meslayerPromptText);
+  const [, setEcho] = useState(meslayerEchoText);
+  setPrompt(text);
+  setEcho(`${textDevice('Click', 'Tap')} here to continue`);
+
+  mesText2Ref.onMouseRepeat = (event) => textColourSwapper(event.component, WHITE);
+  mesText2Ref.onMouseLeave = (event) => textColourSwapper(event.component, ChatboxColor.MESLAYER_TYPED);
+  if (onMobile()) {
+    mesLayerRef.onClick = () => meslayerCloseEntrypoint(MESLAYER_MODE_MESBOX);
+  } else {
+    mesText2Ref.onClick = () => meslayerCloseEntrypoint(MESLAYER_MODE_MESBOX);
+  }
+  mesText2Ref.onKey = (event) => meslayerKeyClose(MESLAYER_MODE_MESBOX, event.keyCode);
+}
+
+const WHITE = 0xffffff;
+
+export function meslayerMode2(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(2);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt('Enter name of friend to add to list');
+  meslayerEcho('');
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, NAME_LIMIT);
+  }
+}
+
+export function meslayerMode3(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(3);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt('Enter name of friend to delete from list');
+  meslayerEcho('');
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, NAME_LIMIT);
+  }
+}
+
+export function meslayerMode4(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(4);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt('Enter name of player to add to list');
+  meslayerEcho('');
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, NAME_LIMIT);
+  }
+}
+
+export function meslayerMode5(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(5);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt('Enter name of player to delete from list');
+  meslayerEcho('');
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, NAME_LIMIT);
+  }
+}
+
+export function meslayerMode18(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(18);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt('Show players whose names contain the following text:');
+  meslayerEcho('');
+  bindPromptKeys();
+  CS2.if_on_dialog_abort_set(null, mesText2Ref);
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, SEARCH_LIMIT);
+  }
+}
+
+export function meslayerMode6(name: String): void {
+  if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 0) {
+    CS2.message('You must set a name before you can chat.');
+    return;
+  }
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.message("You can't do that right now.");
+    return;
+  }
+  const [, setTarget] = useState(friendtomessage);
+  setTarget(name);
+  meslayerOpen(6);
+  const [, setPrompt] = useState(meslayerPromptText);
+  setPrompt(`Enter message to send to ${name}`);
+  meslayerEcho('');
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, CHAT_LIMIT);
+  }
+}
+
+export function meslayerMode12(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  meslayerOpen(12);
+  if (CS2.string_length(CS2.chat_message_filter_get()) > 0) {
+    CS2.chat_message_filter_set('');
+  }
+  meslayerEcho('');
+  meslayerMode12SetPrompt();
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, FILTER_LIMIT);
+  }
+}
+
+export function meslayerMode12SetPrompt(): void {
+  const [typed] = useState(meslayerinput);
+  const [, setPrompt] = useState(meslayerPromptText);
+  if (CS2.string_length(typed) > 0) {
+    setPrompt(`Filter public chat: <col=0000ff>${CS2.escape(CS2.lowercase(typed))}</col>`);
+  } else {
+    setPrompt('Filter public chat: <col=7f0000>[no filter]</col>');
+  }
+}
+
+export function meslayerMode13(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 0) {
+    CS2.message('You must set a name before you can chat.');
+    return;
+  }
+  meslayerOpen(13);
+  const [, setAutotyper] = useState(autotyper);
+  const [, setPause] = useState(autochatPause);
+  setAutotyper('');
+  setPause(0);
+  meslayerEcho('');
+  meslayerMode13SetPrompt();
+  bindPromptKeys();
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, CHAT_LIMIT);
+  }
+}
+
+export function meslayerMode13SetPrompt(): void {
+  const [typed] = useState(meslayerinput);
+  const [, setPrompt] = useState(meslayerPromptText);
+  if (CS2.string_length(typed) > 0) {
+    setPrompt(`Send autochat: <col=0000ff>${CS2.escape(typed)}</col>`);
+  } else {
+    setPrompt('Send autochat: <col=7f0000>[off]</col>');
+  }
+}
+
+const NAME_LIMIT = 12;
+const FILTER_LIMIT = 10;
+const SEARCH_LIMIT = 10;
+
+function bindPromptKeys(): void {
+  CS2.if_on_key_set(null, mesText2Ref);
+}
+
+export function meslayerMode1Enabled(chatType: Int): Boolean {
+  if (!(MesboxChatTypes.get(chatType) ?? false)) {
+    return false;
+  }
+  if (chatType === 108 || chatType === 114 || chatType === 115 || chatType === 116 || chatType === 118) {
+    return false;
+  }
+  if (inLeagueTutorial()) {
+    return false;
+  }
+  if (inEarlySpeedrun()) {
+    return false;
+  }
+  return true;
+}
+
+export const MesboxChatTypes = mapOf<Int, Boolean>([
+  [0, true],
+  [4, true],
+  [26, true],
+  [27, true],
+  [28, true],
+  [29, true],
+  [30, true],
+  [31, true],
+  [99, true],
+  [105, true],
+  [106, true],
+  [107, true],
+  [108, true],
+  [114, true],
+  [115, true],
+  [116, true],
+  [118, true],
+]);
+
+function inEarlySpeedrun(): Boolean {
+  if (!speedrunWorld()) {
+    return false;
+  }
+  return useServerState(Varbits.SPEEDRUNNING_INTRO) < SPEEDRUN_INTRO_DONE;
+}
+
+const SPEEDRUN_INTRO_DONE = 3;
+
+function textColourSwapper(component: ComponentId, colour: Int): void {
+  if (CS2.if_find(component)) {
+    CS2.cc_colour_set(colour);
+  }
+}
+
+const MAX_INT = 2147483647;

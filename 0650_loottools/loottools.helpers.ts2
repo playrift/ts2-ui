@@ -1,0 +1,144 @@
+import { CS2, predictServerState, useState } from 'ts2';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { LootCopy } from './loottools.constants';
+import { lootGroupViewSynced, lootNamedRows, lootRowsExpanded } from './loottools.state';
+
+const MAX_INT = 2147483647;
+
+export function magicSpacer(value: Int, separator: String, decimals: Int): String {
+  if (value >= MAX_INT) {
+    return 'Lots';
+  }
+  if (value < 1000) {
+    return `${value}`;
+  }
+  let unit: Int = 1000;
+  let suffix: String = 'K';
+  if (value >= 1000000000) {
+    unit = 1000000000;
+    suffix = 'B';
+  } else if (value >= 1000000) {
+    unit = 1000000;
+    suffix = 'M';
+  }
+  const step: Int = unit / powerOfTen(decimals);
+  const whole: Int = value / unit;
+  const rest: Int = value - whole * unit;
+  if (rest >= step) {
+    return `${whole}${separator}${prependZero(`${rest / step}`, decimals)}${suffix}`;
+  }
+  return `${whole}${suffix}`;
+}
+
+function powerOfTen(exponent: Int): Int {
+  let result: Int = 1;
+  let index: Int = 0;
+  while (index < exponent) {
+    result = result * 10;
+    index = index + 1;
+  }
+  return result;
+}
+
+function prependZero(text: String, length: Int): String {
+  let padded: String = text;
+  while (CS2.string_length(padded) < length) {
+    padded = `0${padded}`;
+  }
+  return padded;
+}
+
+export function totalsText(count: Int, value: Int): String {
+  return `${magicSpacer(count, '.', 1)}<br>${magicSpacer(value, '.', 1)} gp`;
+}
+
+export function ignoreModeSprite(ignored: Int): Sprite {
+  return ignored === 1 ? Sprites.ICON_TRACKER_LOOT01_30X30_3 : Sprites.ICON_TRACKER_LOOT01_30X30_2;
+}
+
+export function ignoreModeOption(ignored: Int): String {
+  return ignored === 1 ? LootCopy.HIDE : LootCopy.SHOW;
+}
+
+export function collapseSprite(expanded: Int): Sprite {
+  return expanded === 0 ? Sprites.ICON_TRACKER_LOOT01_30X30_8 : Sprites.ICON_TRACKER_LOOT01_30X30_6;
+}
+
+export function collapseOption(expanded: Int): String {
+  return expanded === 0 ? LootCopy.EXPAND : LootCopy.COLLAPSE;
+}
+
+export function valueModeSprite(mode: Int): Sprite {
+  return mode === 0 ? Sprites.ICON_TRACKER_LOOT01_30X30_1 : Sprites.ICON_TRACKER_LOOT01_30X30_0;
+}
+
+export function valueModeSubject(mode: Int): String {
+  return mode === 0 ? LootCopy.HIGH_ALCHEMY : LootCopy.GRAND_EXCHANGE;
+}
+
+export function groupViewSprite(synced: Int, mode: Int): Sprite {
+  if (synced === 0) {
+    return Sprites.ICON_TRACKER_LOOT01_30X30_4;
+  }
+  return mode === 0 ? Sprites.ICON_TRACKER_LOOT01_30X30_4 : Sprites.ICON_TRACKER_LOOT01_30X30_5;
+}
+
+export function groupViewSubject(synced: Int, mode: Int): String {
+  if (synced === 0) {
+    return LootCopy.DROP_VIEW_DEFINITION;
+  }
+  return mode === 1 ? LootCopy.SOURCE_VIEW : LootCopy.DROP_VIEW;
+}
+
+export function sourcesHidden(synced: Int, mode: Int): Boolean {
+  return synced === 1 && mode === 1;
+}
+
+export function dropsHidden(synced: Int, mode: Int): Boolean {
+  return synced === 1 && mode === 0;
+}
+
+export function lootToggleIgnored(ignored: Int): void {
+  predictServerState(Varbits.OPTION_LOOTTRACKER_DISPLAY_IGNORED_ENTRIES, 1 - ignored);
+}
+
+export function lootToggleValueMode(mode: Int): void {
+  predictServerState(Varbits.OPTION_LOOTTRACKER_DISPLAY_VALUE_MODE, mode === 0 ? 1 : 0);
+}
+
+export function lootToggleGroupMode(mode: Int): void {
+  predictServerState(Varbits.OPTION_LOOTTRACKER_DISPLAY_GROUP_MODE, mode === 0 ? 1 : 0);
+  lootGroupViewSynced4850();
+}
+
+export function lootGroupViewSynced4850(): void {
+  const [, setSynced] = useState(lootGroupViewSynced);
+  setSynced(1);
+}
+
+export function lootToggleCollapse(): void {
+  const [named] = useState(lootNamedRows);
+  const [expanded, setExpanded] = useState(lootRowsExpanded);
+  if (named > 0) {
+    setExpanded(expanded === 0 ? 1 : 0);
+  }
+}
+
+export function groundItemsToggle(enabled: Int): void {
+  predictServerState(Varbits.GROUND_ITEMS_ENABLED, 1 - enabled);
+}
+
+export function groundVectorJoined(vector: Int): String {
+  const size: Int = CS2.native_string_array_size(vector as StringArray);
+  let joined: String = '';
+  let index: Int = 0;
+  while (index < size) {
+    joined = `${joined}${CS2.native_string_array_get(vector as StringArray, index)},`;
+    index = index + 1;
+  }
+  if (size > 0) {
+    joined = CS2.substring(joined, 0, CS2.string_length(joined) - 1);
+  }
+  return joined;
+}

@@ -1,0 +1,72 @@
+import { useServerState } from 'ts2';
+
+import { scaled } from '../lib/lib.engine';
+import { Varbits } from '../lib/game/varbits';
+
+export function textPlural(count: Int, one: String, many: String): String {
+  if (count !== 1) {
+    return many;
+  }
+  return one;
+}
+
+export function timeConvert(ticks: Int, separateHours: Int): String {
+  let seconds: Int = scaled(60, 100, ticks);
+  if (((ticks % 10) * 6) % 10 >= 5) {
+    seconds = seconds + 1;
+  }
+  let minutes: Int = seconds / 60;
+  const hours: Int = minutes / 60;
+  seconds = seconds % 60;
+  if (separateHours === 0) {
+    minutes = minutes % 60;
+  }
+  let out: String = '';
+  if (hours > 0 && separateHours === 0) {
+    out = `${out}${stringOf(hours)}:`;
+  }
+  if (minutes < 10 && hours > 0) {
+    out = `${out}0${stringOf(minutes)}:`;
+  } else {
+    out = `${out}${stringOf(minutes)}:`;
+  }
+  if (seconds < 10) {
+    return `${out}0${stringOf(seconds)}`;
+  }
+  return `${out}${stringOf(seconds)}`;
+}
+
+export function timeConvertMs(ticks: Int, separateHours: Int): String {
+  let tenths: Int = ticks * 6;
+  let seconds: Int = tenths / 10;
+  let minutes: Int = seconds / 60;
+  const hours: Int = minutes / 60;
+  tenths = tenths % 10;
+  seconds = seconds % 60;
+  if (separateHours === 0) {
+    minutes = minutes % 60;
+  }
+  let out: String = '';
+  if (hours > 0 && separateHours === 0) {
+    out = `${out}${stringOf(hours)}:`;
+  }
+  if (minutes < 10 && hours > 0) {
+    out = `${out}0${stringOf(minutes)}:`;
+  } else {
+    out = `${out}${stringOf(minutes)}:`;
+  }
+  if (seconds < 10) {
+    out = `${out}0${stringOf(seconds)}.`;
+  } else {
+    out = `${out}${stringOf(seconds)}.`;
+  }
+  return `${out}${stringOf(tenths)}0`;
+}
+
+export function timeConvertOption(ticks: Int): String {
+  const separate: Int = useServerState(Varbits.OPTION_SEPARATE_HOURS);
+  if (useServerState(Varbits.OPTION_PRECISE_TIMING) === 1) {
+    return timeConvertMs(ticks, separate);
+  }
+  return timeConvert(ticks, separate);
+}

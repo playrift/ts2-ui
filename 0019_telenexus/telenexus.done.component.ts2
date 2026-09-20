@@ -1,0 +1,66 @@
+import { useState } from 'ts2';
+
+import { StoneButtonEntrypoint } from '../lib/stone-button-entrypoint.component';
+import { StoneButtonPressedEntrypoint } from '../lib/stone-button-pressed-entrypoint.component';
+import { closeInterface } from '../lib/lib.helpers';
+
+import { Layout, TelenexusColor, TelenexusFonts, TelenexusVarbits } from './telenexus.constants';
+import { ConfirmHidden } from './telenexus.state';
+import { slotSumsMatch, slotsMatchSaved } from './telenexus.slots';
+import { useServerState } from 'ts2';
+
+export function DoneButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const [, setConfirmHidden] = useState(ConfirmHidden);
+
+  return (
+    <layer
+      x={{ right: 0 }}
+      y={{ bottom: 0 }}
+      w={Layout.DONE_W}
+      h={Layout.DONE_H}
+      options={['Done']}
+      onOptionSelect={() => {
+        setHovered(0);
+        if (slotSumsMatch() === true) {
+          closeInterface();
+          return;
+        }
+        setConfirmHidden(0);
+      }}
+    >
+      <layer
+        x="center"
+        y="center"
+        w={{ fill: Layout.BUTTON_GFX_INSET }}
+        h={{ fill: Layout.BUTTON_GFX_INSET }}
+        onMouseRepeat={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
+      >
+        {hovered === 1 ? <StoneButtonPressedEntrypoint /> : <StoneButtonEntrypoint />}
+      </layer>
+
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={doneLabel()}
+        font={TelenexusFonts.BUTTON}
+        color={TelenexusColor.BUTTON}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+function doneLabel(): String {
+  const leftClickUnchanged: Boolean =
+    useServerState(TelenexusVarbits.LEFT_CLICK_TEMP) === useServerState(TelenexusVarbits.LEFT_CLICK);
+  if (slotsMatchSaved() === true && leftClickUnchanged === true) {
+    return 'Close';
+  }
+  return 'Save & Close';
+}

@@ -1,0 +1,98 @@
+import { useRef } from 'ts2';
+
+import { Sprites } from '../lib/game/sprites';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { paneRef } from './fairyrings-log.refs';
+
+export function LogScrollbar({ extent, paneHeight }: { extent: Int; paneHeight: Int }): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const measured: Int = extent > 0 ? extent : paneHeight;
+
+  paneRef.onScrollWheel = (event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom);
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_3}
+        noClickThrough
+        onScrollWheel={(event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom)}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = paneRef.scrollHeight - paneRef.height;
+          paneRef.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, paneRef);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, paneHeight, measured, false)) * paneRef.scrollY) /
+            Math.max(1, extent - paneHeight)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, paneHeight, measured, false)}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = paneRef.scrollHeight - paneRef.height;
+          paneRef.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={Sprites.SCROLLBAR_DRAGGER_V2_0} />
+      <sprite
+        ref={capBottom}
+        y={thumb.y + thumb.height - CAP}
+        w="fill"
+        h={CAP}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+      />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_0}
+        noClickThrough
+        onHold={() => {
+          paneRef.scrollY = paneRef.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, paneRef);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_1}
+        noClickThrough
+        onHold={() => {
+          paneRef.scrollY = paneRef.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, paneRef);
+        }}
+      />
+    </layer>
+  );
+}
+
+function wheel(delta: Int, gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref): void {
+  paneRef.scrollY = paneRef.scrollY + delta * WHEEL;
+  trackScroll(gutter, thumb, capTop, capBottom, paneRef);
+}

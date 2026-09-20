@@ -1,0 +1,638 @@
+import { CS2, onMounted, onUpdated, useDerived, useInterval, useRef, useServerState, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { CellBoxes } from '../0823_forestry_kit_main/cell-box.data';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { Varbits } from '../lib/game/varbits';
+import {
+  bingoInfoMaximised,
+  bingoInfoVisible,
+  bingoOverlayHeight,
+  bingoOverlayWidth,
+  bingoOverlayX,
+  bingoOverlayY,
+  bingoSelectedGrid,
+  bingoSelectedTile,
+  bingoShowRewards,
+} from '../lib/game/varcs';
+import { BingoButton } from './bingo-button.component';
+import { BingoGridSelection, BingoRewardBox, BingoRewardPopout, BingoTilePopout } from './bingo-grid.component';
+import {
+  BingoRewardStripSlots,
+  bingoClaimPulse,
+  bingoLineHasChallenge,
+  bingoRewardClaimable,
+  bingoRewardTipAt,
+  bingoRewardTipSlot,
+  bingoRewardTipTile,
+  bingoRewardsKeyHeld,
+  bingoTipArmed,
+} from './bingo-grid.state';
+import { BingoInfoPane, BingoInnerOverlay } from './bingo-info.component';
+import { BingoDetailsRow } from './bingo-rows.component';
+import { BingoTutorialContent } from './bingo-tutorial.component';
+import { bingoTutorialDone } from './bingo-panels.state';
+import { FloaterHandles, FloaterKind, floaterPlaced } from '../0372_cr_ui/floater';
+import { BingoRewardTip } from './bingo-tooltip.component';
+import {
+  BingoButtonStyle,
+  BingoColour,
+  BingoLayout,
+  bingoUniverseRef,
+  bingoWindowRef,
+} from './bingo-overlay.constants';
+import { BingoChallengeRow, BingoChallenges } from './bingo-overlay.data';
+import {
+  bingoChallengeComplete,
+  bingoChallengeId,
+  bingoChallengeProgress,
+  bingoEventName,
+  bingoEventRow,
+  bingoGridCount,
+  bingoGridRewardBox,
+  bingoGridSide,
+  bingoOpenEntry,
+  bingoRewardCount,
+  bingoTileCell,
+  bingoTileCount,
+  bingoTileRewardSlot,
+} from './bingo-overlay.helpers';
+
+const CLOSE_OP = 'Close';
+const SELECT_OP = 'Select';
+const TOGGLE_OP = 'Toggle';
+const PRESS_OP = 'Press';
+const NO_OP = '';
+
+const REWARDS_TIP = 'Toggle this button or hold CTRL to show all rewards.';
+const INFO_TIP = 'Show Event Details and Bonus Effects.';
+const REDRAW_OP = 'Redraw';
+const CLOSE_OP_SLOT = 1;
+const TUTORIAL_CARD_FILL = 0x726451;
+
+export function BingoOverlay(): Component {
+  return (
+    <layer static ref={bingoUniverseRef} x={0} y={0} w="fill" h="fill" onLoad={() => bingoOpenEntry()}>
+      <layer static ref={bingoWindowRef} x={0} y={0} w="fill" h="fill">
+        <layer static x={0} y={0} w="fill" h="fill" noClickThrough>
+          <BingoFrame />
+        </layer>
+        <layer
+          static
+          x={BingoLayout.SEPARATORS_X}
+          y={BingoLayout.SEPARATORS_Y}
+          w={{ fill: BingoLayout.SEPARATORS_INSET_W }}
+          h={{ fill: BingoLayout.SEPARATORS_INSET_H }}
+        />
+        <layer
+          static
+          x={BingoLayout.CONTENT_X}
+          y={BingoLayout.CONTENT_Y}
+          w={{ fill: BingoLayout.CONTENT_INSET_W }}
+          h={{ fill: BingoLayout.CONTENT_INSET_H }}
+        >
+          <BingoContent />
+        </layer>
+        <sprite x={-1} y={-1} w={0} h={0} options={[REDRAW_OP]} />
+      </layer>
+      <layer static x={0} y={0} w="fill" h="fill">
+        <BingoRewardTip />
+      </layer>
+      <BingoFloater />
+    </layer>
+  );
+}
+
+function BingoFloater(): Component {
+  const [x] = useState(bingoOverlayX);
+  const [y] = useState(bingoOverlayY);
+  const [w] = useState(bingoOverlayWidth);
+  const [h] = useState(bingoOverlayHeight);
+  return <FloaterHandles kind={FloaterKind.BINGO} x={x} y={y} w={w} h={h} anchored={true} hideOnMobile={true} />;
+}
+
+function BingoFrame(): Component {
+  const event: Int = bingoEventRow();
+  let flags: Int = 2;
+  if (onMobile()) {
+    flags = 0;
+  }
+  return (
+    <>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        hide={event !== -1}
+        fill
+        color={BingoColour.NO_EVENT}
+        transparency={192}
+        options={[CLOSE_OP]}
+        onTimer={
+          event === -1
+            ? (timer) => {
+                if (CS2.cc_find(timer.component, timer.subId)) {
+                  CS2.cc_triggerop(CLOSE_OP_SLOT);
+                }
+              }
+            : null
+        }
+      />
+      <layer x={0} y={0} w="fill" h="fill" hide={event === -1}>
+        <SteelBorder title={bingoEventName()} titleColor={BingoColour.ORANGE} flags={flags} />
+      </layer>
+    </>
+  );
+}
+
+function BingoContent(): Component {
+  const event: Int = bingoEventRow();
+  const [cellX] = useState(bingoOverlayX);
+  const [cellY] = useState(bingoOverlayY);
+  const [cellW] = useState(bingoOverlayWidth);
+  const [cellH] = useState(bingoOverlayHeight);
+  const [windowX, windowY, windowW, windowH] = floaterPlaced(FloaterKind.BINGO, cellX, cellY, cellW, cellH);
+  const w: Int = windowW - BingoLayout.CONTENT_INSET_W;
+  const h: Int = windowH - BingoLayout.CONTENT_INSET_H;
+  const infoHidden: Boolean = w < BingoLayout.INFO_MIN_CONTENT_W;
+  let infoW: Int = 0;
+  let rightInset: Int = 0;
+  let visible: Int = 0;
+  let maximised: Int = 0;
+  if (!infoHidden) {
+    infoW = w - (w * 1000) / 1618 - BingoLayout.INFO_GAP;
+    infoW = Math.max(infoW, BingoLayout.INFO_MIN_W);
+    infoW = Math.min(infoW, BingoLayout.INFO_MAX_W);
+    infoW = Math.min(infoW, w - 288 - BingoLayout.BUTTONS_W - BingoLayout.INFO_GAP);
+    rightInset = infoW + BingoLayout.INFO_GAP;
+    visible = 1;
+    if (infoW >= BingoLayout.INFO_MAX_W && h - 2 * BingoLayout.INFO_GAP >= BingoLayout.INFO_MAXIMISED_H) {
+      maximised = 1;
+    }
+  }
+  const [, setVisible] = useState(bingoInfoVisible);
+  const [, setMaximised] = useState(bingoInfoMaximised);
+  setVisible(visible);
+  setMaximised(maximised);
+
+  const selectionHidden: Boolean = bingoGridCount() < 2;
+  let gridTop: Int = 0;
+  if (!selectionHidden) {
+    gridTop = BingoLayout.GRID_SELECTION_H;
+  }
+  const gridW: Int = w - rightInset;
+  const gridH: Int = h - gridTop;
+
+  return (
+    <>
+      <sprite x={0} y={0} w={0} h={0} />
+      <layer x={0} y={0} w="fill" h={12} hide />
+      <layer x={0} y={18} w="fill" h={30} hide>
+        <BingoDetailsRow />
+      </layer>
+      <layer x={0} y={{ bottom: 0 }} w={{ fill: rightInset }} h="fill">
+        <layer x={0} y={0} w="fill" h={BingoLayout.GRID_SELECTION_H}>
+          <BingoGridSelection hidden={selectionHidden} w={gridW} />
+        </layer>
+        <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: gridTop }}>
+          <BingoGridContainer event={event} w={gridW} h={gridH} infoVisible={visible} />
+        </layer>
+      </layer>
+      <layer
+        x={{ right: BingoLayout.INFO_GAP }}
+        y={{ bottom: BingoLayout.INFO_GAP }}
+        w={infoW}
+        h={{ fill: 2 * BingoLayout.INFO_GAP }}
+        hide={infoHidden}
+      >
+        <BingoInfoPane w={infoW} h={h - 2 * BingoLayout.INFO_GAP} />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <BingoInnerOverlay w={w} h={h} />
+        <BingoTilePopout w={w} h={h} />
+        <BingoRewardPopout w={w} h={h} />
+      </layer>
+      <BingoTutorialLayer />
+    </>
+  );
+}
+
+function BingoTutorialLayer(): Component {
+  const tutorial: Int = useServerState(Varbits.BINGO_TUTORIAL);
+  const [done] = useState(bingoTutorialDone);
+  const hidden: Boolean = tutorial >= 4 || done === 1;
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer x="center" y="center" w="fill" h="fill" noClickThrough hide={hidden}>
+        <rect x={0} y={0} w="fill" h="fill" fill color={BingoColour.BLACK} transparency={64} />
+      </layer>
+      <layer x="center" y="center" w={BingoLayout.TUTORIAL_CARD_W} h={BingoLayout.TUTORIAL_CARD_H} hide={hidden}>
+        <layer x="center" y="center" w="fill" h="fill">
+          <rect
+            x={1}
+            y={1}
+            w={BingoLayout.TUTORIAL_CARD_W - 2}
+            h={BingoLayout.TUTORIAL_CARD_H - 2}
+            fill
+            color={TUTORIAL_CARD_FILL}
+          />
+          <StructBoxFrame
+            x={0}
+            y={0}
+            w={BingoLayout.TUTORIAL_CARD_W}
+            h={BingoLayout.TUTORIAL_CARD_H}
+            style={CellBoxes.at(0)}
+          />
+        </layer>
+        <layer x="center" y="center" w="fill" h="fill">
+          <BingoTutorialContent />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function BingoGridContainer({ event, w, h, infoVisible }: { event: Int; w: Int; h: Int; infoVisible: Int }): Component {
+  return (
+    <>
+      <BingoGridRewards w={w - BingoLayout.BUTTONS_W} h={h} />
+      <BingoTiles event={event} w={w - BingoLayout.BUTTONS_W} h={h} />
+      <layer x={{ right: 0 }} y={{ bottom: 0 }} w={BingoLayout.BUTTONS_W} h="fill">
+        <BingoGridButtons infoVisible={infoVisible} />
+      </layer>
+    </>
+  );
+}
+
+function BingoTiles({ event, w, h }: { event: Int; w: Int; h: Int }): Component {
+  const [grid] = useState(bingoSelectedGrid);
+  const [showRewards] = useState(bingoShowRewards);
+  const keyHeld: Int = useDerived(() => bingoRewardsKeyHeld());
+  const tilesHidden: Boolean = showRewards === 1 || keyHeld === 1;
+  const [tipSlot] = useState(bingoRewardTipSlot);
+  const [tipTile] = useState(bingoRewardTipTile);
+  const [tipAt] = useState(bingoRewardTipAt);
+  const armed: Int = useDerived(() => bingoTipArmed(tipAt));
+  let litSlot: Int = -1;
+  if (tipTile === -1 && armed === 1 && !tilesHidden) {
+    litSlot = tipSlot;
+  }
+  const side: Int = bingoGridSide(grid);
+  const lattice: Int = side + 1;
+  const gap: Int = BingoLayout.TILE_GAP;
+  const tileW: Int = (w - lattice * gap) / lattice;
+  const tileH: Int = (h - (lattice + 1) * gap) / lattice;
+  const slack: Int = w - (tileW + gap) * lattice;
+  const icon: Int = Math.min(tileW - 6, tileH - 12);
+  return (
+    <layer x={0} y={{ bottom: 0 }} w={{ fill: BingoLayout.BUTTONS_W }} h="fill">
+      {BingoChallenges.map((row, index) => (
+        <BingoTile
+          grid={grid}
+          index={index}
+          row={row}
+          hidden={tilesHidden}
+          litSlot={litSlot}
+          gap={gap}
+          slack={slack}
+          w={tileW}
+          h={tileH}
+          icon={icon}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function BingoTile({
+  grid,
+  index,
+  row,
+  hidden,
+  litSlot,
+  gap,
+  slack,
+  w,
+  h,
+  icon,
+}: {
+  grid: Int;
+  index: Int;
+  row: BingoChallengeRow;
+  hidden: Boolean;
+  litSlot: Int;
+  gap: Int;
+  slack: Int;
+  w: Int;
+  h: Int;
+  icon: Int;
+}): Component {
+  const id: Int = bingoChallengeId(grid, index);
+  const [column, line] = bingoTileCell(grid, index);
+  const x: Int = gap + slack + (column + 1) * (w + gap);
+  const y: Int = gap + line * (h + gap);
+  const [selected] = useState(bingoSelectedTile);
+  const [maximised] = useState(bingoInfoMaximised);
+  const picked: Boolean = maximised === 1 && index === selected;
+
+  let style: Int = BingoButtonStyle.NONE;
+  let tierColour: Int = BingoColour.TIER_NONE;
+  const target: Int = row.target;
+  const sprite: Sprite = row.sprite;
+  const item: Item = row.item;
+  if (row.tier === 1) {
+    style = BingoButtonStyle.TIER_1;
+    tierColour = BingoColour.TIER_1;
+  }
+  if (row.tier === 2) {
+    style = BingoButtonStyle.TIER_2;
+    tierColour = BingoColour.TIER_2;
+  }
+  if (row.tier === 3) {
+    style = BingoButtonStyle.TIER_3;
+    tierColour = BingoColour.TIER_3;
+  }
+
+  const progress: Int = bingoChallengeProgress(id);
+  const complete: Boolean = bingoChallengeComplete(id);
+
+  let tip: String = '';
+  if (!picked) {
+    tip = `${progress} / ${target}`;
+    if (row.name.length > 0) {
+      tip = `${row.name}<br><br>${progress} / ${target}`;
+    }
+  }
+
+  const claimable: Boolean = bingoRewardClaimable(grid, bingoTileRewardSlot(grid, index));
+  const claimBar = useRef();
+  useInterval(() => {
+    claimBar.transparency = bingoClaimPulse();
+  }, claimBar);
+
+  const barW: Int = w - 10;
+  let barColour: Int = BingoColour.BLACK;
+  let barFilled: Int = 0;
+  if (complete) {
+    barColour = BingoColour.COMPLETE;
+    barFilled = barW;
+  } else if (progress > 0) {
+    barColour = BingoColour.PARTIAL;
+    barFilled = Math.max(2, Math.min(barW - 2, (progress * barW) / target));
+  }
+
+  let number: String = '';
+  if (sprite === -1 && item === -1) {
+    number = `${id}`;
+  }
+
+  return (
+    <BingoButton
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      style={style}
+      toggled={picked ? 1 : 0}
+      disabled={picked}
+      hide={hidden}
+      op={picked ? NO_OP : SELECT_OP}
+      selectTile={index}
+      gridDelta={0}
+      toggleRewards={false}
+      popoutInfo={false}
+      closePopout={false}
+      backToTile={-1}
+      chooseReward={-1}
+      claimReward={false}
+      lit={bingoLineHasChallenge(grid, litSlot, id)}
+      openRewardSlot={-1}
+      openRewardTile={-1}
+      openRewardFromCard={false}
+      tip={tip}
+    >
+      <sprite
+        x={3 + (w - 6 - icon) / 2}
+        y={3 + (h - 12 - icon) / 2}
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        item={item}
+        itemCount={target}
+        itemCountMode="never"
+        outline={item === -1 ? 0 : 1}
+      />
+      <rect x={3} y={{ bottom: 1 }} w={{ fill: 6 }} h={7} color={tierColour} />
+      <rect x={4} y={{ bottom: 2 }} w={{ fill: 8 }} h={5} color={BingoColour.BLACK} fill />
+      <rect x={5} y={{ bottom: 3 }} w={barFilled} h={3} color={barColour} fill />
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="center"
+        valign="middle"
+        text={number}
+      />
+      <text
+        x={3}
+        y={2}
+        w={{ fill: 6 }}
+        h={{ fill: 11 }}
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="right"
+        valign="top"
+        text=""
+      />
+      <rect
+        ref={claimBar}
+        x={4}
+        y={{ bottom: 2 }}
+        w={w - 8}
+        h={5}
+        fill
+        color={BingoColour.CLAIMABLE}
+        hide={!claimable}
+      />
+    </BingoButton>
+  );
+}
+
+function BingoGridButtons({ infoVisible }: { infoVisible: Int }): Component {
+  const [showRewards] = useState(bingoShowRewards);
+  let inset: Int = BingoLayout.BUTTON_INSET;
+  let size: Int = BingoLayout.BUTTON_SIZE;
+  let step: Int = BingoLayout.BUTTON_STEP;
+  if (onMobile()) {
+    inset = BingoLayout.BUTTON_INSET_MOBILE;
+    size = BingoLayout.BUTTON_SIZE_MOBILE;
+    step = BingoLayout.BUTTON_STEP_MOBILE;
+  }
+  return (
+    <>
+      <BingoButton
+        x={BingoLayout.BUTTONS_W - size - inset}
+        y={inset}
+        w={size}
+        h={size}
+        hide={false}
+        style={BingoButtonStyle.SIMPLE}
+        toggled={showRewards === 1 ? 1 : 0}
+        disabled={false}
+        op={TOGGLE_OP}
+        selectTile={-1}
+        gridDelta={0}
+        toggleRewards={true}
+        popoutInfo={false}
+        closePopout={false}
+        backToTile={-1}
+        chooseReward={-1}
+        claimReward={false}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip={REWARDS_TIP}
+      >
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          font={Fonts.B12_FULL}
+          shadow
+          color={BingoColour.BLACK}
+          align="center"
+          valign="middle"
+          text="R"
+        />
+      </BingoButton>
+      <BingoButton
+        x={BingoLayout.BUTTONS_W - size - inset}
+        y={inset + size + step}
+        w={size}
+        h={size}
+        hide={infoVisible !== 0}
+        style={BingoButtonStyle.SIMPLE}
+        toggled={0}
+        disabled={false}
+        op={PRESS_OP}
+        selectTile={-1}
+        gridDelta={0}
+        toggleRewards={false}
+        popoutInfo={true}
+        closePopout={false}
+        backToTile={-1}
+        chooseReward={-1}
+        claimReward={false}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip={INFO_TIP}
+      >
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          font={Fonts.B12_FULL}
+          shadow
+          color={BingoColour.BLACK}
+          align="center"
+          valign="middle"
+          text="I"
+        />
+      </BingoButton>
+    </>
+  );
+}
+
+function BingoGridRewards({ w, h }: { w: Int; h: Int }): Component {
+  const [grid] = useState(bingoSelectedGrid);
+  const side: Int = bingoGridSide(grid);
+  const lattice: Int = side + 1;
+  const gap: Int = BingoLayout.TILE_GAP;
+  const tileW: Int = (w - lattice * gap) / lattice;
+  const tileH: Int = (h - (lattice + 1) * gap) / lattice;
+  const slack: Int = w - (tileW + gap) * lattice;
+  return (
+    <layer x={0} y={{ bottom: 0 }} w={{ fill: BingoLayout.BUTTONS_W }} h="fill">
+      {BingoChallenges.map((_row, index) => (
+        <BingoTileReward grid={grid} tile={index} gap={gap} slack={slack} w={tileW} h={tileH} />
+      ))}
+      {BingoRewardStripSlots.map((slot) => (
+        <BingoStripReward grid={grid} slot={slot} boxW={w} boxH={h} w={tileW} h={tileH} />
+      ))}
+    </layer>
+  );
+}
+
+function BingoTileReward({
+  grid,
+  tile,
+  gap,
+  slack,
+  w,
+  h,
+}: {
+  grid: Int;
+  tile: Int;
+  gap: Int;
+  slack: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  const slot: Int = bingoTileRewardSlot(grid, tile);
+  const [column, line] = bingoTileCell(grid, tile);
+  return (
+    <BingoRewardBox
+      grid={grid}
+      slot={slot}
+      tile={tile}
+      fromCard={false}
+      x={gap + slack + (column + 1) * (w + gap)}
+      y={gap + line * (h + gap)}
+      w={w}
+      h={h}
+    />
+  );
+}
+
+function BingoStripReward({
+  grid,
+  slot,
+  boxW,
+  boxH,
+  w,
+  h,
+}: {
+  grid: Int;
+  slot: Int;
+  boxW: Int;
+  boxH: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  const [dx, dy, xMode, yMode, slotW, slotH] = bingoGridRewardBox(grid, slot, w, h);
+  let x: Int = dx;
+  if (xMode === 2) {
+    x = boxW - slotW - dx;
+  }
+  let y: Int = dy;
+  if (yMode === 2) {
+    y = boxH - slotH - dy;
+  }
+  let live: Int = slot;
+  if (slot >= bingoRewardCount(grid)) {
+    live = -1;
+  }
+  return <BingoRewardBox grid={grid} slot={live} tile={-1} fromCard={false} x={x} y={y} w={slotW} h={slotH} />;
+}

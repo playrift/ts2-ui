@@ -1,0 +1,583 @@
+import { onMounted, useInterval, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { speedrunTrophyCount } from '../0781_questscroll_speedrun/questscroll-speedrun.helpers';
+import { speedrunningWorld } from '../0134_settings/settings.helpers';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { textLineCount } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { questProgress } from '../lib/lib.quests';
+import {
+  HealthBar,
+  HealthBarAnim,
+  Layout,
+  QuestColor,
+  QuestColourSetting,
+  QuestFont,
+  QuestScrollbar,
+  QuestVarbits,
+  Row,
+  QuestSprite,
+  footerRef,
+  listContainerRef,
+  listRef,
+  settingsButtonRef,
+} from './questlist.constants';
+import { QuestRow, QuestsByKind, QuestsByName } from './questlist.data';
+import { healthbarStep } from './questlist.helpers';
+import {
+  healthbarAnim,
+  healthbarBoxWidth,
+  healthbarCurrent,
+  healthbarFillPx,
+  healthbarFrameLit,
+  healthbarMax,
+  healthbarOverlayPx,
+  healthbarShown,
+} from './questlist.state';
+import { settingColourOrDefault } from './settings-colour';
+
+export function Questlist(): Component {
+  return (
+    <>
+      <text
+        x="center"
+        y={0}
+        w={{ fill: Layout.title.insetW }}
+        h={Layout.title.h}
+        text="Quest List"
+        font={QuestFont.TITLE}
+        color={QuestColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+
+      <layer x="center" y={Layout.container.top} w="fill" h={{ fill: Layout.container.insetH }}>
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: Layout.backdrop.inset }}
+          h={{ fill: Layout.backdrop.inset }}
+          fill
+          transparency={Layout.backdrop.trans}
+        />
+
+        <layer
+          ref={listContainerRef}
+          x="center"
+          y="center"
+          w={{ fill: Layout.listBox.inset }}
+          h={{ fill: Layout.listBox.inset }}
+        >
+          <QuestPane />
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <layer ref={footerRef} x="center" y="bottom" w="fill" h={Layout.footer.h}>
+        <Completed />
+        <QuestPoints />
+        <SettingsButton />
+        <QuestlistHealthbar />
+      </layer>
+    </>
+  );
+}
+
+function QuestPane(): Component {
+  const mobile: Boolean = onMobile();
+  const sort: Int = useServerState(QuestVarbits.SORT_TYPE);
+
+  const headers: Boolean = useServerState(QuestVarbits.DISABLE_HEADERS) === 0;
+
+  const shadow: Boolean = useServerState(QuestVarbits.DISABLE_TEXT_SHADOW) === 0;
+
+  const large: Boolean = useServerState(QuestVarbits.LARGER_TEXT) === 1;
+  const line: Int = large ? Row.LINE_LARGE : Row.LINE;
+  const pad: Int = (mobile ? Row.PAD_MOBILE : Row.PAD) + (large ? Row.PAD_LARGE : 0);
+  const font: Font = large ? QuestFont.ROW_LARGE : QuestFont.ROW;
+
+  const rows: List<QuestRow> = sort === 1 ? QuestsByName : QuestsByKind;
+
+  const box = useUniverse();
+  const pane = useRef();
+  const width: Int = box.width - Layout.pane.insetW;
+  const paneHeight: Int = box.height;
+
+  const top: Int = headers ? Row.TOP : Row.TOP_NO_HEADERS;
+  let content: Int = top;
+  let i: Int = 0;
+  while (i < rows.length) {
+    const row: QuestRow | null = rows.at(i);
+    if (row !== null) {
+      content = content + rowAdvance(row, headers, line, pad, width, font);
+    }
+    i = i + 1;
+  }
+  content = content + Row.END_PAD;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.pane.left}
+        y="center"
+        w={{ fill: Layout.pane.insetW }}
+        h="fill"
+        scrollHeight={content > paneHeight ? content : 0}
+      >
+        <layer ref={listRef} w="fill" h={content}>
+          {sort === 1 ? (
+            <QuestRowsByName
+              top={top}
+              headers={headers}
+              shadow={shadow}
+              line={line}
+              pad={pad}
+              width={width}
+              font={font}
+              mobile={mobile}
+            />
+          ) : (
+            <QuestRowsByKind
+              top={top}
+              headers={headers}
+              shadow={shadow}
+              line={line}
+              pad={pad}
+              width={width}
+              font={font}
+              mobile={mobile}
+            />
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 0 }} y="center" w={Layout.scrollbar.w} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={QuestScrollbar.TRACK}
+          capTopSprite={QuestScrollbar.CAP_TOP}
+          thumbSprite={QuestScrollbar.THUMB}
+          capBottomSprite={QuestScrollbar.CAP_BOTTOM}
+          arrowUp={QuestScrollbar.ARROW_UP}
+          arrowDown={QuestScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function QuestRowsByKind({
+  top,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  top: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  return (
+    <>
+      {QuestsByKind.scan(
+        (row, index, y) => (
+          <QuestEntry
+            row={row}
+            y={y}
+            headers={headers}
+            shadow={shadow}
+            line={line}
+            pad={pad}
+            width={width}
+            font={font}
+            mobile={mobile}
+          />
+        ),
+        (row, index) => rowAdvance(row, headers, line, pad, width, font),
+        top,
+      )}
+    </>
+  );
+}
+
+function QuestRowsByName({
+  top,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  top: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  return (
+    <>
+      {QuestsByName.scan(
+        (row, index, y) => (
+          <QuestEntry
+            row={row}
+            y={y}
+            headers={headers}
+            shadow={shadow}
+            line={line}
+            pad={pad}
+            width={width}
+            font={font}
+            mobile={mobile}
+          />
+        ),
+        (row, index) => rowAdvance(row, headers, line, pad, width, font),
+        top,
+      )}
+    </>
+  );
+}
+
+function QuestEntry({
+  row,
+  y,
+  headers,
+  shadow,
+  line,
+  pad,
+  width,
+  font,
+  mobile,
+}: {
+  row: QuestRow;
+  y: Int;
+  headers: Boolean;
+  shadow: Boolean;
+  line: Int;
+  pad: Int;
+  width: Int;
+  font: Font;
+  mobile: Boolean;
+}): Component {
+  const heading: Boolean = headers && row.header.length > 0;
+  const colour: Int = rowColour(row);
+  const label: String = row.mq === 1 ? `MQ: ${row.name}` : row.name;
+  return (
+    <>
+      {heading ? (
+        <text
+          x="center"
+          y={y + Row.HEADER_DROP}
+          w="fill"
+          h={Row.HEADER_H}
+          text={row.header}
+          font={QuestFont.TITLE}
+          color={QuestColor.ORANGE}
+          shadow
+          align="left"
+          valign="top"
+        />
+      ) : null}
+      <text
+        x="center"
+        y={heading ? y + Row.HEADER_ADVANCE : y}
+        w="fill"
+        h={line * textLineCount(label, width, font) + pad}
+        text={label}
+        font={font}
+        color={colour}
+        shadow={shadow}
+        align="left"
+        valign="middle"
+        lineHeight={line}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        options={[
+          '',
+          'Read journal:',
+          row.map === 1 ? 'Show on map:' : '',
+          'Open wiki guide:',
+          'Open wiki quick guide:',
+          'Pin journal:',
+        ]}
+        onMouseEnter={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.color = QuestColor.WHITE;
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.color = colour;
+              }
+        }
+      />
+    </>
+  );
+}
+
+function rowAdvance(row: QuestRow, headers: Boolean, line: Int, pad: Int, width: Int, font: Font): Int {
+  const label: String = row.mq === 1 ? `MQ: ${row.name}` : row.name;
+  const heading: Int = headers && row.header.length > 0 ? Row.HEADER_ADVANCE : 0;
+  return heading + line * textLineCount(label, width, font) + pad;
+}
+
+export function questStatus(row: QuestRow): Int {
+  if (row.quest < 0) {
+    return 1;
+  }
+  const progress: Int = questProgress(row.quest);
+  if (row.unstarted === -1 || row.end === -1 || progress === -1 || row.end <= row.unstarted) {
+    return 1;
+  }
+  if (progress >= row.end) {
+    return 2;
+  }
+  if (progress <= row.unstarted) {
+    return 1;
+  }
+  return 0;
+}
+
+function rowColour(row: QuestRow): Int {
+  const unavailable: Boolean = row.restricted !== 0 && sailingRestricted();
+  if (unavailable) {
+    return settingColourOrDefault(QuestColourSetting.UNAVAILABLE);
+  }
+  const status: Int = questStatus(row);
+  if (status === 0) {
+    return settingColourOrDefault(QuestColourSetting.IN_PROGRESS);
+  }
+  if (status === 2) {
+    return settingColourOrDefault(QuestColourSetting.COMPLETED);
+  }
+  return settingColourOrDefault(QuestColourSetting.NOT_STARTED);
+}
+
+function Completed(): Component {
+  const text: String = speedrunningWorld()
+    ? `Speedrun Points: ${groupDigits(Math.min(useServerState(Varps.SPEEDRUN_POINTS), 800000), ',')}`
+    : `Completed: ${groupDigits(useServerState(Varbits.QUESTS_COMPLETED_COUNT), ',')}` +
+      `/${groupDigits(useServerState(Varbits.QUESTS_TOTAL_COUNT), ',')}`;
+  return (
+    <text
+      x={Layout.completed.x}
+      y={Layout.completed.y}
+      w={Layout.completed.w}
+      h={Layout.completed.h}
+      text={text}
+      font={QuestFont.ROW}
+      color={QuestColor.ORANGE}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+function QuestPoints(): Component {
+  const text: String = speedrunningWorld()
+    ? `Speedrun Trophies: ${groupDigits(speedrunTrophyCount(), ',')}`
+    : `Quest Points: ${groupDigits(useServerState(Varps.QP), ',')}` +
+      `/${groupDigits(useServerState(Varbits.QP_MAX), ',')}`;
+  return (
+    <text
+      x={Layout.questPoints.x}
+      y="bottom"
+      w={Layout.questPoints.w}
+      h={Layout.questPoints.h}
+      text={text}
+      font={QuestFont.ROW}
+      color={QuestColor.ORANGE}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+function SettingsButton(): Component {
+  const mobile: Boolean = onMobile();
+  const [pressed, setPressed] = useState(0);
+  return (
+    <layer
+      ref={settingsButtonRef}
+      x={{ right: 0 }}
+      y="center"
+      w={Layout.settings.w}
+      h={{ fill: Layout.settings.insetH }}
+      options={['Settings']}
+      onMouseRepeat={mobile ? undefined : () => setPressed(1)}
+      onMouseLeave={mobile ? undefined : () => setPressed(0)}
+    >
+      {pressed === 1 ? (
+        <StoneButtonPressedFilled>
+          <SettingsIcon />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <SettingsIcon />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}
+
+function SettingsIcon(): Component {
+  return (
+    <sprite x="center" y="center" w={Layout.settings.iconW} h={Layout.settings.iconH} sprite={QuestSprite.SETTINGS} />
+  );
+}
+
+function QuestlistHealthbar(): Component {
+  const box = useUniverse();
+  const w: Int = box.width;
+  const h: Int = box.height;
+  const c: Int = HealthBar.CORNER;
+  const spanW: Int = w - HealthBar.EDGE;
+  const spanH: Int = h - HealthBar.EDGE;
+  const right: Int = w - c;
+  const bottom: Int = h - c;
+
+  onMounted(() => publishHealthbarBox(w));
+
+  const [shown] = useState(healthbarShown);
+  const [current] = useState(healthbarCurrent);
+  const [max] = useState(healthbarMax);
+  const [anim] = useState(healthbarAnim);
+  const [overlay] = useState(healthbarOverlayPx);
+  const [fill] = useState(healthbarFillPx);
+  const [frameLit] = useState(healthbarFrameLit);
+  const bar = useRef();
+
+  const full: Boolean = current > 0 && current >= max;
+  const empty: Boolean = !full && current <= 0;
+
+  let topLeft: Sprite = HealthBar.DARK_TOP_LEFT;
+  let top: Sprite = HealthBar.DARK_TOP;
+  let topRight: Sprite = HealthBar.DARK_TOP_RIGHT;
+  let left: Sprite = HealthBar.DARK_LEFT;
+  let middle: Sprite = HealthBar.DARK_MIDDLE;
+  let rightEdge: Sprite = HealthBar.DARK_RIGHT;
+  let bottomLeft: Sprite = HealthBar.DARK_BOTTOM_LEFT;
+  let bottomEdge: Sprite = HealthBar.DARK_BOTTOM;
+  let bottomRight: Sprite = HealthBar.DARK_BOTTOM_RIGHT;
+  if (full) {
+    topLeft = HealthBar.LIT_TOP_LEFT;
+    top = HealthBar.LIT_TOP;
+    topRight = HealthBar.LIT_TOP_RIGHT;
+    left = HealthBar.LIT_LEFT;
+    middle = HealthBar.LIT_MIDDLE;
+    rightEdge = HealthBar.LIT_RIGHT;
+    bottomLeft = HealthBar.LIT_BOTTOM_LEFT;
+    bottomEdge = HealthBar.LIT_BOTTOM;
+    bottomRight = HealthBar.LIT_BOTTOM_RIGHT;
+  } else if (!empty) {
+    topLeft = HealthBar.LIT_TOP_LEFT;
+    left = HealthBar.LIT_LEFT;
+    bottomLeft = HealthBar.LIT_BOTTOM_LEFT;
+  } else if (frameLit === 1) {
+    topLeft = HealthBar.LIT_LEFT;
+    left = HealthBar.LIT_MIDDLE;
+    bottomLeft = HealthBar.LIT_RIGHT;
+  } else if (anim === HealthBarAnim.FADE || anim === HealthBarAnim.FADE_DONE) {
+    topLeft = HealthBar.GHOST_LEFT;
+    left = HealthBar.GHOST_MID_LEFT;
+    bottomLeft = HealthBar.GHOST_BOTTOM_LEFT;
+  }
+
+  let overlayTop: Sprite = HealthBar.GHOST_TOP;
+  let overlayMiddle: Sprite = HealthBar.GHOST_MIDDLE;
+  let overlayBottom: Sprite = HealthBar.GHOST_BOTTOM;
+  if (anim === HealthBarAnim.HEAL) {
+    overlayTop = HealthBar.HEAL_TOP;
+    overlayMiddle = HealthBar.HEAL_MIDDLE;
+    overlayBottom = HealthBar.HEAL_BOTTOM;
+  }
+  const overlayLeft: Int = HealthBar.FILL_INSET + fill;
+
+  const tickHost = useRef();
+  useInterval(() => healthbarStep(), tickHost);
+
+  return (
+    <layer ref={bar} x={0} y={0} w="fill" h="fill" hide={shown === 0}>
+      <layer ref={tickHost} x={0} y={0} w={1} h={1} hide={anim === HealthBarAnim.NONE} />
+
+      <sprite x={0} y={0} w={c} h={c} sprite={topLeft} tiling />
+      <sprite x={c} y={0} w={spanW} h={c} sprite={top} tiling />
+      <sprite x={right} y={0} w={c} h={c} sprite={topRight} tiling />
+      <sprite x={0} y={c} w={c} h={spanH} sprite={left} tiling />
+      <sprite x={c} y={c} w={spanW} h={spanH} sprite={middle} tiling />
+      <sprite x={right} y={c} w={c} h={spanH} sprite={rightEdge} tiling />
+      <sprite x={0} y={bottom} w={c} h={c} sprite={bottomLeft} tiling />
+      <sprite x={c} y={bottom} w={spanW} h={c} sprite={bottomEdge} tiling />
+      <sprite x={right} y={bottom} w={c} h={c} sprite={bottomRight} tiling />
+
+      <sprite x={HealthBar.FILL_INSET} y={0} w={fill} h={c} sprite={HealthBar.LIT_TOP} tiling hide={full || empty} />
+      <sprite
+        x={HealthBar.FILL_INSET}
+        y={c}
+        w={fill}
+        h={spanH}
+        sprite={HealthBar.LIT_MIDDLE}
+        tiling
+        hide={full || empty}
+      />
+      <sprite
+        x={HealthBar.FILL_INSET}
+        y={bottom}
+        w={fill}
+        h={c}
+        sprite={HealthBar.LIT_BOTTOM}
+        tiling
+        hide={full || empty}
+      />
+
+      <sprite x={overlayLeft} y={0} w={overlay} h={c} sprite={overlayTop} tiling hide={overlay <= 0} />
+      <sprite x={overlayLeft} y={c} w={overlay} h={spanH} sprite={overlayMiddle} tiling hide={overlay <= 0} />
+      <sprite x={overlayLeft} y={bottom} w={overlay} h={c} sprite={overlayBottom} tiling hide={overlay <= 0} />
+
+      <text
+        x={0}
+        y={HealthBar.TEXT_DROP}
+        w="fill"
+        h="fill"
+        text={`${current}/${max}`}
+        font={QuestFont.ROW}
+        color={QuestColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+function publishHealthbarBox(width: Int): void {
+  const [, setBoxWidth] = useState(healthbarBoxWidth);
+  setBoxWidth(width);
+}

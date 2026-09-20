@@ -1,0 +1,157 @@
+import { CS2, useInventory, useRef } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import {
+  Copy,
+  EXAMINE_OPS,
+  Flash,
+  Layout,
+  SuppliesColour,
+  SuppliesFonts,
+  SuppliesInventories,
+  SuppliesSprites,
+  WORN_SLOTS,
+} from './tournament-supplies.constants';
+import { previewHeld } from './tournament-supplies.helpers';
+import { WornSlotPlaceholders } from './worn-slot-placeholders.data';
+
+const CARRIED = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+] as const;
+
+export function LoadoutPreview(): Component {
+  const inv = useInventory(SuppliesInventories.PREVIEW);
+  const held: Boolean = previewHeld();
+  return (
+    <layer y="center" w={Layout.PREVIEW_W} h={Layout.PREVIEW_H}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={SuppliesSprites.BACKING} tiling />
+      <layer x="center" y="center" w="fill" h="fill">
+        <ThinBoxEntrypoint />
+      </layer>
+      {CARRIED.map((cell) => (
+        <CarriedCell cell={cell} item={inv[WORN_SLOTS + cell]} count={inv.count(WORN_SLOTS + cell)} />
+      ))}
+      {!held && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={SuppliesFonts.BODY}
+          color={SuppliesColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={Layout.PREVIEW_LINE_H}
+          text={Copy.PREVIEW_HINT}
+        />
+      )}
+    </layer>
+  );
+}
+
+function CarriedCell({ cell, item, count }: { cell: Int; item: Item; count: Int }): Component {
+  return (
+    <sprite
+      x={Layout.PREVIEW_INSET + Layout.PREVIEW_PITCH_X * (cell % Layout.PREVIEW_COLUMNS)}
+      y={Layout.PREVIEW_INSET + Layout.PREVIEW_PITCH_Y * (cell / Layout.PREVIEW_COLUMNS)}
+      w={Layout.CELL_W}
+      h={Layout.CELL_H}
+      hide={item === -1}
+      item={item}
+      itemCount={count}
+      shadowColor={SuppliesColour.SHADOW}
+      outline={1}
+      options={EXAMINE_OPS}
+      optionSubject={`<col=ff9040>${CS2.item_name(item)}</col>`}
+    />
+  );
+}
+
+export function WornCross(): Component {
+  return (
+    <layer x={Layout.CROSS_X} y="center" w={Layout.CROSS_W} h={Layout.CROSS_H}>
+      <sprite x="center" y="center" w={Layout.SLOT} h={{ fill: 72 }} sprite={SuppliesSprites.RAIL_V} tiling />
+      <sprite x="center" y={42} w={{ fill: 92 }} h={Layout.SLOT} sprite={SuppliesSprites.RAIL_H} tiling />
+      <sprite x="center" y={81} w={{ fill: 72 }} h={Layout.SLOT} sprite={SuppliesSprites.RAIL_H} tiling />
+      <sprite x={0} y={118} w={Layout.SLOT} h={46} sprite={SuppliesSprites.RAIL_V} tiling />
+      <sprite x="right" y={118} w={Layout.SLOT} h={46} sprite={SuppliesSprites.RAIL_V} tiling />
+      <layer x="center" y={0} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={0} placeholder={WornSlotPlaceholders.get(0)} />
+      </layer>
+      <layer x={10} y={43} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={1} placeholder={WornSlotPlaceholders.get(1)} />
+      </layer>
+      <layer x="center" y={43} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={2} placeholder={WornSlotPlaceholders.get(2)} />
+      </layer>
+      <layer x={0} y={82} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={3} placeholder={WornSlotPlaceholders.get(3)} />
+      </layer>
+      <layer x="center" y={82} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={4} placeholder={WornSlotPlaceholders.get(4)} />
+      </layer>
+      <layer x="right" y={82} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={5} placeholder={WornSlotPlaceholders.get(5)} />
+      </layer>
+      <layer x="center" y={122} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={7} placeholder={WornSlotPlaceholders.get(7)} />
+      </layer>
+      <layer x={0} y="bottom" w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={9} placeholder={WornSlotPlaceholders.get(9)} />
+      </layer>
+      <layer x="center" y="bottom" w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={10} placeholder={WornSlotPlaceholders.get(10)} />
+      </layer>
+      <layer x="right" y="bottom" w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={12} placeholder={WornSlotPlaceholders.get(12)} />
+      </layer>
+      <layer x={{ right: 10 }} y={43} w={Layout.SLOT} h={Layout.SLOT}>
+        <WornSlot slot={13} placeholder={WornSlotPlaceholders.get(13)} />
+      </layer>
+    </layer>
+  );
+}
+
+function WornSlot({ slot, placeholder }: { slot: Int; placeholder: Sprite }): Component {
+  const inv = useInventory(SuppliesInventories.PREVIEW);
+  const item: Item = inv[slot];
+  const count: Int = inv.count(slot);
+  const held: Boolean = item !== -1;
+  const art = useRef();
+  return (
+    <layer
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      options={held ? EXAMINE_OPS : undefined}
+      optionSubject={`<col=ff9040>${CS2.item_name(item)}</col>`}
+      onOptionSelect={
+        held
+          ? () => {
+              flashFor(art, Flash.PRESSED, Flash.REST);
+            }
+          : undefined
+      }
+    >
+      <sprite x="center" y="center" w={Layout.SLOT} h={Layout.SLOT} sprite={SuppliesSprites.SLOT} />
+      {held ? (
+        <sprite
+          ref={art}
+          x={{ center: Layout.SLOT_ITEM_X }}
+          y="center"
+          w={Layout.CELL_W}
+          h={Layout.CELL_H}
+          item={item}
+          itemCount={count}
+          shadowColor={SuppliesColour.SHADOW}
+          outline={1}
+        />
+      ) : (
+        <sprite x="center" y="center" w={Layout.PLACEHOLDER} h={Layout.PLACEHOLDER} sprite={placeholder} />
+      )}
+    </layer>
+  );
+}

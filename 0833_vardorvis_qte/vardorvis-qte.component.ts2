@@ -1,0 +1,500 @@
+import { closeInterface } from '../lib/lib.helpers';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { CS2, intArray, useInterval, useRef, useState } from 'ts2';
+
+import { Fade, Qte, QteAnims, QteFraming, QteModels, SPORE_DESTROY_SOUND } from './vardorvis-qte.constants';
+import {
+  animationOf,
+  fadeInStep,
+  fadeOutStep,
+  introCallsNow,
+  introCountNow,
+  introSettleAtNow,
+  outroCallsNow,
+  outroCloseAtNow,
+  sporeArmed,
+  sporeX,
+  sporeY,
+} from './vardorvis-qte.helpers';
+
+export function VardorvisQte(): Component {
+  const tickHost = useRef();
+
+  const [introSeen, setIntroSeen] = useState(0);
+  const [outroSeen, setOutroSeen] = useState(0);
+  const [backgroundAnim, setBackgroundAnim] = useState(QteAnims.BACKGROUND_IDLE);
+  const [backgroundSettleAt, setBackgroundSettleAt] = useState(-1);
+  const [tentaclesAnim, setTentaclesAnim] = useState(QteAnims.TENTACLES_IDLE);
+  const [tentaclesSettleAt, setTentaclesSettleAt] = useState(-1);
+  const [closeAt, setCloseAt] = useState(-1);
+  const [closed, setClosed] = useState(0);
+
+  const [shown1, setShown1] = useState(0);
+  const [level1, setLevel1] = useState(0);
+  const [anim1, setAnim1] = useState(-1);
+  const [fade1, setFade1] = useState(Fade.NONE);
+  const [x1, setX1] = useState(0);
+  const [y1, setY1] = useState(0);
+
+  const [shown2, setShown2] = useState(0);
+  const [level2, setLevel2] = useState(0);
+  const [anim2, setAnim2] = useState(-1);
+  const [fade2, setFade2] = useState(Fade.NONE);
+  const [x2, setX2] = useState(0);
+  const [y2, setY2] = useState(0);
+
+  const [shown3, setShown3] = useState(0);
+  const [level3, setLevel3] = useState(0);
+  const [anim3, setAnim3] = useState(-1);
+  const [fade3, setFade3] = useState(Fade.NONE);
+  const [x3, setX3] = useState(0);
+  const [y3, setY3] = useState(0);
+
+  const [shown4, setShown4] = useState(0);
+  const [level4, setLevel4] = useState(0);
+  const [anim4, setAnim4] = useState(-1);
+  const [fade4, setFade4] = useState(Fade.NONE);
+  const [x4, setX4] = useState(0);
+  const [y4, setY4] = useState(0);
+
+  const [shown5, setShown5] = useState(0);
+  const [level5, setLevel5] = useState(0);
+  const [anim5, setAnim5] = useState(-1);
+  const [fade5, setFade5] = useState(Fade.NONE);
+  const [x5, setX5] = useState(0);
+  const [y5, setY5] = useState(0);
+
+  const [shown6, setShown6] = useState(0);
+  const [level6, setLevel6] = useState(0);
+  const [anim6, setAnim6] = useState(-1);
+  const [fade6, setFade6] = useState(Fade.NONE);
+  const [x6, setX6] = useState(0);
+  const [y6, setY6] = useState(0);
+
+  useInterval(() => {
+    let bgAnim: Int = backgroundAnim;
+    let bgSettle: Int = backgroundSettleAt;
+    let tAnim: Int = tentaclesAnim;
+    let tSettle: Int = tentaclesSettleAt;
+    let close: Int = closeAt;
+    let s1: Int = shown1;
+    let l1: Int = level1;
+    let a1: Int = anim1;
+    let f1: Int = fade1;
+    let px1: Int = x1;
+    let py1: Int = y1;
+    let s2: Int = shown2;
+    let l2: Int = level2;
+    let a2: Int = anim2;
+    let f2: Int = fade2;
+    let px2: Int = x2;
+    let py2: Int = y2;
+    let s3: Int = shown3;
+    let l3: Int = level3;
+    let a3: Int = anim3;
+    let f3: Int = fade3;
+    let px3: Int = x3;
+    let py3: Int = y3;
+    let s4: Int = shown4;
+    let l4: Int = level4;
+    let a4: Int = anim4;
+    let f4: Int = fade4;
+    let px4: Int = x4;
+    let py4: Int = y4;
+    let s5: Int = shown5;
+    let l5: Int = level5;
+    let a5: Int = anim5;
+    let f5: Int = fade5;
+    let px5: Int = x5;
+    let py5: Int = y5;
+    let s6: Int = shown6;
+    let l6: Int = level6;
+    let a6: Int = anim6;
+    let f6: Int = fade6;
+    let px6: Int = x6;
+    let py6: Int = y6;
+
+    const introCalls: Int = introCallsNow();
+    if (introCalls !== introSeen) {
+      const count: Int = introCountNow();
+      const settleAt: Int = introSettleAtNow();
+      s1 = 0;
+      l1 = Qte.CLEAR;
+      s2 = 0;
+      l2 = Qte.CLEAR;
+      s3 = 0;
+      l3 = Qte.CLEAR;
+      s4 = 0;
+      l4 = Qte.CLEAR;
+      s5 = 0;
+      l5 = Qte.CLEAR;
+      s6 = 0;
+      l6 = Qte.CLEAR;
+      const cells = intArray<Int>(Qte.CELLS, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      let last: Int = Qte.CELLS - 1;
+      let pick: Int = 0;
+      let held: Int = 0;
+      while (last > 0) {
+        pick = CS2.randominc(last);
+        if (pick !== last) {
+          held = cells[pick];
+          cells[pick] = cells[last];
+          cells[last] = held;
+        }
+        last = last - 1;
+      }
+      px1 = sporeX(cells[0]);
+      py1 = sporeY(cells[0]);
+      px2 = sporeX(cells[1]);
+      py2 = sporeY(cells[1]);
+      px3 = sporeX(cells[2]);
+      py3 = sporeY(cells[2]);
+      px4 = sporeX(cells[3]);
+      py4 = sporeY(cells[3]);
+      px5 = sporeX(cells[4]);
+      py5 = sporeY(cells[4]);
+      px6 = sporeX(cells[5]);
+      py6 = sporeY(cells[5]);
+      if (count >= 1) {
+        s1 = 1;
+        a1 = QteAnims.SPORE_SPAWN;
+        f1 = Fade.IN;
+      }
+      if (count >= 2) {
+        s2 = 1;
+        a2 = QteAnims.SPORE_SPAWN;
+        f2 = Fade.IN;
+      }
+      if (count >= 3) {
+        s3 = 1;
+        a3 = QteAnims.SPORE_SPAWN;
+        f3 = Fade.IN;
+      }
+      if (count >= 4) {
+        s4 = 1;
+        a4 = QteAnims.SPORE_SPAWN;
+        f4 = Fade.IN;
+      }
+      if (count >= 5) {
+        s5 = 1;
+        a5 = QteAnims.SPORE_SPAWN;
+        f5 = Fade.IN;
+      }
+      if (count >= 6) {
+        s6 = 1;
+        a6 = QteAnims.SPORE_SPAWN;
+        f6 = Fade.IN;
+      }
+      bgAnim = QteAnims.BACKGROUND_SPAWN;
+      bgSettle = settleAt;
+      tAnim = QteAnims.TENTACLES_SPAWN;
+      tSettle = settleAt;
+      close = -1;
+    }
+
+    const outroCalls: Int = outroCallsNow();
+    if (outroCalls !== outroSeen) {
+      bgAnim = QteAnims.BACKGROUND_DESPAWN;
+      tAnim = QteAnims.TENTACLES_DESPAWN;
+      tSettle = -1;
+      close = outroCloseAtNow();
+    }
+
+    const now: Int = clientClock();
+    if (bgSettle >= 0 && now >= bgSettle) {
+      bgAnim = QteAnims.BACKGROUND_IDLE;
+      bgSettle = -1;
+    }
+    if (s6 === 1 && f6 === Fade.IN) {
+      l6 = fadeInStep(l6);
+      if (l6 <= 0) {
+        f6 = Fade.NONE;
+        a6 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s6 === 1 && f6 === Fade.OUT) {
+      l6 = fadeOutStep(l6);
+      if (l6 >= Qte.CLEAR) {
+        f6 = Fade.NONE;
+        s6 = 0;
+      }
+    }
+    if (s5 === 1 && f5 === Fade.IN) {
+      l5 = fadeInStep(l5);
+      if (l5 <= 0) {
+        f5 = Fade.NONE;
+        a5 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s5 === 1 && f5 === Fade.OUT) {
+      l5 = fadeOutStep(l5);
+      if (l5 >= Qte.CLEAR) {
+        f5 = Fade.NONE;
+        s5 = 0;
+      }
+    }
+    if (s4 === 1 && f4 === Fade.IN) {
+      l4 = fadeInStep(l4);
+      if (l4 <= 0) {
+        f4 = Fade.NONE;
+        a4 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s4 === 1 && f4 === Fade.OUT) {
+      l4 = fadeOutStep(l4);
+      if (l4 >= Qte.CLEAR) {
+        f4 = Fade.NONE;
+        s4 = 0;
+      }
+    }
+    if (s3 === 1 && f3 === Fade.IN) {
+      l3 = fadeInStep(l3);
+      if (l3 <= 0) {
+        f3 = Fade.NONE;
+        a3 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s3 === 1 && f3 === Fade.OUT) {
+      l3 = fadeOutStep(l3);
+      if (l3 >= Qte.CLEAR) {
+        f3 = Fade.NONE;
+        s3 = 0;
+      }
+    }
+    if (s2 === 1 && f2 === Fade.IN) {
+      l2 = fadeInStep(l2);
+      if (l2 <= 0) {
+        f2 = Fade.NONE;
+        a2 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s2 === 1 && f2 === Fade.OUT) {
+      l2 = fadeOutStep(l2);
+      if (l2 >= Qte.CLEAR) {
+        f2 = Fade.NONE;
+        s2 = 0;
+      }
+    }
+    if (s1 === 1 && f1 === Fade.IN) {
+      l1 = fadeInStep(l1);
+      if (l1 <= 0) {
+        f1 = Fade.NONE;
+        a1 = QteAnims.SPORE_IDLE;
+      }
+    } else if (s1 === 1 && f1 === Fade.OUT) {
+      l1 = fadeOutStep(l1);
+      if (l1 >= Qte.CLEAR) {
+        f1 = Fade.NONE;
+        s1 = 0;
+      }
+    }
+    let closing: Int = 0;
+    if (tSettle >= 0) {
+      if (now >= tSettle) {
+        tAnim = QteAnims.TENTACLES_IDLE;
+        tSettle = -1;
+      }
+    } else if (close >= 0 && now >= close) {
+      close = -1;
+      closing = 1;
+    }
+
+    setIntroSeen(introCalls);
+    setOutroSeen(outroCalls);
+    setBackgroundAnim(bgAnim);
+    setBackgroundSettleAt(bgSettle);
+    setTentaclesAnim(tAnim);
+    setTentaclesSettleAt(tSettle);
+    setCloseAt(close);
+    setShown1(s1);
+    setLevel1(l1);
+    setAnim1(a1);
+    setFade1(f1);
+    setX1(px1);
+    setY1(py1);
+    setShown2(s2);
+    setLevel2(l2);
+    setAnim2(a2);
+    setFade2(f2);
+    setX2(px2);
+    setY2(py2);
+    setShown3(s3);
+    setLevel3(l3);
+    setAnim3(a3);
+    setFade3(f3);
+    setX3(px3);
+    setY3(py3);
+    setShown4(s4);
+    setLevel4(l4);
+    setAnim4(a4);
+    setFade4(f4);
+    setX4(px4);
+    setY4(py4);
+    setShown5(s5);
+    setLevel5(l5);
+    setAnim5(a5);
+    setFade5(f5);
+    setX5(px5);
+    setY5(py5);
+    setShown6(s6);
+    setLevel6(l6);
+    setAnim6(a6);
+    setFade6(f6);
+    setX6(px6);
+    setY6(py6);
+    if (closing === 1) {
+      setClosed(1);
+      closeInterface();
+    }
+  }, tickHost);
+
+  return (
+    <>
+      <layer ref={tickHost} x="center" y="center" w="fill" h="fill" noClickThrough />
+
+      <model
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        model={QteModels.BACKGROUND}
+        anim={animationOf(backgroundAnim)}
+        zoom={QteFraming.SCENE_ZOOM}
+        orthogonal
+        hide={closed === 1}
+      />
+
+      <layer x="center" y="center" w="fill" h="fill">
+        <layer x="center" y="center" w={QteFraming.MAIN_W} h={QteFraming.MAIN_H} hide={closed === 1}>
+          <model
+            x={x6}
+            y={y6}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown6 === 0}
+            anim={animationOf(anim6)}
+            onOptionSelect={
+              sporeArmed(fade6, anim6)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade6(Fade.OUT);
+                    setAnim6(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+          <model
+            x={x5}
+            y={y5}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown5 === 0}
+            anim={animationOf(anim5)}
+            onOptionSelect={
+              sporeArmed(fade5, anim5)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade5(Fade.OUT);
+                    setAnim5(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+          <model
+            x={x4}
+            y={y4}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown4 === 0}
+            anim={animationOf(anim4)}
+            onOptionSelect={
+              sporeArmed(fade4, anim4)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade4(Fade.OUT);
+                    setAnim4(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+          <model
+            x={x3}
+            y={y3}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown3 === 0}
+            anim={animationOf(anim3)}
+            onOptionSelect={
+              sporeArmed(fade3, anim3)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade3(Fade.OUT);
+                    setAnim3(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+          <model
+            x={x2}
+            y={y2}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown2 === 0}
+            anim={animationOf(anim2)}
+            onOptionSelect={
+              sporeArmed(fade2, anim2)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade2(Fade.OUT);
+                    setAnim2(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+          <model
+            x={x1}
+            y={y1}
+            w={QteFraming.SPORE}
+            h={QteFraming.SPORE}
+            model={QteModels.SPORE}
+            zoom={QteFraming.SPORE_ZOOM}
+            options={['Destroy']}
+            hide={shown1 === 0}
+            anim={animationOf(anim1)}
+            onOptionSelect={
+              sporeArmed(fade1, anim1)
+                ? () => {
+                    playSound(SPORE_DESTROY_SOUND);
+                    setFade1(Fade.OUT);
+                    setAnim1(QteAnims.SPORE_DEATH);
+                  }
+                : undefined
+            }
+          />
+        </layer>
+      </layer>
+
+      <model
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        model={QteModels.TENTACLES}
+        anim={animationOf(tentaclesAnim)}
+        zoom={QteFraming.SCENE_ZOOM}
+        orthogonal
+        hide={closed === 1}
+      />
+    </>
+  );
+}

@@ -1,0 +1,169 @@
+import { CS2, useInventory, useServerState, useSkill } from 'ts2';
+
+import { eventInvocationsUnlocked } from '../0776_toa_invocations/toa-invocations.helpers';
+import { FragmentSets } from '../0735_league_3_fragments/fragment-sets.data';
+import { leaguesEnabled, loadoutSlot, setMembers } from '../0735_league_3_fragments/league-3-fragments.helpers';
+import { caTierComplete } from '../0206_nzone_rewards/nzone-rewards.price';
+import { featureFlag } from '../0134_settings/settings.helpers';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { Relic } from '../lib/league-relics.data';
+import { membersWorld } from '../lib/lib.engine';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { LeagueFacts, WaterskinDoses, Waterskins, WoodcuttingAxes } from './buff-tables.data';
+
+export declare const BuffSkills: {
+  readonly MAGIC: SkillRef<6>;
+  readonly WOODCUTTING: SkillRef<8>;
+};
+
+const MAX_INT = 2147483647;
+
+const TELEPORT_CRYSTAL = 22517;
+
+const WATER_CIRCLET = 13136;
+
+export function escapeCrystalArmed(): Int {
+  if (useServerState(Varbits.TELEPORT_CRYSTAL_AFK_MODE) === 1) {
+    const worn = useInventory(Inventories.WORN);
+    const carried = useInventory(Inventories.INV);
+    if (worn.total(TELEPORT_CRYSTAL as Item) > 0) {
+      return 1;
+    } else if (carried.total(TELEPORT_CRYSTAL as Item) > 0) {
+      return 1;
+    } else if (useServerState(Varbits.HOLDING_INVENTORY_CONTAINS_TELEPORT_CRYSTAL) === 1) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+export function waterCharges(): Int {
+  const worn = useInventory(Inventories.WORN);
+  if (worn.total(WATER_CIRCLET as Item) > 0) {
+    return MAX_INT;
+  }
+  const carried = useInventory(Inventories.INV);
+  const circlet: Int = useServerState(Varbits.BUFF_WATER_CIRCLET_CHARGES);
+  let charges: Int = circlet;
+  let index: Int = 0;
+  while (index < Waterskins.length) {
+    const skin: Int = Waterskins.at(index) ?? -1;
+    if (skin !== -1) {
+      charges = charges + carried.total(skin as Item) * (WaterskinDoses.at(index) ?? 1);
+    }
+    index = index + 1;
+  }
+  return charges;
+}
+
+export function resurrectionDuration(): Int {
+  const magic: Int = useSkill(BuffSkills.MAGIC);
+  let level: Int = magic;
+  if (caTierComplete(5) === 1) {
+    level = level * 2;
+  }
+  return level;
+}
+
+export function relicSelection(tier: Int): Int {
+  if (tier === 0) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_0);
+  if (tier === 1) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_1);
+  if (tier === 2) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_2);
+  if (tier === 3) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_3);
+  if (tier === 4) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_4);
+  if (tier === 5) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_5);
+  if (tier === 6) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_6);
+  if (tier === 7) return useServerState(Varbits.LEAGUE_RELIC_SELECTION_7);
+  return 0;
+}
+
+export function relicChosen(tier: Int): Boolean {
+  if (!leaguesEnabled() || useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN) === 1) {
+    return false;
+  }
+  const league = LeagueFacts.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (league === null) {
+    return false;
+  }
+  if (league.relics === 1) {
+    if (relicSelection(tier) !== 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function loadoutFilled(slot: Int): Boolean {
+  if (!leaguesEnabled() || useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN) === 1) {
+    return false;
+  }
+  if (useServerState(Varbits.LEAGUE_TYPE) === 3) {
+    if (loadoutSlot(slot) !== 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function masteriesShown(): Boolean {
+  if (eventInvocationsUnlocked()) {
+    if (featureFlag(1)) {
+      return true;
+    }
+  }
+  if (!leaguesEnabled()) {
+    return false;
+  }
+  const league = LeagueFacts.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (league === null) {
+    return false;
+  }
+  return league.masteries === 1;
+}
+
+export function fragmentSetTier(set: Int): Int {
+  const row = FragmentSets.get(set);
+  if (row === null) {
+    return 0;
+  }
+  const members: Int = setMembers(set);
+  if (row.threshold2 !== 0) {
+    if (members >= row.threshold2) {
+      return 2;
+    }
+  }
+  if (row.threshold !== 0) {
+    if (members >= row.threshold) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+const WEAPON_SLOT = 3;
+
+const RELIC_AXE = 33221;
+
+export function bestWoodcuttingAxe(): Item {
+  const level: Int = useSkill(BuffSkills.WOODCUTTING);
+  const worn = useInventory(Inventories.WORN);
+  const carried = useInventory(Inventories.INV);
+  const wielded: Item = worn[WEAPON_SLOT];
+  const relic: Int = leagueRelicActive(Relic.BARBARIAN_GATHERING);
+  let index: Int = 0;
+  while (index < WoodcuttingAxes.length) {
+    const axe: Item = (WoodcuttingAxes.at(index) ?? -1) as Item;
+    const allowed: Boolean = CS2.item_members(axe) === 0 || membersWorld();
+    const wieldable: Boolean = level >= axe.levelrequire!;
+    const toHand: Boolean = wielded === axe || (relic === 0 && carried.total(axe) > 0);
+    if (allowed && wieldable && toHand) {
+      return axe;
+    }
+    index = index + 1;
+  }
+  if (relic === 1) {
+    return RELIC_AXE as Item;
+  }
+  return -1 as Item;
+}

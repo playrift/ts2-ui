@@ -1,0 +1,583 @@
+import { useRef, useState, useUniverse, useWatch } from 'ts2';
+import { Varps } from '../lib/game/varps';
+import {
+  sailingChartingCompletionFilter,
+  sailingChartingLevelFilter,
+  sailingChartingOceanFilter,
+  sailingChartingScrollPos,
+  sailingChartingSeaFilter,
+  sailingChartingSelectedChartableId,
+} from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { ChartingEntries } from './sailing-charting.data';
+import { CompletionFilterLabels, LevelFilterLabels } from './sailing-log-filters.data';
+import { LogColour, LogDropdown, LogFont, LogSprite } from './sailing-log.constants';
+import {
+  chartIndexByUid,
+  hintBase,
+  hintLabel,
+  hintPasses,
+  infoChartedText,
+  infoHintText,
+  infoLevelText,
+  infoOceanText,
+  infoSeaText,
+  infoToolText,
+  infoXpText,
+  logLocationText,
+  oceanFilterEffective,
+  sailingLogExpand,
+  sailingLogNearbyChanged,
+  sailingLogSelectHint,
+  seaFilterEffective,
+  seaFilterLabel,
+} from './sailing-log.helpers';
+import {
+  chartOceanCount,
+  chartOceanHeading,
+  chartQuests,
+  chartSailing,
+  chartSeaCount,
+  chartSeaHeading,
+  chartTotalCount,
+  chartTotalHeading,
+  chartVisible,
+  logBuilt,
+} from './sailing-log.state';
+
+export function ChartingPage(): Component {
+  const [built] = useState(logBuilt);
+  const isBuilt: Boolean = built === 1;
+  const location = useRef();
+  useWatch(Varps.SAILING_TEMP_TRANSMIT_NO_PROTECT_2, () => sailingLogNearbyChanged(), location);
+
+  const [completionFilter] = useState(sailingChartingCompletionFilter);
+  const [levelFilter] = useState(sailingChartingLevelFilter);
+  const [oceanFilter] = useState(sailingChartingOceanFilter);
+  const [seaFilter] = useState(sailingChartingSeaFilter);
+  const [selected] = useState(sailingChartingSelectedChartableId);
+  const [scroll] = useState(sailingChartingScrollPos);
+  const mobile: Boolean = onMobile();
+
+  const [visibleRows] = useState(chartVisible);
+  const [sailing] = useState(chartSailing);
+  const [quests] = useState(chartQuests);
+  const oceanEffective: Int = oceanFilterEffective();
+  const seaEffective: Int = seaFilterEffective();
+
+  const locationText: String = isBuilt ? logLocationText() : '';
+  const entry: Int = chartIndexByUid(selected);
+  const visible: Int = isBuilt ? visibleRows : 0;
+  const listHeight: Int = visible * 40;
+  const listScroll: Int = scroll < 0 ? 0 : scroll;
+  const empty: Boolean = isBuilt && visible === 0;
+  const list = useRef();
+
+  return (
+    <>
+      <layer ref={location} x={{ right: 5 }} y={5} w={{ fill: 175 }} h={26}>
+        <rect x="center" y="center" w="fill" h="fill" color={1} />
+        <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={LogColour.WHITE} fill transparency={245} />
+        <text
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          text={locationText}
+          font={LogFont.P12}
+          color={LogColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      </layer>
+
+      <layer x={5} y={5} w={160} h={156}>
+        <rect x={0} y={0} w="fill" h="fill" color={1} />
+        <text
+          x="center"
+          y={2}
+          w="fill"
+          h={20}
+          text="Completion:"
+          font={LogFont.P12}
+          color={LogColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x={9} y={19} w={{ fill: 18 }} h={20}>
+          {isBuilt && (
+            <FilterButton
+              which={LogDropdown.COMPLETION}
+              label={CompletionFilterLabels.at(completionFilter) ?? 'All'}
+              lineHeight={0}
+            />
+          )}
+        </layer>
+        <text
+          x="center"
+          y={38}
+          w="fill"
+          h={20}
+          text="Sea:"
+          font={LogFont.P12}
+          color={LogColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x={9} y={55} w={{ fill: 18 }} h={20}>
+          {isBuilt && <FilterButton which={LogDropdown.SEA} label={seaFilterLabel(seaFilter)} lineHeight={14} />}
+        </layer>
+        <text
+          x="center"
+          y={74}
+          w="fill"
+          h={20}
+          text="Ocean:"
+          font={LogFont.P12}
+          color={LogColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x={9} y={91} w={{ fill: 18 }} h={20}>
+          {isBuilt && <FilterButton which={LogDropdown.OCEAN} label={seaFilterLabel(oceanFilter)} lineHeight={14} />}
+        </layer>
+        <text
+          x="center"
+          y={110}
+          w="fill"
+          h={20}
+          text="Requirements:"
+          font={LogFont.P12}
+          color={LogColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x={9} y={127} w={{ fill: 18 }} h={20}>
+          {isBuilt && (
+            <FilterButton
+              which={LogDropdown.LEVEL}
+              label={LevelFilterLabels.at(levelFilter) ?? 'Requirements met'}
+              lineHeight={0}
+            />
+          )}
+        </layer>
+      </layer>
+
+      <layer x={5} y={166} w={160} h={122}>
+        <rect x="center" y="center" w="fill" h="fill" color={1} />
+        <layer x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }}>
+          {isBuilt && (
+            <>
+              <rect x={0} y={0} w="fill" h={40} color={LogColour.WHITE} fill transparency={245} />
+              <SeaHeading />
+              <SeaCount />
+              <rect x={0} y={40} w="fill" h={40} color={LogColour.WHITE} fill transparency={230} />
+              <OceanHeading />
+              <OceanCount />
+              <rect x={0} y={80} w="fill" h={40} color={LogColour.WHITE} fill transparency={245} />
+              <TotalHeading />
+              <TotalCount />
+            </>
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 5 }} y={36} w={{ fill: 175 }} h={{ fill: 149 }}>
+        <rect x={0} y={0} w="fill" h="fill" color={1} />
+        <layer ref={list} x={1} y={1} w={{ fill: 17 }} h={{ fill: 2 }} scrollHeight={listHeight} scrollY={listScroll}>
+          {ChartingEntries.scan(
+            (row, index, drawn) =>
+              isBuilt &&
+              hintPasses(
+                row.level,
+                row.typeQuest,
+                row.dockQuest,
+                row.seaId,
+                row.seaSecondaryId,
+                row.oceanId,
+                row.oceanSecondaryId,
+                row.word,
+                row.bit,
+                completionFilter,
+                levelFilter,
+                sailing,
+                quests,
+                oceanEffective,
+                seaEffective,
+              ) && (
+                <HintRow
+                  uniqueId={row.uniqueId}
+                  label={hintLabel(row.uniqueId, row.hint)}
+                  top={drawn * 40}
+                  base={hintBase(row.uniqueId, drawn, selected)}
+                  hover={!mobile}
+                />
+              ),
+            [
+              (row) =>
+                hintPasses(
+                  row.level,
+                  row.typeQuest,
+                  row.dockQuest,
+                  row.seaId,
+                  row.seaSecondaryId,
+                  row.oceanId,
+                  row.oceanSecondaryId,
+                  row.word,
+                  row.bit,
+                  completionFilter,
+                  levelFilter,
+                  sailing,
+                  quests,
+                  oceanEffective,
+                  seaEffective,
+                )
+                  ? 1
+                  : 0,
+            ],
+          )}
+          {empty && (
+            <>
+              <rect x={0} y={0} w="fill" h={40} color={LogColour.WHITE} fill transparency={245} />
+              <text
+                x={5}
+                y={0}
+                w={{ fill: 10 }}
+                h={40}
+                text="There are no hints to display based on your current filters."
+                font={LogFont.P12}
+                color={LogColour.ORANGE}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={14}
+              />
+            </>
+          )}
+        </layer>
+        <layer x="right" y={0} w={16} h="fill">
+          {isBuilt && (
+            <ScrollbarVertical
+              content={list}
+              rebuilt
+              track={LogSprite.SCROLL_TRACK}
+              capTopSprite={LogSprite.SCROLL_CAP_TOP}
+              thumbSprite={LogSprite.SCROLL_THUMB}
+              capBottomSprite={LogSprite.SCROLL_CAP_BOTTOM}
+              arrowUp={LogSprite.SCROLL_UP}
+              arrowDown={LogSprite.SCROLL_DOWN}
+            />
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 5 }} y={{ bottom: 5 }} w={{ fill: 175 }} h={103}>
+        <rect x="center" y="center" w="fill" h="fill" color={1} />
+        <layer x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }}>
+          {isBuilt && (
+            <HintDetails
+              hint={infoHintText(entry)}
+              sea={infoSeaText(entry)}
+              ocean={infoOceanText(entry)}
+              tool={infoToolText(entry)}
+              level={infoLevelText(entry)}
+              charted={infoChartedText(entry)}
+              xp={infoXpText(entry)}
+            />
+          )}
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+function FilterButton({ which, label, lineHeight }: { which: Int; label: String; lineHeight: Int }): Component {
+  const [over, setOver] = useState(0);
+  const mobile: Boolean = onMobile();
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Expand']}
+      onOptionSelect={() => sailingLogExpand(which)}
+      onMouseEnter={mobile ? null : () => setOver(1)}
+      onMouseLeave={mobile ? null : () => setOver(0)}
+    >
+      <sprite x={0} y={0} w="fill" h="fill" sprite={LogSprite.TRADEBACKING} tiling />
+      <ThinBoxOutline />
+      <sprite
+        x={{ right: 2 }}
+        y={2}
+        w={16}
+        h={16}
+        sprite={LogSprite.SCROLL_DOWN}
+        tiling
+        transparency={over === 1 ? 125 : 0}
+      />
+      <text
+        x={2}
+        y={{ bottom: 2 }}
+        w={{ fill: 20 }}
+        h={{ fill: 4 }}
+        text={label}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={lineHeight}
+      />
+    </layer>
+  );
+}
+
+function CompletionLine({ text, top, bold }: { text: String; top: Int; bold: Boolean }): Component {
+  return (
+    <text
+      x={5}
+      y={top}
+      w={{ fill: 10 }}
+      h={20}
+      text={text}
+      font={bold ? LogFont.B12 : LogFont.P12}
+      color={LogColour.ORANGE}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={14}
+    />
+  );
+}
+
+function SeaHeading(): Component {
+  const [text] = useState(chartSeaHeading);
+  return <CompletionLine text={text} top={1} bold />;
+}
+
+function SeaCount(): Component {
+  const [text] = useState(chartSeaCount);
+  return <CompletionLine text={text} top={19} bold={false} />;
+}
+
+function OceanHeading(): Component {
+  const [text] = useState(chartOceanHeading);
+  return <CompletionLine text={text} top={41} bold />;
+}
+
+function OceanCount(): Component {
+  const [text] = useState(chartOceanCount);
+  return <CompletionLine text={text} top={59} bold={false} />;
+}
+
+function TotalHeading(): Component {
+  const [text] = useState(chartTotalHeading);
+  return <CompletionLine text={text} top={81} bold />;
+}
+
+function TotalCount(): Component {
+  const [text] = useState(chartTotalCount);
+  return <CompletionLine text={text} top={99} bold={false} />;
+}
+
+function HintRow({
+  uniqueId,
+  label,
+  top,
+  base,
+  hover,
+}: {
+  uniqueId: Int;
+  label: String;
+  top: Int;
+  base: Int;
+  hover: Boolean;
+}): Component {
+  const [lit, setLit] = useState(0);
+  return (
+    <>
+      <rect
+        x={0}
+        y={top}
+        w="fill"
+        h={40}
+        color={LogColour.WHITE}
+        fill
+        transparency={lit === 1 ? 170 : base}
+        options={['More Info']}
+        onOptionSelect={() => sailingLogSelectHint(uniqueId)}
+        onMouseRepeat={hover ? () => setLit(1) : null}
+        onMouseLeave={hover ? () => setLit(0) : null}
+      />
+      <text
+        x={5}
+        y={top}
+        w={{ fill: 10 }}
+        h={40}
+        text={label}
+        font={LogFont.P12}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+    </>
+  );
+}
+
+function HintDetails({
+  hint,
+  sea,
+  ocean,
+  tool,
+  level,
+  charted,
+  xp,
+}: {
+  hint: String;
+  sea: String;
+  ocean: String;
+  tool: String;
+  level: String;
+  charted: String;
+  xp: String;
+}): Component {
+  const self = useRef();
+  return (
+    <layer ref={self} x={0} y={0} w="fill" h="fill">
+      <HintDetailsGrid hint={hint} sea={sea} ocean={ocean} tool={tool} level={level} charted={charted} xp={xp} />
+    </layer>
+  );
+}
+
+function HintDetailsGrid({
+  hint,
+  sea,
+  ocean,
+  tool,
+  level,
+  charted,
+  xp,
+}: {
+  hint: String;
+  sea: String;
+  ocean: String;
+  tool: String;
+  level: String;
+  charted: String;
+  xp: String;
+}): Component {
+  const box = useUniverse();
+  const right: Int = box.width / 2;
+  const left: Int = box.width - right;
+  return (
+    <>
+      <rect x={0} y={0} w="fill" h={40} color={LogColour.WHITE} fill transparency={245} />
+      <rect x={0} y={41} w={left} h={20} color={LogColour.WHITE} fill transparency={245} />
+      <rect x={left} y={41} w={right} h={20} color={LogColour.WHITE} fill transparency={230} />
+      <rect x={0} y={61} w={left} h={20} color={LogColour.WHITE} fill transparency={230} />
+      <rect x={left} y={61} w={right} h={20} color={LogColour.WHITE} fill transparency={245} />
+      <rect x={0} y={81} w={left} h={20} color={LogColour.WHITE} fill transparency={245} />
+      <rect x={left} y={81} w={right} h={20} color={LogColour.WHITE} fill transparency={230} />
+      <text
+        x={12}
+        y={0}
+        w={{ fill: 24 }}
+        h={40}
+        text={hint}
+        font={LogFont.P12}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={0}
+        y={41}
+        w={left}
+        h={20}
+        text={sea}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={left}
+        y={41}
+        w={right}
+        h={20}
+        text={ocean}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={0}
+        y={61}
+        w={left}
+        h={20}
+        text={tool}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={left}
+        y={61}
+        w={right}
+        h={20}
+        text={level}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={0}
+        y={81}
+        w={left}
+        h={20}
+        text={charted}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <text
+        x={left}
+        y={81}
+        w={right}
+        h={20}
+        text={xp}
+        font={LogFont.P11}
+        color={LogColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={14}
+      />
+      <line x={0} y={40} w="fill" h={0} color={1} />
+    </>
+  );
+}

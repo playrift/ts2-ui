@@ -1,0 +1,83 @@
+import { useState } from 'ts2';
+
+import { StructBoxFrame } from './struct-box-frame.component';
+import { Layout, UnlockFonts } from './league-3-unlocks.constants';
+import { TileStyle, TileStyles } from './tile-styles.data';
+import type { TileStyleRow } from './tile-styles.data';
+
+export function SkillTile({
+  icon,
+  name,
+  cost,
+  colour,
+  selected,
+  unlocked,
+  index,
+  swap,
+}: {
+  icon: Sprite;
+  name: String;
+  cost: Int;
+  colour: Int;
+  selected: Int;
+  unlocked: Int;
+  index: Int;
+  swap: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+
+  const col: Int = index % Layout.TILE_COLS;
+  const row: Int = index / Layout.TILE_COLS;
+  const x: Int = col * Layout.TILE_W + col * Layout.TILE_GAP;
+  const y: Int = row * Layout.TILE_H + row * Layout.TILE_GAP;
+
+  const hoverable: Boolean = selected === 0 ? swap : false;
+
+  let style: TileStyleRow = TileStyles.at(TileStyle.IDLE);
+  if (selected === 1) {
+    style = unlocked === 0 ? TileStyles.at(TileStyle.SELECTED) : TileStyles.at(TileStyle.SELECTED_OWNED);
+  } else if (hovered === 1) {
+    style = unlocked === 0 ? TileStyles.at(TileStyle.IDLE_HOVER) : TileStyles.at(TileStyle.OWNED_HOVER);
+  } else {
+    style = unlocked === 0 ? TileStyles.at(TileStyle.IDLE) : TileStyles.at(TileStyle.OWNED);
+  }
+
+  return (
+    <>
+      <rect
+        x={x + 1}
+        y={y + 1}
+        w={Layout.TILE_W - 2}
+        h={Layout.TILE_H - 2}
+        fill
+        color={style.colour}
+        options={selected === 0 ? ['Select'] : ['']}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onMouseEnter={hoverable ? () => setHovered(1) : undefined}
+        onMouseLeave={hoverable ? () => setHovered(0) : undefined}
+      />
+
+      <StructBoxFrame x={x} y={y} w={Layout.TILE_W} h={Layout.TILE_H} style={style} />
+
+      {unlocked === 1 ? (
+        <sprite x={x + Layout.TILE_W / 2 - 12} y={y + Layout.TILE_H / 2 - 12} w={25} h={25} sprite={icon} tiling />
+      ) : (
+        <>
+          <sprite x={x + 5} y={y + 4} w={25} h={25} sprite={icon} tiling />
+          <text
+            x={x + 32}
+            y={y + 10}
+            w={25}
+            h={15}
+            align="center"
+            valign="middle"
+            shadow
+            font={UnlockFonts.BOLD}
+            color={colour}
+            text={stringOf(cost)}
+          />
+        </>
+      )}
+    </>
+  );
+}

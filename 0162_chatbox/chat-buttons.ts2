@@ -1,0 +1,261 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  chatAlertClan,
+  chatAlertFriendschat,
+  chatAlertGame,
+  chatAlertPrivate,
+  chatAlertPublic,
+  chatAlertTrade,
+  chatHighlight,
+  chatView,
+  osmChatboxDisabled,
+} from '../lib/game/varcs';
+import { mobileGameframe } from '../lib/lib.overlay';
+import { onMobile, toplevelComponents } from '../lib/lib.helpers';
+import { CHAT_VIEW_COLLAPSED, ChatTab } from './chatbox.data';
+import {
+  tab0PlateRef,
+  tab0Ref,
+  tab1PlateRef,
+  tab1Ref,
+  tab1StateRef,
+  tab2PlateRef,
+  tab2Ref,
+  tab2StateRef,
+  tab3PlateRef,
+  tab3Ref,
+  tab3StateRef,
+  tab4PlateRef,
+  tab4Ref,
+  tab4StateRef,
+  tab5PlateRef,
+  tab5Ref,
+  tab5StateRef,
+  tab6PlateRef,
+  tab6Ref,
+  tab6StateRef,
+} from './chatbox.constants';
+
+export function tabPlate(tab: Int): Ref {
+  if (tab === ChatTab.GAME) return tab1PlateRef;
+  if (tab === ChatTab.PUBLIC) return tab2PlateRef;
+  if (tab === ChatTab.PRIVATE) return tab3PlateRef;
+  if (tab === ChatTab.CHANNEL) return tab4PlateRef;
+  if (tab === ChatTab.CLAN) return tab5PlateRef;
+  if (tab === ChatTab.TRADE) return tab6PlateRef;
+  return tab0PlateRef;
+}
+
+export function tabButton(tab: Int): Ref {
+  if (tab === ChatTab.GAME) return tab1Ref;
+  if (tab === ChatTab.PUBLIC) return tab2Ref;
+  if (tab === ChatTab.PRIVATE) return tab3Ref;
+  if (tab === ChatTab.CHANNEL) return tab4Ref;
+  if (tab === ChatTab.CLAN) return tab5Ref;
+  if (tab === ChatTab.TRADE) return tab6Ref;
+  return tab0Ref;
+}
+
+export function tabState(tab: Int): Ref {
+  if (tab === ChatTab.PUBLIC) return tab2StateRef;
+  if (tab === ChatTab.PRIVATE) return tab3StateRef;
+  if (tab === ChatTab.CHANNEL) return tab4StateRef;
+  if (tab === ChatTab.CLAN) return tab5StateRef;
+  if (tab === ChatTab.TRADE) return tab6StateRef;
+  return tab1StateRef;
+}
+
+export function chatAlertGet(tab: Int): Int {
+  const [game] = useState(chatAlertGame);
+  const [publicChat] = useState(chatAlertPublic);
+  const [privateChat] = useState(chatAlertPrivate);
+  const [channel] = useState(chatAlertFriendschat);
+  const [clan] = useState(chatAlertClan);
+  const [trade] = useState(chatAlertTrade);
+
+  if (tab === ChatTab.GAME) return game;
+  if (tab === ChatTab.PUBLIC) return publicChat;
+  if (tab === ChatTab.PRIVATE) return privateChat;
+  if (tab === ChatTab.CHANNEL) return channel;
+  if (tab === ChatTab.CLAN) return clan;
+  if (tab === ChatTab.TRADE) return trade;
+  if (tab === ANY_TAB) {
+    if (game > 0) return game;
+    if (publicChat > 0) return publicChat;
+    if (privateChat > 0) return privateChat;
+    if (channel > 0) return channel;
+    if (clan > 0) return clan;
+    if (trade > 0) return trade;
+    return 0;
+  }
+  return 0;
+}
+
+export const ANY_TAB = 73;
+
+export function chatAlertSet(tab: Int, value: Int): void {
+  const [, setGame] = useState(chatAlertGame);
+  const [, setPublic] = useState(chatAlertPublic);
+  const [, setPrivate] = useState(chatAlertPrivate);
+  const [, setChannel] = useState(chatAlertFriendschat);
+  const [, setClan] = useState(chatAlertClan);
+  const [, setTrade] = useState(chatAlertTrade);
+
+  if (tab === ChatTab.GAME) {
+    setGame(value);
+  } else if (tab === ChatTab.PUBLIC) {
+    setPublic(value);
+  } else if (tab === ChatTab.PRIVATE) {
+    setPrivate(value);
+  } else if (tab === ChatTab.CHANNEL) {
+    setChannel(value);
+  } else if (tab === ChatTab.TRADE) {
+    setTrade(value);
+  } else if (tab === ChatTab.CLAN) {
+    setClan(value);
+  } else if (tab === ChatTab.ALL) {
+    setGame(value);
+    setPublic(value);
+    setPrivate(value);
+    setChannel(value);
+    setTrade(value);
+    setClan(value);
+  }
+}
+
+export function chatGetFilter(tab: Int): Int {
+  if (tab === ChatTab.PUBLIC) return CS2.chat_filter_public_get();
+  if (tab === ChatTab.PRIVATE) return CS2.chat_filter_private_get();
+  if (tab === ChatTab.CHANNEL) return useServerState(Varbits.CHAT_FILTER_FRIENDSCHAT);
+  if (tab === ChatTab.CLAN) return useServerState(Varbits.CHAT_FILTER_CLANCHAT);
+  if (tab === ChatTab.TRADE) return CS2.chat_filter_trade_get();
+  return 0;
+}
+
+export function chatSetFilter(tab: Int, value: Int): void {
+  if (tab === ChatTab.PUBLIC) {
+    CS2.chat_filter_set(value, CS2.chat_filter_private_get(), CS2.chat_filter_trade_get());
+  } else if (tab === ChatTab.PRIVATE) {
+    CS2.chat_filter_set(CS2.chat_filter_public_get(), value, CS2.chat_filter_trade_get());
+  } else if (tab === ChatTab.CHANNEL) {
+    predictServerState(Varbits.CHAT_FILTER_FRIENDSCHAT, value);
+  } else if (tab === ChatTab.CLAN) {
+    predictServerState(Varbits.CHAT_FILTER_CLANCHAT, value);
+  } else if (tab === ChatTab.TRADE) {
+    CS2.chat_filter_set(CS2.chat_filter_public_get(), CS2.chat_filter_private_get(), value);
+  }
+}
+
+export function chatButtonHover(entering: Int, tab: Int): void {
+  const [highlight, setHighlight] = useState(chatHighlight);
+  if (entering === 1) {
+    setHighlight(tab);
+  } else if (highlight === tab) {
+    setHighlight(-1);
+  }
+}
+
+export function chatAlertEnable(tab: Int): void {
+  const [view] = useState(chatView);
+  const [chatDisabled] = useState(osmChatboxDisabled);
+
+  let onStone: Int = 0;
+  if (onMobile() && chatDisabled === 1) {
+    onStone = 1;
+  }
+  if (tab === view && onStone === 0) {
+    return;
+  }
+  if (
+    tab === ChatTab.PRIVATE &&
+    useServerState(Varps.OPTION_PM) === 1 &&
+    (view !== CHAT_VIEW_COLLAPSED || useServerState(Varbits.HIDE_PM_ALONGSIDE_CHATBOX) === 0)
+  ) {
+    return;
+  }
+  if (chatAlertGet(tab) > FLASH_CYCLES - 1) {
+    return;
+  }
+  chatAlertSet(tab, FLASH_START);
+}
+
+export const FLASH_CYCLES = 25;
+export const FLASH_START = 249;
+
+export function chatAlertTick(): void {
+  chatAlertStep(ChatTab.GAME);
+  chatAlertStep(ChatTab.PUBLIC);
+  chatAlertStep(ChatTab.PRIVATE);
+  chatAlertStep(ChatTab.CHANNEL);
+  chatAlertStep(ChatTab.CLAN);
+  chatAlertStep(ChatTab.TRADE);
+}
+
+function chatAlertStep(tab: Int): void {
+  const remaining: Int = chatAlertGet(tab);
+  if (remaining <= FLASH_CYCLES) {
+    return;
+  }
+  chatAlertSet(tab, remaining - 1);
+}
+
+export function chatAlertQuarters(): Int {
+  const [game] = useState(chatAlertGame);
+  const [publicChat] = useState(chatAlertPublic);
+  const [privateChat] = useState(chatAlertPrivate);
+  const [channel] = useState(chatAlertFriendschat);
+  const [clan] = useState(chatAlertClan);
+  const [trade] = useState(chatAlertTrade);
+
+  let bits: Int = 0;
+  if ((game / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 2;
+  }
+  if ((publicChat / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 4;
+  }
+  if ((privateChat / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 8;
+  }
+  if ((channel / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 16;
+  }
+  if ((clan / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 32;
+  }
+  if ((trade / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 64;
+  }
+
+  let any: Int = 0;
+  if (game > 0) {
+    any = game;
+  } else if (publicChat > 0) {
+    any = publicChat;
+  } else if (privateChat > 0) {
+    any = privateChat;
+  } else if (channel > 0) {
+    any = channel;
+  } else if (clan > 0) {
+    any = clan;
+  } else if (trade > 0) {
+    any = trade;
+  }
+  if ((any / FLASH_CYCLES) % 2 === 1) {
+    bits = bits + 128;
+  }
+  return bits;
+}
+
+export const ALERT_BIT_ANY = 7;
+
+export function mobileChatStone(): ComponentId {
+  if (!mobileGameframe(toplevelComponents())) {
+    return -1;
+  }
+  return gameframeSlot(GameframeSlot.CHAT_TOGGLE);
+}

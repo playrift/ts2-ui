@@ -1,0 +1,64 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { Layout, Trans, WorldArt, WorldBits } from './worldswitcher.constants';
+import { columnFiltered } from './worldswitcher.helpers';
+
+export function SortButton({
+  x,
+  w,
+  asc,
+  desc,
+  searched,
+  hide,
+}: {
+  x: Int;
+  w: Int;
+  asc: Int;
+  desc: Int;
+  searched: Boolean;
+  hide: Boolean;
+}): Component {
+  const sort: Int = useServerState(WorldBits.SORT);
+
+  const showingDesc: Boolean = sort === desc;
+  const showingAsc: Boolean = sort === asc;
+  const active: Boolean = showingAsc || showingDesc;
+
+  const nextSort: Int = showingDesc ? asc : desc;
+
+  return (
+    <layer
+      x={x}
+      w={w}
+      h="fill"
+      y="center"
+      hide={hide}
+      options={['Sort']}
+      hover={{ transparency: active ? Trans.SORT_ACTIVE_HOVER : Trans.SORT_IDLE_HOVER }}
+      onOptionSelect={() => {
+        playSound(Sounds.CLICK);
+        predictServerState(WorldBits.SORT, nextSort);
+      }}
+    >
+      <sprite
+        w={Layout.ARROW_W}
+        h={Layout.ARROW_H}
+        x="center"
+        y="center"
+        sprite={showingDesc ? WorldArt.SORT_UP : WorldArt.SORT_DOWN}
+        transparency={active ? Trans.SORT_ACTIVE : Trans.SORT_IDLE}
+      />
+      {columnFiltered(asc, searched) && (
+        <sprite
+          x={{ center: Layout.FILTER_DOT_X }}
+          y={{ center: Layout.FILTER_DOT_Y }}
+          w={Layout.ARROW_W}
+          h={Layout.ARROW_H}
+          sprite={WorldArt.FILTERED}
+        />
+      )}
+    </layer>
+  );
+}

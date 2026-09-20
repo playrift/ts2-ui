@@ -1,0 +1,142 @@
+import { useServerState } from 'ts2';
+
+import { compactCount } from '../0529_league_summary/league-summary.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { clientClock } from '../lib/lib.engine';
+
+const DESERT_HEAT_SLOT = 44;
+const DESERT_WATER_SLOT = 80;
+const MAX_INT = 2147483647;
+
+export function isCountdown(kind: Int): Boolean {
+  return kind === 3 || kind === 4 || kind === 5;
+}
+
+export function hasLabel(kind: Int): Boolean {
+  return kind !== 1;
+}
+
+export function countdownCycles(kind: Int, value: Int): Int {
+  if (kind === 3) {
+    return value * 3000;
+  }
+  if (kind === 4) {
+    return value * 30;
+  }
+  if (kind === 5) {
+    return value;
+  }
+  return 0;
+}
+
+export function formatDuration(cycles: Int): String {
+  let rest: Int = cycles;
+  const hours: Int = rest / 180000;
+  if (hours > 0) {
+    rest = rest - hours * 180000;
+  }
+  let minutes: Int = rest / 3000;
+  if (minutes > 0) {
+    rest = rest - minutes * 3000;
+  }
+  let seconds: Int = rest / 50;
+  if (seconds > 0) {
+    rest = rest - seconds * 50;
+  }
+  if (rest > 0) {
+    seconds = seconds + 1;
+  }
+  if (seconds === 60) {
+    seconds = 0;
+    minutes = minutes + 1;
+  }
+  if (hours >= 48) {
+    return '48h+';
+  }
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+export function buffLabel(slot: Int, kind: Int, lowAt: Int, cap: Int, value: Int): String {
+  if (slot === DESERT_WATER_SLOT && value === MAX_INT) {
+    return 'Inf';
+  }
+  let high: Int = cap;
+  let low: Int = lowAt;
+  let text: String = '';
+  if (isCountdown(kind)) {
+    high = cap * 50;
+    low = lowAt * 50;
+    text = formatDuration(value);
+  } else if (value > cap) {
+    text = `${compactCount(cap, 1000, 1000000, ',')}+`;
+  } else {
+    text = compactCount(value, 1000, 1000000, ',');
+  }
+  let open: String = '';
+  let close: String = '';
+  if (!(value > high)) {
+    if (value < low) {
+      open = '<col=ff0000>';
+      close = '</col>';
+    }
+  }
+  if (kind === 7) {
+    if (value < 0) {
+      text = `-${text}`;
+    } else {
+      text = `+${text}`;
+    }
+  }
+  return `${open}${text}${close}`;
+}
+
+export function stackLabel(stackLowAt: Int, count: Int): String {
+  const cap: Int = 600;
+  let text: String = `${count}`;
+  if (count > cap) {
+    text = `${cap}+`;
+  }
+  if (!(count > cap)) {
+    if (count < stackLowAt) {
+      return `<col=ff0000>${text}</col>`;
+    }
+  }
+  return text;
+}
+
+export function perUnitOf(slot: Int, perUnit: Int): Int {
+  if (slot === DESERT_HEAT_SLOT) {
+    return useServerState(Varbits.BUFF_BAR_DESERT_HEAT_TIMER_ITERATION);
+  }
+  return perUnit;
+}
+
+export function ticksLeftSince(start: Int, duration: Int): Int {
+  return duration - (useServerState(Varps.MAP_CLOCK) - start);
+}
+
+export function minutesLeftSince(start: Int, duration: Int): Int {
+  return duration - (useServerState(Varps.DATE_MINUTES) - start);
+}
+
+export function scaledCount(start: Int, count: Int, per: Int): Int {
+  if (per === 0 || count <= 0) {
+    return 0;
+  }
+  return count * per;
+}
+
+export function cyclesLeftSince(start: Int, duration: Int): Int {
+  return duration - (clientClock() - start);
+}
+
+export function ticksUntil(end: Int): Int {
+  return end - useServerState(Varps.MAP_CLOCK);
+}

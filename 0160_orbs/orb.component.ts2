@@ -1,0 +1,477 @@
+import {
+  CS2,
+  Engine,
+  useDerived,
+  useInterval,
+  useInventory,
+  useRef,
+  useRerenderOn,
+  useServerState,
+  useSkill,
+  useSkillBase,
+  useState,
+} from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { membersWorld } from '../lib/lib.engine';
+import { relicActive, specCapActive, specialAttackCost } from '../0593_combat_interface/combat-interface.helpers';
+import { CombatRelic } from '../0593_combat_interface/combat-interface.constants';
+import {
+  OrbArt,
+  OrbBox,
+  OrbFonts,
+  OrbInventories,
+  OrbSkills,
+  OrbText,
+  OrbsPanel,
+  SidePanel,
+  SpecMax,
+  SpecWeapon,
+  WEAPON_SLOT,
+} from './orbs.constants';
+import {
+  deviceSprite,
+  meterColour,
+  meterEmptyH,
+  meterText,
+  plateHoverSprite,
+  plateSprite,
+  quickPrayerOp,
+  runOp,
+  runTutorialStep,
+  sidePanelOpen,
+  specOp,
+  stepRunFlash,
+} from './orbs.helpers';
+import { runFlashLit } from './orbs.state';
+
+function orbMax(base: Int): Int {
+  if (useServerState(Varbits.BR_INGAME) === 1) {
+    return 99;
+  }
+  return base;
+}
+
+export function HealthOrb({
+  left,
+  top,
+  fromRight,
+  wide,
+  clickY,
+  clickW,
+  clickH,
+}: {
+  left: Int;
+  top: Int;
+  fromRight: Boolean;
+  wide: Boolean;
+  clickY: Int;
+  clickW: Int;
+  clickH: Int;
+}): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const plate = useRef();
+
+  const current: Int = useSkill(OrbSkills.HITPOINTS);
+  const max: Int = orbMax(useSkillBase(OrbSkills.HITPOINTS));
+  const poison: Int = useServerState(Varps.POISON);
+  const disease: Int = useServerState(Varps.DISEASE);
+  const parasite: Int = useServerState(Varbits.PARASITE);
+  const afflicted: Boolean = poison > 0 || disease > 0 || parasite > 0;
+  const curable: Boolean = afflicted && sidePanelOpen(SidePanel.INVENTORY);
+  const rest: Sprite = plateSprite();
+  const hover: Sprite = plateHoverSprite();
+
+  let filler: Sprite = OrbArt.HEALTH;
+  if (parasite > 0) {
+    filler = OrbArt.HEALTH_PARASITE;
+  } else if (disease > 0) {
+    filler = OrbArt.HEALTH_DISEASE;
+  } else if (poison >= 1000000) {
+    filler = OrbArt.HEALTH_VENOM;
+  } else if (poison > 0) {
+    filler = OrbArt.HEALTH_POISON;
+  }
+  let half: Sprite = OrbArt.HEALTH_POISON;
+  if (poison >= 1000000) {
+    half = OrbArt.HEALTH_VENOM;
+  }
+  const meterX: Int = wide ? OrbBox.OSM.METER_X : OrbBox.DESKTOP.METER_X;
+
+  return (
+    <layer x={fromRight ? { right: left } : left} y={top} w={wide ? OrbBox.OSM.W : OrbBox.DESKTOP.W} h={OrbBox.H}>
+      <sprite ref={plate} x={0} y={0} w="fill" h="fill" sprite={rest} noClickThrough />
+      <layer
+        x={OrbBox.CLICK_X}
+        y={clickY}
+        w={clickW}
+        h={clickH}
+        options={['Cure']}
+        hide={!curable}
+        onMouseRepeat={
+          curable
+            ? () => {
+                plate.sprite = hover;
+              }
+            : null
+        }
+        onMouseLeave={
+          curable
+            ? () => {
+                plate.sprite = rest;
+              }
+            : null
+        }
+      />
+      <text
+        x={wide ? OrbBox.OSM.TEXT_X : OrbBox.DESKTOP.TEXT_X}
+        y={wide ? { center: OrbBox.OSM.TEXT_Y } : OrbBox.DESKTOP.TEXT_Y}
+        w={OrbBox.TEXT_W}
+        h={OrbBox.TEXT_H}
+        font={OrbFonts.NUMBER}
+        text={meterText(current)}
+        color={meterColour(current, max)}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={meterX}
+        y={OrbBox.METER_Y}
+        w={OrbBox.METER}
+        h={OrbBox.METER}
+        sprite={filler}
+        transparency={OrbBox.FILLER_ALPHA}
+      />
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.HALF_W} h={OrbBox.METER} hide={poison <= 0}>
+        <sprite x={0} y={0} w={OrbBox.METER} h={OrbBox.METER} sprite={half} />
+      </layer>
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={meterEmptyH(current, max)}>
+        <sprite
+          x={0}
+          y={0}
+          w={OrbBox.METER}
+          h={OrbBox.METER}
+          sprite={OrbArt.EMPTY}
+          transparency={afflicted ? 100 : 0}
+        />
+      </layer>
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.SPARE} h={OrbBox.SPARE} />
+      <sprite x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={OrbBox.METER} sprite={OrbArt.HEART} />
+    </layer>
+  );
+}
+
+export function PrayerOrb({
+  left,
+  top,
+  fromRight,
+  wide,
+  clickY,
+  clickW,
+  clickH,
+}: {
+  left: Int;
+  top: Int;
+  fromRight: Boolean;
+  wide: Boolean;
+  clickY: Int;
+  clickW: Int;
+  clickH: Int;
+}): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const plate = useRef();
+
+  const current: Int = useSkill(OrbSkills.PRAYER);
+  const max: Int = orbMax(useSkillBase(OrbSkills.PRAYER));
+  const open: Boolean = sidePanelOpen(SidePanel.PRAYER);
+  const rest: Sprite = open ? plateSprite() : OrbArt.FRAME;
+  const hover: Sprite = plateHoverSprite();
+
+  const corrupt: Boolean = useServerState(Varbits.CORRUPTION_TARGET_ITERATIONS) > 0;
+  const active: Boolean = useServerState(Varbits.QUICKPRAYER_ACTIVE) === 1;
+  let filler: Sprite = OrbArt.PRAYER;
+  let icon: Sprite = OrbArt.PRAYER_ICON;
+  if (corrupt) {
+    filler = active ? OrbArt.CORRUPT_ON : OrbArt.CORRUPT;
+    icon = active ? OrbArt.CORRUPT_ICON_ON : OrbArt.CORRUPT_ICON;
+  } else if (active) {
+    filler = OrbArt.PRAYER_ON;
+    icon = OrbArt.PRAYER_ICON_ON;
+  }
+  const meterX: Int = wide ? OrbBox.OSM.METER_X : OrbBox.DESKTOP.METER_X;
+
+  return (
+    <layer x={fromRight ? { right: left } : left} y={top} w={wide ? OrbBox.OSM.W : OrbBox.DESKTOP.W} h={OrbBox.H}>
+      <sprite ref={plate} x={0} y={0} w="fill" h="fill" sprite={rest} noClickThrough />
+      <layer
+        x={OrbBox.CLICK_X}
+        y={clickY}
+        w={clickW}
+        h={clickH}
+        optionSubject="Quick-prayers"
+        options={[active ? OrbText.DEACTIVATE : OrbText.ACTIVATE, 'Setup']}
+        onOptionSelect={(event) => quickPrayerOp(event.option)}
+        hide={!open}
+        onMouseRepeat={
+          open
+            ? () => {
+                plate.sprite = hover;
+              }
+            : null
+        }
+        onMouseLeave={
+          open
+            ? () => {
+                plate.sprite = rest;
+              }
+            : null
+        }
+      />
+      <text
+        x={wide ? OrbBox.OSM.TEXT_X : OrbBox.DESKTOP.TEXT_X}
+        y={wide ? { center: OrbBox.OSM.TEXT_Y } : OrbBox.DESKTOP.TEXT_Y}
+        w={OrbBox.TEXT_W}
+        h={OrbBox.TEXT_H}
+        font={OrbFonts.NUMBER}
+        text={meterText(current)}
+        color={meterColour(current, max)}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={meterX}
+        y={OrbBox.METER_Y}
+        w={OrbBox.METER}
+        h={OrbBox.METER}
+        sprite={filler}
+        transparency={OrbBox.FILLER_ALPHA}
+      />
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={meterEmptyH(current, max)}>
+        <sprite x={0} y={0} w={OrbBox.METER} h={OrbBox.METER} sprite={OrbArt.EMPTY} />
+      </layer>
+      <sprite x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={OrbBox.METER} sprite={icon} />
+    </layer>
+  );
+}
+
+export function RunOrb({
+  left,
+  top,
+  fromRight,
+  wide,
+  clickY,
+  clickW,
+  clickH,
+}: {
+  left: Int;
+  top: Int;
+  fromRight: Boolean;
+  wide: Boolean;
+  clickY: Int;
+  clickW: Int;
+  clickH: Int;
+}): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  useRerenderOn(Engine.MISC);
+  const plate = useRef();
+
+  const energy: Int = CS2.runenergy_visible();
+  const open: Boolean = sidePanelOpen(SidePanel.SETTINGS);
+  const flashing: Boolean = open && runTutorialStep();
+  const [lit] = useState(runFlashLit);
+  const rest: Sprite = plateSprite();
+  const hover: Sprite = plateHoverSprite();
+  let drawn: Sprite = rest;
+  if (flashing && lit === 1) {
+    drawn = deviceSprite(OrbArt.FRAME_FLASH, OrbArt.FRAME_MOBILE_FLASH);
+  }
+  const hovers: Boolean = open && !flashing;
+
+  const running: Boolean = useServerState(Varps.OPTION_RUN) === 1;
+  const stamina: Boolean = useServerState(Varbits.STAMINA_ACTIVE) === 1;
+  let icon: Sprite = running ? OrbArt.RUN_ICON_ON : OrbArt.RUN_ICON;
+  if (stamina) {
+    icon = OrbArt.RUN_ICON_STAMINA;
+  }
+  const meterX: Int = wide ? OrbBox.OSM.METER_X : OrbBox.DESKTOP.METER_X;
+
+  useInterval(flashing ? () => stepRunFlash() : undefined, plate);
+
+  return (
+    <layer x={fromRight ? { right: left } : left} y={top} w={wide ? OrbBox.OSM.W : OrbBox.DESKTOP.W} h={OrbBox.H}>
+      <sprite ref={plate} x={0} y={0} w="fill" h="fill" sprite={drawn} noClickThrough />
+      <layer
+        x={OrbBox.CLICK_X}
+        y={clickY}
+        w={clickW}
+        h={clickH}
+        options={['Toggle Run']}
+        onOptionSelect={(event) => runOp(event.option)}
+        hide={!open}
+        onMouseRepeat={
+          hovers
+            ? () => {
+                plate.sprite = hover;
+              }
+            : null
+        }
+        onMouseLeave={
+          hovers
+            ? () => {
+                plate.sprite = rest;
+              }
+            : null
+        }
+      />
+      <text
+        x={wide ? OrbBox.OSM.TEXT_X : OrbBox.DESKTOP.TEXT_X}
+        y={wide ? { center: OrbBox.OSM.TEXT_Y } : OrbBox.DESKTOP.TEXT_Y}
+        w={OrbBox.TEXT_W}
+        h={OrbBox.TEXT_H}
+        font={OrbFonts.NUMBER}
+        text={meterText(energy)}
+        color={meterColour(energy, 100)}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={meterX}
+        y={OrbBox.METER_Y}
+        w={OrbBox.METER}
+        h={OrbBox.METER}
+        sprite={running ? OrbArt.RUN_ON : OrbArt.RUN}
+        transparency={OrbBox.FILLER_ALPHA}
+      />
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={meterEmptyH(energy, 100)}>
+        <sprite x={0} y={0} w={OrbBox.METER} h={OrbBox.METER} sprite={OrbArt.EMPTY} />
+      </layer>
+      <sprite x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={OrbBox.METER} sprite={icon} />
+    </layer>
+  );
+}
+
+export function SpecOrb({
+  left,
+  top,
+  fromRight,
+  panel,
+  wide,
+  clickY,
+  clickW,
+  clickH,
+  subject,
+}: {
+  left: Int;
+  top: Int;
+  fromRight: Boolean;
+  panel: Int;
+  wide: Boolean;
+  clickY: Int;
+  clickW: Int;
+  clickH: Int;
+  subject: String;
+}): Component {
+  const plate = useRef();
+
+  const worn = useInventory(OrbInventories.WORN);
+  const weapon: Item = worn[WEAPON_SLOT];
+  const capped: Int = useDerived(() => specCapActive());
+  const cost: Int = specialAttackCost(weapon, capped);
+  const energy: Int = useServerState(Varps.SA_ENERGY);
+  const barred: Boolean = (!membersWorld() && useServerState(Varbits.BR_INGAME) === 0) || cost <= 0;
+  const armed: Boolean = useServerState(Varps.SA_ATTACK) > 0;
+  const rest: Sprite = plateSprite();
+  const hover: Sprite = plateHoverSprite();
+  let drawn: Sprite = wide ? OrbArt.FRAME_MOBILE : OrbArt.FRAME;
+  if (barred) {
+    drawn = rest;
+  }
+
+  let value: Int = energy / 10;
+  let max: Int = SpecMax.ENERGY;
+  let icon: Sprite = OrbArt.SPEC_ICON;
+  if (weapon === SpecWeapon.SOULREAPER) {
+    value = useServerState(Varps.SOULREAPER_STACKS);
+    max = SpecMax.SOULREAPER;
+    icon = OrbArt.SPEC_ICON_SOULREAPER;
+  } else if (weapon === SpecWeapon.SOL) {
+    value = useServerState(Varps.WEAPON_OF_SOL_STACKS);
+    max = SpecMax.SOL;
+    icon = OrbArt.SPEC_ICON_SOL;
+  } else if (weapon === SpecWeapon.CHARGES) {
+    value = useServerState(Varbits.VARBIT_20396);
+    max = SpecMax.CHARGES;
+    icon = OrbArt.SPEC_ICON_CHARGES;
+  } else {
+    const hp: Int = useSkill(OrbSkills.HITPOINTS);
+    if (relicActive(CombatRelic.HP_SPECS) === 1 && energy < cost && hp > SpecMax.RELIC_UNIT) {
+      value = (hp - 1) / SpecMax.RELIC_UNIT;
+      max = (useSkillBase(OrbSkills.HITPOINTS) - 1) / SpecMax.RELIC_UNIT;
+    }
+    if (useServerState(Varbits.VARBIT_20395) === 1) {
+      icon = OrbArt.SPEC_ICON_RELIC;
+    }
+  }
+  if (panel !== OrbsPanel.DESKTOP) {
+    icon = OrbArt.SPEC_ICON;
+  }
+  let filler: Sprite = armed ? OrbArt.SPEC_ON : OrbArt.SPEC;
+  let alpha: Int = OrbBox.FILLER_ALPHA;
+  if (barred) {
+    filler = OrbArt.RUN;
+    alpha = 50;
+  }
+  const meterX: Int = wide ? OrbBox.OSM.METER_X : OrbBox.DESKTOP.METER_X;
+
+  return (
+    <layer x={fromRight ? { right: left } : left} y={top} w={wide ? OrbBox.OSM.W : OrbBox.DESKTOP.W} h={OrbBox.H}>
+      <sprite ref={plate} x={0} y={0} w="fill" h="fill" sprite={drawn} noClickThrough />
+      <layer
+        x={OrbBox.CLICK_X}
+        y={clickY}
+        w={clickW}
+        h={clickH}
+        optionSubject={subject}
+        options={barred ? undefined : [OrbText.USE]}
+        onOptionSelect={barred ? null : (event) => specOp(event.option)}
+        hide={barred}
+        onMouseRepeat={
+          barred
+            ? null
+            : () => {
+                plate.sprite = hover;
+              }
+        }
+        onMouseLeave={
+          barred
+            ? null
+            : () => {
+                plate.sprite = rest;
+              }
+        }
+      />
+      <text
+        x={wide ? OrbBox.OSM.TEXT_X : OrbBox.DESKTOP.TEXT_X}
+        y={wide ? { center: OrbBox.OSM.TEXT_Y } : OrbBox.DESKTOP.TEXT_Y}
+        w={OrbBox.TEXT_W}
+        h={OrbBox.TEXT_H}
+        font={OrbFonts.NUMBER}
+        text={meterText(value)}
+        color={meterColour(value, max)}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={OrbBox.METER} sprite={filler} transparency={alpha} />
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={meterEmptyH(value, max)}>
+        <sprite x={0} y={0} w={OrbBox.METER} h={OrbBox.METER} sprite={OrbArt.EMPTY} />
+      </layer>
+      <layer x={meterX} y={OrbBox.METER_Y} w={OrbBox.SPARE} h={OrbBox.SPARE} />
+      <sprite x={meterX} y={OrbBox.METER_Y} w={OrbBox.METER} h={OrbBox.METER} sprite={icon} />
+    </layer>
+  );
+}

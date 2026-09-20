@@ -1,4 +1,4 @@
-import { CS2, predictServerState, useDerived, useRef, useServerState } from 'ts2';
+import { CS2, predictServerState, useDerived, useServerState, useState } from 'ts2';
 import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
 import {
   Layout,
@@ -69,33 +69,7 @@ export function MainTab(): Component {
           options={[SideOps.TASK]}
           onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
         >
-          <text
-            w="fill"
-            h="fill"
-            x="center"
-            y="center"
-            text={taskName}
-            font={SideFonts.BODY}
-            shadow
-            color={SideColors.GOLD}
-            align="center"
-            valign="middle"
-            lineHeight={Layout.BODY_LINE_H}
-            onMouseRepeat={
-              swap
-                ? (event) => {
-                    event.self.color = SideColors.DIM;
-                  }
-                : undefined
-            }
-            onMouseLeave={
-              swap
-                ? (event) => {
-                    event.self.color = SideColors.GOLD;
-                  }
-                : undefined
-            }
-          />
+          <TaskNameText text={taskName} swap={swap} />
         </layer>
 
         <sprite x="center" y={45} w="fill" h={12} sprite={SideSprites.RULE} tiling />
@@ -108,33 +82,7 @@ export function MainTab(): Component {
           options={[SideOps.TASK]}
           onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
         >
-          <text
-            w="fill"
-            h="fill"
-            x="center"
-            y="center"
-            text={taskDesc}
-            font={SideFonts.SMALL}
-            shadow
-            color={SideColors.GOLD}
-            align="left"
-            valign="top"
-            lineHeight={Layout.BODY_LINE_H}
-            onMouseRepeat={
-              swap
-                ? (event) => {
-                    event.self.color = SideColors.DIM;
-                  }
-                : undefined
-            }
-            onMouseLeave={
-              swap
-                ? (event) => {
-                    event.self.color = SideColors.GOLD;
-                  }
-                : undefined
-            }
-          />
+          <TaskDescriptionText text={taskDesc} swap={swap} />
         </layer>
 
         <layer x={5} y={{ bottom: 4 }} w={32} h={32}>
@@ -164,33 +112,7 @@ export function MainTab(): Component {
         options={[SideOps.PATHS]}
         onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
       >
-        <text
-          x="center"
-          y="center"
-          w={{ fill: Layout.TITLE_INSET }}
-          h={{ fill: Layout.TITLE_INSET }}
-          text={title}
-          font={SideFonts.TITLE}
-          shadow
-          color={SideColors.GOLD}
-          align="center"
-          valign="middle"
-          lineHeight={Layout.TITLE_LINE_H}
-          onMouseRepeat={
-            swap
-              ? (event) => {
-                  event.self.color = SideColors.DIM;
-                }
-              : undefined
-          }
-          onMouseLeave={
-            swap
-              ? (event) => {
-                  event.self.color = SideColors.GOLD;
-                }
-              : undefined
-          }
-        />
+        <PathTitleText text={title} swap={swap} />
       </layer>
 
       <layer x="right" y={0} w={50} h={50}>
@@ -201,9 +123,7 @@ export function MainTab(): Component {
 }
 
 function SettingsButton(): Component {
-  const up = useRef();
-  const down = useRef();
-  const gear = useRef();
+  const [hovered, setHovered] = useState(0);
   return (
     <layer
       w="fill"
@@ -213,57 +133,45 @@ function SettingsButton(): Component {
         CS2.sound_effect(SideSounds.CLICK, 1, 0);
         predictServerState(SideVarbits.SETTINGS_SELECTED, 1);
       }}
-      onMouseEnter={() => {
-        gear.transparency = Layout.ICON_PRESSED;
-        up.hide = true;
-        down.hide = false;
-      }}
-      onMouseLeave={() => {
-        gear.transparency = 0;
-        up.hide = false;
-        down.hide = true;
-      }}
+      onMouseEnter={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
     >
-      <layer ref={up} w="fill" h="fill">
+      <layer w="fill" h="fill" hide={hovered === 1}>
         <StoneButtonFilled />
       </layer>
-      <layer ref={down} w="fill" h="fill" hide>
+      <layer w="fill" h="fill" hide={hovered === 0}>
         <StoneButtonPressedFilled />
       </layer>
-      <sprite ref={gear} x="center" y="center" w={Layout.GEAR} h={Layout.GEAR} sprite={SideSprites.SETTINGS_ICON} />
+      <sprite
+        x="center"
+        y="center"
+        w={Layout.GEAR}
+        h={Layout.GEAR}
+        sprite={SideSprites.SETTINGS_ICON}
+        transparency={hovered === 1 ? Layout.ICON_PRESSED : 0}
+      />
     </layer>
   );
 }
 
 function OpenPathsButton(): Component {
-  const up = useRef();
-  const down = useRef();
-  const label = useRef();
+  const [hovered, setHovered] = useState(0);
   return (
     <layer
       w="fill"
       h="fill"
       options={[SideOps.PATHS]}
       onOptionSelect={() => CS2.sound_effect(SideSounds.CLICK, 1, 0)}
-      onMouseEnter={() => {
-        label.color = SideColors.DIM;
-        up.hide = true;
-        down.hide = false;
-      }}
-      onMouseLeave={() => {
-        label.color = SideColors.GOLD;
-        up.hide = false;
-        down.hide = true;
-      }}
+      onMouseEnter={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
     >
-      <layer ref={up} w="fill" h="fill">
+      <layer w="fill" h="fill" hide={hovered === 1}>
         <StoneButtonFilled />
       </layer>
-      <layer ref={down} w="fill" h="fill" hide>
+      <layer w="fill" h="fill" hide={hovered === 0}>
         <StoneButtonPressedFilled />
       </layer>
       <text
-        ref={label}
         x="center"
         y="center"
         w="fill"
@@ -271,7 +179,7 @@ function OpenPathsButton(): Component {
         text={SideText.OPEN}
         font={SideFonts.BODY}
         shadow
-        color={SideColors.GOLD}
+        color={hovered === 1 ? SideColors.DIM : SideColors.GOLD}
         align="center"
         valign="middle"
         lineHeight={Layout.TITLE_LINE_H}
@@ -281,53 +189,33 @@ function OpenPathsButton(): Component {
 }
 
 function HintButton({ live }: { live: Boolean }): Component {
-  const up = useRef();
-  const down = useRef();
-  const pin = useRef();
-  const label = useRef();
+  const [hovered, setHovered] = useState(0);
+  const pressed: Boolean = live && hovered === 1;
+  const pressedSkinHidden: Boolean = live ? !pressed : false;
   return (
     <layer
       w="fill"
       h="fill"
       options={[live ? SideOps.HINT : '', live ? SideOps.HINT_REMOVE : '']}
       onOptionSelect={live ? () => CS2.sound_effect(SideSounds.CLICK, 1, 0) : undefined}
-      onMouseEnter={
-        live
-          ? () => {
-              label.color = SideColors.DIM;
-              pin.transparency = Layout.ICON_PRESSED;
-              up.hide = true;
-              down.hide = false;
-            }
-          : undefined
-      }
-      onMouseLeave={
-        live
-          ? () => {
-              label.color = SideColors.GOLD;
-              pin.transparency = 0;
-              up.hide = false;
-              down.hide = true;
-            }
-          : undefined
-      }
+      onMouseEnter={live ? () => setHovered(1) : undefined}
+      onMouseLeave={() => setHovered(0)}
     >
-      <layer ref={up} w="fill" h="fill" hide={live ? false : true}>
+      <layer w="fill" h="fill" hide={live ? pressed : true}>
         <StoneButtonFilled />
       </layer>
-      <layer ref={down} w="fill" h="fill" hide={live ? true : false}>
+      <layer w="fill" h="fill" hide={pressedSkinHidden}>
         <StoneButtonPressedFilled />
       </layer>
       <sprite
-        ref={pin}
         x={{ right: Layout.HINT_INSET }}
         y="center"
         w={Layout.HINT_ICON}
         h={Layout.HINT_ICON}
         sprite={SideSprites.HINT_ICON}
+        transparency={pressed ? Layout.ICON_PRESSED : 0}
       />
       <text
-        ref={label}
         x={Layout.HINT_INSET}
         y="center"
         w={{ fill: Layout.HINT_LABEL_INSET }}
@@ -335,7 +223,7 @@ function HintButton({ live }: { live: Boolean }): Component {
         text={SideText.HINT}
         font={SideFonts.BODY}
         shadow
-        color={SideColors.GOLD}
+        color={pressed ? SideColors.DIM : SideColors.GOLD}
         align="center"
         valign="middle"
         lineHeight={Layout.TITLE_LINE_H}
@@ -351,5 +239,68 @@ function HintButton({ live }: { live: Boolean }): Component {
         />
       )}
     </layer>
+  );
+}
+
+function TaskNameText({ text, swap }: { text: String; swap: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <text
+      w="fill"
+      h="fill"
+      x="center"
+      y="center"
+      text={text}
+      font={SideFonts.BODY}
+      shadow
+      color={hovered === 1 ? SideColors.DIM : SideColors.GOLD}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.BODY_LINE_H}
+      onMouseRepeat={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    />
+  );
+}
+
+function TaskDescriptionText({ text, swap }: { text: String; swap: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <text
+      w="fill"
+      h="fill"
+      x="center"
+      y="center"
+      text={text}
+      font={SideFonts.SMALL}
+      shadow
+      color={hovered === 1 ? SideColors.DIM : SideColors.GOLD}
+      align="left"
+      valign="top"
+      lineHeight={Layout.BODY_LINE_H}
+      onMouseRepeat={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    />
+  );
+}
+
+function PathTitleText({ text, swap }: { text: String; swap: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <text
+      x="center"
+      y="center"
+      w={{ fill: Layout.TITLE_INSET }}
+      h={{ fill: Layout.TITLE_INSET }}
+      text={text}
+      font={SideFonts.TITLE}
+      shadow
+      color={hovered === 1 ? SideColors.DIM : SideColors.GOLD}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.TITLE_LINE_H}
+      onMouseRepeat={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    />
   );
 }

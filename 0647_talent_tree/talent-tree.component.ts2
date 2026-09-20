@@ -1,0 +1,1540 @@
+import { CS2, onMounted, onUpdated, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  talentTreeHorizontalScrollPos,
+  talentTreeMobileOpToggle,
+  talentTreeOverlayHeight,
+  talentTreeOverlayWidth,
+  talentTreeOverlayX,
+  talentTreeOverlayY,
+  talentTreeSelectedNodeAmount,
+  talentTreeShowingInfoPanel,
+  talentTreeVerticalScrollPos,
+  talentTreeZoomScalar,
+  tooltipBuilt,
+  tooltipTime,
+} from '../lib/game/varcs';
+import { SteelborderFont, SteelborderSprite } from '../lib/lib.constants';
+import { chatMessage, clientClock, playSound, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { errorMessage } from '../lib/lib.debug';
+import { FloaterHandles, floaterPlaced } from '../0372_cr_ui/floater';
+import { enhancedAny, onEnhancedDesktop, onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { SkinPieces } from '../0945_reusable_floater/floater-button.component';
+import {
+  clickWhenDisabled,
+  hoverSkin,
+  normalSkin,
+  pressedSkin,
+  wornHoverSkin,
+  wornStyle,
+} from '../0945_reusable_floater/floater-styles';
+import { Colour, FloaterFonts, FloaterSounds, Layout } from '../0945_reusable_floater/reusable-floater.constants';
+import { NONE } from '../0945_reusable_floater/reusable-floater.data';
+import { StoneBox } from '../0721_gim_limited_sidepanel/stone-box.component';
+import { StoneBoxSkin } from '../0721_gim_limited_sidepanel/gim-limited-sidepanel.constants';
+import {
+  INFO_WIDTH,
+  INT_ARRAY,
+  PactBar,
+  PactColour,
+  PactFont,
+  PactServerScript,
+  PactSideLook,
+  PactSound,
+  PactSprite,
+  PactState,
+  PactStyle,
+  ROOT_NODE,
+  TALENT_TREE_FLOATER,
+  TUTORIAL_DONE,
+  pactBarRef,
+  pactDataLayerRef,
+  pactInfoBarRef,
+  pactInfoPaneRef,
+  pactSideRef,
+  pactTipLayerRef,
+  pactTipRef,
+  pactWindowRef,
+  talentTreeRef,
+} from './talent-tree.constants';
+import { PactEdge, PactEdges, PactInfoRow, PactInfoRows, PactNode, PactNodes } from './talent-tree.data';
+import { InfoScrollbar } from './info-scrollbar.component';
+import {
+  hotfixText,
+  keyRun,
+  pactDebugIds,
+  pactDrag,
+  pactDragDelayTick,
+  pactDragStart,
+  pactEffectLevel,
+  pactEffectText,
+  pactEffectValue,
+  pactFormat,
+  pactIconSide,
+  pactIconSprite,
+  pactLineColour,
+  pactLineState,
+  pactLineWidth,
+  pactNodeSide,
+  pactNodeState,
+  pactNodeX,
+  pactNodeY,
+  pactPaneExtent,
+  pactResetAllowed,
+  pactResets,
+  pactRingSprite,
+  pactShowInfo,
+  pactStyleName,
+  pactToggleInfoOnTap,
+  pactTooltip,
+  pactUnlocked,
+  pactZoom,
+  runAt,
+  runCount,
+  runHas,
+  runIndexOf,
+  talentTreeOpen,
+  zoomOf,
+  pactInterfaceOpened,
+} from './talent-tree.helpers';
+import {
+  pactBarCounted,
+  pactBarKind,
+  pactDeselect0,
+  pactDeselect1,
+  pactDeselect2,
+  pactDeselect3,
+  pactDeselect4,
+  pactHotfix,
+  pactPending,
+  pactPulsing,
+  pactRootRule,
+  pactTipH,
+  pactTipKey,
+  pactTipSeen,
+  pactTipShown,
+  pactTipText,
+  pactTipTimed,
+  pactTipW,
+  pactTipX,
+  pactTipY,
+  pactInfoExtent,
+  pactInfoPaneHeight,
+} from './talent-tree.state';
+
+export function TalentTree(): Component {
+  const host = useRef();
+  useWatch(
+    [
+      Varps.VARP_5484,
+      Varps.VARP_5498,
+      Varps.VARP_5499,
+      Varps.VARP_5500,
+      Varps.VARP_5501,
+      Varps.VARP_5502,
+      Varps.VARP_5503,
+    ],
+    () => talentTreeOpen(0),
+    host,
+  );
+  return (
+    <>
+      <layer x={0} y={0} w="fill" h="fill" />
+      <layer static ref={pactWindowRef} x={0} y={0} w="fill" h="fill" onLoad={() => pactInterfaceOpened()}>
+        <PactBorder />
+        <layer x={6} y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 41 }}>
+          <layer x={0} y={0} w="fill" h="fill" />
+          <PactPane />
+          <layer x={0} y={{ bottom: 0 }} w={{ fill: 16 }} h={16} hide />
+          <layer x="right" y={0} w={16} h={{ fill: 16 }} hide />
+        </layer>
+        <layer static ref={pactDataLayerRef} x={0} y={0} w={512} h={334} />
+        <layer static ref={pactSideRef} x={{ right: 15 }} y={45} w={124} h={140}>
+          <layer x={0} y={0} w="fill" h="fill">
+            <PactSideBack />
+          </layer>
+          <layer x={8} y={8} w={{ fill: 16 }} h={{ fill: 16 }}>
+            <layer static ref={pactInfoPaneRef} x={0} y={0} w={{ fill: 16 }} h="fill">
+              <PactInfoRowsHost />
+            </layer>
+            <PactSideContent />
+          </layer>
+          <layer static ref={pactInfoBarRef} x={{ right: 8 }} y={8} w={16} h={{ fill: 16 }}>
+            <PactInfoBar />
+          </layer>
+        </layer>
+        <layer static ref={pactBarRef} x="center" y={{ bottom: 10 }} w={250} h={85} hide>
+          <layer x={0} y={0} w="fill" h="fill">
+            <PactBarBack />
+          </layer>
+          <layer x={10} y={10} w={{ fill: 20 }} h={{ fill: 20 }}>
+            <PactBarContent />
+          </layer>
+        </layer>
+        <layer x="center" y="center" w="fill" h="fill" hide />
+      </layer>
+      <layer static ref={pactTipLayerRef} x="center" y={0} w={{ fill: 10 }} h="fill">
+        <layer static ref={pactTipRef} x={0} y={0} w={50} h={50}>
+          <PactTooltip />
+        </layer>
+      </layer>
+      <layer ref={host} x={0} y={0} w={1} h={1} />
+      <PactPlacement />
+    </>
+  );
+}
+
+function PactPlacement(): Component {
+  const [x] = useState(talentTreeOverlayX);
+  const [y] = useState(talentTreeOverlayY);
+  const [w] = useState(talentTreeOverlayWidth);
+  const [h] = useState(talentTreeOverlayHeight);
+  const [px, py, pw, ph] = floaterPlaced(TALENT_TREE_FLOATER, x, y, w, h);
+  const mobile: Boolean = onMobile();
+  const [kind] = useState(pactBarKind);
+  const barHidden: Boolean = kind === PactBar.HIDDEN;
+  onMounted(() => {
+    pactWindowRef.props = { hide: false, x: px, y: py, w: pw, h: ph };
+    pactBarRef.props = { hide: barHidden, x: 'center', y: { bottom: 10 }, w: 250, h: 85 };
+  });
+  onUpdated(() => {
+    pactWindowRef.props = { hide: false, x: px, y: py, w: pw, h: ph };
+    pactBarRef.props = { hide: barHidden, x: 'center', y: { bottom: 10 }, w: 250, h: 85 };
+  });
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {!mobile && (
+        <FloaterHandles kind={TALENT_TREE_FLOATER} x={x} y={y} w={w} h={h} anchored={true} hideOnMobile={false} />
+      )}
+    </layer>
+  );
+}
+
+function PactBorder(): Component {
+  const mobile: Boolean = onMobile();
+  const border = useRef();
+  useInterval(() => {
+    if (onMobile()) {
+      pactDragDelayTick();
+    }
+  }, border);
+  return (
+    <layer ref={border} x={0} y={0} w="fill" h="fill">
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: 2 }}
+        h={{ fill: 2 }}
+        sprite={SteelborderSprite.BACKDROP}
+        tiling
+        onClick={(event) => {
+          pactHideTooltip();
+          pactDragStart(event.mouseX, event.mouseY);
+        }}
+        onClickRepeat={(event) => {
+          pactDrag(event.mouseX, event.mouseY);
+        }}
+      />
+      <text
+        x="center"
+        y={6}
+        w={{ fill: 12 }}
+        h={24}
+        text="Demonic Pacts"
+        align="center"
+        valign="middle"
+        shadow
+        color={PactColour.ORANGE}
+        font={SteelborderFont.TITLE}
+      />
+      <sprite x="left" y="top" w={25} h={30} sprite={SteelborderSprite.CORNER_TL} tiling />
+      <sprite x="right" y="top" w={25} h={30} sprite={SteelborderSprite.CORNER_TR} tiling />
+      <sprite x="left" y="bottom" w={25} h={30} sprite={SteelborderSprite.CORNER_BL} tiling />
+      <sprite x="right" y="bottom" w={25} h={30} sprite={SteelborderSprite.CORNER_BR} tiling />
+      <sprite x={{ left: -15 }} y="center" w={36} h={{ fill: 60 }} sprite={SteelborderSprite.EDGE_LEFT} tiling />
+      <sprite x={{ right: -15 }} y="center" w={36} h={{ fill: 60 }} sprite={SteelborderSprite.EDGE_RIGHT} tiling />
+      <sprite x="center" y={{ top: -15 }} w={{ fill: 50 }} h={36} sprite={SteelborderSprite.EDGE_TOP} tiling />
+      <sprite x="center" y={{ bottom: -15 }} w={{ fill: 50 }} h={36} sprite={SteelborderSprite.EDGE_BOTTOM} tiling />
+      <sprite x="center" y={14} w={{ fill: 10 }} h={26} sprite={SteelborderSprite.DIVIDER} tiling />
+      <sprite
+        x={{ right: mobile ? 1 : 3 }}
+        y={mobile ? 1 : 6}
+        w={mobile ? 33 : 26}
+        h={mobile ? 33 : 23}
+        sprite={mobile ? SteelborderSprite.CLOSE_MOBILE : SteelborderSprite.CLOSE_OFF}
+        hover={{ sprite: mobile ? SteelborderSprite.CLOSE_MOBILE : SteelborderSprite.CLOSE_HOVER }}
+        tiling
+        options={['Close']}
+        onClick={() => {
+          opsound(1, -1);
+        }}
+      />
+      <sprite x="right" y="bottom" w={8} h={8} sprite={SteelborderSprite.RESIZE_HANDLE} tiling />
+    </layer>
+  );
+}
+
+function keySize(key: Int): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  return node.size;
+}
+
+function keyRawX(key: Int): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  return node.x;
+}
+
+function keyRawY(key: Int): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  return node.y;
+}
+
+function keyX(key: Int, zoom: Int): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  return pactNodeX(node, zoom);
+}
+
+function keyY(key: Int, zoom: Int): Int {
+  const node: PactNode | null = PactNodes.at(key);
+  if (node === null) {
+    return 0;
+  }
+  return pactNodeY(node, zoom);
+}
+
+function deselectHas(key: Int, d0: Int, d1: Int, d2: Int, d3: Int, d4: Int): Boolean {
+  const word: Int = key / 32;
+  const bit: Int = key % 32;
+  if (word === 0) {
+    return CS2.testbit(d0, bit);
+  } else if (word === 1) {
+    return CS2.testbit(d1, bit);
+  } else if (word === 2) {
+    return CS2.testbit(d2, bit);
+  } else if (word === 3) {
+    return CS2.testbit(d3, bit);
+  } else if (word === 4) {
+    return CS2.testbit(d4, bit);
+  }
+  return false;
+}
+
+function edgeState(edge: PactEdge, earned: Int, spent: Int, pending: String, rootRule: Int): Int {
+  return pactLineState(
+    pactNodeState(edge.a, earned, spent, pending, rootRule),
+    pactNodeState(edge.b, earned, spent, pending, rootRule),
+  );
+}
+
+function edgeDirection(edge: PactEdge): Boolean {
+  if (keyRawX(edge.a) < keyRawX(edge.b)) {
+    if (keyRawY(edge.a) < keyRawY(edge.b)) {
+      return false;
+    }
+    return true;
+  }
+  if (keyRawY(edge.a) < keyRawY(edge.b)) {
+    return true;
+  }
+  return false;
+}
+
+function edgeX(edge: PactEdge, zoom: Int): Int {
+  return (keyX(edge.a, zoom) + keyX(edge.b, zoom)) / 2;
+}
+
+function edgeY(edge: PactEdge, zoom: Int): Int {
+  return (keyY(edge.a, zoom) + keyY(edge.b, zoom)) / 2;
+}
+
+function edgeW(edge: PactEdge, zoom: Int): Int {
+  return CS2.abs(keyX(edge.a, zoom) - keyX(edge.b, zoom));
+}
+
+function edgeH(edge: PactEdge, zoom: Int): Int {
+  return CS2.abs(keyY(edge.a, zoom) - keyY(edge.b, zoom));
+}
+
+function nodeRing(key: Int, size: Int, zoom: Int, state: Int, pulsing: Int, frame: Int): Sprite {
+  if (key === ROOT_NODE && pulsing === 1) {
+    if (frame === 1) {
+      return PactSprite.PULSE_ON;
+    }
+    return PactSprite.PULSE_OFF;
+  }
+  return pactRingSprite(size, pactNodeSide(size, zoom), state);
+}
+
+function nodeIcon(effect: Int, size: Int, zoom: Int, state: Int): Sprite {
+  return pactIconSprite(effect, size, pactIconSide(size, pactNodeSide(size, zoom)), state);
+}
+
+function nodeOp(slot: Int, mobile: Boolean, onTap: Int, deselectable: Boolean): String {
+  if (!mobile) {
+    if (slot === 1) {
+      return 'Select';
+    }
+    if (slot === 2 && deselectable) {
+      return 'Deselect Node';
+    }
+    return '';
+  }
+  if (slot === 3) {
+    if (deselectable) {
+      return 'Deselect Node';
+    }
+    return '';
+  }
+  if ((slot === 1) === (onTap === 1)) {
+    return 'Select';
+  }
+  return 'View info';
+}
+
+function PactPane(): Component {
+  const earned: Int = useServerState(Varps.VARP_5484);
+  const spent: Int = useServerState(Varps.VARP_5486);
+  const [pending] = useState(pactPending);
+  const [rootRule] = useState(pactRootRule);
+  const [pulsing] = useState(pactPulsing);
+  const [d0] = useState(pactDeselect0);
+  const [d1] = useState(pactDeselect1);
+  const [d2] = useState(pactDeselect2);
+  const [d3] = useState(pactDeselect3);
+  const [d4] = useState(pactDeselect4);
+  const [zoomRaw] = useState(talentTreeZoomScalar);
+  const [scrollX] = useState(talentTreeHorizontalScrollPos);
+  const [scrollY] = useState(talentTreeVerticalScrollPos);
+  const [onTap] = useState(talentTreeMobileOpToggle);
+  const zoom: Int = zoomOf(zoomRaw);
+  const extent: Int = pactPaneExtent(zoom);
+  const mobile: Boolean = onMobile();
+  const lineWidth: Int = pactLineWidth(zoom);
+  let subject: String = '';
+  if (mobile) {
+    subject = '<col=ff9040>Pact</col>';
+  }
+
+  const pulseHost = useRef();
+  const [frame, setFrame] = useState(0);
+  useInterval(() => {
+    if (clientClock() % 40 >= 20) {
+      setFrame(1);
+    } else {
+      setFrame(0);
+    }
+  }, pulseHost);
+
+  return (
+    <>
+      <rect x={0} y={0} w="fill" h="fill" fill color={PactColour.PANE} />
+      <layer
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        scrollWidth={extent}
+        scrollHeight={extent}
+        scrollX={scrollX}
+        scrollY={scrollY}
+      >
+        <layer x="center" y="center" w="fill" h="fill">
+          {PactEdges.map((edge) => (
+            <line
+              x={{ center: edgeX(edge, zoom) }}
+              y={{ center: edgeY(edge, zoom) }}
+              w={edgeW(edge, zoom)}
+              h={edgeH(edge, zoom)}
+              lineWidth={lineWidth}
+              lineDirection={edgeDirection(edge)}
+              color={pactLineColour(edgeState(edge, earned, spent, pending, rootRule))}
+            />
+          ))}
+        </layer>
+        <layer x="center" y="center" w="fill" h="fill">
+          {PactNodes.map((node, key) => (
+            <layer
+              x={{ center: pactNodeX(node, zoom) }}
+              y={{ center: pactNodeY(node, zoom) }}
+              w={pactNodeSide(node.size, zoom)}
+              h={pactNodeSide(node.size, zoom)}
+              optionSubject={subject}
+              options={[
+                nodeOp(1, mobile, onTap, deselectHas(key, d0, d1, d2, d3, d4)),
+                nodeOp(2, mobile, onTap, deselectHas(key, d0, d1, d2, d3, d4)),
+                nodeOp(3, mobile, onTap, deselectHas(key, d0, d1, d2, d3, d4)),
+              ]}
+              onOptionSelect={(event) => {
+                pactNodeOption(event.option, key);
+              }}
+              onMouseRepeat={
+                mobile
+                  ? null
+                  : () => {
+                      pactHover(key);
+                    }
+              }
+            >
+              <sprite
+                x={0}
+                y={0}
+                w="fill"
+                h="fill"
+                sprite={nodeRing(
+                  key,
+                  node.size,
+                  zoom,
+                  pactNodeState(key, earned, spent, pending, rootRule),
+                  pulsing,
+                  frame,
+                )}
+              />
+              <sprite
+                x="center"
+                y="center"
+                w={pactIconSide(node.size, pactNodeSide(node.size, zoom))}
+                h={pactIconSide(node.size, pactNodeSide(node.size, zoom))}
+                sprite={nodeIcon(node.effect, node.size, zoom, pactNodeState(key, earned, spent, pending, rootRule))}
+              />
+            </layer>
+          ))}
+        </layer>
+        <layer ref={pulseHost} x={0} y={0} w={1} h={1} hide={pulsing === 0} />
+      </layer>
+    </>
+  );
+}
+
+function pactNodeOption(op: Int, key: Int): void {
+  if (!onMobile()) {
+    if (op === 1) {
+      pactSelect(key);
+    } else if (op === 2) {
+      pactDeselect(key);
+    }
+  } else {
+    const [onTap] = useState(talentTreeMobileOpToggle);
+    if (op === 3) {
+      pactDeselect(key);
+    } else if ((op === 1) === (onTap === 1)) {
+      pactSelect(key);
+    } else {
+      pactViewInfo(key);
+    }
+  }
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  if (showing === PactSideLook.INFO) {
+    pactHideTooltip();
+  }
+}
+
+function deselectAdd(key: Int): void {
+  const word: Int = key / 32;
+  const bit: Int = key % 32;
+  if (word === 0) {
+    const [w0, setW0] = useState(pactDeselect0);
+    setW0(CS2.bit_set(w0, bit));
+  } else if (word === 1) {
+    const [w1, setW1] = useState(pactDeselect1);
+    setW1(CS2.bit_set(w1, bit));
+  } else if (word === 2) {
+    const [w2, setW2] = useState(pactDeselect2);
+    setW2(CS2.bit_set(w2, bit));
+  } else if (word === 3) {
+    const [w3, setW3] = useState(pactDeselect3);
+    setW3(CS2.bit_set(w3, bit));
+  } else if (word === 4) {
+    const [w4, setW4] = useState(pactDeselect4);
+    setW4(CS2.bit_set(w4, bit));
+  }
+}
+
+function pactSelect(key: Int): void {
+  pactHideTooltip();
+  const [pending, setPending] = useState(pactPending);
+  const [rootRule] = useState(pactRootRule);
+  const [, setCount] = useState(talentTreeSelectedNodeAmount);
+  const earned: Int = useServerState(Varps.VARP_5484);
+  const spent: Int = useServerState(Varps.VARP_5486);
+  const taken: Int = runCount(pending);
+  if (spent + taken >= earned) {
+    chatMessage("<col=ff0000>You're unable to select any additional nodes.");
+    playSound(PactSound.REFUSED);
+    return;
+  }
+  const state: Int = pactNodeState(key, earned, spent, pending, rootRule);
+  if (state === PactState.SELECTED) {
+    chatMessage('<col=ff0000>This pact has already been selected.');
+    playSound(PactSound.REFUSED);
+    return;
+  } else if (state === PactState.ACTIVE) {
+    chatMessage('<col=ff0000>This pact is already active.');
+    playSound(PactSound.REFUSED);
+    return;
+  } else if (state === PactState.LOCKED) {
+    chatMessage('<col=ff0000>This pact cannot currently be selected, you must select / activate nearby pacts first.');
+    playSound(PactSound.REFUSED);
+    return;
+  }
+  if (keySize(key) === 3) {
+    playSound(PactSound.SELECT_LARGE);
+  } else {
+    playSound(PactSound.SELECT);
+  }
+  const next: String = `${pending}${keyRun(key)}`;
+  setCount(taken + 1);
+  if (key > 0) {
+    deselectAdd(key);
+  }
+  setPending(next);
+
+  const [bar, setBar] = useState(pactBarKind);
+  const [, setCounted] = useState(pactBarCounted);
+  if (bar === PactBar.HIDDEN) {
+    setBar(PactBar.PENDING);
+    setCounted(0);
+  } else {
+    setCounted(1);
+  }
+  if (!pactUnlocked(ROOT_NODE) && useServerState(Varbits.LEAGUE_TUTORIAL_COMPLETED) < TUTORIAL_DONE) {
+    const [, setPulsing] = useState(pactPulsing);
+    setPulsing(0);
+  }
+}
+
+function pactDeselect(key: Int): void {
+  playSound(PactSound.UNDO);
+  pactHideTooltip();
+  const [pending, setPending] = useState(pactPending);
+  const [, setCount] = useState(talentTreeSelectedNodeAmount);
+  if (runCount(pending) <= 0) {
+    return;
+  }
+  const at: Int = runIndexOf(pending, key);
+  if (at === -1) {
+    errorMessage(`Unable to find selected node ${key} within the data layer`);
+    return;
+  }
+  const kept: String = pending.substring(0, at * 3);
+  setPending(kept);
+  setCount(at);
+  const [, setRootRule] = useState(pactRootRule);
+  setRootRule(0);
+  const [, setBar] = useState(pactBarKind);
+  const [, setCounted] = useState(pactBarCounted);
+  if (at > 0) {
+    setCounted(1);
+  } else {
+    setBar(PactBar.HIDDEN);
+    setCounted(0);
+  }
+}
+
+function pactHideTooltip(): void {
+  const [, setShown] = useState(pactTipShown);
+  setShown(0);
+}
+
+function pactTooltipGone(): void {
+  const [, setShown] = useState(pactTipShown);
+  const [, setKey] = useState(pactTipKey);
+  const [, setText] = useState(pactTipText);
+  const [, setTimed] = useState(pactTipTimed);
+  const [, setBuilt] = useState(tooltipBuilt);
+  setShown(0);
+  setKey(-1);
+  setText('');
+  setTimed(0);
+  setBuilt(0);
+}
+
+function nodeTip(key: Int): String {
+  const [hotfix] = useState(pactHotfix);
+  const [zoom] = useState(talentTreeZoomScalar);
+  return pactTooltip(key, hotfix, zoomOf(zoom), pactDebugIds());
+}
+
+function clampTo(v: Int, limit: Int): Int {
+  return Math.min(Math.max(0, v), limit);
+}
+
+function tipLeft(key: Int): Int {
+  const [zoomRaw] = useState(talentTreeZoomScalar);
+  const [sxRaw] = useState(talentTreeHorizontalScrollPos);
+  const [x] = useState(talentTreeOverlayX);
+  const [y] = useState(talentTreeOverlayY);
+  const [w] = useState(talentTreeOverlayWidth);
+  const [h] = useState(talentTreeOverlayHeight);
+  const zoom: Int = zoomOf(zoomRaw);
+  const extent: Int = pactPaneExtent(zoom);
+  const side: Int = pactNodeSide(keySize(key), zoom);
+  const [px, py, pw, ph] = floaterPlaced(TALENT_TREE_FLOATER, x, y, w, h);
+  const rootW: Int = talentTreeRef.width;
+  const paneW: Int = pw - 12;
+  const sx: Int = clampTo(sxRaw, Math.max(0, extent - paneW));
+  let v: Int = clampTo((extent - side) / 2 + keyX(key, zoom), extent);
+  v = clampTo(v - sx, paneW);
+  v = clampTo(v, paneW) + 6;
+  v = clampTo(v, pw) + px;
+  return clampTo(v, rootW);
+}
+
+function tipTop(key: Int, bottom: Boolean): Int {
+  const [zoomRaw] = useState(talentTreeZoomScalar);
+  const [syRaw] = useState(talentTreeVerticalScrollPos);
+  const [x] = useState(talentTreeOverlayX);
+  const [y] = useState(talentTreeOverlayY);
+  const [w] = useState(talentTreeOverlayWidth);
+  const [h] = useState(talentTreeOverlayHeight);
+  const zoom: Int = zoomOf(zoomRaw);
+  const extent: Int = pactPaneExtent(zoom);
+  const side: Int = pactNodeSide(keySize(key), zoom);
+  const [px, py, pw, ph] = floaterPlaced(TALENT_TREE_FLOATER, x, y, w, h);
+  const rootH: Int = talentTreeRef.height;
+  const paneH: Int = ph - 41;
+  const sy: Int = clampTo(syRaw, Math.max(0, extent - paneH));
+  let v: Int = (extent - side) / 2 + keyY(key, zoom);
+  if (bottom) {
+    v = v + side;
+  }
+  v = clampTo(v, extent);
+  v = clampTo(v - sy, paneH);
+  v = clampTo(v, paneH) + (ph - 6 - paneH);
+  v = clampTo(v, ph) + py;
+  return clampTo(v, rootH);
+}
+
+function pactTooltipShow(key: Int, text: String, timed: Boolean): void {
+  const layerW: Int = pactTipLayerRef.width;
+  const layerH: Int = pactTipLayerRef.height;
+  const wrap: Int = Math.min(512, layerW) - 18;
+  const tipW: Int = 18 + textWidth(text, wrap, PactFont.SMALL);
+  const tipH: Int = 14 + 16 * textLineCount(text, wrap, PactFont.SMALL);
+  const top: Int = tipTop(key, false);
+  let tx: Int = tipLeft(key) + 5;
+  let ty: Int = tipTop(key, true) + 5;
+  if (tx > layerW - tipW) {
+    tx = layerW - tipW;
+  }
+  if (ty > layerH - tipH) {
+    ty = top - tipH - 5;
+  }
+  const [, setX] = useState(pactTipX);
+  const [, setY] = useState(pactTipY);
+  const [, setW] = useState(pactTipW);
+  const [, setH] = useState(pactTipH);
+  const [, setShown] = useState(pactTipShown);
+  const [, setBuilt] = useState(tooltipBuilt);
+  const [, setText] = useState(pactTipText);
+  setX(tx);
+  setY(ty);
+  setW(tipW);
+  setH(tipH);
+  setText(text);
+  setShown(1);
+  if (timed) {
+    const [, setKey] = useState(pactTipKey);
+    const [, setTimed] = useState(pactTipTimed);
+    setKey(key);
+    setTimed(1);
+  }
+  setBuilt(1);
+}
+
+function pactHover(key: Int): void {
+  if (onEnhancedMobile()) {
+    return;
+  }
+  const enhanced: Boolean = enhancedAny();
+  const clock: Int = clientClock();
+  const text: String = nodeTip(key);
+  if (!enhanced) {
+    const [, setSeen] = useState(pactTipSeen);
+    setSeen(clock);
+    const [tipKey] = useState(pactTipKey);
+    const [tipText] = useState(pactTipText);
+    if (tipKey !== -1) {
+      if (tipKey !== key || CS2.compare(tipText, text) !== 0) {
+        pactTooltipGone();
+      }
+    }
+  }
+  const [time, setTime] = useState(tooltipTime);
+  if (!enhanced && time < clock + 25) {
+    let next: Int = time;
+    if (next < clock) {
+      next = clock;
+    }
+    setTime(next + 2);
+    return;
+  }
+  setTime(clock + 25 + 10);
+  const [built] = useState(tooltipBuilt);
+  if (built === 0) {
+    pactTooltipShow(key, text, !enhanced);
+  }
+}
+
+function pactViewInfo(key: Int): void {
+  if (onEnhancedDesktop()) {
+    return;
+  }
+  pactTooltipShow(key, nodeTip(key), false);
+}
+
+function PactTooltip(): Component {
+  const [shown] = useState(pactTipShown);
+  const [text] = useState(pactTipText);
+  const [x] = useState(pactTipX);
+  const [y] = useState(pactTipY);
+  const [w] = useState(pactTipW);
+  const [h] = useState(pactTipH);
+  const box = useRef();
+  useInterval(() => {
+    const [timed] = useState(pactTipTimed);
+    const [seen] = useState(pactTipSeen);
+    if (timed === 1 && seen !== -1 && !enhancedAny()) {
+      if (clientClock() - seen > 1) {
+        pactTooltipGone();
+      }
+    }
+  }, box);
+  const boxX: Int = x;
+  const boxY: Int = y;
+  const boxW: Int = w;
+  const boxH: Int = h;
+  onMounted(() => {
+    pactTipRef.props = { hide: false, x: boxX, y: boxY, w: boxW, h: boxH };
+  });
+  onUpdated(() => {
+    pactTipRef.props = { hide: false, x: boxX, y: boxY, w: boxW, h: boxH };
+  });
+  return (
+    <layer ref={box} x={0} y={0} w="fill" h="fill">
+      {shown === 1 && (
+        <>
+          <sprite x="center" y="center" w="fill" h="fill" sprite={PactSprite.STRIPE} tiling />
+          <sprite x="left" y="top" w={9} h={9} sprite={PactSprite.TIP_TOP_LEFT} />
+          <sprite x="right" y="top" w={9} h={9} sprite={PactSprite.TIP_TOP_RIGHT} />
+          <sprite x="left" y="bottom" w={9} h={9} sprite={PactSprite.TIP_BOTTOM_LEFT} />
+          <sprite x="right" y="bottom" w={9} h={9} sprite={PactSprite.TIP_BOTTOM_RIGHT} />
+          <sprite x="left" y="center" w={9} h={{ fill: 18 }} sprite={PactSprite.TIP_LEFT} />
+          <sprite x="center" y="top" w={{ fill: 18 }} h={9} sprite={PactSprite.TIP_TOP} />
+          <sprite x="right" y="center" w={9} h={{ fill: 18 }} sprite={PactSprite.TIP_RIGHT} />
+          <sprite x="center" y="bottom" w={{ fill: 18 }} h={9} sprite={PactSprite.TIP_BOTTOM} />
+          <text
+            x="center"
+            y="center"
+            w={{ fill: 14 }}
+            h={{ fill: 8 }}
+            font={PactFont.SMALL}
+            shadow
+            align="left"
+            valign="middle"
+            lineHeight={16}
+            color={PactColour.WHITE}
+            text={text}
+          />
+        </>
+      )}
+    </layer>
+  );
+}
+
+const enum PactAction {
+  ZOOM = 0,
+  RESET = 1,
+  INFO_TAP = 2,
+  SHOW_INFO = 3,
+  HIDE_INFO = 4,
+  BAR_APPLY = 5,
+  BAR_UNDO = 6,
+}
+
+function pactButtonPick(action: Int, arg: Int, component: ComponentId): void {
+  if (action === PactAction.ZOOM) {
+    pactHideTooltip();
+    pactZoom(arg);
+  } else if (action === PactAction.RESET) {
+    pactHideTooltip();
+    if (pactResetAllowed()) {
+      CS2.if_runscript(PactServerScript.RESET, component, -1, '');
+    }
+  } else if (action === PactAction.INFO_TAP) {
+    pactHideTooltip();
+    pactToggleInfoOnTap();
+  } else if (action === PactAction.SHOW_INFO) {
+    pactHideTooltip();
+    pactShowInfo(true);
+  } else if (action === PactAction.HIDE_INFO) {
+    pactHideTooltip();
+    pactShowInfo(false);
+  } else if (action === PactAction.BAR_APPLY) {
+    pactBarApply(arg);
+  } else if (action === PactAction.BAR_UNDO) {
+    pactBarUndo();
+  }
+}
+
+function PactButton({
+  label,
+  option,
+  subject,
+  disabled,
+  action,
+  arg,
+}: {
+  label: String;
+  option: String;
+  subject: String;
+  disabled: Boolean;
+  action: Int;
+  arg: Int;
+}): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const style: Int = 0;
+  const worn: Int = wornStyle(style, 0);
+  const baseHover: Int = hoverSkin(style);
+  const shownHover: Int = wornHoverSkin(style, 0);
+  let ink: Int = Colour.ORANGE;
+  let op: String = option;
+  if (disabled) {
+    ink = Colour.GREY;
+    op = '';
+  }
+  let clickable: Boolean = true;
+  if (disabled && !clickWhenDisabled(worn)) {
+    clickable = false;
+  }
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      noClickThrough
+      optionSubject={subject}
+      options={[op]}
+      onOptionSelect={(event) => {
+        pactButtonPick(action, arg, event.component);
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onMouseEnter={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  hoverLayer.hide = false;
+                }
+              }
+        }
+        onMouseLeave={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                hoverLayer.hide = true;
+              }
+        }
+        onClick={
+          clickable
+            ? () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (disabled) {
+                  playSound(FloaterSounds.REFUSED);
+                  return;
+                }
+                pressedLayer.hide = false;
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+            : null
+        }
+        onRelease={
+          disabled
+            ? null
+            : () => {
+                pressedLayer.hide = true;
+              }
+        }
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      {baseHover !== NONE && (
+        <layer ref={hoverLayer} w="fill" h="fill" hide>
+          <SkinPieces skin={shownHover} />
+        </layer>
+      )}
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      {label.length > 0 && (
+        <text
+          x={Layout.LABEL_INSET}
+          y={Layout.LABEL_INSET}
+          w={{ fill: Layout.LABEL_SHRINK }}
+          h={{ fill: Layout.LABEL_SHRINK }}
+          font={FloaterFonts.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+          color={ink}
+          text={label}
+        />
+      )}
+    </layer>
+  );
+}
+
+function StoneBack(): Component {
+  return (
+    <>
+      <sprite x={1} y={1} w="fill" h="fill" sprite={PactSprite.BACKDROP} tiling />
+      <StoneBox skin={StoneBoxSkin.ORNATE} />
+    </>
+  );
+}
+
+function summaryHeight(resets: Int, mobile: Boolean): Int {
+  let y: Int = 42 + 33;
+  if (resets > 0) {
+    y = y + 20;
+  }
+  y = y + 33;
+  if (mobile) {
+    y = y + 45;
+  }
+  return y + 45 + 20;
+}
+
+function PactSideBack(): Component {
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  const resets: Int = pactResets();
+  const mobile: Boolean = onMobile();
+  const summary: Boolean = showing !== PactSideLook.INFO;
+  const boxH: Int = summaryHeight(resets, mobile);
+  onMounted(() => {
+    if (summary) {
+      pactSideRef.props = { hide: false, x: { right: 15 }, y: 45, w: 124, h: boxH };
+    }
+  });
+  onUpdated(() => {
+    if (summary) {
+      pactSideRef.props = { hide: false, x: { right: 15 }, y: 45, w: 124, h: boxH };
+    }
+  });
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <StoneBack />
+    </layer>
+  );
+}
+
+function PactSideContent(): Component {
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {showing === PactSideLook.INFO ? <PactInfoHeading /> : <PactSummaryContent />}
+    </layer>
+  );
+}
+
+function PactSummaryContent(): Component {
+  const earned: Int = useServerState(Varps.VARP_5484);
+  const spent: Int = useServerState(Varps.VARP_5486);
+  const resets: Int = pactResets();
+  const [zoomRaw] = useState(talentTreeZoomScalar);
+  const [onTap] = useState(talentTreeMobileOpToggle);
+  const zoom: Int = zoomOf(zoomRaw);
+  const mobile: Boolean = onMobile();
+  let resetY: Int = 75;
+  if (resets > 0) {
+    resetY = 95;
+  }
+  let expandY: Int = resetY + 33;
+  if (mobile) {
+    expandY = expandY + 45;
+  }
+  let tap: String = 'Info on tap <col=229628>(On)</col>';
+  if (onTap === 1) {
+    tap = 'Info on tap <col=ff3045>(Off)</col>';
+  }
+  let resetText: String = `${resets} resets available`;
+  if (resets === 1) {
+    resetText = `${resets} reset available`;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={22}
+        font={PactFont.SMALL}
+        shadow
+        align="center"
+        valign="middle"
+        color={PactColour.ORANGE}
+        text={`${earned} pacts earned`}
+      />
+      <text
+        x="center"
+        y={20}
+        w="fill"
+        h={22}
+        font={PactFont.SMALL}
+        shadow
+        align="center"
+        valign="middle"
+        color={PactColour.ORANGE}
+        text={`${spent} pacts spent`}
+      />
+      <layer x={10} y={42} w={28} h={28}>
+        <PactButton
+          label="+"
+          option="Zoom In"
+          subject="<col=ff9040>View</col>"
+          disabled={zoom >= 250}
+          action={PactAction.ZOOM}
+          arg={zoom + 25}
+        />
+      </layer>
+      <layer x={{ right: 10 }} y={42} w={28} h={28}>
+        <PactButton
+          label="-"
+          option="Zoom Out"
+          subject="<col=ff9040>View</col>"
+          disabled={zoom <= 100}
+          action={PactAction.ZOOM}
+          arg={zoom - 25}
+        />
+      </layer>
+      {resets > 0 && (
+        <text
+          x="center"
+          y={75}
+          w="fill"
+          h={22}
+          font={PactFont.SMALL}
+          shadow
+          align="center"
+          valign="middle"
+          color={PactColour.ORANGE}
+          text={resetText}
+        />
+      )}
+      <layer x="center" y={resetY} w={{ fill: 20 }} h={28}>
+        <PactButton
+          label="Reset Pacts"
+          option="Reset"
+          subject="<col=ff9040>Pacts</col>"
+          disabled={resets <= 0}
+          action={PactAction.RESET}
+          arg={0}
+        />
+      </layer>
+      {mobile && (
+        <layer x="center" y={resetY + 33} w={{ fill: 20 }} h={38}>
+          <PactButton
+            label={tap}
+            option="Toggle"
+            subject="<col=ff9040>Info on tap</col>"
+            disabled={false}
+            action={PactAction.INFO_TAP}
+            arg={0}
+          />
+        </layer>
+      )}
+      <layer x="center" y={expandY} w={{ fill: 20 }} h={38}>
+        <PactButton
+          label="Active Pact<br>Information"
+          option="Expand Active Pact Information"
+          subject=""
+          disabled={false}
+          action={PactAction.SHOW_INFO}
+          arg={0}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function PactInfoHeading(): Component {
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer x="right" y={0} w={60} h={30}>
+        <PactButton
+          label="Hide Info"
+          option="Hide Information Panel"
+          subject=""
+          disabled={false}
+          action={PactAction.HIDE_INFO}
+          arg={0}
+        />
+      </layer>
+      <text
+        x={0}
+        y={0}
+        w={{ fill: 60 }}
+        h={30}
+        font={PactFont.BOLD}
+        shadow
+        align="center"
+        valign="middle"
+        color={PactColour.ORANGE}
+        text="Active Pact Info"
+      />
+      <line x={0} y={30} w="fill" h={0} lineWidth={1} color={0x000000} />
+    </layer>
+  );
+}
+
+function accuracySoFar(style: Int): Int {
+  let total: Int = pactEffectLevel(14) * 10;
+  if (style === PactStyle.MELEE) {
+    return total;
+  }
+  total = total + pactEffectLevel(15) * 10;
+  if (style === PactStyle.RANGED) {
+    return total;
+  }
+  return total + pactEffectLevel(7) * 10;
+}
+
+function accuracyRowShown(style: Int): Boolean {
+  if (style !== PactStyle.NEUTRAL) {
+    return false;
+  }
+  if (pactEffectLevel(12) > 0) {
+    return false;
+  }
+  return accuracySoFar(style) > 0;
+}
+
+function styleShown(style: Int): Boolean {
+  const count: Int = PactInfoRows.length;
+  let i: Int = 0;
+  while (i < count) {
+    const row: PactInfoRow | null = PactInfoRows.at(i);
+    if (row !== null) {
+      if (row.kind === 3) {
+        if (row.style === style) {
+          if (pactEffectLevel(row.effect) > 0) {
+            return true;
+          }
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return accuracyRowShown(style);
+}
+
+function infoShown(row: PactInfoRow, count: Int, spent: Int): Boolean {
+  const any: Boolean = count > 0 || spent > 0;
+  if (row.kind === 5) {
+    return !any;
+  }
+  if (!any) {
+    return false;
+  }
+  if (row.kind === 0) {
+    return count > 0;
+  } else if (row.kind === 1) {
+    return row.effect < count;
+  } else if (row.kind === 2) {
+    return styleShown(row.style);
+  } else if (row.kind === 3) {
+    return pactEffectLevel(row.effect) > 0;
+  } else if (row.kind === 4) {
+    return accuracyRowShown(row.style);
+  }
+  return false;
+}
+
+function infoText(row: PactInfoRow, pending: String, hotfix: String): String {
+  if (row.kind === 1) {
+    const key: Int = runAt(pending, row.effect);
+    return pactFormat(pactEffectText(key, hotfix, false), `${pactEffectValue(key, hotfix)}`);
+  } else if (row.kind === 2) {
+    return `Active ${pactStyleName(row.style)} effects`;
+  } else if (row.kind === 3) {
+    let text: String = hotfixText(hotfix, row.effect);
+    if (text.length === 0) {
+      text = row.text;
+    }
+    let level: Int = pactEffectLevel(row.effect);
+    if (row.effect === 12) {
+      level = level + accuracySoFar(row.style);
+    }
+    return pactFormat(`<col=ffffff>-</col> ${text}`, `${level}`);
+  } else if (row.kind === 4) {
+    return pactFormat(`<col=ffffff>-</col> ${row.text}`, `${accuracySoFar(row.style)}`);
+  }
+  return row.text;
+}
+
+function infoHeading(row: PactInfoRow): Boolean {
+  return row.kind === 0 || row.kind === 2 || row.kind === 5;
+}
+
+function infoFont(row: PactInfoRow): Font {
+  if (infoHeading(row)) {
+    return PactFont.BOLD;
+  }
+  return PactFont.SMALL;
+}
+
+function infoColour(row: PactInfoRow): Int {
+  if (infoHeading(row)) {
+    return PactColour.WHITE;
+  }
+  return PactColour.ORANGE;
+}
+
+function infoHeight(row: PactInfoRow, pending: String, hotfix: String): Int {
+  let lines: Int = textLineCount(`${infoText(row, pending, hotfix)}TEST`, INFO_WIDTH - 4, infoFont(row));
+  if (lines > 8) {
+    lines = lines - 1;
+  }
+  let h: Int = 15 * lines + 4;
+  if (infoHeading(row)) {
+    h = h + 6;
+  }
+  return h;
+}
+
+function infoTotal(count: Int, spent: Int, pending: String, hotfix: String): Int {
+  let y: Int = 2;
+  const rows: Int = PactInfoRows.length;
+  let i: Int = 0;
+  while (i < rows) {
+    const row: PactInfoRow | null = PactInfoRows.at(i);
+    if (row !== null) {
+      if (infoShown(row, count, spent)) {
+        y = y + infoHeight(row, pending, hotfix);
+        if (row.kind === 5) {
+          y = y + 20;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return y + 22;
+}
+
+function PactInfoRowsHost(): Component {
+  const [pending] = useState(pactPending);
+  return <PactInfoRowsBody pending={pending} />;
+}
+
+function PactInfoRowsBody({ pending }: { pending: String }): Component {
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  const spent: Int = useServerState(Varps.VARP_5486);
+  const [hotfix] = useState(pactHotfix);
+  const [x] = useState(talentTreeOverlayX);
+  const [y] = useState(talentTreeOverlayY);
+  const [w] = useState(talentTreeOverlayWidth);
+  const [h] = useState(talentTreeOverlayHeight);
+  const [px, py, pw, ph] = floaterPlaced(TALENT_TREE_FLOATER, x, y, w, h);
+  const info: Boolean = showing === PactSideLook.INFO;
+  const taken: Int = runCount(pending);
+  const total: Int = infoTotal(taken, spent, pending, hotfix);
+  const boxH: Int = Math.max(Math.min(total + 30, ph - 41 - 100), 165);
+  const [, setExtent] = useState(pactInfoExtent);
+  const [, setPaneHeight] = useState(pactInfoPaneHeight);
+  if (info) {
+    pactInfoPaneRef.scrollHeight = total - 20;
+    setExtent(total - 20);
+    setPaneHeight(boxH - 16 - 30);
+  }
+  onMounted(() => {
+    if (info) {
+      pactSideRef.props = { hide: false, x: { right: 15 }, y: 45, w: INFO_WIDTH + 16, h: boxH };
+      pactInfoPaneRef.props = { hide: false, x: 0, y: 30, w: { fill: 16 }, h: { fill: 30 } };
+      pactInfoBarRef.props = { hide: false, x: { right: 10 }, y: 45, w: 16, h: { fill: 55 } };
+    }
+  });
+  onUpdated(() => {
+    if (info) {
+      pactSideRef.props = { hide: false, x: { right: 15 }, y: 45, w: INFO_WIDTH + 16, h: boxH };
+      pactInfoPaneRef.props = { hide: false, x: 0, y: 30, w: { fill: 16 }, h: { fill: 30 } };
+      pactInfoBarRef.props = { hide: false, x: { right: 10 }, y: 45, w: 16, h: { fill: 55 } };
+    }
+  });
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {info &&
+        PactInfoRows.filter((row) => infoShown(row, taken, spent)).scan(
+          (row, i, top, stripe) => (
+            <>
+              {stripe % 2 === 0 && (
+                <sprite x={0} y={top} w="fill" h={infoHeight(row, pending, hotfix)} sprite={PactSprite.STRIPE} />
+              )}
+              <text
+                x={0}
+                y={top}
+                w="fill"
+                h={infoHeight(row, pending, hotfix)}
+                font={infoFont(row)}
+                shadow
+                align="left"
+                valign="middle"
+                color={infoColour(row)}
+                text={infoText(row, pending, hotfix)}
+              />
+            </>
+          ),
+          [(row) => infoHeight(row, pending, hotfix), (row) => 1],
+          [2, 1],
+        )}
+    </layer>
+  );
+}
+
+function PactInfoBar(): Component {
+  const [showing] = useState(talentTreeShowingInfoPanel);
+  const [extent] = useState(pactInfoExtent);
+  const [paneHeight] = useState(pactInfoPaneHeight);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {showing === PactSideLook.INFO && (
+        <layer x={0} y={0} w="fill" h="fill">
+          <InfoScrollbar extent={extent} paneHeight={paneHeight} />
+        </layer>
+      )}
+    </layer>
+  );
+}
+
+function barText(kind: Int, counted: Int, count: Int): String {
+  if (counted === 1) {
+    return `${count} pending pact changes`;
+  }
+  if (kind === PactBar.CONFIRM) {
+    return `Are you sure you wish to apply your ${count} pending pact changes?`;
+  } else if (kind === PactBar.WARN) {
+    return "<col=e00a19>It's strongly reccomended you pick a Melee, Ranged or Magic style node</col>";
+  }
+  return '1 pending pact change';
+}
+
+function PactBarBack(): Component {
+  const [kind] = useState(pactBarKind);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" noClickThrough={kind !== PactBar.HIDDEN}>
+      <StoneBack />
+    </layer>
+  );
+}
+
+function PactBarContent(): Component {
+  const [kind] = useState(pactBarKind);
+  const [counted] = useState(pactBarCounted);
+  const [count] = useState(talentTreeSelectedNodeAmount);
+  let colour: Int = PactColour.ORANGE;
+  if (kind === PactBar.CONFIRM || kind === PactBar.WARN) {
+    colour = PactColour.CONFIRM;
+  }
+  let apply: String = 'Apply Changes';
+  let undo: String = 'Undo Changes';
+  if (kind === PactBar.CONFIRM) {
+    apply = 'Yes, Apply Changes';
+    undo = 'No, Undo Changes';
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={28}
+        font={PactFont.SMALL}
+        shadow
+        align="center"
+        valign="middle"
+        color={colour}
+        text={barText(kind, counted, count)}
+      />
+      <layer x={{ center: 55 }} y={{ bottom: 4 }} w={100} h={31}>
+        <PactButton label={apply} option={apply} subject="" disabled={false} action={PactAction.BAR_APPLY} arg={kind} />
+      </layer>
+      <layer x={{ center: -55 }} y={{ bottom: 4 }} w={100} h={31}>
+        <PactButton label={undo} option={undo} subject="" disabled={false} action={PactAction.BAR_UNDO} arg={0} />
+      </layer>
+    </layer>
+  );
+}
+
+function pactBarApply(kind: Int): void {
+  const [, setBar] = useState(pactBarKind);
+  const [, setCounted] = useState(pactBarCounted);
+  if (kind === PactBar.PENDING) {
+    setBar(PactBar.CONFIRM);
+    setCounted(0);
+    playSound(PactSound.APPLY);
+    return;
+  }
+  playSound(PactSound.APPLY);
+  if (kind === PactBar.CONFIRM) {
+    pactApply(0);
+  } else {
+    pactApply(1);
+  }
+}
+
+function pactBarUndo(): void {
+  playSound(PactSound.UNDO);
+  talentTreeOpen(0);
+}
+
+function pactApply(force: Int): void {
+  let forced: Int = force;
+  if (useServerState(Varbits.VARBIT_20359) === 1) {
+    forced = 1;
+  }
+  const [pending] = useState(pactPending);
+  if (forced === 0) {
+    const risky: Boolean = runHas(pending, 51) || runHas(pending, 75) || runHas(pending, 76);
+    const styled: Boolean = runHas(pending, 37) || runHas(pending, 63) || runHas(pending, 1);
+    if (risky && !styled) {
+      if (!pactUnlocked(37) && !pactUnlocked(63) && !pactUnlocked(1)) {
+        const [, setBar] = useState(pactBarKind);
+        const [, setCounted] = useState(pactBarCounted);
+        setBar(PactBar.WARN);
+        setCounted(0);
+        return;
+      }
+    }
+  }
+  const count: Int = runCount(pending);
+  const keys: AnyArray = CS2.array_create(INT_ARRAY, 0, count - 1);
+  let i: Int = 0;
+  while (i < count) {
+    CS2.array_push(runAt(pending, i), keys);
+    i = i + 1;
+  }
+  CS2.if_runscript(PactServerScript.APPLY, pactDataLayerRef, -1, keys as unknown as Int, '*');
+}

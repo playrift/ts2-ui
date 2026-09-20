@@ -1,0 +1,1338 @@
+import { CS2, onMounted, onUpdated, useInterval, useRef, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { clientClock, playSound, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { BallotFont, BallotPage, BallotRowGap, BallotRowLayout, ballotVotePaneRef } from './ballot.constants';
+import { ballotQuestionIsWide, ballotSetVoteContentTotal, ballotVotePaneLive } from './ballot.entry';
+import { ballotQuestionLabelWidth } from './ballot.helpers';
+import { BallotQuestion } from './ballot.layout';
+import {
+  ballotPage,
+  ballotVoteContentShown,
+  ballotQ0Text,
+  ballotQ1Text,
+  ballotQ2Text,
+  ballotQ3Text,
+  ballotQ4Text,
+  ballotQ5Text,
+  ballotQ6Text,
+  ballotQ7Text,
+} from './ballot.state';
+import { VoteRank } from './vote.rank.component';
+import {
+  VOTE_MAX_ANSWERS,
+  VOTE_MAX_QUESTIONS,
+  VOTE_NULL_TEXT,
+  VOTE_SKIP_COLUMN_LABEL,
+  VOTE_SKIP_ROW_LABEL,
+  VoteKind,
+  VoteMetric,
+  VoteServerScript,
+  VoteTextMode,
+  voteBlobAnswer,
+  voteBlobLabel,
+  voteContainerFlags,
+  voteRowHeight,
+  voteTextHeight,
+  voteGridColumnCount,
+  voteGridColumnIndex,
+  voteGridColumnLabel,
+  voteGridHoverColumn,
+  voteGridHoverItem,
+  voteGridHoverQuestion,
+  voteGridItemChoice,
+  voteGridItemCount,
+  voteGridItemIndex,
+  voteGridItemLabel,
+  voteGridItemSkippable,
+  voteShapeGridSkipColumn,
+  voteQ0Answer,
+  voteQ0Blob,
+  voteQ0Shape,
+  voteQ1Answer,
+  voteQ1Blob,
+  voteQ1Shape,
+  voteQ2Answer,
+  voteQ2Blob,
+  voteQ2Shape,
+  voteQ3Answer,
+  voteQ3Blob,
+  voteQ3Shape,
+  voteQ4Answer,
+  voteQ4Blob,
+  voteQ4Shape,
+  voteQ5Answer,
+  voteQ5Blob,
+  voteQ5Shape,
+  voteQ6Answer,
+  voteQ6Blob,
+  voteQ6Shape,
+  voteQ7Answer,
+  voteQ7Blob,
+  voteQ7Shape,
+  voteRankHeight,
+  voteRankOrder,
+  voteRankSend,
+  voteShapeCount,
+  voteShapeKind,
+  voteShapeReadOnly,
+  voteShapeSkip,
+  voteShapeSkipped,
+  voteStackHeightBlob,
+} from './vote.state';
+
+const VoteColour = {
+  LABEL: 0xff981f,
+  LABEL_DISABLED: 0x808080,
+  LABEL_SKIP: 0xafafaf,
+  LABEL_HOVER: 0xffffff,
+  HIT: 0xffffff,
+} as const;
+
+const VoteSprite = {
+  RADIO: Sprites.OPTIONS_RADIO_BUTTONS_4,
+  RADIO_ON: Sprites.OPTIONS_RADIO_BUTTONS_6,
+  CHECK: Sprites.CHECKBOX_3,
+  CHECK_ON: Sprites.CHECKBOX_5,
+} as const;
+
+const VoteRowMetric = {
+  BUTTON: 17,
+  BUTTON_MULTI: 16,
+  HIT_REST: 255,
+  HIT_FLASH: 220,
+  FLASH_CYCLES: 25,
+} as const;
+
+export const VOTE_OPEN_STATES = { FIRST: 3, SECOND: 4 } as const;
+
+export const VoteTransmit = {
+  SELECT: 0,
+  TEXT_SKIP: 1,
+  MATRIX_SKIP: 2,
+  RANK_SKIP: 3,
+  MULTI_SELECT: 4,
+} as const;
+
+const VOTE_ANSWER_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+] as const;
+
+interface VoteAnswerRowProps {
+  label: String;
+  answer: Int;
+  question: Int;
+  y: Int;
+  h: Int;
+  enabled: Boolean;
+  multi: Boolean;
+  selected: Boolean;
+  votable: Boolean;
+  transmit: Int;
+  rankBlob?: String;
+  rankRows?: Int;
+}
+
+export function VoteAnswerRow({
+  label,
+  answer,
+  question,
+  y,
+  h,
+  enabled,
+  multi,
+  selected,
+  votable,
+  transmit,
+  rankBlob = '',
+  rankRows = 0,
+}: VoteAnswerRowProps): Component {
+  const row = useRef();
+  const [hover, setHover] = useState(0);
+  const [flashUntil, setFlashUntil] = useState(-1);
+
+  const flashing: Boolean = flashUntil !== -1;
+
+  useInterval(
+    flashing
+      ? () => {
+          if (clientClock() >= flashUntil) {
+            setFlashUntil(-1);
+          }
+        }
+      : undefined,
+    row,
+  );
+
+  const sprite: Sprite = multi
+    ? selected
+      ? VoteSprite.CHECK_ON
+      : VoteSprite.CHECK
+    : selected
+      ? VoteSprite.RADIO_ON
+      : VoteSprite.RADIO;
+
+  const painted: Int = !enabled ? VoteColour.LABEL_DISABLED : answer === -1 ? VoteColour.LABEL_SKIP : VoteColour.LABEL;
+
+  const deselect: Boolean = multi && selected && answer !== -1;
+
+  const button: Int = multi ? VoteRowMetric.BUTTON_MULTI : VoteRowMetric.BUTTON;
+
+  return (
+    <layer
+      ref={row}
+      x={0}
+      y={y}
+      w="fill"
+      h={h}
+      options={[deselect ? 'De-select' : 'Select']}
+      optionSubject={`<col=ff9040>${CS2.tags_remove(label)}</col>`}
+      onOptionSelect={(event) => {
+        if (!votable) {
+          playSound(Sounds.PILLORY_WRONG);
+          return;
+        }
+        if (!enabled) {
+          if (transmit === VoteTransmit.TEXT_SKIP) {
+            CS2.if_runscript(
+              VoteServerScript.TEXT,
+              event.component,
+              event.subId,
+              question,
+              VoteTextMode.SKIP,
+              VOTE_NULL_TEXT,
+              'iis',
+            );
+          } else if (transmit === VoteTransmit.MATRIX_SKIP) {
+            CS2.if_runscript(VoteServerScript.MATRIX, event.component, event.subId, question, -1, -1, 'iii');
+          } else if (transmit === VoteTransmit.RANK_SKIP) {
+            voteRankSend(question, voteRankOrder(rankBlob, 0), event.component, event.subId);
+          } else if (transmit === VoteTransmit.MULTI_SELECT) {
+            CS2.if_runscript(VoteServerScript.MULTI_SELECT, event.component, event.subId, question, -1, 1, 'iii');
+          } else {
+            CS2.if_runscript(VoteServerScript.SELECT, event.component, event.subId, question, -1, 'ii');
+          }
+          return;
+        }
+        if (transmit !== VoteTransmit.MULTI_SELECT) {
+          playSound(Sounds.INTERFACE_SELECT1);
+        }
+        setFlashUntil(clientClock() + VoteRowMetric.FLASH_CYCLES);
+        if (transmit === VoteTransmit.TEXT_SKIP) {
+          CS2.if_runscript(
+            VoteServerScript.TEXT,
+            event.component,
+            event.subId,
+            question,
+            selected ? VoteTextMode.UNSKIP : VoteTextMode.SKIP,
+            VOTE_NULL_TEXT,
+            'iis',
+          );
+        } else if (transmit === VoteTransmit.MATRIX_SKIP) {
+          CS2.if_runscript(VoteServerScript.MATRIX, event.component, event.subId, question, -1, -1, 'iii');
+        } else if (transmit === VoteTransmit.RANK_SKIP) {
+          voteRankSend(question, voteRankOrder(rankBlob, selected ? rankRows : 0), event.component, event.subId);
+        } else if (transmit === VoteTransmit.MULTI_SELECT) {
+          CS2.if_runscript(
+            VoteServerScript.MULTI_SELECT,
+            event.component,
+            event.subId,
+            question,
+            answer,
+            selected ? 0 : 1,
+            'iii',
+          );
+        } else {
+          CS2.if_runscript(VoteServerScript.SELECT, event.component, event.subId, question, answer, 'ii');
+        }
+      }}
+    >
+      <text
+        x={VoteMetric.LABEL_INSET_X}
+        y={VoteMetric.ROW_PAD}
+        w={{ fill: VoteMetric.LABEL_INSET_X }}
+        h={{ fill: VoteMetric.ROW_PAD }}
+        text={label}
+        font={Fonts.P12_FULL}
+        color={hover === 1 ? VoteColour.LABEL_HOVER : painted}
+        align="left"
+        valign="top"
+        lineHeight={VoteMetric.LINE_H}
+        shadow
+      />
+
+      <sprite x={0} y={0} w={button} h={button} sprite={sprite} />
+
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={VoteColour.HIT}
+        fill
+        transparency={flashing ? VoteRowMetric.HIT_FLASH : VoteRowMetric.HIT_REST}
+        onMouseRepeat={enabled ? () => setHover(1) : undefined}
+        onMouseLeave={enabled ? () => setHover(0) : undefined}
+      />
+    </layer>
+  );
+}
+
+interface VoteAnswerStackProps {
+  question: Int;
+  blob: String;
+  count: Int;
+  allowSkip: Boolean;
+  multi: Boolean;
+  flags: Int;
+  answer: Int;
+  width: Int;
+  votable: Boolean;
+}
+
+export function VoteAnswerStack({
+  question,
+  blob,
+  count,
+  allowSkip,
+  multi,
+  flags,
+  answer,
+  width,
+  votable,
+}: VoteAnswerStackProps): Component {
+  const enabled: Boolean = !CS2.testbit(flags, 2);
+  const skipped: Boolean = CS2.testbit(flags, 1);
+  const rows: Int = CS2.min(count, VOTE_MAX_ANSWERS);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {VOTE_ANSWER_SLOTS.map(
+        (_, position) =>
+          position < rows && (
+            <VoteAnswerRow
+              label={voteBlobLabel(blob, position)}
+              answer={voteBlobAnswer(blob, position)}
+              question={question}
+              y={voteStackRowY(blob, position, width)}
+              h={voteRowHeight(voteBlobLabel(blob, position), width)}
+              enabled={enabled}
+              multi={multi}
+              selected={voteRowSelected(skipped, multi, answer, voteBlobAnswer(blob, position))}
+              votable={votable}
+              transmit={multi ? VoteTransmit.MULTI_SELECT : VoteTransmit.SELECT}
+            />
+          ),
+      )}
+
+      {allowSkip && (
+        <VoteAnswerRow
+          label={VOTE_SKIP_ROW_LABEL}
+          answer={-1}
+          question={question}
+          y={voteStackRowY(blob, rows, width)}
+          h={voteRowHeight(VOTE_SKIP_ROW_LABEL, width)}
+          enabled={enabled}
+          multi={multi}
+          selected={skipped}
+          votable={votable}
+          transmit={multi ? VoteTransmit.MULTI_SELECT : VoteTransmit.SELECT}
+        />
+      )}
+    </layer>
+  );
+}
+
+function voteRowSelected(skipped: Boolean, multi: Boolean, answer: Int, labelIndex: Int): Boolean {
+  if (skipped) {
+    return false;
+  }
+  return multi ? CS2.testbit(answer, labelIndex) : answer === labelIndex;
+}
+
+function voteStackRowY(blob: String, upTo: Int, width: Int): Int {
+  let y: Int = 0;
+  let k: Int = 0;
+  while (k < upTo) {
+    y = y + voteRowHeight(voteBlobLabel(blob, k), width) + VoteMetric.ROW_GAP;
+    k = k + 1;
+  }
+  return y;
+}
+
+const VoteTextMetric = {
+  FIELD_INSET: 4,
+  SKIP_GAP: 12,
+  SKIP_MEASURE_W: 100,
+} as const;
+
+const VOTE_FIELD_BACK = 0x372e22;
+const VOTE_FIELD_TEXT = 0xffffff;
+const VOTE_FIELD_TEXT_DISABLED = 0x808080;
+const VOTE_SELECT_FG = 0x000000;
+const VOTE_SELECT_BG = 0xffffff;
+
+function voteTextSkipWidth(): Int {
+  return VoteMetric.LABEL_INSET_X + textWidth(VOTE_SKIP_COLUMN_LABEL, VoteTextMetric.SKIP_MEASURE_W, Fonts.P12_FULL);
+}
+
+interface VoteTextFieldProps {
+  question: Int;
+  text: String;
+  limit: Int;
+  allowSkip: Boolean;
+  skipped: Boolean;
+  readOnly: Boolean;
+  width: Int;
+  votable: Boolean;
+}
+
+function VoteTextField({
+  question,
+  text,
+  limit,
+  allowSkip,
+  skipped,
+  readOnly,
+  width,
+  votable,
+}: VoteTextFieldProps): Component {
+  const skipW: Int = allowSkip ? voteTextSkipWidth() : 0;
+  const stride: Int = allowSkip ? VoteTextMetric.SKIP_GAP + skipW : 0;
+
+  const live: Boolean = !readOnly && !(allowSkip && skipped);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <rect x={0} y={0} w={{ fill: stride }} h="fill" color={VOTE_FIELD_BACK} fill />
+
+      <input
+        x={VoteTextMetric.FIELD_INSET}
+        y={VoteTextMetric.FIELD_INSET}
+        w={{ fill: VoteTextMetric.FIELD_INSET * 2 + stride }}
+        h={{ fill: VoteTextMetric.FIELD_INSET * 2 }}
+        text={text}
+        font={Fonts.P12_FULL}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={VoteMetric.LINE_H}
+        color={live ? VOTE_FIELD_TEXT : VOTE_FIELD_TEXT_DISABLED}
+        selectColor={VOTE_SELECT_FG}
+        selectBgColor={VOTE_SELECT_BG}
+        lineWidthLimit={limit}
+      />
+
+      {allowSkip && (
+        <layer x={{ right: 0 }} y={0} w={skipW} h={voteRowHeight(VOTE_SKIP_COLUMN_LABEL, skipW)}>
+          <VoteAnswerRow
+            label={VOTE_SKIP_COLUMN_LABEL}
+            answer={-1}
+            question={question}
+            y={0}
+            h={voteRowHeight(VOTE_SKIP_COLUMN_LABEL, skipW)}
+            enabled={!readOnly}
+            multi
+            selected={skipped}
+            votable={votable}
+            transmit={VoteTransmit.TEXT_SKIP}
+          />
+        </layer>
+      )}
+    </layer>
+  );
+}
+
+const VoteGridMetric = {
+  WASH: 150,
+  CELL_WASH: 215,
+  WASH_COLOUR: 0x726451,
+  TEXT_INSET: 2,
+} as const;
+
+const VOTE_GRID_COLUMN_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+const VOTE_GRID_ITEM_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+] as const;
+
+function voteGridSkipWidth(width: Int, allowSkipColumn: Boolean): Int {
+  if (!allowSkipColumn) {
+    return 0;
+  }
+  const share: Int = scaled(width, 100, VoteMetric.GRID_COLUMN_PERCENT);
+  return textWidth(VOTE_SKIP_COLUMN_LABEL, share, Fonts.P11_FULL) + VoteMetric.CELL_PAD;
+}
+
+function voteGridSkipStride(width: Int, allowSkipColumn: Boolean): Int {
+  return allowSkipColumn ? voteGridSkipWidth(width, allowSkipColumn) + VoteMetric.CELL_GAP : 0;
+}
+
+function voteGridStride(width: Int, columns: Int, allowSkipColumn: Boolean): Int {
+  const share: Int = scaled(width, 100, VoteMetric.GRID_COLUMN_PERCENT) - voteGridSkipStride(width, allowSkipColumn);
+  return columns === 0 ? share : share / columns;
+}
+
+function voteGridGutter(width: Int, columns: Int, allowSkipColumn: Boolean): Int {
+  return width - voteGridStride(width, columns, allowSkipColumn) * columns - voteGridSkipStride(width, allowSkipColumn);
+}
+
+function voteGridColumnX(width: Int, columns: Int, allowSkipColumn: Boolean, c: Int): Int {
+  return (
+    voteGridGutter(width, columns, allowSkipColumn) +
+    VoteMetric.CELL_GAP +
+    voteGridStride(width, columns, allowSkipColumn) * c
+  );
+}
+
+function voteGridHeaderHeight(blob: String, width: Int, columns: Int, allowSkipColumn: Boolean): Int {
+  const cellTextW: Int = voteGridStride(width, columns, allowSkipColumn) - VoteMetric.CELL_GAP - VoteMetric.CELL_PAD;
+
+  let lines: Int = 1;
+  let c: Int = 0;
+  while (c < columns) {
+    lines = CS2.max(lines, textLineCount(voteGridColumnLabel(blob, c), cellTextW, Fonts.P11_FULL));
+    c = c + 1;
+  }
+  if (allowSkipColumn) {
+    lines = CS2.max(lines, textLineCount(VOTE_SKIP_COLUMN_LABEL, cellTextW, Fonts.P11_FULL));
+  }
+  return lines * VoteMetric.GRID_HEADER_LINE_H + VoteMetric.CELL_PAD;
+}
+
+function voteGridRowHeight(blob: String, i: Int, width: Int, columns: Int, allowSkipColumn: Boolean): Int {
+  const gutterTextW: Int = voteGridGutter(width, columns, allowSkipColumn) - VoteMetric.CELL_PAD;
+  return (
+    textLineCount(voteGridItemLabel(blob, i), gutterTextW, Fonts.P11_FULL) * VoteMetric.GRID_ROW_LINE_H +
+    VoteMetric.CELL_PAD
+  );
+}
+
+function voteGridRowsAbove(blob: String, upTo: Int, width: Int, columns: Int, allowSkipColumn: Boolean): Int {
+  let y: Int = voteGridHeaderHeight(blob, width, columns, allowSkipColumn);
+  let i: Int = 0;
+  while (i < upTo) {
+    y = y + VoteMetric.CELL_GAP + voteGridRowHeight(blob, i, width, columns, allowSkipColumn);
+    i = i + 1;
+  }
+  return y;
+}
+
+interface VoteGridCellProps {
+  question: Int;
+  itemIndex: Int;
+  column: Int;
+  itemAt: Int;
+  columnAt: Int;
+  label: String;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  enabled: Boolean;
+  selected: Boolean;
+  votable: Boolean;
+}
+
+function VoteGridCell({
+  question,
+  itemIndex,
+  column,
+  itemAt,
+  columnAt,
+  label,
+  x,
+  y,
+  w,
+  h,
+  enabled,
+  selected,
+  votable,
+}: VoteGridCellProps): Component {
+  const cell = useRef();
+  const [flashUntil, setFlashUntil] = useState(-1);
+  const [, setHoverQuestion] = useState(voteGridHoverQuestion);
+  const [, setHoverItem] = useState(voteGridHoverItem);
+  const [, setHoverColumn] = useState(voteGridHoverColumn);
+
+  const flashing: Boolean = flashUntil !== -1;
+
+  useInterval(
+    flashing
+      ? () => {
+          if (clientClock() >= flashUntil) {
+            setFlashUntil(-1);
+          }
+        }
+      : undefined,
+    cell,
+  );
+
+  return (
+    <layer
+      ref={cell}
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      options={['Select']}
+      optionSubject={`<col=ff9040>${CS2.tags_remove(label)}</col>`}
+      onOptionSelect={(event) => {
+        if (!votable) {
+          playSound(Sounds.PILLORY_WRONG);
+          return;
+        }
+        if (enabled) {
+          playSound(Sounds.INTERFACE_SELECT1);
+          setFlashUntil(clientClock() + VoteRowMetric.FLASH_CYCLES);
+        }
+        CS2.if_runscript(VoteServerScript.MATRIX, event.component, event.subId, question, itemIndex, column, 'iii');
+      }}
+    >
+      <sprite x={0} y={0} w="fill" h="fill" sprite={Sprites.TRADEBACKING_DARK} tiling transparency={0} />
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={VoteGridMetric.WASH_COLOUR}
+        fill
+        transparency={VoteGridMetric.CELL_WASH}
+      />
+
+      <sprite
+        x="center"
+        y="center"
+        w={VoteRowMetric.BUTTON}
+        h={VoteRowMetric.BUTTON}
+        sprite={selected ? VoteSprite.RADIO_ON : VoteSprite.RADIO}
+      />
+
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={VoteColour.HIT}
+        fill
+        transparency={flashing ? VoteRowMetric.HIT_FLASH : VoteRowMetric.HIT_REST}
+        onMouseRepeat={
+          enabled
+            ? () => {
+                setHoverQuestion(question);
+                setHoverItem(itemAt);
+                setHoverColumn(columnAt);
+              }
+            : undefined
+        }
+        onMouseLeave={
+          enabled
+            ? () => {
+                setHoverQuestion(-1);
+                setHoverItem(-1);
+                setHoverColumn(-2);
+              }
+            : undefined
+        }
+      />
+    </layer>
+  );
+}
+
+interface VoteGridRowProps {
+  question: Int;
+  blob: String;
+  i: Int;
+  columns: Int;
+  allowSkipColumn: Boolean;
+  width: Int;
+  enabled: Boolean;
+  votable: Boolean;
+}
+
+function VoteGridRow({
+  question,
+  blob,
+  i,
+  columns,
+  allowSkipColumn,
+  width,
+  enabled,
+  votable,
+}: VoteGridRowProps): Component {
+  const [hoverQuestion] = useState(voteGridHoverQuestion);
+  const [hoverItem] = useState(voteGridHoverItem);
+
+  const gutterW: Int = voteGridGutter(width, columns, allowSkipColumn);
+  const h: Int = voteGridRowHeight(blob, i, width, columns, allowSkipColumn);
+  const item: Int = voteGridItemIndex(blob, i);
+  const choice: Int = voteGridItemChoice(blob, i);
+  const hovered: Boolean = hoverQuestion === question && hoverItem === i;
+
+  return (
+    <layer x={0} y={voteGridRowsAbove(blob, i, width, columns, allowSkipColumn) + VoteMetric.CELL_GAP} w="fill" h={h}>
+      <layer x={0} y={0} w={gutterW} h="fill">
+        <rect
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          color={VoteGridMetric.WASH_COLOUR}
+          fill
+          transparency={VoteGridMetric.WASH}
+        />
+        <text
+          x={VoteGridMetric.TEXT_INSET}
+          y={VoteGridMetric.TEXT_INSET}
+          w={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+          h={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+          text={voteGridItemLabel(blob, i)}
+          font={Fonts.P11_FULL}
+          shadow
+          align="right"
+          valign="middle"
+          lineHeight={VoteMetric.GRID_ROW_LINE_H}
+          color={hovered ? VoteColour.LABEL_HOVER : enabled ? VoteColour.LABEL : VoteColour.LABEL_DISABLED}
+        />
+      </layer>
+
+      {VOTE_GRID_COLUMN_SLOTS.map(
+        (_, c) =>
+          c < columns && (
+            <VoteGridCell
+              question={question}
+              itemIndex={item}
+              column={voteGridColumnIndex(blob, c)}
+              itemAt={i}
+              columnAt={c}
+              label={voteGridColumnLabel(blob, c)}
+              x={voteGridColumnX(width, columns, allowSkipColumn, c)}
+              y={0}
+              w={voteGridStride(width, columns, allowSkipColumn) - VoteMetric.CELL_GAP}
+              h={h}
+              enabled={enabled}
+              selected={choice === voteGridColumnIndex(blob, c)}
+              votable={votable}
+            />
+          ),
+      )}
+
+      {allowSkipColumn && voteGridItemSkippable(blob, i) && (
+        <VoteGridCell
+          question={question}
+          itemIndex={item}
+          column={-1}
+          itemAt={i}
+          columnAt={-1}
+          label={VOTE_SKIP_COLUMN_LABEL}
+          x={voteGridColumnX(width, columns, allowSkipColumn, columns)}
+          y={0}
+          w={voteGridSkipWidth(width, allowSkipColumn)}
+          h={h}
+          enabled={enabled}
+          selected={choice === -1}
+          votable={votable}
+        />
+      )}
+    </layer>
+  );
+}
+
+interface VoteGridProps {
+  question: Int;
+  blob: String;
+  skipped: Boolean;
+  readOnly: Boolean;
+  allowSkipRow: Boolean;
+  allowSkipColumn: Boolean;
+  width: Int;
+  votable: Boolean;
+}
+
+function VoteGrid({
+  question,
+  blob,
+  skipped,
+  readOnly,
+  allowSkipRow,
+  allowSkipColumn,
+  width,
+  votable,
+}: VoteGridProps): Component {
+  const [hoverQuestion] = useState(voteGridHoverQuestion);
+  const [hoverColumn] = useState(voteGridHoverColumn);
+
+  const columns: Int = voteGridColumnCount(blob);
+  const items: Int = voteGridItemCount(blob);
+  const enabled: Boolean = !readOnly && !skipped;
+  const headerH: Int = voteGridHeaderHeight(blob, width, columns, allowSkipColumn);
+  const cellW: Int = voteGridStride(width, columns, allowSkipColumn) - VoteMetric.CELL_GAP;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {VOTE_GRID_COLUMN_SLOTS.map(
+        (_, c) =>
+          c < columns && (
+            <layer x={voteGridColumnX(width, columns, allowSkipColumn, c)} y={0} w={cellW} h={headerH}>
+              <rect
+                x={0}
+                y={0}
+                w="fill"
+                h="fill"
+                color={VoteGridMetric.WASH_COLOUR}
+                fill
+                transparency={VoteGridMetric.WASH}
+              />
+              <text
+                x={VoteGridMetric.TEXT_INSET}
+                y={VoteGridMetric.TEXT_INSET}
+                w={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+                h={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+                text={voteGridColumnLabel(blob, c)}
+                font={Fonts.P11_FULL}
+                shadow
+                align="center"
+                valign="bottom"
+                lineHeight={VoteMetric.GRID_HEADER_LINE_H}
+                color={
+                  hoverQuestion === question && hoverColumn === c
+                    ? VoteColour.LABEL_HOVER
+                    : enabled
+                      ? VoteColour.LABEL
+                      : VoteColour.LABEL_DISABLED
+                }
+              />
+            </layer>
+          ),
+      )}
+
+      {allowSkipColumn && (
+        <layer
+          x={voteGridColumnX(width, columns, allowSkipColumn, columns)}
+          y={0}
+          w={voteGridSkipWidth(width, allowSkipColumn)}
+          h={headerH}
+        >
+          <rect
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            color={VoteGridMetric.WASH_COLOUR}
+            fill
+            transparency={VoteGridMetric.WASH}
+          />
+          <text
+            x={VoteGridMetric.TEXT_INSET}
+            y={VoteGridMetric.TEXT_INSET}
+            w={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+            h={{ fill: VoteGridMetric.TEXT_INSET * 2 }}
+            text={VOTE_SKIP_COLUMN_LABEL}
+            font={Fonts.P11_FULL}
+            shadow
+            align="center"
+            valign="bottom"
+            lineHeight={VoteMetric.GRID_HEADER_LINE_H}
+            color={
+              hoverQuestion === question && hoverColumn === -1
+                ? VoteColour.LABEL_HOVER
+                : enabled
+                  ? VoteColour.LABEL_SKIP
+                  : VoteColour.LABEL_DISABLED
+            }
+          />
+        </layer>
+      )}
+
+      {VOTE_GRID_ITEM_SLOTS.map(
+        (_, i) =>
+          i < items && (
+            <VoteGridRow
+              question={question}
+              blob={blob}
+              i={i}
+              columns={columns}
+              allowSkipColumn={allowSkipColumn}
+              width={width}
+              enabled={enabled}
+              votable={votable}
+            />
+          ),
+      )}
+
+      {allowSkipRow && (
+        <layer
+          x={0}
+          y={voteGridRowsAbove(blob, items, width, columns, allowSkipColumn) + VoteMetric.ROW_GAP}
+          w="fill"
+          h={voteRowHeight(VOTE_SKIP_ROW_LABEL, width)}
+        >
+          <VoteAnswerRow
+            label={VOTE_SKIP_ROW_LABEL}
+            answer={-1}
+            question={question}
+            y={0}
+            h={voteRowHeight(VOTE_SKIP_ROW_LABEL, width)}
+            enabled={!readOnly}
+            multi
+            selected={skipped}
+            votable={votable}
+            transmit={VoteTransmit.MATRIX_SKIP}
+          />
+        </layer>
+      )}
+    </layer>
+  );
+}
+
+interface VoteQuestionSlotProps {
+  y: Int;
+  width: Int;
+  votable: Boolean;
+}
+
+interface VoteQuestionCellsProps extends VoteQuestionSlotProps {
+  shape: Int;
+  answer: Int;
+  blob: String;
+}
+
+interface VoteQuestionBodyProps extends VoteQuestionCellsProps {
+  index: Int;
+}
+
+interface VoteQuestionRowProps extends VoteQuestionBodyProps {
+  text: String;
+}
+
+function voteFlagsOf(shape: Int): Int {
+  let flags: Int = 0;
+  if (voteShapeSkipped(shape)) {
+    flags = CS2.bit_set(flags, 1);
+  }
+  if (voteShapeReadOnly(shape)) {
+    flags = CS2.bit_set(flags, 2);
+  }
+  return flags;
+}
+
+export function voteGridHeightBlob(blob: String, shape: Int, width: Int): Int {
+  const columns: Int = voteGridColumnCount(blob);
+  const allowSkipColumn: Boolean = voteShapeGridSkipColumn(shape);
+  let y: Int = voteGridRowsAbove(blob, voteGridItemCount(blob), width, columns, allowSkipColumn);
+  if (voteShapeSkip(shape)) {
+    y = y + VoteMetric.ROW_GAP + voteRowHeight(VOTE_SKIP_ROW_LABEL, width);
+  }
+  return y;
+}
+
+function voteSlotHeight(shape: Int, blob: String, width: Int): Int {
+  const kind: Int = voteShapeKind(shape);
+  if (kind === VoteKind.RADIO || kind === VoteKind.CHECK) {
+    return voteStackHeightBlob(blob, voteShapeCount(shape), voteShapeSkip(shape), width);
+  }
+  if (kind === VoteKind.TEXT) {
+    return voteTextHeight(voteContainerFlags(shape), width);
+  }
+  if (kind === VoteKind.GRID) {
+    return voteGridHeightBlob(blob, shape, width);
+  }
+  if (kind === VoteKind.RANK) {
+    return voteRankHeight(voteShapeCount(shape), voteShapeSkip(shape), width);
+  }
+  return 0;
+}
+
+function voteQuestionTextHeight(text: String, index: Int, width: Int): Int {
+  return (
+    textLineCount(text, width - ballotQuestionLabelWidth(index), BallotFont.BODY) * BallotRowLayout.LINE_H +
+    VOTE_QUESTION_TEXT_PAD
+  );
+}
+
+const VOTE_QUESTION_TEXT_PAD = 4;
+
+function voteQuestionRowHeight(text: String, index: Int, shape: Int, blob: String, width: Int): Int {
+  return voteQuestionTextHeight(text, index, width) + voteSlotHeight(shape, blob, width);
+}
+
+function voteSlotAdvance(text: String, index: Int, shape: Int, blob: String, width: Int): Int {
+  if (voteShapeKind(shape) === VoteKind.NONE) {
+    return 0;
+  }
+  return voteQuestionRowHeight(text, index, shape, blob, width) + BallotRowGap.QUESTION;
+}
+
+function VoteQuestionBody({ index, y, shape, answer, blob, width, votable }: VoteQuestionBodyProps): Component {
+  const kind: Int = voteShapeKind(shape);
+  const stacked: Boolean = kind === VoteKind.RADIO || kind === VoteKind.CHECK;
+
+  return (
+    <layer x={0} y={y} w="fill" h={voteSlotHeight(shape, blob, width)}>
+      {stacked && (
+        <VoteAnswerStack
+          question={index}
+          blob={blob}
+          count={voteShapeCount(shape)}
+          allowSkip={voteShapeSkip(shape)}
+          multi={kind === VoteKind.CHECK}
+          flags={voteFlagsOf(shape)}
+          answer={answer}
+          width={width}
+          votable={votable}
+        />
+      )}
+
+      {kind === VoteKind.GRID && (
+        <VoteGrid
+          question={index}
+          blob={blob}
+          skipped={voteShapeSkipped(shape)}
+          readOnly={voteShapeReadOnly(shape)}
+          allowSkipRow={voteShapeSkip(shape)}
+          allowSkipColumn={voteShapeGridSkipColumn(shape)}
+          width={width}
+          votable={votable}
+        />
+      )}
+
+      {kind === VoteKind.RANK && (
+        <VoteRank
+          question={index}
+          blob={blob}
+          count={voteShapeCount(shape)}
+          mask={answer}
+          skipped={voteShapeSkipped(shape)}
+          readOnly={voteShapeReadOnly(shape)}
+          allowSkipRow={voteShapeSkip(shape)}
+          width={width}
+          votable={votable}
+        />
+      )}
+
+      {kind === VoteKind.TEXT && (
+        <VoteTextField
+          question={index}
+          text={blob}
+          limit={answer}
+          allowSkip={voteShapeSkip(shape)}
+          skipped={voteShapeSkipped(shape)}
+          readOnly={voteShapeReadOnly(shape)}
+          width={width}
+          votable={votable}
+        />
+      )}
+    </layer>
+  );
+}
+
+function VoteQuestionRow({ index, text, y, shape, answer, blob, width, votable }: VoteQuestionRowProps): Component {
+  const built: Boolean = voteShapeKind(shape) !== VoteKind.NONE;
+  const answersTop: Int = voteQuestionTextHeight(text, index, width);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {built && (
+        <BallotQuestion
+          x={0}
+          y={y}
+          w="fill"
+          h={voteQuestionRowHeight(text, index, shape, blob, width)}
+          index={index}
+          text={text}
+          wide={ballotQuestionIsWide(index)}
+          voting
+          answersTop={answersTop}
+          markerTop={answersTop}
+        >
+          <VoteQuestionBody
+            index={index}
+            y={0}
+            shape={shape}
+            answer={answer}
+            blob={blob}
+            width={width}
+            votable={votable}
+          />
+        </BallotQuestion>
+      )}
+    </layer>
+  );
+}
+
+function VoteQuestionHeader7({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ7Text);
+  const contentTotal: Int = y + voteSlotAdvance(text, 7, shape, blob, width);
+
+  onMounted(() => {
+    ballotSetVoteContentTotal(contentTotal);
+  });
+  onUpdated(() => {
+    ballotSetVoteContentTotal(contentTotal);
+  });
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={7}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot7({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ7Shape);
+  const [answer] = useState(voteQ7Answer);
+  const [blob] = useState(voteQ7Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader7 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader6({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ6Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={6}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot7 y={y + voteSlotAdvance(text, 6, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot6({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ6Shape);
+  const [answer] = useState(voteQ6Answer);
+  const [blob] = useState(voteQ6Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader6 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader5({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ5Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={5}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot6 y={y + voteSlotAdvance(text, 5, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot5({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ5Shape);
+  const [answer] = useState(voteQ5Answer);
+  const [blob] = useState(voteQ5Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader5 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader4({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ4Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={4}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot5 y={y + voteSlotAdvance(text, 4, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot4({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ4Shape);
+  const [answer] = useState(voteQ4Answer);
+  const [blob] = useState(voteQ4Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader4 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader3({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ3Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={3}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot4 y={y + voteSlotAdvance(text, 3, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot3({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ3Shape);
+  const [answer] = useState(voteQ3Answer);
+  const [blob] = useState(voteQ3Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader3 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader2({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ2Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={2}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot3 y={y + voteSlotAdvance(text, 2, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot2({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ2Shape);
+  const [answer] = useState(voteQ2Answer);
+  const [blob] = useState(voteQ2Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader2 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader1({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ1Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={1}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot2 y={y + voteSlotAdvance(text, 1, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot1({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ1Shape);
+  const [answer] = useState(voteQ1Answer);
+  const [blob] = useState(voteQ1Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader1 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionHeader0({ y, shape, answer, blob, width, votable }: VoteQuestionCellsProps): Component {
+  const [text] = useState(ballotQ0Text);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionRow
+        index={0}
+        text={text}
+        y={y}
+        shape={shape}
+        answer={answer}
+        blob={blob}
+        width={width}
+        votable={votable}
+      />
+      <VoteQuestionSlot1 y={y + voteSlotAdvance(text, 0, shape, blob, width)} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+function VoteQuestionSlot0({ y, width, votable }: VoteQuestionSlotProps): Component {
+  const [shape] = useState(voteQ0Shape);
+  const [answer] = useState(voteQ0Answer);
+  const [blob] = useState(voteQ0Blob);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <VoteQuestionHeader0 y={y} shape={shape} answer={answer} blob={blob} width={width} votable={votable} />
+    </layer>
+  );
+}
+
+export function VotePage({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const [contentShown] = useState(ballotVoteContentShown);
+  const width: Int = CS2.if_width_get(ballotVotePaneRef);
+  const votable: Boolean = true;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={page !== BallotPage.VOTE || !ballotVotePaneLive() || contentShown === 0}>
+      <VoteQuestionSlot0 y={0} width={width} votable={votable} />
+    </layer>
+  );
+}

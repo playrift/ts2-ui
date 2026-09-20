@@ -1,0 +1,404 @@
+import { useServerState, useSkillBase, useState } from 'ts2';
+
+import { textLineCount } from '../lib/lib.engine';
+import { Quest, questProgress } from '../lib/lib.quests';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { combatLevel } from '../lib/game/varcs';
+import { SkillNames } from '../lib/skills.data';
+import { Skills } from '../0320_stats/stats.constants';
+import { skillBaseLevel } from '../0320_stats/stats-levels.helpers';
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { OverviewFonts, REQUIREMENTS_NONE, UNKNOWN_YEAR } from './questjournal-overview.constants';
+import {
+  QuestDifficultyNames,
+  QuestLengthNames,
+  QuestOverviewRow,
+  QuestOverviews,
+  QuestPrerequisites,
+  QuestSeriesNames,
+  QuestStatRecommendations,
+  QuestStatRequirements,
+} from './questjournal-overview.data';
+
+export function questRow(quest: Quest): QuestOverviewRow | null {
+  return QuestOverviews.at(quest);
+}
+
+export function questStatus(quest: Quest): Int {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const releaseType: Int = row === null ? 0 : row.releaseType;
+  const unstarted: Int = row === null ? -1 : row.unstartedState;
+  const end: Int = row === null ? -1 : row.endState;
+  if (row === null) {
+    return 1;
+  }
+  if (releaseType !== 2) {
+    return 1;
+  }
+  const progress: Int = questProgress(quest);
+  if (unstarted === -1 || end === -1 || progress === -1 || end <= unstarted) {
+    return 1;
+  }
+  if (progress >= end) {
+    return 2;
+  }
+  if (progress <= unstarted) {
+    return 1;
+  }
+  return 0;
+}
+
+export function questIsComplete(quest: Quest): Boolean {
+  if (questStatus(quest) === 2) {
+    return true;
+  }
+  return false;
+}
+
+export function questName(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  return row === null ? '' : row.name;
+}
+
+export function questRequirementLine(quest: Quest): String {
+  const name: String = questName(quest);
+  if (questIsComplete(quest)) {
+    return `<str>${name}`;
+  }
+  return `<col=800000>${name}`;
+}
+
+export function skillRequirementLine(skill: Int, level: Int): String {
+  const name: String = SkillNames.get(skill as Skill) ?? 'Skill';
+  if (skillBaseLevel(skill) >= level) {
+    return `<str>Level ${stringOf(level)} ${name}`;
+  }
+  return `<col=800000>Level ${stringOf(level)} ${name}`;
+}
+
+export function combatRequirementLine(level: Int): String {
+  const [combat] = useState(combatLevel);
+  if (combat >= level) {
+    return `<str>Combat Level ${stringOf(level)}`;
+  }
+  return `<col=800000>Combat Level ${stringOf(level)}`;
+}
+
+export function questPointRequirementLine(points: Int): String {
+  if (useServerState(Varps.QP) >= points) {
+    return `<str>${stringOf(points)} Quest Points`;
+  }
+  return `<col=800000>${stringOf(points)} Quest Points`;
+}
+
+export function miscRequirementLine(have: Int, need: Int, label: String): String {
+  if (have < need) {
+    return `<col=800000>${label}`;
+  }
+  return `<str>${label}`;
+}
+
+export function defenceIsFree(skill: Int): Boolean {
+  if (deadmanWorld() === 1 && skill === Skills.DEFENCE) {
+    return true;
+  }
+  return false;
+}
+
+export function warriorsGuildAccess(): Boolean {
+  if (
+    useSkillBase(Skills.ATTACK) + useSkillBase(Skills.STRENGTH) >= 130 ||
+    useSkillBase(Skills.ATTACK) >= 99 ||
+    useSkillBase(Skills.STRENGTH) >= 99
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function warriorsGuildRequirement(text: String, quest: Quest, phase: Int): String {
+  if (quest === Quest.WHILE_GUTHIX_SLEEPS && phase === 0) {
+    if (!warriorsGuildAccess()) {
+      return `${text}<col=800000>Warriors' Guild Access<br>`;
+    }
+    return `${text}<str>Warriors' Guild Access<br>`;
+  }
+  return text;
+}
+
+export function specialQuestRequirement(text: String, quest: Quest, phase: Int): String {
+  const clue: Int = useServerState(Varbits.CLUEQUEST_REQ);
+
+  if (
+    quest === Quest.TALE_OF_THE_RIGHTEOUS ||
+    quest === Quest.ASCENT_OF_ARCEUUS_THE ||
+    quest === Quest.FORSAKEN_TOWER_THE ||
+    quest === Quest.QUEEN_OF_THIEVES_THE ||
+    quest === Quest.DEPTHS_OF_DESPAIR_THE
+  ) {
+    if (clue === 2 && phase === 0) {
+      return `${text}${questRequirementLine(Quest.X_MARKS_THE_SPOT)}<br>`;
+    }
+    return text;
+  }
+  if (quest === Quest.CLIENT_OF_KOUREND) {
+    if (clue === 1 && phase === 0) {
+      return `${text}${questRequirementLine(Quest.X_MARKS_THE_SPOT)}<br>`;
+    }
+    return text;
+  }
+  if (quest === Quest.KINGDOM_DIVIDED_A) {
+    if (clue <= 0 && phase === 0) {
+      return `${text}${questRequirementLine(Quest.X_MARKS_THE_SPOT)}<br>`;
+    }
+    return text;
+  }
+  if (quest === Quest.MONKEY_MADNESS_II) {
+    if (phase === 1) {
+      return `${text}${miscRequirementLine(useServerState(Varbits.HUNDRED_ILM_QUEST), 50, 'Recipe for Disaster - Freeing King Awowogei')}<br>`;
+    }
+    if (phase === 0) {
+      return `${text}${miscRequirementLine(useServerState(Varbits.ZEP_MULTI_GNO), 1, 'Gnome Stronghold Balloon Route Unlocked')}<br>`;
+    }
+    return text;
+  }
+  if (quest === Quest.GREAT_BRAIN_ROBBERY_THE || quest === Quest.ROW_7108) {
+    if (phase === 0) {
+      return `${text}${miscRequirementLine(useServerState(Varbits._100_PIRATE_QUEST_VAR), 110, 'Recipe for Disaster - Freeing Pirate Pete')}<br>`;
+    }
+    return text;
+  }
+  return text;
+}
+
+export function miscRequirements(text: String, quest: Quest): String {
+  if (quest === Quest.BONE_VOYAGE) {
+    return `${text}${miscRequirementLine(useServerState(Varbits.VM_KUDOS), 100, '100 Museum Kudos')}<br>`;
+  }
+  if (quest === Quest.MY_ARM_S_BIG_ADVENTURE) {
+    return `${text}${miscRequirementLine(useServerState(Varbits.CLEANUP_PROGRESS), 1, 'Tai Bwo Wannai Cleanup Started')}<br>`;
+  }
+  if (quest === Quest.MAGE_ARENA_II) {
+    const guthix: String = `${text}${miscRequirementLine(useServerState(Varps.GUTHMAGE), 1000, 'Claws of Guthix Unlocked')}<br>`;
+    const saradomin: String = `${guthix}${miscRequirementLine(useServerState(Varps.SARAMAGE), 1000, 'Saradomin Strike Unlocked')}<br>`;
+    return `${saradomin}${miscRequirementLine(useServerState(Varps.ZAMOMAGE), 1000, 'Flames of Zamorak Unlocked')}<br>`;
+  }
+  return text;
+}
+
+export function questRequirementsText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  if (row === null) {
+    return '';
+  }
+  const count: Int = row === null ? 0 : row.questReqCount;
+  const from: Int = row === null ? 0 : row.questReqFrom;
+  const points: Int = row === null ? 0 : row.questPoints;
+  let text: String = specialQuestRequirement('', quest, 1);
+  let at: Int = 0;
+  while (at < count) {
+    const prerequisite: Int = QuestPrerequisites.at(from + at) ?? -1;
+    if (prerequisite !== -1) {
+      text = `${text}${questRequirementLine(prerequisite)}<br>`;
+    }
+    at = at + 1;
+  }
+  text = specialQuestRequirement(text, quest, 0);
+  if (points > 0) {
+    text = `${text}${questPointRequirementLine(points)}<br>`;
+  }
+  return text;
+}
+
+export function skillRequirementsText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  if (row === null) {
+    return '';
+  }
+  const combat: Int = row === null ? 3 : row.combatRequirement;
+  const count: Int = row === null ? 0 : row.statReqCount;
+  const from: Int = row === null ? 0 : row.statReqFrom;
+  let text: String = warriorsGuildRequirement('', quest, 1);
+  if (combat > 3) {
+    text = `${text}${combatRequirementLine(combat)}<br>`;
+  }
+  let at: Int = 0;
+  while (at < count) {
+    const need = QuestStatRequirements.at(from + at);
+    if (need !== null) {
+      const level: Int = defenceIsFree(need.skill) ? 1 : need.level;
+      if (level > 1) {
+        text = `${text}${skillRequirementLine(need.skill, level)}<br>`;
+      }
+    }
+    at = at + 1;
+  }
+  return warriorsGuildRequirement(text, quest, 0);
+}
+
+export function recommendationsText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  if (row === null) {
+    return REQUIREMENTS_NONE;
+  }
+  const combat: Int = row === null ? 3 : row.combatRecommendation;
+  const count: Int = row === null ? 0 : row.statRecCount;
+  const from: Int = row === null ? 0 : row.statRecFrom;
+  let text: String = '';
+  if (combat > 3) {
+    text = `${text}${combatRequirementLine(combat)}<br>`;
+  }
+  let at: Int = 0;
+  while (at < count) {
+    const want = QuestStatRecommendations.at(from + at);
+    if (want !== null) {
+      if (want.level > 1) {
+        text = `${text}${skillRequirementLine(want.skill, want.level)}<br>`;
+      }
+    }
+    at = at + 1;
+  }
+  if (text.length <= 0) {
+    return REQUIREMENTS_NONE;
+  }
+  return text;
+}
+
+function requirementsJoined(quests: Int, skills: Int, misc: Int): Boolean {
+  if (quests <= 3 || skills <= 3 || quests + skills <= 8 || misc > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function requirementsMain(quest: Quest, width: Int): String {
+  const quests: String = questRequirementsText(quest);
+  const skills: String = skillRequirementsText(quest);
+  const misc: String = miscRequirements('', quest);
+  const questLines: Int = textLineCount(quests, width, OverviewFonts.BODY);
+  const skillLines: Int = textLineCount(skills, width, OverviewFonts.BODY);
+  const miscLines: Int = textLineCount(misc, width, OverviewFonts.BODY);
+  if (questLines <= 0 && skillLines <= 0 && miscLines <= 0) {
+    return REQUIREMENTS_NONE;
+  }
+  if (requirementsJoined(questLines, skillLines, miscLines)) {
+    return `${quests}${skills}${misc}`;
+  }
+  return quests;
+}
+
+export function requirementsSkills(quest: Quest, width: Int): String {
+  const quests: String = questRequirementsText(quest);
+  const skills: String = skillRequirementsText(quest);
+  const misc: String = miscRequirements('', quest);
+  const questLines: Int = textLineCount(quests, width, OverviewFonts.BODY);
+  const skillLines: Int = textLineCount(skills, width, OverviewFonts.BODY);
+  const miscLines: Int = textLineCount(misc, width, OverviewFonts.BODY);
+  if (questLines <= 0 && skillLines <= 0 && miscLines <= 0) {
+    return '';
+  }
+  if (requirementsJoined(questLines, skillLines, miscLines)) {
+    return '';
+  }
+  return skills;
+}
+
+export function questRestricted(quest: Quest): Boolean {
+  const row: QuestOverviewRow | null = questRow(quest);
+  if (row === null) {
+    return false;
+  }
+  if ((row === null ? 0 : row.relatedContent) !== 1) {
+    return false;
+  }
+  return sailingRestricted();
+}
+
+export function questRestrictionText(quest: Quest): String {
+  if (!questRestricted(quest)) {
+    return '';
+  }
+  return 'Sailing quests are currently unavailable on this world.';
+}
+
+export function questWord(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  if (row === null ? false : row.miniquest) {
+    return 'miniquest';
+  }
+  return 'quest';
+}
+
+export function introText(quest: Quest, startBy: String): String {
+  const word: String = questWord(quest);
+  const row: QuestOverviewRow | null = questRow(quest);
+
+  let opening: String = `I can start this ${word} by `;
+  if (questStatus(quest) !== 1) {
+    opening = `I started this ${word} by `;
+  }
+  if ((row === null ? 0 : row.releaseType) !== 2) {
+    opening = `This ${word} is coming soon...<br>When it releases, I can start it by `;
+  } else if (questRestricted(quest)) {
+    opening = `${questRestrictionText(quest)}...<br>If this ${word} becomes available, I can start it by `;
+  }
+  return `${opening}${startBy}`;
+}
+
+export function difficultyText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const key: Int = row === null ? -1 : row.difficulty;
+  return QuestDifficultyNames.at(key) ?? 'No Difficulty';
+}
+
+export function lengthText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const key: Int = row === null ? -1 : row.length;
+  return QuestLengthNames.at(key) ?? 'No Length';
+}
+
+export function seriesText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const series: Int = row === null ? -1 : row.series;
+  const overridden: Boolean = row === null ? false : row.seriesNoOverridden;
+  const override: String = row === null ? '' : row.seriesNoOverride;
+  const number: Int = row === null ? 0 : row.seriesNo;
+  const name: String = QuestSeriesNames.at(series) ?? 'Standalone';
+  if (series < 0) {
+    return name;
+  }
+  if (overridden) {
+    if (override.length > 0) {
+      return `${name} #${override}`;
+    }
+    return name;
+  }
+  return `${name} #${stringOf(number)}`;
+}
+
+export function releaseYearText(quest: Quest): String {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const year: Int = row === null ? -1 : row.releaseYear;
+  if (year < 2001) {
+    return UNKNOWN_YEAR;
+  }
+  return stringOf(year);
+}
+
+export function hasStartCoord(quest: Quest): Boolean {
+  const row: QuestOverviewRow | null = questRow(quest);
+  const coord: Int = row === null ? 0 : row.startCoord;
+  if (coord === -1 || coord === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function overviewReady(quest: Quest): Boolean {
+  if (QuestOverviews.at(quest) === null) {
+    return false;
+  }
+  return true;
+}

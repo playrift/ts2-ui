@@ -1,0 +1,123 @@
+import { useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import { ColosseumVarbits } from './colosseum.constants';
+import { ModifierIconsTier1, ModifierIconsTier2, ModifierIconsTier3 } from './colosseum-art.data';
+import { ColosseumModifiers, type ColosseumModifiersRow } from './colosseum-modifiers.data';
+
+export function modifierTier(row: ColosseumModifiersRow): Int {
+  switch (row.bit) {
+    case ModifierBit.MANTIMAYHEM:
+      return useServerState(ColosseumVarbits.MANTIMAYHEM_TIER);
+    case ModifierBit.REENTRY:
+      return useServerState(ColosseumVarbits.REENTRY_TIER);
+    case ModifierBit.BEES:
+      return useServerState(ColosseumVarbits.BEES_TIER);
+    case ModifierBit.VOLATILITY:
+      return useServerState(ColosseumVarbits.VOLATILITY_TIER);
+    case ModifierBit.BLASPHEMY:
+      return useServerState(ColosseumVarbits.BLASPHEMY_TIER);
+    case ModifierBit.RELENTLESS:
+      return useServerState(ColosseumVarbits.RELENTLESS_TIER);
+    case ModifierBit.DOOM:
+      return useServerState(ColosseumVarbits.DOOM_TIER);
+    case ModifierBit.SOLARFLARE:
+      return useServerState(ColosseumVarbits.SOLARFLARE_TIER);
+    case ModifierBit.MYOPIA:
+      return useServerState(ColosseumVarbits.MYOPIA_TIER);
+    case ModifierBit.FRAILTY:
+      return useServerState(ColosseumVarbits.FRAILTY_TIER);
+    default:
+      return 0;
+  }
+}
+
+export enum ModifierBit {
+  MANTIMAYHEM = 0,
+  REENTRY = 1,
+  BEES = 2,
+  VOLATILITY = 3,
+  BLASPHEMY = 4,
+  RELENTLESS = 5,
+  QUARTET = 6,
+  TOTEMIC = 7,
+  DOOM = 8,
+  DYNAMIC_DUO = 9,
+  SOLARFLARE = 10,
+  MYOPIA = 11,
+  FRAILTY = 12,
+  RED_FLAG = 13,
+}
+
+export function modifierHeld(row: ColosseumModifiersRow, held: Int): Boolean {
+  return hasBit(held, row.bit);
+}
+
+export function modifierDescription(row: ColosseumModifiersRow): String {
+  const tier: Int = modifierTier(row);
+  if (tier === 2) {
+    return row.description3 ?? '';
+  }
+  if (tier === 1) {
+    return row.description2 ?? '';
+  }
+  return row.description1;
+}
+
+export function modifierDescriptionFrom1(row: ColosseumModifiersRow): String {
+  const tier: Int = modifierTier(row);
+  if (tier === 3) {
+    return row.description3 ?? '';
+  }
+  if (tier === 2) {
+    return row.description2 ?? '';
+  }
+  return row.description1;
+}
+
+export function modifierTitle(row: ColosseumModifiersRow, from1: Boolean, tieredOnly: Boolean): String {
+  let tier: Int = 0;
+  if (row.tiered || !tieredOnly) {
+    tier = modifierTier(row);
+  }
+  const second: Int = from1 ? 2 : 1;
+  if (tier === second) {
+    return `${row.name} (II)`;
+  }
+  if (tier === second + 1) {
+    return `${row.name} (III)`;
+  }
+  return row.name;
+}
+
+export function modifierIcon(row: ColosseumModifiersRow, key: Int): Sprite {
+  const index: Int = row.icon;
+  if (key === 2) {
+    return ModifierIconsTier2.at(index) ?? -1;
+  }
+  if (key === 3) {
+    return ModifierIconsTier3.at(index) ?? -1;
+  }
+  return ModifierIconsTier1.at(index) ?? -1;
+}
+
+export function ticksToSeconds(ticks: Int): Int {
+  const seconds: Int = (ticks * 60) / 100;
+  if (((ticks % 10) * 6) % 10 >= 5) {
+    return seconds + 1;
+  }
+  return seconds;
+}
+
+export function formatDurationMinutes(seconds: Int): String {
+  const minutes: Int = seconds / 60;
+  const hours: Int = minutes / 60;
+  const rest: Int = seconds % 60;
+
+  const minutesPart: String = minutes < 10 && hours > 0 ? `0${minutes}:` : `${minutes}:`;
+  const secondsPart: String = rest < 10 ? `0${rest}` : `${rest}`;
+
+  return `${minutesPart}${secondsPart}`;
+}
+
+export { ColosseumModifiers, type ColosseumModifiersRow };

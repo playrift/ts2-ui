@@ -1,0 +1,135 @@
+import { useRef, useState } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { ClanMembersSprites, Layout } from './clans-members.constants';
+
+export function MemberPane({
+  extent,
+  paneH,
+  fitGen,
+  children,
+}: {
+  extent: Int;
+  paneH: Int;
+  fitGen: Int;
+  children?: Children;
+}): Component {
+  const [drawn, setDrawn] = useState(0);
+  const [drawnGen, setDrawnGen] = useState(-1);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbKey, setThumbKey] = useState(-1);
+  const gutter = useRef();
+
+  const scrolls: Boolean = extent > paneH;
+  const range: Int = scrolls ? extent - paneH : 0;
+  const current: Boolean = drawnGen === fitGen;
+  const at: Int = scrolls && current ? Math.clamp(0, range, drawn) : 0;
+
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const key: Int = measured * 1024 + paneH;
+  const thumbY: Int = thumbKey === key && current ? thumbAt : ARROW + (travel * at) / Math.max(1, range);
+
+  return (
+    <>
+      <layer
+        x={Layout.PANE_X}
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={at}
+        onScrollWheel={(event) => {
+          const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+          setDrawn(next);
+          setDrawnGen(fitGen);
+          setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+          setThumbKey(key);
+        }}
+      >
+        {children}
+      </layer>
+
+      <layer
+        x={{ right: Layout.BAR_RIGHT }}
+        y={{ bottom: Layout.BAR_BOTTOM }}
+        w={Layout.BAR_W}
+        h={{ fill: Layout.BAR_INSET_H }}
+      >
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={ClanMembersSprites.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={ClanMembersSprites.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(offset + ARROW);
+            setThumbKey(key);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={ClanMembersSprites.CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={ClanMembersSprites.CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={ClanMembersSprites.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at - STEP) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={ClanMembersSprites.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + STEP) : 0;
+            setDrawn(next);
+            setDrawnGen(fitGen);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

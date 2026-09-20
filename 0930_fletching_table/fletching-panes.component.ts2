@@ -1,0 +1,282 @@
+import { useRef, useState } from 'ts2';
+import { fletchingTableScrollpos } from '../lib/game/varcs';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import {
+  CategoryList,
+  CategoryNames,
+  CategoryOrder,
+  CategoryRows,
+  FletchAlpha,
+  FletchBar,
+  FletchColor,
+  FletchFonts,
+} from './fletching-table.constants';
+import { categoryHeadingY, pickCategory, scrollRecipesTo } from './fletching-table.helpers';
+
+export function CategoryPane({
+  extent,
+  paneH,
+  rowH,
+  columns,
+  recipeScrolls,
+  recipeRange,
+}: {
+  extent: Int;
+  paneH: Int;
+  rowH: Int;
+  columns: Int;
+  recipeScrolls: Boolean;
+  recipeRange: Int;
+}): Component {
+  const [at, setAt] = useState(0);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbFor, setThumbFor] = useState(-1);
+  const gutter = useRef();
+
+  const scrolls: Boolean = extent > paneH;
+  const range: Int = scrolls ? Math.max(1, extent - paneH) : 1;
+  const shown: Int = scrolls ? Math.clamp(0, range, at) : 0;
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const thumbY: Int = thumbFor === shown ? thumbAt : ARROW + (travel * shown) / range;
+
+  return (
+    <>
+      <layer
+        x={0}
+        y={0}
+        w={{ fill: 16 }}
+        h="fill"
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={shown}
+        onScrollWheel={(event) => {
+          const next: Int = scrolls ? Math.clamp(0, range, shown + event.mouseY * WHEEL) : 0;
+          setAt(next);
+          setThumbFor(-1);
+        }}
+      >
+        <layer w="fill" h="fill">
+          {CategoryOrder.map((id, index) => (
+            <rect
+              x={0}
+              y={index * rowH}
+              w="fill"
+              h={rowH}
+              fill
+              color={index % 2 === 0 ? FletchColor.STRIPE_EVEN : FletchColor.STRIPE_ODD}
+              transparency={index % 2 === 0 ? FletchAlpha.STRIPE_EVEN : FletchAlpha.STRIPE_ODD}
+            />
+          ))}
+        </layer>
+
+        <layer w="fill" h="fill">
+          {CategoryRows.map((index) => (
+            <text
+              x={CategoryList.TEXT_X}
+              y={index * rowH}
+              w={{ fill: CategoryList.TEXT_W_INSET }}
+              h={rowH}
+              text={CategoryNames.at(CategoryOrder.at(index) ?? 1) ?? ''}
+              font={FletchFonts.CATEGORY}
+              color={FletchColor.LABEL}
+              shadow
+              align="left"
+              valign="middle"
+              hover={{ color: FletchColor.HOVER }}
+              options={['Select']}
+              onOptionSelect={() => {
+                pickCategory(recipeScrolls ? Math.clamp(0, recipeRange, categoryHeadingY(index, columns)) : 0);
+              }}
+            />
+          ))}
+        </layer>
+      </layer>
+
+      <layer x="right" y={0} w={16} h="fill">
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={FletchBar.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, shown + event.mouseY * WHEEL) : 0;
+            setAt(next);
+            setThumbFor(-1);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            setAt(next);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={FletchBar.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setAt(next);
+            setThumbAt(offset + ARROW);
+            setThumbFor(next);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={FletchBar.CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={FletchBar.CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={FletchBar.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, shown - STEP) : 0;
+            setAt(next);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={FletchBar.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, shown + STEP) : 0;
+            setAt(next);
+            setThumbFor(-1);
+          }}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function RecipePane({
+  extent,
+  scrolls,
+  range,
+  paneH,
+  pickedAt,
+  children,
+}: {
+  extent: Int;
+  scrolls: Boolean;
+  range: Int;
+  paneH: Int;
+  pickedAt: Int;
+  children?: Children;
+}): Component {
+  const [remembered] = useState(fletchingTableScrollpos);
+  const [drawn, setDrawn] = useState(0);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbFor, setThumbFor] = useState(-1);
+  const gutter = useRef();
+
+  const at: Int = scrolls ? Math.clamp(0, range, remembered > 0 ? remembered : 0) : 0;
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const thumbY: Int = thumbFor === at && pickedAt !== at ? thumbAt : ARROW + (travel * at) / Math.max(1, range);
+
+  return (
+    <>
+      <layer
+        x={0}
+        y={0}
+        w={{ fill: 16 }}
+        h="fill"
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={at}
+        onScrollWheel={(event) => {
+          const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+          scrollRecipesTo(next);
+          setDrawn(next);
+          setThumbFor(-1);
+        }}
+      >
+        {children}
+      </layer>
+
+      <layer x="right" y={0} w={16} h="fill">
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={FletchBar.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+            scrollRecipesTo(next);
+            setDrawn(next);
+            setThumbFor(-1);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            scrollRecipesTo(next);
+            setDrawn(next);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={FletchBar.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            scrollRecipesTo(next);
+            setDrawn(next);
+            setThumbAt(offset + ARROW);
+            setThumbFor(next);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={FletchBar.CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={FletchBar.CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={FletchBar.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at - STEP) : 0;
+            scrollRecipesTo(next);
+            setDrawn(next);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={FletchBar.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + STEP) : 0;
+            scrollRecipesTo(next);
+            setDrawn(next);
+            setThumbFor(-1);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

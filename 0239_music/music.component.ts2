@@ -1,0 +1,634 @@
+import { CS2, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { settingColourOrDefault } from '../0399_questlist/settings-colour';
+import { DropdownButton } from '../0891_hotkey_settings_new/dropdown-button.component';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelFrameEntrypoint } from '../lib/steel-frame-entrypoint.component';
+import { commas } from '../0465_ge_offers/ge-offers.helpers';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  Layout,
+  ModeIcon,
+  MusicColor,
+  MusicColourSetting,
+  MusicFlags,
+  MusicFont,
+  MusicCount,
+  MusicScrollbar,
+  MusicState,
+  Row,
+  Skin,
+  buttonStripRef,
+  playingBoxRef,
+  trackListRef,
+} from './music.constants';
+import { MusicRow, MusicTracks } from './music.data';
+
+export function Music(): Component {
+  return (
+    <layer x="center" y="center" w={Layout.panel.w} h={Layout.panel.h}>
+      <layer ref={playingBoxRef} x={Layout.playing.x} y={Layout.playing.y} w={Layout.playing.w} h={Layout.playing.h}>
+        <text
+          w={Layout.playingLabel.w}
+          h={Layout.playingLabel.h}
+          text="Playing:"
+          font={MusicFont.PLAYING}
+          color={MusicColor.ORANGE}
+          shadow
+        />
+        <TrackName />
+      </layer>
+
+      <Unlocked />
+
+      <layer x="center" y={Layout.listBox.y} w={Layout.listBox.w} h={Layout.listBox.h}>
+        <rect
+          x="center"
+          y={0}
+          w={{ fill: Layout.backdrop.inset }}
+          h={{ fill: Layout.backdrop.inset }}
+          fill
+          transparency={Layout.backdrop.trans}
+        />
+
+        <layer x={Layout.notice.x} y="center" w={{ fill: Layout.notice.inset }} h={{ fill: Layout.notice.inset }}>
+          <TrackPane />
+        </layer>
+
+        <SteelFrameEntrypoint />
+      </layer>
+
+      <layer ref={buttonStripRef} x={{ right: 0 }} y={0} w="fill" h={Layout.strip.h}>
+        <ModeButtons />
+        <layer x={{ right: Layout.dropdown.x }} y={Layout.dropdown.y} w={Layout.dropdown.w} h={Layout.dropdown.h}>
+          <PlaylistButton />
+        </layer>
+      </layer>
+
+      <layer w="fill" h="fill" hide>
+        <layer w={Layout.popup.w} h={Layout.popup.h} noClickThrough>
+          <layer w={{ fill: Layout.popup.listW }} h="fill" />
+          <layer x={{ right: 0 }} w={Layout.popup.barW} h={Layout.popup.h} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function TrackName(): Component {
+  const colour: Int = settingColourOrDefault(MusicColourSetting.PLAYING);
+  const shadow: Boolean = useServerState(MusicState.DISABLE_TEXT_SHADOW) === 0;
+  return (
+    <text
+      y={Layout.trackName.y}
+      w={Layout.trackName.w}
+      h={Layout.trackName.h}
+      font={MusicFont.PLAYING}
+      color={colour}
+      shadow={shadow}
+      valign="middle"
+      options={['', '*', '*', '*', '*']}
+      onMouseEnter={(event) => {
+        event.self.color = MusicColor.WHITE;
+      }}
+      onMouseLeave={(event) => {
+        event.self.color = colour;
+      }}
+    />
+  );
+}
+
+function Unlocked(): Component {
+  const total: Int = MusicTracks.length;
+  let unlocked: Int = 0;
+  let i: Int = 0;
+  while (i < total) {
+    const row: MusicRow | null = MusicTracks.at(i);
+    if (row !== null && trackUnlocked(row) && trackAvailable(row) === 1) {
+      unlocked = unlocked + 1;
+    }
+    i = i + 1;
+  }
+  return (
+    <text
+      x="center"
+      y={{ bottom: Layout.unlocked.bottom }}
+      w="fill"
+      h={{ fill: Layout.unlocked.insetH }}
+      text={`Unlocked: ${commas(Math.min(unlocked, total))} / ${commas(total)}`}
+      font={MusicFont.SMALL}
+      color={MusicColor.ORANGE}
+      shadow
+      align="center"
+      valign="bottom"
+    />
+  );
+}
+
+function TrackPane(): Component {
+  const mobile: Boolean = onMobile();
+  const shadow: Boolean = useServerState(MusicState.DISABLE_TEXT_SHADOW) === 0;
+  const pitch: Int = mobile ? Row.PITCH_MOBILE : Row.PITCH;
+
+  const box = useUniverse();
+  const pane = useRef();
+  const paneHeight: Int = box.height;
+
+  let shown: Int = 0;
+  let i: Int = 0;
+  while (i < MusicTracks.length) {
+    const row: MusicRow | null = MusicTracks.at(i);
+    if (row !== null && trackShown(row)) {
+      shown = shown + 1;
+    }
+    i = i + 1;
+  }
+  const content: Int = Row.TOP + shown * pitch + Row.END_PAD;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.pane.x}
+        y="center"
+        w={{ fill: Layout.pane.insetW }}
+        h="fill"
+        scrollHeight={content > paneHeight ? content : 0}
+      >
+        <layer w="fill" h="fill" />
+
+        <layer ref={trackListRef} w="fill" h="fill">
+          {MusicTracks.filter((row) => trackShown(row)).scan(
+            (row, index, y) => (
+              <TrackRow row={row} y={y} pitch={pitch} shadow={shadow} mobile={mobile} />
+            ),
+            () => pitch,
+            Row.TOP,
+          )}
+        </layer>
+      </layer>
+
+      <layer x={{ right: 0 }} y="center" w={Layout.scrollbar.w} h="fill" hide={shown <= 0}>
+        <ScrollbarVertical
+          content={pane}
+          track={MusicScrollbar.TRACK}
+          capTopSprite={MusicScrollbar.CAP_TOP}
+          thumbSprite={MusicScrollbar.THUMB}
+          capBottomSprite={MusicScrollbar.CAP_BOTTOM}
+          arrowUp={MusicScrollbar.ARROW_UP}
+          arrowDown={MusicScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function TrackRow({
+  row,
+  y,
+  pitch,
+  shadow,
+  mobile,
+}: {
+  row: MusicRow;
+  y: Int;
+  pitch: Int;
+  shadow: Boolean;
+  mobile: Boolean;
+}): Component {
+  const colour: Int = rowColour(row);
+  return (
+    <text
+      x="center"
+      y={y}
+      w="fill"
+      h={pitch}
+      text={row.name}
+      font={MusicFont.ROW}
+      color={colour}
+      shadow={shadow}
+      align="left"
+      valign="middle"
+      optionSubject={`<col=ff9040>${row.name}</col>`}
+      onMouseEnter={(event) => {
+        event.self.color = MusicColor.WHITE;
+      }}
+      onMouseLeave={(event) => {
+        event.self.color = colour;
+      }}
+    />
+  );
+}
+
+function trackShown(row: MusicRow): Boolean {
+  const filter: Int = useServerState(MusicState.LOCK_FILTER);
+  const unlocked: Boolean = trackUnlocked(row);
+  if (!unlocked && filter === 1) {
+    return false;
+  }
+  if (unlocked && filter === 2) {
+    return false;
+  }
+  return true;
+}
+
+export function trackUnlocked(row: MusicRow): Boolean {
+  if (row.area === 1) {
+    return true;
+  }
+  if (row.varp > MusicCount.VARPS) {
+    return false;
+  }
+  if (row.varp < 1 || row.bit < 0) {
+    return true;
+  }
+  return CS2.testbit(musicUnlockFlags(row.varp), row.bit);
+}
+
+function musicUnlockFlags(index: Int): Int {
+  switch (index) {
+    case 1:
+      return useServerState(MusicFlags.V1);
+    case 2:
+      return useServerState(MusicFlags.V2);
+    case 3:
+      return useServerState(MusicFlags.V3);
+    case 4:
+      return useServerState(MusicFlags.V4);
+    case 5:
+      return useServerState(MusicFlags.V5);
+    case 6:
+      return useServerState(MusicFlags.V6);
+    case 7:
+      return useServerState(MusicFlags.V7);
+    case 8:
+      return useServerState(MusicFlags.V8);
+    case 9:
+      return useServerState(MusicFlags.V9);
+    case 10:
+      return useServerState(MusicFlags.V10);
+    case 11:
+      return useServerState(MusicFlags.V11);
+    case 12:
+      return useServerState(MusicFlags.V12);
+    case 13:
+      return useServerState(MusicFlags.V13);
+    case 14:
+      return useServerState(MusicFlags.V14);
+    case 15:
+      return useServerState(MusicFlags.V15);
+    case 16:
+      return useServerState(MusicFlags.V16);
+    case 17:
+      return useServerState(MusicFlags.V17);
+    case 18:
+      return useServerState(MusicFlags.V18);
+    case 19:
+      return useServerState(MusicFlags.V19);
+    case 20:
+      return useServerState(MusicFlags.V20);
+    case 21:
+      return useServerState(MusicFlags.V21);
+    case 22:
+      return useServerState(MusicFlags.V22);
+    case 23:
+      return useServerState(MusicFlags.V23);
+    case 24:
+      return useServerState(MusicFlags.V24);
+    case 25:
+      return useServerState(MusicFlags.V25);
+    case 26:
+      return useServerState(MusicFlags.V26);
+    case 27:
+      return useServerState(MusicFlags.V27);
+  }
+  return -1;
+}
+
+function trackAvailable(row: MusicRow): Int {
+  if (row.restricted !== 0 && sailingRestricted()) {
+    return 0;
+  }
+  return row.available;
+}
+
+function rowColour(row: MusicRow): Int {
+  if (trackAvailable(row) !== 1) {
+    return settingColourOrDefault(MusicColourSetting.UNAVAILABLE);
+  }
+  if (trackUnlocked(row)) {
+    return settingColourOrDefault(MusicColourSetting.UNLOCKED);
+  }
+  return settingColourOrDefault(MusicColourSetting.LOCKED);
+}
+
+function ModeButtons(): Component {
+  const mode: Int = useServerState(MusicState.PLAY_MODE);
+  return (
+    <>
+      <ModeButton x={Layout.mode.area} anchorRight={0} icon={ModeIcon.AREA} option="Area Mode" pressed={mode === 0} />
+      <ModeButton
+        x={Layout.mode.shuffle}
+        anchorRight={0}
+        icon={ModeIcon.SHUFFLE}
+        option="Shuffle Mode"
+        pressed={mode === 1}
+      />
+      <ModeButton
+        x={Layout.mode.single}
+        anchorRight={0}
+        icon={ModeIcon.SINGLE}
+        option="Single Mode"
+        pressed={mode === 2}
+      />
+      <ModeButton x={Layout.mode.skip} anchorRight={1} icon={ModeIcon.SKIP} option="Skip Track" pressed={mode !== 1} />
+    </>
+  );
+}
+
+function ModeButton({
+  x,
+  anchorRight,
+  icon,
+  option,
+  pressed,
+}: {
+  x: Int;
+  anchorRight: Int;
+  icon: Sprite;
+  option: String;
+  pressed: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <layer
+      x={anchorRight === 1 ? { right: x } : x}
+      y={Layout.mode.y}
+      w={Layout.mode.w}
+      h={Layout.mode.h}
+      options={pressed ? [''] : [option]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    >
+      {pressed || hovered === 1 ? <StoneSmallPressed /> : <StoneSmallRaised />}
+      <sprite x="center" y="center" w={Skin.ICON_W} h={Skin.ICON_H} sprite={icon} />
+    </layer>
+  );
+}
+
+function StoneSmallRaised(): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Skin.BACKDROP_INSET }}
+        h={{ fill: Skin.BACKDROP_INSET }}
+        sprite={Skin.RAISED_BACKDROP}
+        tiling
+      />
+      <sprite w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.RAISED_TOP_LEFT} tiling />
+      <sprite x={{ right: 0 }} w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.RAISED_TOP_RIGHT} tiling />
+      <sprite y={{ bottom: 0 }} w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.RAISED_BOTTOM_LEFT} tiling />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: 0 }}
+        w={Skin.CORNER}
+        h={Skin.CORNER}
+        sprite={Skin.RAISED_BOTTOM_RIGHT}
+        tiling
+      />
+      <sprite y={Skin.CORNER} w={Skin.CORNER} h={{ fill: Skin.EDGE }} sprite={Skin.RAISED_LEFT} tiling />
+      <sprite x={Skin.CORNER} w={{ fill: Skin.EDGE }} h={Skin.CORNER} sprite={Skin.RAISED_TOP} tiling />
+      <sprite
+        x={{ right: 0 }}
+        y={Skin.CORNER}
+        w={Skin.CORNER}
+        h={{ fill: Skin.EDGE }}
+        sprite={Skin.RAISED_RIGHT}
+        tiling
+      />
+      <sprite
+        x={Skin.CORNER}
+        y={{ bottom: 0 }}
+        w={{ fill: Skin.EDGE }}
+        h={Skin.CORNER}
+        sprite={Skin.RAISED_BOTTOM}
+        tiling
+      />
+    </>
+  );
+}
+
+function StoneSmallPressed(): Component {
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Skin.BACKDROP_INSET }}
+        h={{ fill: Skin.BACKDROP_INSET }}
+        sprite={Skin.PRESSED_BACKDROP}
+        tiling
+      />
+      <sprite w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.PRESSED_TOP_LEFT} tiling />
+      <sprite x={{ right: 0 }} w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.PRESSED_TOP_RIGHT} tiling />
+      <sprite y={{ bottom: 0 }} w={Skin.CORNER} h={Skin.CORNER} sprite={Skin.PRESSED_BOTTOM_LEFT} tiling />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: 0 }}
+        w={Skin.CORNER}
+        h={Skin.CORNER}
+        sprite={Skin.PRESSED_BOTTOM_RIGHT}
+        tiling
+      />
+      <sprite y={Skin.CORNER} w={Skin.CORNER} h={{ fill: Skin.EDGE }} sprite={Skin.PRESSED_LEFT} tiling />
+      <sprite x={Skin.CORNER} w={{ fill: Skin.EDGE }} h={Skin.CORNER} sprite={Skin.PRESSED_TOP} tiling />
+      <sprite
+        x={{ right: 0 }}
+        y={Skin.CORNER}
+        w={Skin.CORNER}
+        h={{ fill: Skin.EDGE }}
+        sprite={Skin.PRESSED_RIGHT}
+        tiling
+      />
+      <sprite
+        x={Skin.CORNER}
+        y={{ bottom: 0 }}
+        w={{ fill: Skin.EDGE }}
+        h={Skin.CORNER}
+        sprite={Skin.PRESSED_BOTTOM}
+        tiling
+      />
+    </>
+  );
+}
+
+function PlaylistButton(): Component {
+  const playlist: Int = useServerState(MusicState.PLAYLIST);
+  return (
+    <DropdownButton
+      label={PlaylistNames.get(playlist) ?? ''}
+      entryCount={MusicCount.PLAYLISTS}
+      color={MusicColor.ORANGE}
+    />
+  );
+}
+
+const PlaylistNames = mapOf<Int, String>([
+  [0, 'All music'],
+  [1, 'Playlist 1'],
+  [2, 'Playlist 2'],
+  [3, 'Playlist 3'],
+]);
+
+function createGraphic(
+  container: ComponentId,
+  index: Int,
+  sprite: Sprite,
+  x: Int,
+  y: Int,
+  xMode: Int,
+  yMode: Int,
+  w: Int,
+  h: Int,
+  wMode: Int,
+  hMode: Int,
+): void {
+  CS2.cc_create(container, Skin.SPRITE_TYPE, index, false);
+  CS2.cc_position_set(x, y, xMode, yMode);
+  CS2.cc_size_set(w, h, wMode, hMode);
+  CS2.cc_sprite_set(sprite);
+  CS2.cc_tiling_set(true);
+}
+
+export function musicPressedSkinDraw(container: ComponentId): void {
+  CS2.cc_all_delete(container);
+
+  const w: Int = CS2.if_width_get(container);
+  const h: Int = CS2.if_height_get(container);
+  const right: Int = w - Skin.CORNER;
+  const bottom: Int = h - Skin.CORNER;
+  const spanW: Int = w - Skin.EDGE;
+  const spanH: Int = h - Skin.EDGE;
+  const c: Int = Skin.CORNER;
+
+  createGraphic(
+    container,
+    0,
+    Skin.PRESSED_BACKDROP,
+    0,
+    0,
+    Skin.POS_CENTER,
+    Skin.POS_CENTER,
+    Skin.BACKDROP_INSET,
+    Skin.BACKDROP_INSET,
+    Skin.SIZE_MINUS,
+    Skin.SIZE_MINUS,
+  );
+  createGraphic(
+    container,
+    1,
+    Skin.PRESSED_TOP_LEFT,
+    0,
+    0,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    2,
+    Skin.PRESSED_TOP_RIGHT,
+    right,
+    0,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    3,
+    Skin.PRESSED_BOTTOM_LEFT,
+    0,
+    bottom,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    4,
+    Skin.PRESSED_BOTTOM_RIGHT,
+    right,
+    bottom,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    5,
+    Skin.PRESSED_LEFT,
+    0,
+    c,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    spanH,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    6,
+    Skin.PRESSED_TOP,
+    c,
+    0,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    spanW,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    7,
+    Skin.PRESSED_RIGHT,
+    right,
+    c,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    c,
+    spanH,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+  createGraphic(
+    container,
+    8,
+    Skin.PRESSED_BOTTOM,
+    c,
+    bottom,
+    Skin.POS_LEFT,
+    Skin.POS_TOP,
+    spanW,
+    c,
+    Skin.SIZE_ABS,
+    Skin.SIZE_ABS,
+  );
+}

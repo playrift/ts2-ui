@@ -1,37 +1,44 @@
-import { useRef, useServerState } from 'ts2';
+import { predictServerState, useRef, useServerState, useState, useWatch } from 'ts2';
 import { Sprites, Varbits } from './poh-options.constants';
+import { pohDefaultModeFace } from './poh-options.state';
 
 export function DefaultBuildingModeRow(): Component {
-  const defaultMode = useServerState(Varbits.TELEPORT_BUILDING_MODE);
-  const onIcon = useRef();
-  const offIcon = useRef();
+  const [onLit, setOnLit] = useState(pohDefaultModeFace);
+  const on = useRef();
+
+  useWatch(
+    Varbits.TELEPORT_BUILDING_MODE,
+    () => {
+      setOnLit(useServerState(Varbits.TELEPORT_BUILDING_MODE));
+    },
+    on,
+  );
 
   return (
     <>
       <sprite
-        ref={onIcon}
+        ref={on}
         x={138}
         y={106}
         w={17}
         h={17}
         options={['On']}
-        sprite={defaultMode === 1 ? Sprites.RADIO_SELECTED : Sprites.RADIO_EMPTY}
+        sprite={onLit === 1 ? Sprites.RADIO_SELECTED : Sprites.RADIO_EMPTY}
         onOptionSelect={() => {
-          onIcon.sprite = Sprites.RADIO_SELECTED;
-          offIcon.sprite = Sprites.RADIO_EMPTY;
+          predictServerState(Varbits.TELEPORT_BUILDING_MODE, 1);
+          setOnLit(1);
         }}
       />
       <sprite
-        ref={offIcon}
         x={{ right: 10 }}
         y={106}
         w={17}
         h={17}
         options={['Off']}
-        sprite={defaultMode === 1 ? Sprites.RADIO_EMPTY : Sprites.RADIO_SELECTED}
+        sprite={onLit === 1 ? Sprites.RADIO_EMPTY : Sprites.RADIO_SELECTED}
         onOptionSelect={() => {
-          offIcon.sprite = Sprites.RADIO_SELECTED;
-          onIcon.sprite = Sprites.RADIO_EMPTY;
+          predictServerState(Varbits.TELE_TOGGLE, 0);
+          setOnLit(0);
         }}
       />
     </>

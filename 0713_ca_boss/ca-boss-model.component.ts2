@@ -1,0 +1,65 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { CaBosses } from '../0716_ca_bosses/ca-shared.data';
+
+import { caBossSpinYaw } from './ca-boss.constants';
+
+const TURN = 2048;
+
+const SPIN_YAW = -2;
+
+export function CaBossModel(): Component {
+  const model = useRef();
+  useInterval(caBossSpins() ? () => caBossSpin() : undefined, model);
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  const [spun] = useState(caBossSpinYaw);
+  if (row === null) {
+    return null;
+  }
+  const yaw: Int = spun === -1 ? row.yaw : spun;
+  return (
+    <model
+      ref={model}
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      model={row.model}
+      anim={row.anim as Animation}
+      offsetX={row.offsetX}
+      offsetY={row.offsetY}
+      pitch={row.pitch}
+      yaw={yaw}
+      roll={row.roll}
+      zoom={row.zoom}
+    />
+  );
+}
+
+function caBossSpins(): Boolean {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  if (row === null) {
+    return false;
+  }
+  return row.spin ?? true;
+}
+
+export function caBossModelInit(): void {
+  const [, setSpun] = useState(caBossSpinYaw);
+  setSpun(-1);
+}
+
+function caBossSpin(): void {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  if (row === null) {
+    return;
+  }
+  const [spun, setSpun] = useState(caBossSpinYaw);
+  const base: Int = spun === -1 ? row.yaw : spun;
+  let next: Int = (base + SPIN_YAW) % TURN;
+  if (next < 0) {
+    next = next + TURN;
+  }
+  setSpun(next);
+}

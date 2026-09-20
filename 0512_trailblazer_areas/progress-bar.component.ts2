@@ -1,0 +1,121 @@
+import { useServerState, useState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+
+import { AreaTiers } from './trailblazer-areas.data';
+import { leagueTheme } from './trailblazer-areas.helpers';
+import { AreaColor, AreaFonts, AreaVarbits, BarLayout, Layout, progressBarRef } from './trailblazer-areas.constants';
+
+export function AreaProgressBar(): Component {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const width: Int = barWidth(breakpoint);
+  const theme = leagueTheme();
+  const tasks: Int = useServerState(AreaVarbits.TASKS);
+  const last: Int = AreaTiers.at(AreaTiers.length - 1) ?? 0;
+
+  const track: Sprite = theme === null ? -1 : theme.barTrack;
+  const bar: Sprite = theme === null ? -1 : theme.barFill;
+  const tick: Sprite = theme === null ? -1 : theme.barTick;
+  const font: Font = theme === null ? AreaFonts.BODY : (theme.barFont as Font);
+  const captionColour: Int = theme === null ? AreaColor.TEXT : theme.barTextColour;
+  const captionShadow: Boolean = theme === null ? true : theme.barTextShadow;
+
+  const inner: Int = width - 4;
+  let fill: Int = scaled(tasks, last, inner);
+  if (fill > inner) {
+    fill = inner;
+  }
+
+  return (
+    <layer ref={progressBarRef} x={Layout.BAR_X} y={Layout.BAR_Y} w={{ fill: Layout.BAR_W_INSET }} h={Layout.BAR_H}>
+      {theme !== null && (
+        <>
+          <rect
+            x={BarLayout.FRAME_INSET}
+            y={BarLayout.FRAME_INSET}
+            w={inner}
+            h={BarLayout.FRAME_H}
+            color={AreaColor.BAR_EDGE}
+          />
+          <sprite
+            x={BarLayout.TRACK_INSET}
+            y={BarLayout.TRACK_INSET}
+            w={width - 6}
+            h={BarLayout.TRACK_H}
+            sprite={track}
+            tiling
+          />
+          <sprite
+            x={BarLayout.TRACK_INSET}
+            y={BarLayout.TRACK_INSET}
+            w={fill}
+            h={BarLayout.TRACK_H}
+            sprite={bar}
+            tiling
+          />
+
+          <BarTick tier={1} width={width} last={last} sprite={tick} />
+          <BarTick tier={2} width={width} last={last} sprite={tick} />
+          <BarTick tier={3} width={width} last={last} sprite={tick} />
+          <BarTick tier={4} width={width} last={last} sprite={tick} />
+
+          <text
+            x={0}
+            y={0}
+            w={width}
+            h="fill"
+            text={barCaption(tasks)}
+            font={font}
+            color={captionColour}
+            shadow={captionShadow}
+            align="center"
+            valign="middle"
+          />
+
+          <rect x={0} y={0} w={width} h={33} color={AreaColor.BAR_SURROUND} />
+          <rect x={1} y={1} w={width - 2} h={BarLayout.SURROUND_H} color={AreaColor.BAR_SURROUND} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+function barWidth(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Layout.WINDOW_W_MEDIUM - Layout.CONTENT_W_INSET - Layout.BAR_W_INSET;
+  }
+  if (breakpoint === 2) {
+    return Layout.WINDOW_W_LARGE - Layout.CONTENT_W_INSET - Layout.BAR_W_INSET;
+  }
+  if (breakpoint === 3) {
+    return Layout.WINDOW_W_LARGE - Layout.CONTENT_W_INSET - Layout.BAR_W_INSET;
+  }
+  return Layout.WINDOW_W - Layout.CONTENT_W_INSET - Layout.BAR_W_INSET;
+}
+
+function BarTick({ tier, width, last, sprite }: { tier: Int; width: Int; last: Int; sprite: Sprite }): Component {
+  const threshold: Int = AreaTiers.at(tier) ?? 0;
+  const inner: Int = width - 4;
+  let at: Int = scaled(threshold, last, inner);
+  if (at <= 2) {
+    at = 0;
+  } else if (at >= inner) {
+    at = width;
+  } else {
+    at = at + 2;
+  }
+
+  if (onMobile()) {
+    return <sprite x={at - 5} y={0} w={10} h={31} sprite={sprite} options={['Show Threshold']} />;
+  }
+  return <sprite x={at - 5} y={0} w={10} h={31} sprite={sprite} options={['']} />;
+}
+
+function barCaption(tasks: Int): String {
+  if (tasks === 1) {
+    return `${stringOf(tasks)} task completed`;
+  }
+  return `${stringOf(tasks)} tasks completed`;
+}

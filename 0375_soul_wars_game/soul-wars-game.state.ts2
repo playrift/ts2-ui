@@ -1,4 +1,4 @@
-import { sessionState, useServerState, useState } from 'ts2';
+import { stopTimer, useServerState } from 'ts2';
 
 import { Varbits } from '../lib/game/varbits';
 import { clientClock } from '../lib/lib.engine';
@@ -56,16 +56,27 @@ export function holderColor(holder: Int): Int {
   return SoulWarsColor.NEUTRAL;
 }
 
-export const soulWarsFlash = sessionState(-1);
-
-export function flashPhase(): Int {
-  if (clientClock() % Flash.PERIOD < Flash.HALF) {
-    return 0;
+export function siteFlash(
+  frame: ComponentId,
+  plain: ComponentId,
+  blue: ComponentId,
+  red: ComponentId,
+  site: Site,
+): void {
+  const contested: Int = siteContested(site);
+  if (contested !== 1 && contested !== 2) {
+    plain.hide = false;
+    blue.hide = true;
+    red.hide = true;
+    stopTimer(frame);
+    return;
   }
-  return 1;
-}
-
-export function tickSoulWarsFlash(): void {
-  const [, setFlash] = useState(soulWarsFlash);
-  setFlash(flashPhase());
+  let lit: Int = 0;
+  if (clientClock() % Flash.PERIOD >= Flash.HALF) {
+    lit = contested;
+  }
+  plain.hide = lit !== 0;
+  blue.hide = lit !== 1;
+  red.hide = lit !== 2;
+  frame.onTimer = () => siteFlash(frame, plain, blue, red, site);
 }

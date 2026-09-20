@@ -1,0 +1,238 @@
+import { CS2, onMounted, onUpdated, useDerived, useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { chatHighlight, chatView, osmChatboxDisabled } from '../lib/game/varcs';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { onMobile } from '../lib/lib.helpers';
+import { mobileGameframeFlag } from './chatbox.helpers';
+import { ALERT_BIT_ANY, chatAlertQuarters, chatAlertTick, chatGetFilter, mobileChatStone } from './chat-buttons';
+import { CHAT_FILTER_LABEL_DEFAULT, ChatFilterLabels, ChatTab } from './chatbox.data';
+import {
+  ChatboxSprites,
+  Layout,
+  tab0PlateRef,
+  tab0Ref,
+  tab1PlateRef,
+  tab1StateRef,
+  tab2PlateRef,
+  tab2StateRef,
+  tab3PlateRef,
+  tab3StateRef,
+  tab4PlateRef,
+  tab4StateRef,
+  tab5PlateRef,
+  tab5StateRef,
+  tab6CaptionRef,
+  tab6PlateRef,
+  tab6Ref,
+  tab6StateRef,
+} from './chatbox.constants';
+
+export function ChatTabs(): Component {
+  const host = useRef();
+
+  const [view] = useState(chatView);
+  const [highlight] = useState(chatHighlight);
+  const [chatDisabled] = useState(osmChatboxDisabled);
+
+  const alerts: Int = useDerived(() => chatAlertQuarters());
+
+  const frame: Int = useDerived(() => mobileGameframeFlag());
+  let mobile: Boolean = false;
+  if (frame === 1) {
+    mobile = true;
+  }
+
+  const filterPublic: Int = useDerived(() => chatGetFilter(ChatTab.PUBLIC));
+  const filterPrivate: Int = useDerived(() => chatGetFilter(ChatTab.PRIVATE));
+  const filterChannel: Int = useDerived(() => chatGetFilter(ChatTab.CHANNEL));
+  const filterClan: Int = useDerived(() => chatGetFilter(ChatTab.CLAN));
+  const filterTrade: Int = useDerived(() => chatGetFilter(ChatTab.TRADE));
+
+  const ironman: Boolean = isGroupIronman(useServerState(Varbits.IRONMAN));
+
+  let gameFilter: Int = 0;
+  if (useServerState(Varbits.GAME_FILTER) === 1) {
+    gameFilter = GAME_FILTERED;
+  }
+
+  let stoneOnly: Boolean = false;
+  if (onMobile() && chatDisabled === 1 && useServerState(Varbits.SETTINGS_MOBILE_SHOW_FILTER_STONES_ENABLED) === 0) {
+    stoneOnly = true;
+  }
+
+  let plateW: Int = Layout.PLATE_W;
+  let plateH: Int = Layout.PLATE_H;
+  if (mobile) {
+    plateW = Layout.PLATE_W + MOBILE_PLATE_GROWTH;
+    plateH = Layout.PLATE_H + MOBILE_PLATE_GROWTH;
+  }
+
+  const art0: Sprite = tabArt(ChatTab.ALL, view, highlight, mobile, alerts);
+  const art1: Sprite = tabArt(ChatTab.GAME, view, highlight, mobile, alerts);
+  const art2: Sprite = tabArt(ChatTab.PUBLIC, view, highlight, mobile, alerts);
+  const art3: Sprite = tabArt(ChatTab.PRIVATE, view, highlight, mobile, alerts);
+  const art4: Sprite = tabArt(ChatTab.CHANNEL, view, highlight, mobile, alerts);
+  const art5: Sprite = tabArt(ChatTab.CLAN, view, highlight, mobile, alerts);
+  const art6: Sprite = tabArt(ChatTab.TRADE, view, highlight, mobile, alerts);
+
+  const labelGame: String = ChatFilterLabels.get(gameFilter) ?? CHAT_FILTER_LABEL_DEFAULT;
+  const labelPublic: String = ChatFilterLabels.get(filterPublic) ?? CHAT_FILTER_LABEL_DEFAULT;
+  const labelPrivate: String = ChatFilterLabels.get(filterPrivate) ?? CHAT_FILTER_LABEL_DEFAULT;
+  const labelChannel: String = ChatFilterLabels.get(filterChannel) ?? CHAT_FILTER_LABEL_DEFAULT;
+  const labelClan: String = ChatFilterLabels.get(filterClan) ?? CHAT_FILTER_LABEL_DEFAULT;
+  const labelTrade: String = ChatFilterLabels.get(filterTrade) ?? CHAT_FILTER_LABEL_DEFAULT;
+
+  let caption: String = 'Trade<br> ';
+  if (ironman) {
+    caption = 'Group<br> ';
+  }
+
+  let stoneAlert: Boolean = false;
+  if (CS2.testbit(alerts, ALERT_BIT_ANY) === 1) {
+    stoneAlert = true;
+  }
+
+  onMounted(() =>
+    redrawChatButtons(
+      stoneOnly,
+      stoneAlert,
+      ironman,
+      caption,
+      plateW,
+      plateH,
+      art0,
+      art1,
+      art2,
+      art3,
+      art4,
+      art5,
+      art6,
+      labelGame,
+      labelPublic,
+      labelPrivate,
+      labelChannel,
+      labelClan,
+      labelTrade,
+    ),
+  );
+  onUpdated(() =>
+    redrawChatButtons(
+      stoneOnly,
+      stoneAlert,
+      ironman,
+      caption,
+      plateW,
+      plateH,
+      art0,
+      art1,
+      art2,
+      art3,
+      art4,
+      art5,
+      art6,
+      labelGame,
+      labelPublic,
+      labelPrivate,
+      labelChannel,
+      labelClan,
+      labelTrade,
+    ),
+  );
+
+  useInterval(() => chatAlertTick(), host);
+
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+function redrawChatButtons(
+  stoneOnly: Boolean,
+  stoneAlert: Boolean,
+  ironman: Boolean,
+  caption: String,
+  plateW: Int,
+  plateH: Int,
+  art0: Sprite,
+  art1: Sprite,
+  art2: Sprite,
+  art3: Sprite,
+  art4: Sprite,
+  art5: Sprite,
+  art6: Sprite,
+  labelGame: String,
+  labelPublic: String,
+  labelPrivate: String,
+  labelChannel: String,
+  labelClan: String,
+  labelTrade: String,
+): void {
+  if (stoneOnly) {
+    const stone: ComponentId = mobileChatStone();
+    if (stone !== -1) {
+      if (stoneAlert) {
+        if (CS2.cc_find(stone, 0)) {
+          CS2.cc_sprite_set(ChatboxSprites.MOBILE_STONE_ALERT);
+        }
+      } else if (CS2.cc_find(stone, 0)) {
+        CS2.cc_sprite_set(ChatboxSprites.MOBILE_STONE);
+      }
+    }
+    return;
+  }
+
+  tab0PlateRef.props = { w: plateW, h: plateH, sprite: art0 };
+  tab1PlateRef.props = { w: plateW, h: plateH, sprite: art1 };
+  tab2PlateRef.props = { w: plateW, h: plateH, sprite: art2 };
+  tab3PlateRef.props = { w: plateW, h: plateH, sprite: art3 };
+  tab4PlateRef.props = { w: plateW, h: plateH, sprite: art4 };
+  tab5PlateRef.props = { w: plateW, h: plateH, sprite: art5 };
+  tab6PlateRef.props = { w: plateW, h: plateH, sprite: art6 };
+
+  tab1StateRef.text = labelGame;
+  tab2StateRef.text = labelPublic;
+  tab3StateRef.text = labelPrivate;
+  tab4StateRef.text = labelChannel;
+  tab5StateRef.text = labelClan;
+  tab6StateRef.text = labelTrade;
+  tab6CaptionRef.text = caption;
+
+  if (ironman) {
+    CS2.if_op_set(3, '<col=ffff00>Group:</col> Show all', tab6Ref);
+    CS2.if_op_set(4, '<col=ffff00>Group:</col> Show friends', tab6Ref);
+    CS2.if_op_set(5, '<col=ffff00>Group:</col> Show none', tab6Ref);
+    CS2.if_op_set(7, '<col=ffff00>Group:</col> Clear history', tab6Ref);
+    CS2.if_op_set(6, '<col=ffff00>Set chat mode:</col> Group (/@g)', tab0Ref);
+  } else {
+    CS2.if_op_set(3, '<col=ffff00>Trade:</col> Show all', tab6Ref);
+    CS2.if_op_set(4, '<col=ffff00>Trade:</col> Show friends', tab6Ref);
+    CS2.if_op_set(5, '<col=ffff00>Trade:</col> Show none', tab6Ref);
+    CS2.if_op_set(7, '', tab6Ref);
+    CS2.if_op_set(6, '', tab0Ref);
+  }
+}
+
+function tabArt(tab: Int, view: Int, highlight: Int, mobile: Boolean, alerts: Int): Sprite {
+  if (view === tab) {
+    if (mobile) {
+      return ChatboxSprites.MOBILE_TAB_SELECTED;
+    }
+    if (highlight === tab) {
+      return ChatboxSprites.TAB_SELECTED_HIGHLIGHT;
+    }
+    return ChatboxSprites.TAB_SELECTED;
+  }
+  if (highlight === tab) {
+    return mobile ? ChatboxSprites.MOBILE_TAB_SELECTED : ChatboxSprites.TAB_HIGHLIGHT;
+  }
+  if (CS2.testbit(alerts, tab) === 1) {
+    return mobile ? ChatboxSprites.MOBILE_TAB_ALERT : ChatboxSprites.TAB_ALERT;
+  }
+  if (mobile) {
+    return ChatboxSprites.MOBILE_TAB_IDLE;
+  }
+  return ChatboxSprites.TAB_IDLE;
+}
+
+const MOBILE_PLATE_GROWTH = 2;
+
+const GAME_FILTERED = -1000;

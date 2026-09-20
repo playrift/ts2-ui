@@ -1,0 +1,818 @@
+import {
+  Engine,
+  onMounted,
+  onUpdated,
+  predictServerState,
+  useInterval,
+  useOnResize,
+  useServerState,
+  useState,
+  useUniverse,
+  useWatch,
+} from 'ts2';
+
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { Fonts } from '../lib/game/fonts';
+import { Sprites } from '../lib/game/sprites';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { TooltipBox, TooltipChrome } from '../lib/tooltip.component';
+import {
+  bannerBoundsRef,
+  bannerDodgerRef,
+  bannerHiderRef,
+  bannerLayerRef,
+  deadmanDodgerRef,
+  deadmanFinalRef,
+  deadmanTimerRef,
+  fogRef,
+  fogWatchRef,
+  hudContainerRef,
+  iconsDodgerRef,
+  iconsRef,
+  kdContainerRef,
+  kdDodgerRef,
+  Layout,
+  LayoutVarps,
+  levelRef,
+  levelWatchRef,
+  lobbyLayerRef,
+  PvpColour,
+  PvpDodge,
+  PvpVarbits,
+  safezoneRef,
+  targetDodgerRef,
+  targetSystemRef,
+  TargetVarbits,
+  TELEBLOCK_OP,
+} from './pvp-icons.constants';
+import { kdrText, layoutMode, levelText, rangeText, wildernessLevel } from './pvp-icons.helpers';
+import {
+  bannerBoundsW,
+  bannerRevealW,
+  bannerW,
+  containerY,
+  deadmanCountdownText,
+  deadmanFinalApproach,
+  deadmanFinalLocation,
+  deadmanFinalShown,
+  deadmanLocationStatus,
+  deadmanPlayerCount,
+  deadmanTimerResynch,
+  fogArm,
+  FogArm,
+  framedOffset,
+  fogColourNow,
+  fogTransparencyNow,
+  iconsHeight,
+  iconsHidden,
+  iconsLeft,
+  iconsTop,
+  kdToggle,
+  levelColour,
+  levelY,
+  lobbyCountdownRestart,
+  lobbyLabel,
+  lobbySecondsFrom,
+  lobbyTimeColour,
+  lobbyTimeText,
+  rangeAtLoad,
+  rangeColour,
+  rangeShown,
+  rangeY,
+  riskTransparency,
+  safeTransparency,
+  skullShown,
+  skullSprite,
+  skullText,
+  skullY,
+  spectatorTop,
+  targetExists,
+  targetHideOp,
+  targetDock,
+  targetHidden,
+  targetMinimised,
+  targetWhereText,
+  teleblockOp,
+  teleblockTipClose,
+  teleblockTipText,
+  teleblockTipToggle,
+  teleblockTipUpNow,
+  tipBoxH,
+  tipBoxW,
+} from './pvp-icons.layout';
+import {
+  bannerAge,
+  bannerBoundsWidth,
+  broadcastStartedAt,
+  broadcastText,
+  deadmanShownSeconds,
+  fogColour,
+  fogTransparency,
+  lobbySteps,
+  teleblockTipUp,
+  wildernessLevelSeen,
+} from './pvp-icons.state';
+import { bannerTick, deadmanTick, fogStep, fogTick, levelTick, lobbyTick, pvpIconsInit } from './pvp-icons.ticks';
+
+export function PvpIcons(): Component {
+  return (
+    <>
+      <layer x={0} y={0} w={0} h={0} onLoad={() => fogStep()} />
+
+      <DeadmanFog />
+
+      <layer ref={safezoneRef} x="center" y="center" w="fill" h="fill" onLoad={() => pvpIconsInit()}>
+        <layer ref={hudContainerRef} x={0} y={0} w="fill" h="fill">
+          <layer ref={targetDodgerRef} x={0} y={0} w="fill" h="fill">
+            <layer static ref={targetSystemRef} x={{ right: 0 }} y={2} w={185} h={46}>
+              <TargetSystem />
+            </layer>
+          </layer>
+
+          <layer ref={bannerDodgerRef} x={0} y={0} w="fill" h="fill">
+            <layer static ref={bannerBoundsRef} x={{ center: -35 }} y={32} w={220} h={60}>
+              <BroadcastBanner />
+            </layer>
+            <BannerLayout />
+          </layer>
+
+          <layer ref={kdDodgerRef} x={0} y={0} w="fill" h="fill">
+            <layer static ref={kdContainerRef} x={2} y={2} w={200} h={32}>
+              <KdrReadout />
+            </layer>
+          </layer>
+
+          <layer ref={deadmanDodgerRef} x={0} y={0} w="fill" h="fill">
+            <layer static ref={deadmanFinalRef} x={{ right: 0 }} y={2} w={140} h={116} hide>
+              <DeadmanFinal />
+            </layer>
+          </layer>
+        </layer>
+
+        <layer ref={iconsDodgerRef} x={0} y={0} w="fill" h="fill">
+          <layer static ref={iconsRef} x={{ right: 0 }} y={{ bottom: 40 }} w={Layout.BOX_W} h={Layout.BOX_H_DEFINITION}>
+            <IconPlate />
+          </layer>
+        </layer>
+
+        <TeleblockTip />
+      </layer>
+    </>
+  );
+}
+
+function DeadmanFog(): Component {
+  const arm: Int = fogArm(layoutMode(spectatorTop()));
+  const idle: Boolean = arm === FogArm.NONE;
+  const [cellColour] = useState(fogColour);
+  const [cellTransparency] = useState(fogTransparency);
+  const [drawnColour, setDrawnColour] = useState(-1);
+  const [drawnTransparency, setDrawnTransparency] = useState(-1);
+  let colour: Int = cellColour;
+  if (drawnColour !== -1) {
+    colour = drawnColour;
+  }
+  let transparency: Int = cellTransparency;
+  if (drawnTransparency !== -1) {
+    transparency = drawnTransparency;
+  }
+  useInterval(() => {
+    fogTick();
+    setDrawnColour(fogColourNow());
+    setDrawnTransparency(fogTransparencyNow());
+  }, fogRef);
+  useWatch(
+    [
+      LayoutVarps.DEADMAN,
+      LayoutVarps.DEADMAN2,
+      LayoutVarps.DEADMAN3,
+      LayoutVarps.TOURNAMENT_MODE,
+      LayoutVarps.TRANSMITTING_PERM,
+      LayoutVarps.BR_TEMP_1,
+      LayoutVarps.BR_TEMP_2,
+      LayoutVarps.WILDWARS_1,
+      LayoutVarps.WILDWARS_2,
+      LayoutVarps.TELEBLOCK,
+      LayoutVarps.TOPLEVEL_TEMP,
+      LayoutVarps.GRAVESTONE,
+      LayoutVarps.SOTE,
+      LayoutVarps.FARMING_TOOLS2,
+      LayoutVarps.SPECTATOR,
+      LayoutVarps.PVPA,
+    ],
+    () => {
+      fogStep();
+      setDrawnColour(fogColourNow());
+      setDrawnTransparency(fogTransparencyNow());
+    },
+    fogWatchRef,
+  );
+  useWatch(
+    Engine.SUB_CHANGE,
+    () => {
+      fogStep();
+      setDrawnColour(fogColourNow());
+      setDrawnTransparency(fogTransparencyNow());
+    },
+    fogWatchRef,
+  );
+
+  return (
+    <>
+      <rect
+        ref={fogRef}
+        x="center"
+        y={0}
+        w="fill"
+        h="60%"
+        fill
+        color={colour}
+        blendColor={colour}
+        transparency={transparency}
+        transparencyBottom={255}
+        fillMode={2}
+        hide={idle}
+      />
+      <layer ref={fogWatchRef} x={0} y={0} w={1} h={1} />
+    </>
+  );
+}
+
+function KdrReadout(): Component {
+  const text: String = kdrText();
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      font={Fonts.P11_FULL}
+      color={PvpColour.YELLOW}
+      align="left"
+      valign="top"
+      shadow
+      text={text}
+    />
+  );
+}
+
+function placeIcons(hidden: Boolean, mobile: Boolean, framed: Int, inset: Int, height: Int): void {
+  if (mobile) {
+    iconsRef.props = {
+      hide: hidden,
+      x: { right: Layout.BOX_RIGHT_MOBILE },
+      y: { bottom: 0 },
+      w: Layout.BOX_W,
+      h: height,
+    };
+    return;
+  }
+  if (framed > 0) {
+    iconsRef.props = {
+      hide: hidden,
+      x: { right: Layout.BOX_RIGHT_FRAMED },
+      y: Layout.BOX_TOP_FRAMED - inset,
+      w: Layout.BOX_W,
+      h: height,
+    };
+    return;
+  }
+  iconsRef.props = { hide: hidden, x: { right: 0 }, y: { bottom: Layout.BOX_BOTTOM }, w: Layout.BOX_W, h: height };
+}
+
+function IconPlate(): Component {
+  const mode: Int = layoutMode(spectatorTop());
+  const hidden: Boolean = iconsHidden(mode);
+  const mobile: Boolean = onMobile();
+  const framed: Int = framedOffset();
+  const inset: Int = containerY(mode);
+  const height: Int = iconsHeight(mode);
+  onMounted(() => placeIcons(hidden, mobile, framed, inset, height));
+  onUpdated(() => placeIcons(hidden, mobile, framed, inset, height));
+
+  const skullHidden: Boolean = !skullShown(mode);
+  const quitterHidden: Boolean = targetHidden(mode);
+  const styleHidden: Boolean = !enhancedAny();
+
+  return (
+    <>
+      <layer x="center" y={inset} w={Layout.ICON} h={Layout.ICON}>
+        <sprite x="center" y="center" w={Layout.ICON} h={Layout.ICON} sprite={skullSprite(mode)} />
+        <sprite
+          x="center"
+          y="center"
+          w={Layout.ICON}
+          h={Layout.ICON}
+          sprite={Sprites.PVPW_ICONS_1}
+          transparency={safeTransparency(mode)}
+        />
+      </layer>
+
+      <sprite
+        x={{ center: 16 }}
+        y={3}
+        w={7}
+        h={18}
+        sprite={Sprites.PVP_WARNING_ICON}
+        transparency={riskTransparency()}
+      />
+
+      <LevelRows mode={mode} />
+
+      <text
+        x="center"
+        y={{ bottom: skullY(mode) }}
+        w="fill"
+        h={15}
+        font={Fonts.P12_FULL}
+        color={PvpColour.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+        text={skullText(mode)}
+        hide={skullHidden}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: 18 }}
+        w="fill"
+        h={15}
+        font={Fonts.P11_FULL}
+        color={PvpColour.RED}
+        align="center"
+        valign="middle"
+        shadow
+        text=""
+        hide={quitterHidden}
+      />
+
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w="fill"
+        h={16}
+        font={Fonts.P11_FULL}
+        color={PvpColour.ORANGE}
+        align="center"
+        valign="middle"
+        shadow
+        text=""
+        hide={styleHidden}
+      />
+    </>
+  );
+}
+
+function LevelRows({ mode }: { mode: Int }): Component {
+  const [seen] = useState(wildernessLevelSeen);
+  const ticked: Boolean = seen >= 0;
+  let level: Int = seen;
+  if (!ticked) {
+    level = wildernessLevel();
+  }
+  let range: String = '';
+  if (ticked || rangeAtLoad(mode)) {
+    range = rangeText(level);
+  }
+  let label: String = '';
+  if (ticked) {
+    label = levelText(level);
+  }
+  const rangeHidden: Boolean = !rangeShown(mode);
+  useInterval(() => levelTick(), levelRef);
+  useWatch(LayoutVarps.SPECTATOR, () => levelTick(), levelWatchRef);
+
+  return (
+    <>
+      <text
+        x="center"
+        y={{ bottom: rangeY(mode) }}
+        w="fill"
+        h={Layout.RANGE_H}
+        font={Fonts.P11_FULL}
+        color={rangeColour(mode)}
+        align="center"
+        valign="middle"
+        shadow
+        text={range}
+        hide={rangeHidden}
+      />
+      <text
+        ref={levelRef}
+        x="center"
+        y={{ bottom: levelY(mode, ticked) }}
+        w="fill"
+        h={Layout.LEVEL_H}
+        font={Fonts.P12_FULL}
+        color={levelColour(mode)}
+        align="center"
+        valign="middle"
+        shadow
+        text={label}
+      />
+      <layer ref={levelWatchRef} x={0} y={0} w={1} h={1} />
+    </>
+  );
+}
+
+function TeleblockTip(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+  const mode: Int = layoutMode(spectatorTop());
+  const [cellUp] = useState(teleblockTipUp);
+  const [drawnUp, setDrawnUp] = useState(-1);
+  let up: Int = cellUp;
+  if (drawnUp !== -1) {
+    up = drawnUp;
+  }
+  const op: Boolean = teleblockOp(mode);
+  const shown: Boolean = up === 1 && op && !enhancedAny();
+  const hidden: Boolean = !shown;
+  const text: String = teleblockTipText();
+  const boxW: Int = tipBoxW(text, stage.width);
+  const boxH: Int = tipBoxH(text, stage.width);
+  const anchorX: Int = iconsLeft(stage.width) + (Layout.BOX_W - Layout.ICON) / 2;
+  const anchorY: Int = iconsTop(stage.height, mode) + containerY(mode);
+  const x: Int = Math.min(anchorX + TooltipBox.nudge, stage.width - boxW);
+  const below: Int = anchorY + Layout.ICON + TooltipBox.nudge;
+  let y: Int = below;
+  if (below > stage.height - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+  return (
+    <>
+      <layer
+        x={anchorX}
+        y={anchorY}
+        w={Layout.ICON}
+        h={Layout.ICON}
+        options={[op ? TELEBLOCK_OP : '']}
+        onOptionSelect={() => {
+          teleblockTipToggle();
+          setDrawnUp(teleblockTipUpNow());
+        }}
+        onMouseLeave={() => {
+          teleblockTipClose();
+          setDrawnUp(0);
+        }}
+      />
+      <layer x={x} y={y} w={boxW} h={boxH} hide={hidden}>
+        <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+      </layer>
+    </>
+  );
+}
+
+function placeTarget(hidden: Boolean, mobile: Boolean, dock: Int, kd: Int): void {
+  if (mobile) {
+    targetSystemRef.props = { hide: hidden, x: { right: 0 }, y: 2 };
+    overlayInit(targetDodgerRef, targetSystemRef, PvpDodge.TARGET_MOBILE, Anchor.RIGHT, Anchor.TOP, 0);
+    return;
+  }
+  if (dock === 2) {
+    let left: Int = 5;
+    if (kd === 1) {
+      left = 106;
+    }
+    targetSystemRef.props = { hide: hidden, x: left, y: 2 };
+    overlayInit(targetDodgerRef, targetSystemRef, PvpDodge.TOP_LEFT, Anchor.LEFT, Anchor.TOP, 0);
+    return;
+  }
+  if (dock === 3) {
+    targetSystemRef.props = { hide: hidden, x: 'center', y: 2 };
+    overlayInit(targetDodgerRef, targetSystemRef, PvpDodge.TOP_LEFT, Anchor.CENTRE, Anchor.TOP, 0);
+    return;
+  }
+  targetSystemRef.props = { hide: hidden, x: { right: 0 }, y: 2 };
+  overlayInit(targetDodgerRef, targetSystemRef, PvpDodge.ICONS_FIXED, Anchor.RIGHT, Anchor.TOP, 1);
+}
+
+function TargetSystem(): Component {
+  const mode: Int = layoutMode(spectatorTop());
+  const hidden: Boolean = targetHidden(mode);
+  const mobile: Boolean = onMobile();
+  const dock: Int = targetDock();
+  const kd: Int = kdToggle();
+  onMounted(() => placeTarget(hidden, mobile, dock, kd));
+  onUpdated(() => placeTarget(hidden, mobile, dock, kd));
+
+  const minimised: Boolean = targetMinimised();
+  const expanded: Boolean = !minimised;
+  const skipHidden: Boolean = !targetExists();
+  const [steps] = useState(lobbySteps);
+  const seconds: Int = lobbySecondsFrom() - steps;
+  const countdownHidden: Boolean = seconds <= -2;
+  const [expandHover, setExpandHover] = useState(0);
+  const [minimiseHover, setMinimiseHover] = useState(0);
+  const [skipHover, setSkipHover] = useState(0);
+  useInterval(() => lobbyTick(), lobbyLayerRef);
+  useWatch(
+    [LayoutVarps.DEADMAN3, LayoutVarps.BH_TEMP, LayoutVarps.TARGET],
+    () => lobbyCountdownRestart(),
+    lobbyLayerRef,
+  );
+
+  let buttonSize: Int = 11;
+  let dockLeft: String = 'Dock Left';
+  let dockMiddle: String = 'Dock Middle';
+  let dockRight: String = 'Dock Right';
+  if (mobile) {
+    buttonSize = 25;
+    dockLeft = '';
+    dockMiddle = '';
+    dockRight = '';
+  }
+
+  return (
+    <>
+      <layer
+        x={{ right: 0 }}
+        y={0}
+        w={buttonSize}
+        h={buttonSize}
+        hide={expanded}
+        noClickThrough
+        options={['Expand']}
+        onOptionSelect={(event) => targetHideOp(event.option, 0)}
+        onMouseEnter={mobile ? undefined : () => setExpandHover(1)}
+        onMouseLeave={mobile ? undefined : () => setExpandHover(0)}
+      >
+        {mobile ? <StoneButtonFilled /> : null}
+        <sprite
+          x="center"
+          y="center"
+          w={11}
+          h={11}
+          hflip
+          sprite={expandHover === 1 ? Sprites.ZEAH_BOOK_1 : Sprites.ZEAH_BOOK_0}
+        />
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" hide={minimised}>
+        <layer ref={lobbyLayerRef} x={{ right: 5 }} y={{ bottom: 5 }} w={{ fill: 63 }} h={25}>
+          <text
+            x={{ right: 0 }}
+            y={{ bottom: 0 }}
+            w="fill"
+            h={13}
+            font={Fonts.P12_FULL}
+            color={lobbyTimeColour(seconds)}
+            align="center"
+            valign="middle"
+            shadow
+            text={lobbyTimeText(seconds)}
+            hide={countdownHidden}
+          />
+          <text
+            x={{ right: 0 }}
+            y={0}
+            w="fill"
+            h={13}
+            font={Fonts.P11_FULL}
+            color={PvpColour.WHITE}
+            align="center"
+            valign="middle"
+            shadow
+            text={lobbyLabel()}
+            hide={countdownHidden}
+          />
+        </layer>
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: 4 }}
+          h={{ fill: 4 }}
+          sprite={Sprites.TRADEBACKING}
+          tiling
+          transparency={150}
+        />
+        <sprite x={32} y={{ bottom: 4 }} w={25} h={25} sprite={Sprites.OVERLAY_MULTIWAY} hide />
+        <sprite x={2} y={22} w={13} h={13} sprite={Sprites.MOD_ICONS_INTERFACE_9} />
+        <text
+          x={17}
+          y={24}
+          w={34}
+          h={11}
+          font={Fonts.P11_FULL}
+          color={PvpColour.WHITE}
+          valign="middle"
+          shadow
+          text={targetWhereText()}
+        />
+        <text
+          x="center"
+          y={2}
+          w="fill"
+          h={15}
+          font={Fonts.P12_FULL}
+          color={PvpColour.ORANGE}
+          align="center"
+          valign="bottom"
+          shadow
+          text=""
+        />
+        <sprite
+          x={{ right: 2 }}
+          y={-1}
+          w={16}
+          h={16}
+          hide={skipHidden}
+          sprite={skipHover === 1 ? Sprites.FAST_FORWARD_1 : Sprites.FAST_FORWARD_0}
+          options={['Skip target']}
+          onMouseEnter={() => setSkipHover(1)}
+          onMouseLeave={() => setSkipHover(0)}
+        />
+        <layer
+          x={3}
+          y={3}
+          w={24}
+          h={24}
+          noClickThrough
+          options={['Minimise', dockLeft, dockMiddle, dockRight]}
+          onOptionSelect={(event) => targetHideOp(event.option, 1)}
+          onMouseEnter={() => setMinimiseHover(1)}
+          onMouseLeave={() => setMinimiseHover(0)}
+        >
+          <sprite x={0} y={0} w={11} h={11} sprite={minimiseHover === 1 ? Sprites.ZEAH_BOOK_1 : Sprites.ZEAH_BOOK_0} />
+        </layer>
+        <ThinStoneBox />
+      </layer>
+    </>
+  );
+}
+
+function placeDeadmanFinal(hidden: Boolean): void {
+  deadmanFinalRef.props = { hide: hidden };
+}
+
+function DeadmanFinal(): Component {
+  const mode: Int = layoutMode(spectatorTop());
+  const hidden: Boolean = !deadmanFinalShown(mode);
+  onMounted(() => placeDeadmanFinal(hidden));
+  onUpdated(() => placeDeadmanFinal(hidden));
+
+  const approach: Boolean = deadmanFinalApproach();
+  const late: Boolean = !approach;
+  const [shown] = useState(deadmanShownSeconds);
+  let countdown: String = '5:00';
+  if (shown >= 0) {
+    countdown = deadmanCountdownText(shown);
+  }
+  useInterval(() => deadmanTick(), deadmanTimerRef);
+  useWatch(
+    [
+      LayoutVarps.DEADMAN2,
+      LayoutVarps.DEADMAN3,
+      LayoutVarps.TOURNAMENT_MODE,
+      LayoutVarps.WILDWARS_1,
+      LayoutVarps.WILDWARS_2,
+    ],
+    () => deadmanTimerResynch(),
+    deadmanTimerRef,
+  );
+
+  return (
+    <>
+      <rect x="center" y={2} w={{ fill: 4 }} h={15} fill color={0x9b2121} transparency={185} />
+      <rect x="center" y={0} w={140} h={19} fill color={0x7d0505} transparency={170} />
+      <text
+        x={3}
+        y={2}
+        w={98}
+        h={15}
+        font={Fonts.P11_FULL}
+        color={PvpColour.WHITE}
+        valign="middle"
+        shadow
+        text="Players Remaining:"
+      />
+      <text
+        x={{ right: 0 }}
+        y={2}
+        w={40}
+        h={15}
+        font={Fonts.P11_FULL}
+        color={PvpColour.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+        text={deadmanPlayerCount()}
+      />
+      <layer ref={deadmanTimerRef} x={0} y={{ bottom: 0 }} w="fill" h={49} hide={late}>
+        <rect x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }} fill color={0x9b2121} transparency={185} />
+        <rect x="center" y={{ bottom: 0 }} w="fill" h="fill" fill color={0x7d0505} transparency={170} />
+        <text
+          x="center"
+          y={7}
+          w={{ fill: 6 }}
+          h={15}
+          font={Fonts.P11_FULL}
+          color={PvpColour.WHITE}
+          align="center"
+          valign="middle"
+          shadow
+          text={countdown}
+        />
+        <text
+          x="center"
+          y={{ bottom: 2 }}
+          w={{ fill: 6 }}
+          h={30}
+          font={Fonts.P11_FULL}
+          color={PvpColour.WHITE}
+          align="center"
+          valign="middle"
+          shadow
+          text={deadmanLocationStatus()}
+        />
+      </layer>
+      <layer x={0} y={21} w="fill" h={44} hide={late}>
+        <rect x="center" y="center" w={136} h={{ fill: 4 }} fill color={0x9b2121} transparency={185} />
+        <rect x={0} y={0} w="fill" h="fill" fill color={0x7d0505} transparency={170} />
+        <text
+          x={3}
+          y={2}
+          w={{ fill: 6 }}
+          h={15}
+          font={Fonts.P11_FULL}
+          color={PvpColour.WHITE}
+          valign="middle"
+          shadow
+          text="Final Safe Area:"
+        />
+        <text
+          x={3}
+          y={19}
+          w={{ fill: 6 }}
+          h={{ fill: 24 }}
+          font={Fonts.P11_FULL}
+          color={PvpColour.YELLOW}
+          align="center"
+          valign="middle"
+          shadow
+          text={deadmanFinalLocation()}
+        />
+      </layer>
+    </>
+  );
+}
+
+function placeBanner(spectating: Boolean, boundsW: Int): void {
+  const [, setWidth] = useState(bannerBoundsWidth);
+  setWidth(boundsW);
+  if (spectating) {
+    bannerBoundsRef.props = { x: 'center', y: 154, w: boundsW, h: 60 };
+    return;
+  }
+  bannerBoundsRef.props = { x: { center: -35 }, y: 32, w: boundsW, h: 60 };
+}
+
+function BannerLayout(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+  const spectating: Boolean = spectatorTop();
+  const boundsW: Int = bannerBoundsW(stage.width);
+  onMounted(() => placeBanner(spectating, boundsW));
+  onUpdated(() => placeBanner(spectating, boundsW));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function BroadcastBanner(): Component {
+  const [boundsW] = useState(bannerBoundsWidth);
+  const [text] = useState(broadcastText);
+  const [started] = useState(broadcastStartedAt);
+  const [age] = useState(bannerAge);
+  const width: Int = bannerW(text, boundsW);
+  let reveal: Int = 0;
+  if (age >= 0) {
+    reveal = bannerRevealW(age, width);
+  }
+  const idle: Boolean = started < 0;
+  useInterval(() => bannerTick(), bannerLayerRef);
+
+  return (
+    <layer ref={bannerLayerRef} x="center" y="center" w={width} h={60}>
+      <layer ref={bannerHiderRef} x="center" y="center" w={reveal} h={60} hide={idle}>
+        <rect x="center" y="center" w={width - 4} h={60} fill color={0x9b2121} transparency={185} />
+        <rect x="center" y="center" w={width} h={60} fill color={0x7d0505} transparency={170} />
+        <text
+          x="center"
+          y="center"
+          w={boundsW - 20}
+          h={50}
+          font={Fonts.Q8_FULL}
+          color={PvpColour.WHITE}
+          align="center"
+          valign="middle"
+          shadow
+          text={text}
+        />
+      </layer>
+    </layer>
+  );
+}

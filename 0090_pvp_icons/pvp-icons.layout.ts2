@@ -1,0 +1,694 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { hexToRgb, rgbToHex } from '../0259_area_task/area-task.helpers';
+import { deadmanWorld, privateEventWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { combatInsidewilderness, deadmanInsidesafezone, pvpaCountdown } from '../lib/game/varcs';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { clientClock, playSound, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile, toplevelComponents } from '../lib/lib.helpers';
+import { TooltipBox } from '../lib/tooltip.component';
+import {
+  clanwarsArena,
+  clanwarsLobby,
+  enhancedRange,
+  LayoutMode,
+  layoutMode,
+  levelProtectionArm,
+  protectionText,
+  skullDurationText,
+  targetPanelShown,
+} from './pvp-icons.helpers';
+import {
+  DeadmanVarbits,
+  Layout,
+  PvpColour,
+  PvpVarbits,
+  PvpVarps,
+  TargetVarbits,
+  TELEBLOCK_OP,
+} from './pvp-icons.constants';
+import { DEADMAN_EVENT_SKULL, FogModes, FramedOffsets } from './pvp-icons.data';
+import {
+  broadcastStartedAt,
+  broadcastText,
+  deadmanDeadline,
+  fogColour,
+  fogTransparency,
+  lobbyCountdownFrom,
+  riskHidden,
+  teleblockTipUp,
+} from './pvp-icons.state';
+
+export function spectatorTop(): Boolean {
+  if (toplevelComponents() === ToplevelComponents.SPECTATOR) {
+    return true;
+  }
+  return false;
+}
+
+export function framedOffset(): Int {
+  return FramedOffsets.get(toplevelComponents()) ?? 0;
+}
+
+function combatInside(): Boolean {
+  const [inside] = useState(combatInsidewilderness);
+  if (inside === 1) {
+    return true;
+  }
+  return false;
+}
+
+function deadmanProtected(): Boolean {
+  if (useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+    return true;
+  }
+  return false;
+}
+
+function deadmanSafe(): Int {
+  const [safe] = useState(deadmanInsidesafezone);
+  return safe;
+}
+
+function deadmanSkull(): Int {
+  return useServerState(PvpVarbits.DEADMAN_SKULL);
+}
+
+export function containerY(mode: Int): Int {
+  if (mode === LayoutMode.PVP_WORLD) {
+    if (combatInside()) {
+      return 0;
+    }
+    return 15;
+  }
+  if (mode === LayoutMode.DEADMAN) {
+    return 0;
+  }
+  if (mode === LayoutMode.WILDERNESS) {
+    if (enhancedRange()) {
+      return 0;
+    }
+    return 13;
+  }
+  return 15;
+}
+
+export function iconsHeight(mode: Int): Int {
+  if (mode === LayoutMode.DEADMAN && !deadmanProtected() && deadmanSafe() !== 2 && deadmanSkull() > 0) {
+    return Layout.BOX_H_TALL;
+  }
+  return Layout.BOX_H;
+}
+
+export function iconsHidden(mode: Int): Boolean {
+  if (mode === LayoutMode.DEADMAN_SPECTATING) {
+    return true;
+  }
+  if (useServerState(PvpVarbits.CUTSCENE) === 1) {
+    return true;
+  }
+  if (mode === LayoutMode.DEADMAN && spectatorTop()) {
+    return true;
+  }
+  return false;
+}
+
+export function iconsLeft(stageW: Int): Int {
+  if (onMobile()) {
+    return stageW - Layout.BOX_RIGHT_MOBILE - Layout.BOX_W;
+  }
+  if (framedOffset() > 0) {
+    return stageW - Layout.BOX_RIGHT_FRAMED - Layout.BOX_W;
+  }
+  return stageW - Layout.BOX_W;
+}
+
+export function iconsTop(stageH: Int, mode: Int): Int {
+  if (onMobile()) {
+    return stageH - iconsHeight(mode);
+  }
+  if (framedOffset() > 0) {
+    return Layout.BOX_TOP_FRAMED - containerY(mode);
+  }
+  return stageH - Layout.BOX_BOTTOM - iconsHeight(mode);
+}
+
+export function teleblocked(): Boolean {
+  if (useServerState(PvpVarbits.TELEBLOCK_CYCLES) > 100) {
+    return true;
+  }
+  return false;
+}
+
+export function skullSprite(mode: Int): Sprite {
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanWorld() === 3) {
+      if (useServerState(PvpVarbits.SPECTATOR) === 1) {
+        return -1 as Sprite;
+      }
+      return DEADMAN_EVENT_SKULL as Sprite;
+    }
+    return Sprites.PVPW_ICONS_0;
+  }
+  if (mode === LayoutMode.PVP_ARENA) {
+    if (useServerState(PvpVarbits.PVPA_STATUS) === 1) {
+      return Sprites.PVPW_ICONS_0;
+    }
+    return Sprites.OVERLAY_DUEL;
+  }
+  if (mode === LayoutMode.WILDERNESS && !clanwarsArena() && teleblocked()) {
+    return Sprites.PVPW_ICONS_3;
+  }
+  return Sprites.PVPW_ICONS_0;
+}
+
+export function teleblockOp(mode: Int): Boolean {
+  if (mode === LayoutMode.WILDERNESS && !clanwarsArena() && teleblocked()) {
+    return true;
+  }
+  return false;
+}
+
+export function safeTransparency(mode: Int): Int {
+  if (mode === LayoutMode.WILDERNESS && clanwarsArena() && !clanwarsLobby()) {
+    return 255;
+  }
+  return 0;
+}
+
+export function riskTransparency(): Int {
+  const [hidden] = useState(riskHidden);
+  if (hidden === 1) {
+    return 255;
+  }
+  return 0;
+}
+
+export function rangeShown(mode: Int): Boolean {
+  if (mode === LayoutMode.PVP_ARENA) {
+    return false;
+  }
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanProtected() || deadmanSafe() === 2) {
+      return false;
+    }
+    return true;
+  }
+  if (mode === LayoutMode.WILDERNESS) {
+    return enhancedRange();
+  }
+  return true;
+}
+
+export function rangeY(mode: Int): Int {
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanProtected()) {
+      return 30;
+    }
+    if (deadmanSafe() !== 2 && deadmanSkull() > 0) {
+      return 30;
+    }
+    return 18;
+  }
+  if (mode === LayoutMode.WILDERNESS && enhancedRange()) {
+    return 16;
+  }
+  return 18;
+}
+
+export function rangeColour(mode: Int): Int {
+  if (mode === LayoutMode.WILDERNESS && enhancedRange()) {
+    return PvpColour.YELLOW;
+  }
+  return PvpColour.ORANGE;
+}
+
+export function rangeAtLoad(mode: Int): Boolean {
+  if (mode === LayoutMode.PVP_WORLD) {
+    return true;
+  }
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanProtected() || deadmanSafe() === 2) {
+      return false;
+    }
+    return true;
+  }
+  if (mode === LayoutMode.WILDERNESS) {
+    return enhancedRange();
+  }
+  return false;
+}
+
+export function levelY(mode: Int, ticked: Boolean): Int {
+  if (mode === LayoutMode.PVP_WORLD) {
+    return 31;
+  }
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanProtected()) {
+      if (ticked && levelProtectionArm()) {
+        return 25;
+      }
+      return 18;
+    }
+    if (deadmanSafe() !== 2 && deadmanSkull() > 0) {
+      return 43;
+    }
+    return 31;
+  }
+  if (mode === LayoutMode.WILDERNESS) {
+    if (enhancedRange()) {
+      return 31;
+    }
+    return 16;
+  }
+  return 18;
+}
+
+export function levelColour(mode: Int): Int {
+  if (mode === LayoutMode.PVP_WORLD || mode === LayoutMode.DEADMAN) {
+    return PvpColour.ORANGE;
+  }
+  return PvpColour.YELLOW;
+}
+
+export function skullShown(mode: Int): Boolean {
+  if (mode === LayoutMode.PVP_WORLD || mode === LayoutMode.WILDERNESS) {
+    return false;
+  }
+  if (mode === LayoutMode.DEADMAN) {
+    if (deadmanProtected() || deadmanSkull() > 0) {
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
+export function skullY(mode: Int): Int {
+  if (mode === LayoutMode.DEADMAN && !deadmanProtected() && deadmanSafe() !== 2 && deadmanSkull() > 0) {
+    return 18;
+  }
+  return 0;
+}
+
+export function skullText(mode: Int): String {
+  if (mode !== LayoutMode.DEADMAN) {
+    return '';
+  }
+  if (deadmanProtected()) {
+    return protectionText();
+  }
+  return skullDurationText();
+}
+
+export function targetHidden(mode: Int): Boolean {
+  if (targetPanelShown(mode)) {
+    return false;
+  }
+  return true;
+}
+
+export const enum FogArm {
+  NONE = 0,
+  DEADMAN = 1,
+  ARENA = 2,
+}
+
+export const enum FogColour {
+  WARM = 0xff7733,
+  COLD = 0x00ccff,
+}
+
+export function fogArm(mode: Int): Int {
+  if (mode === LayoutMode.DEADMAN && useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE) >= 4) {
+    return FogArm.DEADMAN;
+  }
+  if (mode === LayoutMode.PVP_ARENA && useServerState(PvpVarbits.PVPA_STATUS) !== 0) {
+    return FogArm.ARENA;
+  }
+  return FogArm.NONE;
+}
+
+function stepChannel(from: Int, to: Int): Int {
+  if (from < to) {
+    return from + 1;
+  }
+  if (from > to) {
+    return from - 1;
+  }
+  return from;
+}
+
+function stepToward(from: Int, to: Int): Int {
+  const [r, g, b] = hexToRgb(from);
+  const [tr, tg, tb] = hexToRgb(to);
+  return rgbToHex(stepChannel(r, tr), stepChannel(g, tg), stepChannel(b, tb));
+}
+
+function arenaCountdown(): Int {
+  const [countdown] = useState(pvpaCountdown);
+  if (countdown < 0) {
+    return 0;
+  }
+  return countdown;
+}
+
+export function fogNextColour(arm: Int, colour: Int): Int {
+  if (arm === FogArm.DEADMAN) {
+    if (!(FogModes.get(useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE)) ?? false)) {
+      return FogColour.WARM;
+    }
+    const force: Int = useServerState(DeadmanVarbits.FORCEFOG);
+    if (force === 2) {
+      return stepToward(colour, FogColour.COLD);
+    }
+    if (force === 1) {
+      return stepToward(colour, FogColour.WARM);
+    }
+    return colour;
+  }
+  if (arm === FogArm.ARENA) {
+    if (useServerState(PvpVarbits.PVPA_TIME_LEFT) <= 0) {
+      return FogColour.WARM;
+    }
+    const countdown: Int = arenaCountdown();
+    if (countdown <= 150 * 30) {
+      return stepToward(colour, FogColour.COLD);
+    }
+    if (countdown <= 200 * 30) {
+      return stepToward(colour, FogColour.WARM);
+    }
+    return colour;
+  }
+  return colour;
+}
+
+export function fogNextTransparency(arm: Int, transparency: Int): Int {
+  let target: Int = 255;
+  if (arm === FogArm.DEADMAN) {
+    if (!(FogModes.get(useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE)) ?? false)) {
+      return 255;
+    }
+    const force: Int = useServerState(DeadmanVarbits.FORCEFOG);
+    if (force === 2 || force === 1) {
+      target = 100;
+    }
+  } else if (arm === FogArm.ARENA) {
+    if (useServerState(PvpVarbits.PVPA_TIME_LEFT) <= 0) {
+      return 255;
+    }
+    const countdown: Int = arenaCountdown();
+    if (countdown <= 150 * 30) {
+      target = 100;
+    } else if (countdown <= 200 * 30) {
+      target = Math.max(0, Math.min(255, 100 + scaled(countdown - 150 * 30, (200 - 150) * 30, 255 - 100)));
+    }
+  } else {
+    return transparency;
+  }
+  return stepChannel(transparency, target);
+}
+
+export function fogColourNow(): Int {
+  const [colour] = useState(fogColour);
+  return colour;
+}
+
+export function fogTransparencyNow(): Int {
+  const [transparency] = useState(fogTransparency);
+  return transparency;
+}
+
+export function targetMinimised(): Boolean {
+  if (useServerState(TargetVarbits.BH_TARGET_MINIMISED) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function targetDock(): Int {
+  return useServerState(TargetVarbits.BH_TARGET_DOCK);
+}
+
+export function kdToggle(): Int {
+  return useServerState(PvpVarbits.KD_TOGGLE);
+}
+
+export function targetExists(): Boolean {
+  if (useServerState(TargetVarbits.TARGET_EXISTS) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function targetWhereText(): String {
+  if (!targetExists()) {
+    return '---';
+  }
+  if (useServerState(TargetVarbits.TARGET_WILDERNESSLEVEL) > 0) {
+    const distance: Int = useServerState(TargetVarbits.BH_TARGET_DISTANCE);
+    if (distance === 0) {
+      return 'Crater<br>(Nearby!)';
+    }
+    return `Crater<br>(${stringOf(distance * 10)}m)`;
+  }
+  return 'Lobby';
+}
+
+export function lobbyArm(): Boolean {
+  if (targetExists() && useServerState(TargetVarbits.BH_IN_LOBBY) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function lobbySecondsFrom(): Int {
+  if (lobbyArm()) {
+    return CS2.interpolate(0, 60, 0, 100, 200 - useServerState(TargetVarbits.BH_LOBBY_TIMER));
+  }
+  return scaled(60, 100, (useServerState(TargetVarbits.TARGET_PJ_COUNTDOWN) - 2) * 2);
+}
+
+export function lobbyLabel(): String {
+  if (lobbyArm()) {
+    return 'Lobby time remaining:';
+  }
+  return '<col=ff9040>Pile-jumping immunity:</col>';
+}
+
+export function lobbyTimeText(seconds: Int): String {
+  const left: Int = Math.max(0, seconds);
+  const minutes: Int = left / 60;
+  const rest: Int = left % 60;
+  if (rest >= 10) {
+    return `${stringOf(minutes)}:${stringOf(rest)}`;
+  }
+  return `${stringOf(minutes)}:0${stringOf(rest)}`;
+}
+
+export function lobbyTimeColour(seconds: Int): Int {
+  if (Math.max(0, seconds) % 60 >= 10) {
+    return PvpColour.ORANGE;
+  }
+  return 0xff4747;
+}
+
+export function lobbyCountdownRestart(): void {
+  const [, setFrom] = useState(lobbyCountdownFrom);
+  setFrom(clientClock());
+}
+
+export function targetHideOp(option: Int, full: Int): void {
+  if (full === 1) {
+    if (option === 1) {
+      predictServerState(TargetVarbits.BH_TARGET_MINIMISED, 1);
+    } else if (option === 2 || option === 3 || option === 4) {
+      if (!onMobile()) {
+        predictServerState(TargetVarbits.BH_TARGET_DOCK, option);
+      }
+    } else {
+      return;
+    }
+  } else if (option === 1) {
+    predictServerState(TargetVarbits.BH_TARGET_MINIMISED, 0);
+  } else {
+    return;
+  }
+  playSound(Sounds.INTERFACE_SELECT1);
+}
+
+export function deadmanFinalShown(mode: Int): Boolean {
+  if (mode !== LayoutMode.DEADMAN || spectatorTop()) {
+    return false;
+  }
+  if (useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE) >= 6) {
+    return true;
+  }
+  return false;
+}
+
+export function deadmanFinalApproach(): Boolean {
+  if (useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE) === 6) {
+    return true;
+  }
+  return false;
+}
+
+export function deadmanPlayerCount(): String {
+  return stringOf(Math.max(1, useServerState(DeadmanVarbits.PLAYERCOUNT)));
+}
+
+export function deadmanFinalLocation(): String {
+  const event: Int = privateEventWorld();
+  if (event === 4) {
+    return 'Falador Castle Courtyard';
+  }
+  if (event === 1) {
+    return 'Fountain of Rune';
+  }
+  if (useServerState(DeadmanVarbits.FINALAREA) === 2) {
+    return 'Demonic Ruins (Annakarl)';
+  }
+  return "North of Daimon's Crater";
+}
+
+export function deadmanLocationStatus(): String {
+  const force: Int = useServerState(DeadmanVarbits.FORCEFOG);
+  if (force === 2) {
+    return "<col=ff812c>You'll </col><col=ff0000>DIE</col><col=ff812c> if you stay in this area - Get to safety</col>";
+  }
+  if (force === 1) {
+    return '<col=ffa71f>The Strange Power is </col><col=ff0000>approaching you</col><col=ffa71f> - Get to safety</col>';
+  }
+  return "<col=00ff00>The Strange Power hasn't reached this area yet...</col>";
+}
+
+export function deadmanTimerResynch(): void {
+  if (useServerState(DeadmanVarbits.PAUSED) === 1) {
+    return;
+  }
+  const [, setDeadline] = useState(deadmanDeadline);
+  setDeadline(clientClock() + useServerState(DeadmanVarbits.TIMER) * 30);
+}
+
+export function deadmanSecondsLeft(deadline: Int): Int {
+  return Math.max(0, deadline - clientClock()) / 50;
+}
+
+export function deadmanCountdownText(seconds: Int): String {
+  let left: Int = seconds;
+  if (privateEventWorld() === 0) {
+    left = Math.min(left, scaled(30, 50, 615));
+  }
+  left = Math.max(left, 0);
+  const minutes: Int = left / 60;
+  const rest: Int = left % 60;
+  if (rest < 10) {
+    return `${stringOf(minutes)}:0${stringOf(rest)}`;
+  }
+  return `${stringOf(minutes)}:${stringOf(rest)}`;
+}
+
+export function bannerBoundsW(stageW: Int): Int {
+  return scaled(40, 100, stageW);
+}
+
+export function bannerW(text: String, boundsW: Int): Int {
+  if (CS2.string_length(text) === 0) {
+    return 220;
+  }
+  const measure: Int = boundsW - 20;
+  if (textLineCount(text, measure, Fonts.Q8_FULL) === 1 && boundsW > textWidth(text, measure, Fonts.Q8_FULL) + 20) {
+    return textWidth(text, measure, Fonts.Q8_FULL) + 20;
+  }
+  return boundsW;
+}
+
+export function bannerRevealW(age: Int, layerW: Int): Int {
+  if (age < 0) {
+    return 0;
+  }
+  if (age < 475) {
+    return scaled(scaled(Math.min(age, 25), 25, 16384), 16384, layerW);
+  }
+  return scaled(scaled(Math.max(500 - age, 0), 25, 16384), 16384, layerW);
+}
+
+export function deadmanBroadcast(text: String): void {
+  const [, setText] = useState(broadcastText);
+  const [, setStarted] = useState(broadcastStartedAt);
+  setText(text);
+  setStarted(clientClock());
+}
+
+export function teleblockSeconds(): Int {
+  return ((useServerState(PvpVarbits.TELEBLOCK_CYCLES) - 100) * 30) / 50;
+}
+
+export function teleblockTipText(): String {
+  const seconds: Int = teleblockSeconds();
+  const minutes: Int = seconds / 60;
+  const rest: Int = seconds % 60;
+  if (rest < 10) {
+    return `Time Remaining : ${stringOf(minutes)}:0${stringOf(rest)}`;
+  }
+  return `Time Remaining : ${stringOf(minutes)}:${stringOf(rest)}`;
+}
+
+export function teleblockTipDrawn(mode: Int): Boolean {
+  const [up] = useState(teleblockTipUp);
+  if (up === 1 && teleblockOp(mode) && !enhancedAny()) {
+    return true;
+  }
+  return false;
+}
+
+export function teleblockTipUpNow(): Int {
+  const [up] = useState(teleblockTipUp);
+  return up;
+}
+
+export function teleblockTipToggle(): void {
+  const [up, setUp] = useState(teleblockTipUp);
+  if (up === 1) {
+    setUp(0);
+    predictServerState(PvpVarbits.TELEBLOCK_TOOLTIP, 0);
+    return;
+  }
+  setUp(1);
+  predictServerState(PvpVarbits.TELEBLOCK_TOOLTIP, 1);
+}
+
+export function teleblockTipClose(): void {
+  const [up, setUp] = useState(teleblockTipUp);
+  if (up === 0) {
+    return;
+  }
+  setUp(0);
+  predictServerState(PvpVarbits.TELEBLOCK_TOOLTIP, 0);
+}
+
+export function tipBoxW(text: String, hostW: Int): Int {
+  const measure: Int = Math.min(512, hostW) - TooltipBox.padX;
+  return TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+}
+
+export function tipBoxH(text: String, hostW: Int): Int {
+  const measure: Int = Math.min(512, hostW) - TooltipBox.padX;
+  return TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+}
+
+export function pvpRisk(flag: Int): void {
+  const [, setHidden] = useState(riskHidden);
+  if (flag === 1) {
+    setHidden(1);
+    return;
+  }
+  setHidden(0);
+}
+
+export { TELEBLOCK_OP };

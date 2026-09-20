@@ -1,0 +1,72 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { bingoSelectedGrid } from '../lib/game/varcs';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, TooltipChrome, tooltipStale, tooltipUp } from '../lib/tooltip.component';
+import { bingoWindowRef } from './bingo-overlay.constants';
+import {
+  BINGO_TIP_WRAP,
+  bingoHideRewardTip,
+  bingoRewardBoxTip,
+  bingoRewardTipH,
+  bingoRewardTipSlot,
+  bingoRewardTipTile,
+  bingoRewardTipX,
+  bingoRewardTipY,
+  bingoTipText,
+} from './bingo-grid.state';
+
+export function BingoRewardTip(): Component {
+  const timerHost = useRef();
+  const [grid] = useState(bingoSelectedGrid);
+  const [slot] = useState(bingoRewardTipSlot);
+  const [tile] = useState(bingoRewardTipTile);
+  const [ax] = useState(bingoRewardTipX);
+  const [ay] = useState(bingoRewardTipY);
+  const [ah] = useState(bingoRewardTipH);
+  const [plain] = useState(bingoTipText);
+
+  const shown: Boolean = tooltipUp() && (slot >= 0 || plain.length > 0);
+  let text: String = '';
+  if (shown) {
+    text = plain;
+    if (slot >= 0) {
+      text = bingoRewardBoxTip(grid, slot, tile);
+    }
+  }
+
+  const parentW: Int = componentWidth(bingoWindowRef);
+  const parentH: Int = componentHeight(bingoWindowRef);
+
+  const wrap: Int = Math.min(BINGO_TIP_WRAP, parentW) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, wrap, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, wrap, TooltipBox.font);
+  const below: Int = ay + ah + TooltipBox.nudge;
+
+  useInterval(() => {
+    if (tooltipStale()) {
+      bingoHideRewardTip();
+    }
+  }, timerHost);
+
+  return (
+    <layer
+      ref={timerHost}
+      x={Math.min(ax + TooltipBox.nudge, parentW - boxW)}
+      y={below > parentH - boxH ? ay - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+      hide={!shown}
+    >
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}
+
+function componentWidth(component: ComponentId): Int {
+  return CS2.if_width_get(component);
+}
+
+function componentHeight(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}

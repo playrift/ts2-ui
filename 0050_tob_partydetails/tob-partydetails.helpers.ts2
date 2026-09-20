@@ -1,40 +1,20 @@
 import { CS2, useServerState, useState } from 'ts2';
 
 import { pipeHead } from '../lib/lib.format';
-import { clientClock } from '../lib/lib.engine';
+import { clientClock, playSound } from '../lib/lib.engine';
 import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
 import { raidsCount, raidsListsortDetails } from '../lib/game/varcs';
 import { Varbits } from '../lib/game/varbits';
+import { Sounds } from '../lib/game/sounds';
+import { AutoRefresh, BUSY_CYCLES, Copy, Layout, PartyRole, TobPartydetailsColor } from './tob-partydetails.constants';
 import {
-  actionRef,
-  backRef,
+  arrowsPlaced,
+  autorefreshStart,
   boardBuilt,
-  headerRef,
-  levelRef,
-  modeRef,
-  refreshRef,
-  leaderHighlightRef,
-  refreshStartedAt,
-  sizeRef,
-  sortareaRef,
+  dialRemaining,
+  partyTitled,
   tipIndex,
-  unblockRef,
-  Copy,
-  Layout,
-  PartyRole,
-  ROW_COLUMNS_W,
-  TobPartydetailsColor,
-  p1DownRef,
-  p1UpRef,
-  p2DownRef,
-  p2UpRef,
-  p3DownRef,
-  p3UpRef,
-  p4DownRef,
-  p4UpRef,
-  p5DownRef,
-  p5UpRef,
-} from './tob-partydetails.constants';
+} from './tob-partydetails.state';
 import {
   APPLICANT_COUNT,
   BoardPacket,
@@ -43,104 +23,87 @@ import {
   TobPartydetailsModes,
 } from './tob-partydetails.data';
 
+export function loadTobPartydetails(): void {
+  const [, setArrows] = useState(arrowsPlaced);
+  const [, setTitled] = useState(partyTitled);
+  setArrows(0);
+  setTitled(0);
+  resetTobPartydetails();
+}
+
 export function resetTobPartydetails(): void {
   const [, setCount] = useState(raidsCount);
   const [, setBuilt] = useState(boardBuilt);
   const [, setTip] = useState(tipIndex);
-  const [, setStartedAt] = useState(refreshStartedAt);
+  const [, setStart] = useState(autorefreshStart);
+  const [, setRemaining] = useState(dialRemaining);
   setCount(0);
   setBuilt(0);
   setTip(-1);
-  setStartedAt(-1);
-  headerRef.hide = true;
-  sortareaRef.hide = true;
-  backRef.hide = true;
-  refreshRef.hide = true;
-  unblockRef.hide = true;
-  sizeRef.hide = true;
-  levelRef.hide = true;
-  actionRef.hide = true;
-  modeRef.hide = true;
-  tobPartydetailsHideArrows();
+  setRemaining(AutoRefresh.CYCLES);
+  setStart(-1);
 }
 
 export function tobPartydetailsBuild(): void {
   const [, setBuilt] = useState(boardBuilt);
   const [, setSort] = useState(raidsListsortDetails);
   const [, setCount] = useState(raidsCount);
-  const [, setStartedAt] = useState(refreshStartedAt);
+  const [, setStart] = useState(autorefreshStart);
+  const [, setRemaining] = useState(dialRemaining);
+  const [, setArrows] = useState(arrowsPlaced);
+  const [, setTitled] = useState(partyTitled);
   setBuilt(1);
   setCount(MEMBER_COUNT + APPLICANT_COUNT);
 
-  headerRef.hide = false;
-
-  if (APPLICANT_COUNT > 0) {
-    sortareaRef.hide = false;
-    setSort(0);
-  } else {
-    sortareaRef.hide = true;
-  }
-
-  backRef.hide = false;
-  refreshRef.hide = false;
-
-  sizeRef.hide = false;
-  levelRef.hide = false;
-  modeRef.hide = false;
-
-  actionRef.hide = false;
-  if (BoardPacket.role === PartyRole.LEADER) {
-    unblockRef.hide = false;
-  }
+  setSort(0);
 
   if (MEMBER_COUNT > 0) {
-    leaderHighlightRef.hide = false;
+    setTitled(1);
   }
 
-  setStartedAt(clientClock());
+  if (BoardPacket.role === PartyRole.LEADER) {
+    setArrows(1);
+  }
 
-  tobPartydetailsPlaceArrows();
+  setRemaining(AutoRefresh.CYCLES);
+  setStart(clientClock());
+}
+
+export function tobPartydetailsAutorefresh(): void {
+  const [start] = useState(autorefreshStart);
+  const [, setStart] = useState(autorefreshStart);
+  const [drawn] = useState(dialRemaining);
+  const [, setRemaining] = useState(dialRemaining);
+  const elapsed: Int = clientClock() - start;
+  if (elapsed >= AutoRefresh.CYCLES) {
+    if (drawn !== 0) {
+      setRemaining(0);
+      playSound(Sounds.INTERFACE_SELECT1);
+    }
+    if (elapsed >= AutoRefresh.CYCLES + BUSY_CYCLES) {
+      setStart(-1);
+    }
+    return;
+  }
+  let remaining: Int = AutoRefresh.CYCLES - elapsed;
+  if (remaining < 0) {
+    remaining = 0;
+  }
+  setRemaining(remaining);
 }
 
 export function tobPartydetailsHideArrows(): void {
-  p1UpRef.hide = true;
-  p1DownRef.hide = true;
-  p2UpRef.hide = true;
-  p2DownRef.hide = true;
-  p3UpRef.hide = true;
-  p3DownRef.hide = true;
-  p4UpRef.hide = true;
-  p4DownRef.hide = true;
-  p5UpRef.hide = true;
-  p5DownRef.hide = true;
+  const [, setArrows] = useState(arrowsPlaced);
+  setArrows(0);
 }
 
 export function tobPartydetailsPlaceArrows(): void {
-  tobPartydetailsHideArrows();
+  const [, setArrows] = useState(arrowsPlaced);
   if (BoardPacket.role !== PartyRole.LEADER) {
+    setArrows(0);
     return;
   }
-  placeArrowPair(p1UpRef, p1DownRef, 0);
-  placeArrowPair(p2UpRef, p2DownRef, 1);
-  placeArrowPair(p3UpRef, p3DownRef, 2);
-  placeArrowPair(p4UpRef, p4DownRef, 3);
-  placeArrowPair(p5UpRef, p5DownRef, 4);
-}
-
-function placeArrowPair(up: ComponentId, down: ComponentId, index: Int): void {
-  const top: Int = index * Layout.ROW_H + Layout.ROW_TOP;
-  const left: Int = ROW_COLUMNS_W + 8;
-  up.hide = false;
-  up.x = left;
-  up.y = top;
-  up.width = Layout.ARROW_LIVE;
-  up.height = Layout.ARROW_LIVE;
-  up.color = TobPartydetailsColor.MOVE_UP;
-  down.hide = false;
-  down.x = left + Layout.ARROW_LIVE + 8;
-  down.y = top;
-  down.width = Layout.ARROW_LIVE;
-  down.height = Layout.ARROW_LIVE;
+  setArrows(1);
 }
 
 export function setTobPartydetailsSort(key: Int): void {

@@ -1,0 +1,296 @@
+import { CS2, sessionState, useState } from 'ts2';
+
+import { snapshotIgnore, snapshotMute, snapshotName, snapshotOpen, snapshotReal } from '../lib/game/varcs';
+import { chatMessage, clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { closeInterface, onMobile, textDevice } from '../lib/lib.helpers';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { addToInputString } from '../lib/lib.input';
+import { keyboardHide, keyboardShow, keyboardShowString, KEYBOARD_STRING } from '../0162_chatbox/meslayer';
+import { newestChatUid } from '../0162_chatbox/chatout';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import {
+  CHAT_LINE_MAX_W,
+  CHAT_PLACEHOLDER,
+  CLOSE_BUTTON,
+  KEYBOARD_NAME_LIMIT,
+  NAME_MODE,
+  PROMPT_INTRO,
+  PUBLIC_FILTER_AUTOCHAT,
+  REPORT_URL,
+  ReportFonts,
+  ReportGate,
+  ReportKey,
+  ReportPage,
+  ReportSounds,
+  ReportToggle,
+  WARN_CYCLES,
+} from './reportabuse.constants';
+
+export const reportabusePage = sessionState(-1);
+
+export const reportabuseDrawnName = sessionState('');
+
+export const reportabuseChatDrawn = sessionState('');
+
+export const reportabuseWarnUntil = sessionState(-1);
+
+export function reportabuseOpen(available: Int, useName: Int, name: String): void {
+  const [open] = useState(snapshotOpen);
+  if (open === 1) {
+    closeInterface();
+  }
+  const [, setName] = useState(snapshotName);
+  if (useName === 1) {
+    setName(name);
+  }
+  reportabuseDraw();
+  const [, setReal] = useState(snapshotReal);
+  setReal(available);
+  reportabusePrompt(0);
+  const [current] = useState(snapshotName);
+  if (current.length > 0) {
+    showRulesPage();
+  } else {
+    showNamePage();
+  }
+  const [ignore, setIgnore] = useState(snapshotIgnore);
+  if (!(ignore === 1 || ignore === 0)) {
+    setIgnore(1);
+  }
+  const [, setMute] = useState(snapshotMute);
+  setMute(0);
+}
+
+export function reportabuseLoad(): void {
+  const [, setPage] = useState(reportabusePage);
+  const [, setWarnUntil] = useState(reportabuseWarnUntil);
+  setPage(ReportPage.NONE);
+  setWarnUntil(-1);
+}
+
+export function showNamePage(): void {
+  const [, setPage] = useState(reportabusePage);
+  setPage(ReportPage.NAME);
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, KEYBOARD_NAME_LIMIT);
+  }
+}
+
+export function reportabuseShowKeyboard(): void {
+  const [name] = useState(snapshotName);
+  keyboardShowString(KEYBOARD_STRING, KEYBOARD_NAME_LIMIT, name);
+}
+
+export function showRulesPage(): void {
+  const [, setPage] = useState(reportabusePage);
+  setPage(ReportPage.RULES);
+  if (onMobile()) {
+    keyboardHide();
+  }
+}
+
+export function reportabusePrompt(warn: Int): void {
+  const [, setWarnUntil] = useState(reportabuseWarnUntil);
+  if (warn === 1) {
+    setWarnUntil(clientClock() + WARN_CYCLES);
+    return;
+  }
+  setWarnUntil(-1);
+}
+
+export function promptText(warning: Boolean): String {
+  const verb: String = textDevice('click', 'tap');
+  if (warning) {
+    return PROMPT_INTRO.concat(
+      `<col=ff0000>Enter the name of the offending player</col>, then ${verb} <col=7f0000>Next</col>.`,
+    );
+  }
+  return PROMPT_INTRO.concat(`Enter the name of the offending player, then ${verb} <col=7f0000>Next</col>.`);
+}
+
+export function reportabuseCheck(next: Int): void {
+  if (next === 1) {
+    const [name, setName] = useState(snapshotName);
+    let trimmed: String = name;
+    let length: Int = trimmed.length;
+    if (length > 0) {
+      while (length > 0 && CS2.compare(trimmed.substring(length - 1, length), ' ') === 0) {
+        trimmed = trimmed.substring(0, length - 1);
+        length = trimmed.length;
+      }
+      setName(trimmed);
+      if (length > 0) {
+        playSound(ReportSounds.SELECT);
+        showRulesPage();
+        return;
+      }
+    }
+    playSound(ReportSounds.WRONG);
+    reportabusePrompt(1);
+  } else {
+    playSound(ReportSounds.SELECT);
+  }
+  showNamePage();
+}
+
+export function reportabuseKey(key: Int, keyChar: Char): void {
+  if (dialogueMayAdvance(ReportGate.NO_TOP, ReportGate.THIS_PANEL) === false) {
+    return;
+  }
+  if (key === ReportKey.ENTER) {
+    reportabuseCheck(1);
+    return;
+  }
+  const [name, setName] = useState(snapshotName);
+  setName(addToInputString(name, NAME_MODE, key, keyChar));
+  reportabuseDraw();
+}
+
+export function closeOnEscape(key: Int): void {
+  if (dialogueMayAdvance(ReportGate.NO_TOP, ReportGate.THIS_PANEL) === false) {
+    return;
+  }
+  if (key === ReportKey.ESCAPE) {
+    playSound(ReportSounds.SELECT);
+    CS2.if_triggerop(CLOSE_BUTTON, -1, 1);
+  }
+}
+
+export function openReportWebsite(): void {
+  playSound(ReportSounds.SELECT);
+  CS2.url_open(REPORT_URL, true);
+}
+
+export function toggleOn(which: Int): Boolean {
+  if (which === ReportToggle.IGNORE) {
+    const [ignore] = useState(snapshotIgnore);
+    return ignore === 1;
+  }
+  if (isModerator()) {
+    const [mute] = useState(snapshotMute);
+    return mute === 1;
+  }
+  return false;
+}
+
+export function isModerator(): Boolean {
+  return CS2.playermod() === 1 || CS2.staffmodlevel() > 0;
+}
+
+export function reportabuseToggle(which: Int): void {
+  const on: Boolean = toggleOn(which);
+  if (which === ReportToggle.IGNORE) {
+    playSound(ReportSounds.SELECT);
+    const [, setIgnore] = useState(snapshotIgnore);
+    setIgnore(on ? 0 : 1);
+  } else if (isModerator()) {
+    playSound(ReportSounds.SELECT);
+    const [, setMute] = useState(snapshotMute);
+    setMute(on ? 0 : 1);
+  }
+}
+
+export function reportabuseSend(fromKey: Int, keyChar: Char, hotkey: String, rule: Int): void {
+  if (fromKey === 1) {
+    if (keyChar === -1 || dialogueMayAdvance(ReportGate.NO_TOP, ReportGate.THIS_PANEL) === false) {
+      return;
+    } else if (
+      CS2.string_indexof_char(hotkey, keyChar) === -1 &&
+      CS2.string_indexof_char(CS2.lowercase(hotkey), keyChar) === -1
+    ) {
+      return;
+    }
+  }
+  const [name] = useState(snapshotName);
+  if (name.length > 0) {
+    playSound(ReportSounds.SELECT);
+    const [real] = useState(snapshotReal);
+    if (real === 0) {
+      chatMessage('System unavailable - apologies for the inconvenience.');
+    } else {
+      CS2.chat_sendabusereport(name, rule, toggleOn(ReportToggle.MUTE) ? 1 : 0);
+    }
+    if (toggleOn(ReportToggle.IGNORE)) {
+      CS2.ignore_add(name);
+    }
+    CS2.if_triggerop(CLOSE_BUTTON, -1, 1);
+    return;
+  }
+  reportabusePrompt(1);
+  reportabuseCheck(0);
+}
+
+export function reportabuseDraw(): void {
+  const [name] = useState(snapshotName);
+  const [, setDrawn] = useState(reportabuseDrawnName);
+  const [, setChat] = useState(reportabuseChatDrawn);
+  setDrawn(name);
+  const trimmed: String = chatName(name);
+  if (trimmed.length > 0) {
+    setChat(reportabuseChatLine(trimmed));
+  } else {
+    setChat(CHAT_PLACEHOLDER);
+  }
+}
+
+export function nameFieldText(drawn: String): String {
+  return `${CS2.escape(drawn)}<col=0000ff>|</col>`;
+}
+
+export function nameLabelText(drawn: String): String {
+  return CS2.escape(drawn);
+}
+
+export function reportabuseChatTransmit(name: String): void {
+  const trimmed: String = chatName(name);
+  if (trimmed.length > 0) {
+    const [, setChat] = useState(reportabuseChatDrawn);
+    setChat(reportabuseChatLine(trimmed));
+  }
+}
+
+export function chatName(name: String): String {
+  let text: String = CS2.escape(name);
+  let length: Int = text.length;
+  while (length > 0 && CS2.compare(text.substring(length - 1, length), ' ') === 0) {
+    text = text.substring(0, length - 1);
+    length = text.length;
+  }
+  if (length > 0) {
+    return stringFindAndReplace(text, ' ', ' ');
+  }
+  return '';
+}
+
+export function reportabuseChatLine(name: String): String {
+  const wanted: String = CS2.lowercase(name);
+  const filter: Int = CS2.chat_filter_public_get();
+  let uid: Int = newestChatUid();
+  while (uid !== -1) {
+    const [chatType, stamp, sender, clan, message, flags, extra, count] = CS2.chat_history_by_uid_get(uid);
+    if (sender.length > 0) {
+      const plain: String = CS2.tags_remove(sender);
+      if (
+        CS2.compare(CS2.lowercase(plain), wanted) === 0 &&
+        (filter === PUBLIC_FILTER_AUTOCHAT || (chatType !== 90 && chatType !== 91))
+      ) {
+        let line: String = `${plain}: <col=0000ff>${message}`;
+        let length: Int = line.length;
+        let cut: Int = 0;
+        if (length > 0 && textWidth(line, 2147483647, ReportFonts.BODY) > CHAT_LINE_MAX_W) {
+          while (length > 1 && cut === 0) {
+            length = length - 1;
+            const shorter: String = line.substring(0, length).concat('...');
+            if (textWidth(shorter, 2147483647, ReportFonts.BODY) <= CHAT_LINE_MAX_W) {
+              line = shorter;
+              cut = 1;
+            }
+          }
+        }
+        return line;
+      }
+    }
+    uid = CS2.chat_prev_uid_get(uid);
+  }
+  return `<col=6f6f6f>${name}: No recent chat found.</col>`;
+}

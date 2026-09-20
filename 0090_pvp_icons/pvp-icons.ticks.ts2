@@ -1,0 +1,135 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { deadmanTimerPrevious } from '../lib/game/varcs';
+import { Sounds } from '../lib/game/sounds';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
+import {
+  bannerDodgerRef,
+  bannerBoundsRef,
+  DeadmanVarbits,
+  deadmanDodgerRef,
+  deadmanFinalRef,
+  hudContainerRef,
+  iconsDodgerRef,
+  iconsRef,
+  kdContainerRef,
+  kdDodgerRef,
+  PvpDodge,
+  pvpIconsUiRef,
+  safezoneRef,
+  WINDOW_MODE_FIXED,
+} from './pvp-icons.constants';
+import { layoutMode, wildernessLevel } from './pvp-icons.helpers';
+import {
+  deadmanSecondsLeft,
+  fogArm,
+  lobbyCountdownRestart,
+  FogArm,
+  fogNextColour,
+  fogNextTransparency,
+  lobbySecondsFrom,
+  spectatorTop,
+} from './pvp-icons.layout';
+import {
+  bannerAge,
+  broadcastStartedAt,
+  broadcastText,
+  deadmanDeadline,
+  deadmanShownSeconds,
+  fogColour,
+  fogTransparency,
+  lobbyCountdownFrom,
+  lobbySteps,
+  wildernessLevelSeen,
+} from './pvp-icons.state';
+
+export function pvpIconsInit(): void {
+  const [, setSeen] = useState(wildernessLevelSeen);
+  setSeen(-1);
+  lobbyCountdownRestart();
+  overlayInit(safezoneRef, pvpIconsUiRef, PvpDodge.SAFEZONE, Anchor.LEFT, Anchor.TOP, 0);
+  overlayInit(hudContainerRef, pvpIconsUiRef, PvpDodge.HUD, Anchor.LEFT, Anchor.TOP, 0);
+  overlayInit(bannerDodgerRef, bannerBoundsRef, PvpDodge.TOP_LEFT, Anchor.CENTRE, Anchor.TOP, 0);
+  overlayInit(deadmanDodgerRef, deadmanFinalRef, PvpDodge.DEADMAN, Anchor.RIGHT, Anchor.TOP, 0);
+  overlayInit(kdDodgerRef, kdContainerRef, PvpDodge.TOP_LEFT, Anchor.LEFT, Anchor.TOP, 1);
+  if (onMobile()) {
+    overlayInit(iconsDodgerRef, iconsRef, PvpDodge.ICONS_MOBILE, Anchor.RIGHT, Anchor.BOTTOM, 0);
+  } else if (CS2.window_mode_get() === WINDOW_MODE_FIXED) {
+    overlayInit(iconsDodgerRef, iconsRef, PvpDodge.ICONS_FIXED, Anchor.RIGHT, Anchor.BOTTOM, 0);
+  } else {
+    overlayInit(iconsDodgerRef, iconsRef, PvpDodge.ICONS_RESIZABLE, Anchor.RIGHT, Anchor.BOTTOM, 0);
+  }
+}
+
+export function levelTick(): void {
+  const [, setSeen] = useState(wildernessLevelSeen);
+  setSeen(wildernessLevel());
+}
+
+export function fogStep(): void {
+  const arm: Int = fogArm(layoutMode(spectatorTop()));
+  if (arm === FogArm.NONE) {
+    return;
+  }
+  const [colour, setColour] = useState(fogColour);
+  const [transparency, setTransparency] = useState(fogTransparency);
+  setColour(fogNextColour(arm, colour));
+  setTransparency(fogNextTransparency(arm, transparency));
+}
+
+export function fogTick(): void {
+  if (clientClock() % 100 === 0) {
+    fogStep();
+  }
+  fogStep();
+}
+
+export function lobbyTick(): void {
+  const [from] = useState(lobbyCountdownFrom);
+  if (from < 0) {
+    return;
+  }
+  const [steps, setSteps] = useState(lobbySteps);
+  const now: Int = (clientClock() - from) / 50;
+  if (now === steps) {
+    return;
+  }
+  setSteps(now);
+  if (Math.max(0, lobbySecondsFrom() - now) % 60 === 5) {
+    playSound(Sounds.II_CLOCK_TICK);
+  }
+}
+
+export function bannerTick(): void {
+  const [started, setStarted] = useState(broadcastStartedAt);
+  if (started < 0) {
+    return;
+  }
+  const [, setAge] = useState(bannerAge);
+  const age: Int = clientClock() - started;
+  if (age >= 500) {
+    const [, setText] = useState(broadcastText);
+    setText('');
+    setStarted(-1);
+    setAge(-1);
+    return;
+  }
+  setAge(age);
+}
+
+export function deadmanTick(): void {
+  const [deadline] = useState(deadmanDeadline);
+  if (deadline < 0 || useServerState(DeadmanVarbits.PAUSED) === 1) {
+    return;
+  }
+  const seconds: Int = deadmanSecondsLeft(deadline);
+  const [previous, setPrevious] = useState(deadmanTimerPrevious);
+  if (seconds > previous && seconds < previous + 20) {
+    return;
+  }
+  setPrevious(seconds);
+  const [, setShown] = useState(deadmanShownSeconds);
+  setShown(seconds);
+}

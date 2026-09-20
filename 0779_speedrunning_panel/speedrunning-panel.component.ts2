@@ -1,0 +1,664 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { TrophyVarbits } from '../0781_questscroll_speedrun/questscroll-speedrun.constants';
+import { SteelBorderNoClose } from '../0925_bingo_welcome/steel-border-noclose.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { onMobile } from '../lib/lib.helpers';
+import { SpeedrunQuestPane } from './speedrun-list.component';
+import { SpeedrunButtonAction, SpeedrunStoneButton } from './speedrun-button.component';
+import { ItemList, Trophy, UnlockList, itemsEnd, unlocksEnd } from './speedrun-details.component';
+import {
+  SpeedrunColor,
+  SpeedrunFont,
+  SpeedrunLayout,
+  SpeedrunScrollbar,
+  SpeedrunSprites,
+  SpeedrunVars,
+  SPEEDRUN_INFO_TEXT,
+  TrophySprites,
+  infoPaneRef,
+  infoPopupRef,
+  statsPopupRef,
+} from './speedrunning-panel.constants';
+import {
+  closeSpeedrunInfo,
+  closeSpeedrunStats,
+  questIndex,
+  setupButtonFace,
+  speedrunClockTick,
+  speedrunIndex,
+  speedrunPanelReset,
+  speedrunPointsText,
+  speedrunTitle,
+  speedrunTotalText,
+  speedrunTrophiesText,
+  trophyKindText,
+} from './speedrunning-panel.helpers';
+import { speedrunClockRunning, speedrunClockText } from './speedrunning-panel.state';
+
+export function SpeedrunningPanel(): Component {
+  return (
+    <layer
+      x="center"
+      y="center"
+      w={SpeedrunLayout.PANEL_W}
+      h={SpeedrunLayout.PANEL_H}
+      onLoad={() => speedrunPanelReset()}
+    >
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorderEntrypoint title="Quest Speedrunning" />
+      </layer>
+
+      <sprite
+        x={SpeedrunLayout.DIVIDER_V_X}
+        y={SpeedrunLayout.DIVIDER_V_Y}
+        w={SpeedrunLayout.DIVIDER_V_W}
+        h={{ fill: SpeedrunLayout.DIVIDER_V_INSET_H }}
+        sprite={SpeedrunSprites.DIVIDER_V}
+        tiling
+      />
+      <sprite
+        x={SpeedrunLayout.DIVIDER_H_X}
+        y={SpeedrunLayout.DIVIDER_H_Y}
+        w={SpeedrunLayout.DIVIDER_H_W}
+        h={SpeedrunLayout.DIVIDER_H_H}
+        sprite={SpeedrunSprites.DIVIDER_H}
+        tiling
+      />
+
+      <layer x={SpeedrunLayout.LIST_X} y={SpeedrunLayout.LIST_Y} w={SpeedrunLayout.LIST_W} h={SpeedrunLayout.LIST_H}>
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={SpeedrunColor.BLACK}
+          transparency={SpeedrunLayout.LIST_WASH}
+        />
+        <layer x="center" y="center" w="fill" h="fill">
+          <SpeedrunQuestPane />
+        </layer>
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: SpeedrunLayout.CONTENT_BOTTOM }}
+        w={{ fill: SpeedrunLayout.CONTENT_INSET_W }}
+        h={{ fill: SpeedrunLayout.CONTENT_INSET_H }}
+      >
+        <layer x={0} y="bottom" w={SpeedrunLayout.FOOTER_W} h={SpeedrunLayout.FOOTER_H}>
+          <layer
+            x="center"
+            y={SpeedrunLayout.POINTS_Y}
+            w={{ fill: SpeedrunLayout.POINTS_INSET_W }}
+            h={SpeedrunLayout.POINTS_H}
+          >
+            <PointsText />
+          </layer>
+          <layer
+            x={SpeedrunLayout.TAB_INSET}
+            y={{ bottom: SpeedrunLayout.TAB_INSET }}
+            w={SpeedrunLayout.TAB_W}
+            h={SpeedrunLayout.TAB_H}
+          >
+            <SpeedrunStoneButton label="Info" locked={0} action={SpeedrunButtonAction.INFO} />
+          </layer>
+          <layer
+            x={{ right: SpeedrunLayout.TAB_INSET }}
+            y={{ bottom: SpeedrunLayout.TAB_INSET }}
+            w={SpeedrunLayout.TAB_W}
+            h={SpeedrunLayout.TAB_H}
+          >
+            <SpeedrunStoneButton label="Stats" locked={0} action={SpeedrunButtonAction.STATS} />
+          </layer>
+        </layer>
+
+        <layer x={{ right: 0 }} y="bottom" w={{ fill: SpeedrunLayout.RIGHT_INSET_W }} h="fill">
+          <SpeedrunDetails />
+        </layer>
+      </layer>
+
+      <layer ref={statsPopupRef} x={0} y={0} w="fill" h="fill" noClickThrough hide>
+        <rect x={0} y={0} w="fill" h="fill" fill color={SpeedrunColor.BLACK} transparency={SpeedrunLayout.POPUP_WASH} />
+        <layer x="center" y="center" w={SpeedrunLayout.POPUP_W} h={SpeedrunLayout.POPUP_H} noClickThrough>
+          <layer x="center" y="center" w="fill" h="fill">
+            <SteelBorderNoClose title="Speedrunning Stats" />
+          </layer>
+          <layer
+            x="center"
+            y={{ bottom: SpeedrunLayout.POPUP_BODY_BOTTOM }}
+            w={{ fill: SpeedrunLayout.POPUP_BODY_INSET_W }}
+            h={{ fill: SpeedrunLayout.POPUP_BODY_INSET_H }}
+            noClickThrough
+          >
+            <StatStripes />
+            <StatLabels />
+            <layer x={0} y={0} w="fill" h="fill">
+              <StatValues />
+            </layer>
+          </layer>
+          <PopupClose which={0} />
+        </layer>
+      </layer>
+
+      <layer ref={infoPopupRef} x={0} y={0} w="fill" h="fill" noClickThrough hide>
+        <rect x={0} y={0} w="fill" h="fill" fill color={SpeedrunColor.BLACK} transparency={SpeedrunLayout.POPUP_WASH} />
+        <layer x="center" y="center" w={SpeedrunLayout.POPUP_W} h={SpeedrunLayout.POPUP_H} noClickThrough>
+          <layer x="center" y="center" w="fill" h="fill">
+            <SteelBorderNoClose title="Speedrunning Info" />
+          </layer>
+          <layer
+            x="center"
+            y={{ bottom: SpeedrunLayout.POPUP_BODY_BOTTOM }}
+            w={{ fill: SpeedrunLayout.POPUP_BODY_INSET_W }}
+            h={{ fill: SpeedrunLayout.POPUP_BODY_INSET_H }}
+            noClickThrough
+          >
+            <layer
+              ref={infoPaneRef}
+              x={0}
+              y={0}
+              w={{ fill: SpeedrunLayout.SCROLLBAR_W }}
+              h="fill"
+              noClickThrough
+              scrollHeight={SpeedrunLayout.INFO_TEXT_H}
+            >
+              <text
+                x="center"
+                y={0}
+                w={{ fill: SpeedrunLayout.INFO_INSET_W }}
+                h={SpeedrunLayout.INFO_TEXT_H}
+                text={SPEEDRUN_INFO_TEXT}
+                font={SpeedrunFont.BODY}
+                color={SpeedrunColor.AMBER}
+                shadow
+                align="center"
+                valign="middle"
+                lineHeight={SpeedrunLayout.INFO_LINE}
+              />
+            </layer>
+            <layer x={{ right: 0 }} y={0} w={SpeedrunLayout.SCROLLBAR_W} h="fill">
+              <ScrollbarVertical
+                content={infoPaneRef}
+                track={SpeedrunScrollbar.TRACK}
+                capTopSprite={SpeedrunScrollbar.CAP_TOP}
+                thumbSprite={SpeedrunScrollbar.THUMB}
+                capBottomSprite={SpeedrunScrollbar.CAP_BOTTOM}
+                arrowUp={SpeedrunScrollbar.ARROW_UP}
+                arrowDown={SpeedrunScrollbar.ARROW_DOWN}
+              />
+            </layer>
+          </layer>
+          <PopupClose which={1} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function PointsText(): Component {
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text={`Speedrun Points<br><col=ffffff>${speedrunPointsText()}</col>`}
+      font={SpeedrunFont.BOLD}
+      color={SpeedrunColor.AMBER}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={SpeedrunLayout.POINTS_LINE}
+    />
+  );
+}
+
+function SpeedrunDetails(): Component {
+  const quest: Int = useServerState(SpeedrunVars.PANEL_QUEST);
+  const questRow: Int = questIndex(quest);
+  const speedrun: Int = speedrunIndex(quest);
+  const detailed: Boolean = quest !== -1 && speedrun >= 0 && questRow >= 0;
+  const listsH: Int = detailed ? Math.max(unlocksEnd(quest, questRow, speedrun), itemsEnd(speedrun)) : 0;
+  const detailH: Int = detailed
+    ? SpeedrunLayout.DETAIL_H + listsH + SpeedrunLayout.DETAIL_FOOT
+    : SpeedrunLayout.DETAIL_H;
+  const face: Int = setupButtonFace(quest);
+  const pane = useRef();
+
+  return (
+    <>
+      <layer ref={pane} x={0} y={0} w={{ fill: SpeedrunLayout.SCROLLBAR_W }} h="fill" scrollHeight={detailH}>
+        <layer x="center" y={0} w="fill" h={detailH}>
+          <text
+            x="center"
+            y={0}
+            w={{ fill: SpeedrunLayout.QUEST_TITLE_INSET_W }}
+            h={SpeedrunLayout.QUEST_TITLE_H}
+            text={quest !== -1 ? speedrunTitle(quest) : 'Current Quest'}
+            font={SpeedrunFont.BOLD}
+            color={SpeedrunColor.AMBER}
+            shadow
+            align="center"
+            valign="middle"
+          />
+
+          <layer
+            x="center"
+            y={SpeedrunLayout.CURRENT_Y}
+            w={{ fill: SpeedrunLayout.ROW_INSET_W }}
+            h={SpeedrunLayout.ROW_H}
+          >
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+              sprite={SpeedrunSprites.BACKING}
+              tiling
+            />
+            <text
+              x={SpeedrunLayout.ROW_LABEL_X}
+              y={0}
+              w={SpeedrunLayout.ROW_LABEL_W}
+              h="fill"
+              text="Current Speedrun"
+              font={SpeedrunFont.BODY}
+              color={SpeedrunColor.AMBER}
+              shadow
+              align="center"
+              valign="middle"
+            />
+            <CurrentTime />
+            <ThinBoxEntrypoint />
+          </layer>
+
+          <layer
+            x={SpeedrunLayout.BUTTON_X}
+            y={SpeedrunLayout.BUTTON_Y}
+            w={{ fill: SpeedrunLayout.BUTTON_INSET_W }}
+            h={SpeedrunLayout.BUTTON_H}
+          >
+            {face === 1 ? (
+              <SpeedrunStoneButton label="Abandon Speedrun" locked={0} action={SpeedrunButtonAction.PRESS} />
+            ) : (
+              <SpeedrunStoneButton
+                label="Set Up Speedrun"
+                locked={face === 2 ? 1 : 0}
+                action={SpeedrunButtonAction.PRESS}
+              />
+            )}
+          </layer>
+          <layer
+            x={{ right: SpeedrunLayout.BUTTON_X }}
+            y={SpeedrunLayout.BUTTON_Y}
+            w={{ fill: SpeedrunLayout.BUTTON_INSET_W }}
+            h={SpeedrunLayout.BUTTON_H}
+          >
+            <SpeedrunStoneButton label="Quest Journal" locked={0} action={SpeedrunButtonAction.PRESS} />
+          </layer>
+
+          <TimeRow y={SpeedrunLayout.PERSONAL_Y} label="Personal Best" />
+          <TimeRow y={SpeedrunLayout.GLOBAL_Y} label="Global Best" />
+
+          <layer
+            x="center"
+            y={SpeedrunLayout.TROPHIES_Y}
+            w={{ fill: SpeedrunLayout.ROW_INSET_W }}
+            h={SpeedrunLayout.TROPHIES_H}
+          >
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+              sprite={SpeedrunSprites.BACKING}
+              tiling
+            />
+            <layer
+              x={{ center: -SpeedrunLayout.TROPHY_SPREAD }}
+              y={SpeedrunLayout.TROPHY_TOP}
+              w={SpeedrunLayout.TROPHY_W}
+              h={SpeedrunLayout.TROPHY_H}
+            >
+              <Trophy quest={quest} trophy={1} sprite={TrophySprites.BRONZE} />
+            </layer>
+            <layer x="center" y={SpeedrunLayout.TROPHY_TOP} w={SpeedrunLayout.TROPHY_W} h={SpeedrunLayout.TROPHY_H}>
+              <Trophy quest={quest} trophy={2} sprite={TrophySprites.SILVER} />
+            </layer>
+            <layer
+              x={{ center: SpeedrunLayout.TROPHY_SPREAD }}
+              y={SpeedrunLayout.TROPHY_TOP}
+              w={SpeedrunLayout.TROPHY_W}
+              h={SpeedrunLayout.TROPHY_H}
+            >
+              <Trophy quest={quest} trophy={3} sprite={TrophySprites.GOLD} />
+            </layer>
+            <layer
+              x={{ center: -SpeedrunLayout.TROPHY_HALF_SPREAD }}
+              y={{ bottom: SpeedrunLayout.TROPHY_BOTTOM }}
+              w={SpeedrunLayout.TROPHY_W}
+              h={SpeedrunLayout.TROPHY_H}
+            >
+              <Trophy quest={quest} trophy={4} sprite={TrophySprites.PLATINUM} />
+            </layer>
+            <layer
+              x={{ center: SpeedrunLayout.TROPHY_HALF_SPREAD }}
+              y={{ bottom: SpeedrunLayout.TROPHY_BOTTOM }}
+              w={SpeedrunLayout.TROPHY_W}
+              h={SpeedrunLayout.TROPHY_H}
+            >
+              <Trophy quest={quest} trophy={5} sprite={TrophySprites.DIAMOND} />
+            </layer>
+            <ThinBoxEntrypoint />
+          </layer>
+
+          <layer
+            x={SpeedrunLayout.UNLOCKS_X}
+            y={SpeedrunLayout.UNLOCKS_Y}
+            w={{ fill: SpeedrunLayout.UNLOCKS_INSET_W }}
+            h={detailed ? listsH : SpeedrunLayout.UNLOCKS_H}
+            hide={!detailed}
+          >
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+              sprite={SpeedrunSprites.BACKING}
+              tiling
+            />
+            <layer
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+            >
+              {detailed && <UnlockList quest={quest} questRow={questRow} speedrun={speedrun} />}
+            </layer>
+            <ThinBoxEntrypoint />
+          </layer>
+          <layer
+            x={{ right: SpeedrunLayout.UNLOCKS_X }}
+            y={SpeedrunLayout.UNLOCKS_Y}
+            w={{ fill: SpeedrunLayout.UNLOCKS_INSET_W }}
+            h={detailed ? listsH : SpeedrunLayout.UNLOCKS_H}
+            hide={!detailed}
+          >
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+              sprite={SpeedrunSprites.BACKING}
+              tiling
+            />
+            <layer
+              x="center"
+              y="center"
+              w={{ fill: SpeedrunLayout.BACKING_INSET }}
+              h={{ fill: SpeedrunLayout.BACKING_INSET }}
+            >
+              {detailed && <ItemList speedrun={speedrun} />}
+            </layer>
+            <ThinBoxEntrypoint />
+          </layer>
+        </layer>
+      </layer>
+
+      <layer x={{ right: 0 }} y={0} w={SpeedrunLayout.SCROLLBAR_W} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={SpeedrunScrollbar.TRACK}
+          capTopSprite={SpeedrunScrollbar.CAP_TOP}
+          thumbSprite={SpeedrunScrollbar.THUMB}
+          capBottomSprite={SpeedrunScrollbar.CAP_BOTTOM}
+          arrowUp={SpeedrunScrollbar.ARROW_UP}
+          arrowDown={SpeedrunScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function TimeRow({ y, label }: { y: Int; label: String }): Component {
+  return (
+    <layer x="center" y={y} w={{ fill: SpeedrunLayout.ROW_INSET_W }} h={SpeedrunLayout.ROW_H}>
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: SpeedrunLayout.BACKING_INSET }}
+        h={{ fill: SpeedrunLayout.BACKING_INSET }}
+        sprite={SpeedrunSprites.BACKING}
+        tiling
+      />
+      <text
+        x={SpeedrunLayout.ROW_LABEL_X}
+        y={0}
+        w={SpeedrunLayout.ROW_LABEL_W}
+        h="fill"
+        text={label}
+        font={SpeedrunFont.BODY}
+        color={SpeedrunColor.AMBER}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={{ right: SpeedrunLayout.ROW_VALUE_INSET }}
+        y={0}
+        w={SpeedrunLayout.ROW_VALUE_W}
+        h="fill"
+        text="-"
+        font={SpeedrunFont.BODY}
+        color={SpeedrunColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}
+
+function CurrentTime(): Component {
+  const [running] = useState(speedrunClockRunning);
+  const [text] = useState(speedrunClockText);
+  const tick = useRef();
+  useInterval(() => speedrunClockTick(), tick);
+  return (
+    <>
+      <layer ref={tick} x={0} y={0} w={1} h={1} hide={running === 0} />
+      <text
+        x={{ right: SpeedrunLayout.ROW_VALUE_INSET }}
+        y={0}
+        w={SpeedrunLayout.ROW_VALUE_W}
+        h="fill"
+        text={text}
+        font={SpeedrunFont.BODY}
+        color={SpeedrunColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function StatStripes(): Component {
+  return (
+    <>
+      <rect x="center" y={0} w="fill" h={27} fill color={SpeedrunColor.BLACK} transparency={SpeedrunLayout.STAT_DARK} />
+      <rect
+        x="center"
+        y={27}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_LIGHT}
+      />
+      <rect
+        x="center"
+        y={54}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_DARK}
+      />
+      <rect
+        x="center"
+        y={81}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_LIGHT}
+      />
+      <rect
+        x="center"
+        y={108}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_DARK}
+      />
+      <rect
+        x="center"
+        y={135}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_LIGHT}
+      />
+      <rect
+        x="center"
+        y={162}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_DARK}
+      />
+      <rect
+        x="center"
+        y={189}
+        w="fill"
+        h={27}
+        fill
+        color={SpeedrunColor.BLACK}
+        transparency={SpeedrunLayout.STAT_LIGHT}
+      />
+    </>
+  );
+}
+
+function StatLabels(): Component {
+  return (
+    <>
+      <StatLabel y={0} label="Total Speedruns" />
+      <StatLabel y={27} label="Speedrun Points" />
+      <StatLabel y={54} label="Total Trophies" />
+      <StatLabel y={81} label="Total Bronze Trophies" />
+      <StatLabel y={108} label="Total Silver Trophies" />
+      <StatLabel y={135} label="Total Gold Trophies" />
+      <StatLabel y={162} label="Total Platinum Trophies" />
+      <StatLabel y={189} label="Total Diamond Trophies" />
+    </>
+  );
+}
+
+function StatLabel({ y, label }: { y: Int; label: String }): Component {
+  return (
+    <text
+      x={0}
+      y={y}
+      w={SpeedrunLayout.STAT_LABEL_W}
+      h={SpeedrunLayout.STAT_ROW_H}
+      text={label}
+      font={SpeedrunFont.BODY}
+      color={SpeedrunColor.AMBER}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+function StatValues(): Component {
+  return (
+    <>
+      <StatValue y={0} value={speedrunTotalText()} />
+      <StatValue y={27} value={speedrunPointsText()} />
+      <StatValue y={54} value={speedrunTrophiesText()} />
+      <StatValue y={81} value={trophyKindText(useServerState(TrophyVarbits.BRONZE))} />
+      <StatValue y={108} value={trophyKindText(useServerState(TrophyVarbits.SILVER))} />
+      <StatValue y={135} value={trophyKindText(useServerState(TrophyVarbits.GOLD))} />
+      <StatValue y={162} value={trophyKindText(useServerState(TrophyVarbits.PLATINUM))} />
+      <StatValue y={189} value={trophyKindText(useServerState(TrophyVarbits.DIAMOND))} />
+    </>
+  );
+}
+
+function StatValue({ y, value }: { y: Int; value: String }): Component {
+  return (
+    <text
+      x={{ right: 0 }}
+      y={y}
+      w={SpeedrunLayout.STAT_VALUE_W}
+      h={SpeedrunLayout.STAT_ROW_H}
+      text={value}
+      font={SpeedrunFont.BODY}
+      color={SpeedrunColor.WHITE}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+function PopupClose({ which }: { which: Int }): Component {
+  if (onMobile()) {
+    return (
+      <sprite
+        x={{ right: 1 }}
+        y={1}
+        w={33}
+        h={33}
+        sprite={SpeedrunSprites.CLOSE_MOBILE}
+        options={['Close']}
+        onOptionSelect={() => {
+          if (which === 0) {
+            closeSpeedrunStats();
+          } else {
+            closeSpeedrunInfo();
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={{ right: SpeedrunLayout.CLOSE_RIGHT }}
+      y={SpeedrunLayout.CLOSE_Y}
+      w={SpeedrunLayout.CLOSE_W}
+      h={SpeedrunLayout.CLOSE_H}
+      sprite={SpeedrunSprites.CLOSE_OFF}
+      hover={{ sprite: SpeedrunSprites.CLOSE_HOVER }}
+      options={['Close']}
+      onOptionSelect={() => {
+        if (which === 0) {
+          closeSpeedrunStats();
+        } else {
+          closeSpeedrunInfo();
+        }
+      }}
+    />
+  );
+}

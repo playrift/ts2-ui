@@ -1,0 +1,283 @@
+import { CS2, useServerState, useSkillBase } from 'ts2';
+
+import { textClient } from '../0179_farming_view/farming-view.helpers';
+import { currentLeague } from '../0656_league_side_panel/league-side-panel.helpers';
+import { sailingRestricted } from '../0712_account_summary_sidepanel/account-summary-sidepanel.helpers';
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { Relic } from '../lib/league-relics.data';
+import { SkillMembersOnly, XpForLevel } from '../lib/skills.data';
+import { LeagueXpCaption } from './league-xp-caption.data';
+import { Skills, StatsVarps } from './stats.constants';
+
+export function membersOnly(skill: Skill): Boolean {
+  return SkillMembersOnly.get(skill) ?? false;
+}
+
+export function xpForLevel(level: Int): Int {
+  return XpForLevel.get(level) ?? 0;
+}
+
+export function deadmanXpToRegain(skill: Skill): Int {
+  if (skill === Skills.RANGED) {
+    return useServerState(StatsVarps.DEADMAN_XP_RANGED);
+  }
+  if (skill === Skills.MAGIC) {
+    return useServerState(StatsVarps.DEADMAN_XP_MAGIC);
+  }
+  if (skill === Skills.DEFENCE) {
+    return useServerState(StatsVarps.DEADMAN_XP_DEFENCE);
+  }
+  if (skill === Skills.STRENGTH) {
+    return useServerState(StatsVarps.DEADMAN_XP_STRENGTH);
+  }
+  if (skill === Skills.ATTACK) {
+    return useServerState(StatsVarps.DEADMAN_XP_ATTACK);
+  }
+  if (skill === Skills.HITPOINTS) {
+    return useServerState(StatsVarps.DEADMAN_XP_HITPOINTS);
+  }
+  if (skill === Skills.FLETCHING) {
+    return useServerState(StatsVarps.DEADMAN_XP_FLETCHING);
+  }
+  if (skill === Skills.MINING) {
+    return useServerState(StatsVarps.DEADMAN_XP_MINING);
+  }
+  if (skill === Skills.WOODCUTTING) {
+    return useServerState(StatsVarps.DEADMAN_XP_WOODCUTTING);
+  }
+  if (skill === Skills.HERBLORE) {
+    return useServerState(StatsVarps.DEADMAN_XP_HERBLORE);
+  }
+  if (skill === Skills.FISHING) {
+    return useServerState(StatsVarps.DEADMAN_XP_FISHING);
+  }
+  if (skill === Skills.PRAYER) {
+    return useServerState(StatsVarps.DEADMAN_XP_PRAYER);
+  }
+  if (skill === Skills.AGILITY) {
+    return useServerState(StatsVarps.DEADMAN_XP_AGILITY);
+  }
+  if (skill === Skills.THIEVING) {
+    return useServerState(StatsVarps.DEADMAN_XP_THIEVING);
+  }
+  if (skill === Skills.COOKING) {
+    return useServerState(StatsVarps.DEADMAN_XP_COOKING);
+  }
+  if (skill === Skills.HUNTER) {
+    return useServerState(StatsVarps.DEADMAN_XP_HUNTER);
+  }
+  if (skill === Skills.CRAFTING) {
+    return useServerState(StatsVarps.DEADMAN_XP_CRAFTING);
+  }
+  if (skill === Skills.RUNECRAFT) {
+    return useServerState(StatsVarps.DEADMAN_XP_RUNECRAFT);
+  }
+  if (skill === Skills.SLAYER) {
+    return useServerState(StatsVarps.DEADMAN_XP_SLAYER);
+  }
+  if (skill === Skills.FARMING) {
+    return useServerState(StatsVarps.DEADMAN_XP_FARMING);
+  }
+  if (skill === Skills.CONSTRUCTION) {
+    return useServerState(StatsVarps.DEADMAN_XP_CONSTRUCTION);
+  }
+  if (skill === Skills.FIREMAKING) {
+    return useServerState(StatsVarps.DEADMAN_XP_FIREMAKING);
+  }
+  if (skill === Skills.SMITHING) {
+    return useServerState(StatsVarps.DEADMAN_XP_SMITHING);
+  }
+  return -1;
+}
+
+export function deadmanXpPermitted(divisor: Int): Int {
+  const cap: Int = useServerState(StatsVarps.DEADMAN_XP_TO_CAP);
+  let remaining: Int = cap;
+  remaining =
+    remaining -
+    spend(
+      remaining,
+      cap,
+      2,
+      gainedTenths(
+        Skills.ATTACK,
+        useServerState(StatsVarps.DEADMAN_XP_ATTACK),
+        useServerState(StatsVarps.DEADMAN_XP_REWARD_ATTACK),
+      ),
+    );
+  remaining =
+    remaining -
+    spend(
+      remaining,
+      cap,
+      2,
+      gainedTenths(
+        Skills.STRENGTH,
+        useServerState(StatsVarps.DEADMAN_XP_STRENGTH),
+        useServerState(StatsVarps.DEADMAN_XP_REWARD_STRENGTH),
+      ),
+    );
+  remaining =
+    remaining -
+    spend(
+      remaining,
+      cap,
+      4,
+      gainedTenths(
+        Skills.DEFENCE,
+        useServerState(StatsVarps.DEADMAN_XP_DEFENCE),
+        useServerState(StatsVarps.DEADMAN_XP_REWARD_DEFENCE),
+      ),
+    );
+  remaining =
+    remaining -
+    spend(
+      remaining,
+      cap,
+      3,
+      gainedTenths(
+        Skills.RANGED,
+        useServerState(StatsVarps.DEADMAN_XP_RANGED),
+        useServerState(StatsVarps.DEADMAN_XP_REWARD_RANGED),
+      ),
+    );
+  remaining =
+    remaining -
+    spend(
+      remaining,
+      cap,
+      2,
+      gainedTenths(
+        Skills.MAGIC,
+        useServerState(StatsVarps.DEADMAN_XP_MAGIC),
+        useServerState(StatsVarps.DEADMAN_XP_REWARD_MAGIC),
+      ),
+    );
+  return remaining / divisor;
+}
+
+function gainedTenths(skill: SkillRef<number>, banked: Int, rewarded: Int): Int {
+  return Math.max(10 * CS2.skill_visible_xp(skill), banked) - rewarded;
+}
+
+function spend(remaining: Int, cap: Int, weight: Int, gained: Int): Int {
+  return Math.min(Math.min(gained, cap / weight) * weight, remaining);
+}
+
+export function f2pTotalLevel(): Int {
+  return (
+    useSkillBase(Skills.ATTACK) +
+    useSkillBase(Skills.STRENGTH) +
+    useSkillBase(Skills.RANGED) +
+    useSkillBase(Skills.MAGIC) +
+    useSkillBase(Skills.DEFENCE) +
+    useSkillBase(Skills.HITPOINTS) +
+    useSkillBase(Skills.PRAYER) +
+    useSkillBase(Skills.CRAFTING) +
+    useSkillBase(Skills.RUNECRAFT) +
+    useSkillBase(Skills.MINING) +
+    useSkillBase(Skills.SMITHING) +
+    useSkillBase(Skills.FISHING) +
+    useSkillBase(Skills.COOKING) +
+    useSkillBase(Skills.FIREMAKING) +
+    useSkillBase(Skills.WOODCUTTING)
+  );
+}
+
+export function equilibriumXp(skill: Skill): Int {
+  if (skill === Skills.ATTACK) {
+    return useServerState(StatsVarps.EXTRA_XP_ATTACK);
+  }
+  if (skill === Skills.STRENGTH) {
+    return useServerState(StatsVarps.EXTRA_XP_STRENGTH);
+  }
+  if (skill === Skills.DEFENCE) {
+    return useServerState(StatsVarps.EXTRA_XP_DEFENCE);
+  }
+  if (skill === Skills.PRAYER) {
+    return useServerState(StatsVarps.EXTRA_XP_PRAYER);
+  }
+  if (skill === Skills.RANGED) {
+    return useServerState(StatsVarps.EXTRA_XP_RANGED);
+  }
+  if (skill === Skills.MAGIC) {
+    return useServerState(StatsVarps.EXTRA_XP_MAGIC);
+  }
+  if (skill === Skills.RUNECRAFT) {
+    return useServerState(StatsVarps.EXTRA_XP_RUNECRAFTING);
+  }
+  if (skill === Skills.CONSTRUCTION) {
+    return useServerState(StatsVarps.EXTRA_XP_CONSTRUCTION);
+  }
+  if (skill === Skills.HITPOINTS) {
+    return useServerState(StatsVarps.EXTRA_XP_HITPOINTS);
+  }
+  if (skill === Skills.AGILITY) {
+    return useServerState(StatsVarps.EXTRA_XP_AGILITY);
+  }
+  if (skill === Skills.HERBLORE) {
+    return useServerState(StatsVarps.EXTRA_XP_HERBLORE);
+  }
+  if (skill === Skills.THIEVING) {
+    return useServerState(StatsVarps.EXTRA_XP_THIEVING);
+  }
+  if (skill === Skills.CRAFTING) {
+    return useServerState(StatsVarps.EXTRA_XP_CRAFTING);
+  }
+  if (skill === Skills.FLETCHING) {
+    return useServerState(StatsVarps.EXTRA_XP_FLETCHING);
+  }
+  if (skill === Skills.SLAYER) {
+    return useServerState(StatsVarps.EXTRA_XP_SLAYER);
+  }
+  if (skill === Skills.HUNTER) {
+    return useServerState(StatsVarps.EXTRA_XP_HUNTER);
+  }
+  if (skill === Skills.MINING) {
+    return useServerState(StatsVarps.EXTRA_XP_MINING);
+  }
+  if (skill === Skills.SMITHING) {
+    return useServerState(StatsVarps.EXTRA_XP_SMITHING);
+  }
+  if (skill === Skills.FISHING) {
+    return useServerState(StatsVarps.EXTRA_XP_FISHING);
+  }
+  if (skill === Skills.COOKING) {
+    return useServerState(StatsVarps.EXTRA_XP_COOKING);
+  }
+  if (skill === Skills.FIREMAKING) {
+    return useServerState(StatsVarps.EXTRA_XP_FIREMAKING);
+  }
+  if (skill === Skills.WOODCUTTING) {
+    return useServerState(StatsVarps.EXTRA_XP_WOODCUTTING);
+  }
+  if (skill === Skills.FARMING) {
+    return useServerState(StatsVarps.EXTRA_XP_FARMING);
+  }
+  return useServerState(StatsVarps.EXTRA_XP_TOTAL);
+}
+
+export function equilibriumTotalXp(): Int {
+  return useServerState(StatsVarps.EXTRA_XP_TOTAL);
+}
+
+export function equilibriumCaption(): String {
+  const theme = LeagueXpCaption.get(currentLeague());
+  return `${theme === null ? '' : textClient(theme.classic, theme.enhanced)}Equilibrium XP:</col>`;
+}
+
+export function equilibriumActive(): Boolean {
+  return leagueRelicActive(Relic.EQUILIBRIUM) === 1;
+}
+
+export function onDeadmanWorld(): Boolean {
+  return deadmanWorld() !== 0;
+}
+
+export function skillRestricted(skill: Skill): Boolean {
+  if (skill === Skills.SAILING) {
+    return sailingRestricted();
+  }
+  return false;
+}

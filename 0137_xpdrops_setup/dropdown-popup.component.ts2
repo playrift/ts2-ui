@@ -1,0 +1,225 @@
+import { CS2, useRef, useState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { DropdownEntry, DropdownHoverBar } from './dropdown-entry.component';
+import {
+  SkillNamesByIndex,
+  SKILLS_ALPHABETICAL,
+  XpDropColourNames,
+  XpDropColourValues,
+  XpDropDurations,
+  XpDropFakes,
+  XpDropGrouping,
+  XpDropPositions,
+  XpDropSizes,
+  XpDropSpeeds,
+} from './xpdrops-setup.data';
+import { controlIsSkillList, controlLeft, controlRowCount, controlTop, controlWidth } from './xpdrops-setup.helpers';
+import { dismissDropdown, openControl } from './xpdrops-setup.state';
+import {
+  XpdropsBar,
+  XpdropsChoice,
+  XpdropsColor,
+  XpdropsControl,
+  XpdropsLayout,
+  XpdropsSprite,
+  XpdropsWash,
+} from './xpdrops-setup.constants';
+
+export function XpdropsDropdown(): Component {
+  const [open] = useState(openControl);
+  const closed: Boolean = open < 0;
+
+  const pane = useRef();
+
+  const mobile: Boolean = onMobile();
+  const entryH: Int = mobile
+    ? CS2.scale(XpdropsLayout.entry.mobileNumerator, XpdropsLayout.entry.mobileDenominator, XpdropsLayout.entry.h)
+    : XpdropsLayout.entry.h;
+  const rows: Int = controlRowCount(open);
+  const contentH: Int = rows * entryH + XpdropsLayout.popup.content;
+  const wantH: Int = contentH + XpdropsLayout.popup.frame;
+  const boxX: Int = XpdropsLayout.contents.x + controlLeft(open, mobile);
+  const boxY: Int = XpdropsLayout.contents.y + controlTop(open, mobile) + XpdropsLayout.control.h - 1;
+  const room: Int = XpdropsLayout.universe.h - boxY;
+  const boxH: Int = wantH > room ? room : wantH;
+  const scrollH: Int = wantH > room ? contentH : 0;
+  const boxW: Int = controlWidth(open, mobile);
+
+  const skillList: Boolean = controlIsSkillList(open);
+  const headLabel: String = open === XpdropsControl.COUNTER ? 'Total XP' : 'Off';
+  const tailLabel: String = open === XpdropsControl.COUNTER ? 'Off' : 'Total XP goal';
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={closed}>
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        fill
+        color={XpdropsColor.BLACK}
+        transparency={XpdropsWash.FULL}
+        noClickThrough
+        onClick={() => dismissDropdown()}
+      />
+
+      <layer x={boxX} y={boxY} w={boxW} h={boxH}>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={XpdropsSprite.PANEL} />
+
+        <layer
+          ref={pane}
+          x={XpdropsLayout.popup.paneX}
+          y="center"
+          w={{ fill: XpdropsLayout.popup.paneInsetW }}
+          h={{ fill: XpdropsLayout.popup.paneInsetH }}
+          scrollHeight={scrollH}
+          scrollY={0}
+        >
+          <DropdownHoverBar />
+
+          {open === XpdropsControl.POSITION &&
+            XpDropPositions.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.SIZE &&
+            XpDropSizes.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.DURATION &&
+            XpDropDurations.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.COLOUR &&
+            XpDropColourNames.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpDropColourValues.get(i) ?? XpdropsColor.WHITE}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.GROUPING &&
+            XpDropGrouping.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.SPEED &&
+            XpDropSpeeds.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {open === XpdropsControl.FAKES &&
+            XpDropFakes.map((label, i) => (
+              <DropdownEntry
+                value={i}
+                label={label}
+                top={i * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+
+          {skillList && (
+            <DropdownEntry
+              value={0}
+              label={headLabel}
+              top={0}
+              height={entryH}
+              color={XpdropsColor.LABEL}
+              control={open}
+            />
+          )}
+          {skillList && (
+            <DropdownEntry
+              value={XpdropsChoice.RECENT}
+              label="Most recent"
+              top={entryH}
+              height={entryH}
+              color={XpdropsColor.LABEL}
+              control={open}
+            />
+          )}
+          {skillList &&
+            SKILLS_ALPHABETICAL.map((skill, i) => (
+              <DropdownEntry
+                value={skill}
+                label={SkillNamesByIndex.get(skill) ?? 'this skill'}
+                top={(i + 2) * entryH}
+                height={entryH}
+                color={XpdropsColor.LABEL}
+                control={open}
+              />
+            ))}
+          {skillList && (
+            <DropdownEntry
+              value={XpdropsChoice.TAIL}
+              label={tailLabel}
+              top={(rows - 1) * entryH}
+              height={entryH}
+              color={XpdropsColor.LABEL}
+              control={open}
+            />
+          )}
+        </layer>
+
+        <layer
+          x={{ right: XpdropsLayout.popup.barRight }}
+          y="center"
+          w={XpdropsLayout.popup.barW}
+          h={{ fill: XpdropsLayout.popup.paneInsetH }}
+        >
+          <ScrollbarVertical
+            content={pane}
+            track={XpdropsBar.track}
+            capTopSprite={XpdropsBar.capTop}
+            thumbSprite={XpdropsBar.thumb}
+            capBottomSprite={XpdropsBar.capBottom}
+            arrowUp={XpdropsBar.arrowUp}
+            arrowDown={XpdropsBar.arrowDown}
+          />
+        </layer>
+
+        <ThinBoxEntrypoint />
+      </layer>
+    </layer>
+  );
+}

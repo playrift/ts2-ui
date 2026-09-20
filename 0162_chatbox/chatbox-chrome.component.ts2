@@ -1,0 +1,101 @@
+import { onMounted, onUpdated, useState } from 'ts2';
+
+import {
+  CHAT_CLICK_STRIP,
+  CHAT_CLICK_WIDE,
+  chatboxAreaHidden,
+  chatboxBarFlipped,
+  chatboxBlockClick,
+  chatboxClickBox,
+  chatboxStripAlpha,
+} from './chatbox.state';
+import {
+  ChatboxAlpha,
+  Layout,
+  chatareaRef,
+  chatcrmRef,
+  controlsGraphicRef,
+  inputClickareaRef,
+  line0Ref,
+} from './chatbox.constants';
+
+export function ChatChrome(): Component {
+  const [areaHidden] = useState(chatboxAreaHidden);
+  const [barSide] = useState(chatboxBarFlipped);
+  const [clickBox] = useState(chatboxClickBox);
+  const [blockClickCell] = useState(chatboxBlockClick);
+  const [stripAlpha] = useState(chatboxStripAlpha);
+
+  let hideArea: Boolean = false;
+  if (areaHidden === 1) {
+    hideArea = true;
+  }
+
+  let barFlipped: Boolean = false;
+  if (barSide === 1) {
+    barFlipped = true;
+  }
+
+  let blockClick: Boolean = false;
+  let blockScroll: Boolean = true;
+  if (blockClickCell === 1) {
+    blockClick = true;
+    blockScroll = false;
+  }
+
+  let box: Int = CHAT_CLICK_STRIP;
+  if (clickBox !== CHAT_CLICK_STRIP) {
+    box = clickBox;
+  }
+
+  let alpha: Int = ChatboxAlpha.OPAQUE;
+  if (stripAlpha > ChatboxAlpha.OPAQUE) {
+    alpha = stripAlpha;
+  }
+
+  onMounted(() => chatChromeApply(hideArea, barFlipped, box, blockClick, blockScroll, alpha));
+  onUpdated(() => chatChromeApply(hideArea, barFlipped, box, blockClick, blockScroll, alpha));
+
+  return <layer x={0} y={0} w={1} h={1} />;
+}
+
+function chatChromeApply(
+  hideArea: Boolean,
+  barFlipped: Boolean,
+  clickBox: Int,
+  blockClick: Boolean,
+  blockScroll: Boolean,
+  stripAlpha: Int,
+): void {
+  chatareaRef.props = { hide: hideArea };
+
+  if (barFlipped) {
+    line0Ref.props = { x: { right: 1 }, y: 0 };
+    chatcrmRef.props = { x: -1, y: 0 };
+  } else {
+    line0Ref.props = { x: 0, y: 0 };
+    chatcrmRef.props = { x: { right: 0 }, y: 0 };
+  }
+
+  if (clickBox === CHAT_CLICK_STRIP) {
+    inputClickareaRef.props = {
+      x: { right: 0 },
+      y: 0,
+      w: { fill: MOBILE_STRIP_W },
+      h: 'fill',
+    };
+  } else if (clickBox === CHAT_CLICK_WIDE) {
+    inputClickareaRef.props = { w: Layout.CONTROLS_W - MOBILE_STRIP_W, h: 'fill' };
+  } else {
+    inputClickareaRef.props = { w: 'fill', h: 'fill' };
+  }
+
+  inputClickareaRef.noClickThrough = blockClick;
+  if (blockScroll) {
+    inputClickareaRef.noScrollThrough = true;
+  }
+
+  controlsGraphicRef.props = { transparency: stripAlpha };
+}
+
+const MOBILE_STRIP_W = 58;

@@ -1,0 +1,561 @@
+import { CS2, useInterval, useServerState, useState } from 'ts2';
+
+import { regionName } from '../0656_league_side_panel/league-side-panel.helpers';
+import { onMobile } from '../lib/lib.helpers';
+
+import { AreaDetails } from './area-details.component';
+import { RegionArt } from './trailblazer-areas.data';
+import {
+  accent,
+  areaSelected,
+  headerMessage,
+  pendingRegion,
+  regionArt,
+  regionHidden,
+} from './trailblazer-areas.helpers';
+import { HoveredRegion, LoadingShown, clickRegion, hoverRegion, unhoverRegion } from './trailblazer-areas.state';
+import {
+  AreaColor,
+  AreaFonts,
+  AreaNamePlates,
+  AreaShields,
+  AreaSprites,
+  AreaText,
+  AreaVarbits,
+  Layout,
+  leagueHighlightRef,
+  loadingRef,
+} from './trailblazer-areas.constants';
+
+const Regions = [
+  {
+    region: 1,
+    shield: AreaShields.MISTHALIN,
+    plate: AreaNamePlates.MISTHALIN,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 106,
+    sy: 2,
+    nx: 106,
+    ny: -18,
+  },
+  {
+    region: 2,
+    shield: AreaShields.KARAMJA,
+    plate: AreaNamePlates.KARAMJA,
+    twinShield: AreaShields.KARAMJA_HIGHLIGHT,
+    twinPlate: AreaNamePlates.KARAMJA_HIGHLIGHT,
+    sx: 50,
+    sy: 61,
+    nx: 50,
+    ny: 41,
+  },
+  {
+    region: 6,
+    shield: AreaShields.DESERT,
+    plate: AreaNamePlates.DESERT,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 131,
+    sy: 68,
+    nx: 131,
+    ny: 48,
+  },
+  {
+    region: 5,
+    shield: AreaShields.MORYTANIA,
+    plate: AreaNamePlates.MORYTANIA,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 169,
+    sy: 2,
+    nx: 169,
+    ny: -18,
+  },
+  {
+    region: 3,
+    shield: AreaShields.ASGARNIA,
+    plate: AreaNamePlates.ASGARNIA,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 64,
+    sy: -13,
+    nx: 64,
+    ny: -33,
+  },
+  {
+    region: 4,
+    shield: AreaShields.KANDARIN,
+    plate: AreaNamePlates.KANDARIN,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: -1,
+    sy: 17,
+    nx: -1,
+    ny: -3,
+  },
+  {
+    region: 8,
+    shield: AreaShields.FREMENNIK,
+    plate: AreaNamePlates.FREMENNIK,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 10,
+    sy: -49,
+    nx: 10,
+    ny: -69,
+  },
+  {
+    region: 7,
+    shield: AreaShields.TIRANNWN,
+    plate: AreaNamePlates.TIRANNWN,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: -52,
+    sy: 21,
+    nx: -52,
+    ny: 1,
+  },
+  {
+    region: 11,
+    shield: AreaShields.WILDERNESS,
+    plate: AreaNamePlates.WILDERNESS,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: 112,
+    sy: -61,
+    nx: 112,
+    ny: -81,
+  },
+  {
+    region: 20,
+    shield: AreaShields.KEBOS_KOUREND,
+    plate: AreaNamePlates.KEBOS_KOUREND,
+    twinShield: -1,
+    twinPlate: -1,
+    sx: -150,
+    sy: -40,
+    nx: -150,
+    ny: -60,
+  },
+  {
+    region: 21,
+    shield: AreaShields.VARLAMORE,
+    plate: AreaNamePlates.VARLAMORE,
+    twinShield: AreaShields.VARLAMORE_HIGHLIGHT,
+    twinPlate: AreaNamePlates.VARLAMORE_HIGHLIGHT,
+    sx: -150,
+    sy: 44,
+    nx: -149,
+    ny: 24,
+  },
+];
+
+export function AreaMap(): Component {
+  return (
+    <layer x="center" y={Layout.INNER_Y} w="fill" h={{ fill: Layout.INNER_H_INSET }}>
+      <LeagueMaps />
+      <LeagueNames />
+      <LeagueShields />
+      <LeagueHighlight />
+      <LoadingWash />
+      <AreaDetails />
+    </layer>
+  );
+}
+
+function LeagueMaps(): Component {
+  return (
+    <layer x="center" y={0} w="fill" h="fill">
+      <rect x="center" y="center" w="fill" h="fill" color={AreaColor.BOX_OUTER} />
+      <rect
+        x={1}
+        y={1}
+        w={{ fill: Layout.BOX_INNER_INSET }}
+        h={{ fill: Layout.BOX_INNER_INSET }}
+        color={AreaColor.BOX_INNER}
+      />
+      <rect
+        x={Layout.BOX_INNER_INSET}
+        y={Layout.BOX_INNER_INSET}
+        w={{ fill: Layout.BOX_WASH_INSET }}
+        h={{ fill: Layout.BOX_WASH_INSET }}
+        fill
+        color={AreaColor.BOX_WASH}
+        transparency={Layout.BOX_WASH_TRANSPARENCY}
+      />
+
+      <MapGraphics />
+
+      <HeaderPlate />
+    </layer>
+  );
+}
+
+function MapGraphics(): Component {
+  const [hovered] = useState(HoveredRegion);
+
+  return (
+    <layer x="center" y="center" w={Layout.MAP_W} h={Layout.MAP_H}>
+      <text
+        x={0}
+        y={0}
+        w={Layout.PLACEHOLDER}
+        h={Layout.PLACEHOLDER}
+        font={AreaFonts.SMALL}
+        color={AreaColor.WHITE}
+        shadow
+      />
+
+      <sprite x="center" y="center" w={Layout.MAP_SPRITE_W} h={Layout.MAP_SPRITE_H} sprite={AreaSprites.MAP_BASE} />
+
+      {Regions.map((row) => (
+        <MapOverlay
+          graphic={regionGraphic(row.region)}
+          owned={areaSelected(row.region)}
+          hovered={hovered === row.region}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function MapOverlay({ graphic, owned, hovered }: { graphic: Sprite; owned: Boolean; hovered: Boolean }): Component {
+  return (
+    <sprite
+      x="center"
+      y={{ center: hovered ? -1 : 0 }}
+      w="fill"
+      h="fill"
+      sprite={hovered || owned ? graphic : -1}
+      transparency={hovered ? 60 : 0}
+    />
+  );
+}
+
+function regionGraphic(region: Int): Sprite {
+  const art = regionArt(region);
+  return art === null ? -1 : art.mapGraphic;
+}
+
+function HeaderPlate(): Component {
+  return (
+    <layer x={{ center: Layout.HEADER_X }} y={Layout.HEADER_Y} w={Layout.HEADER_W} h={Layout.HEADER_H}>
+      <rect x="center" y="center" w="fill" h="fill" color={AreaColor.BOX_OUTER} />
+      <rect
+        x={1}
+        y={1}
+        w={{ fill: Layout.BOX_INNER_INSET }}
+        h={{ fill: Layout.BOX_INNER_INSET }}
+        color={AreaColor.BOX_INNER}
+      />
+      <rect
+        x={Layout.BOX_INNER_INSET}
+        y={Layout.BOX_INNER_INSET}
+        w={{ fill: Layout.BOX_WASH_INSET }}
+        h={{ fill: Layout.BOX_WASH_INSET }}
+        fill
+        color={AreaColor.BOX_WASH}
+        transparency={Layout.BOX_WASH_TRANSPARENCY}
+      />
+
+      <layer x="center" y={Layout.HEADER_INNER_Y} w="fill" h={Layout.HEADER_H}>
+        <text
+          x={Layout.PLACEHOLDER_37_X}
+          y={0}
+          w={Layout.PLACEHOLDER}
+          h={Layout.PLACEHOLDER}
+          font={AreaFonts.SMALL}
+          color={AreaColor.WHITE}
+          shadow
+        />
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          text={headerMessage()}
+          font={AreaFonts.SMALL}
+          color={accent()}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function LeagueNames(): Component {
+  const [hovered] = useState(HoveredRegion);
+  const pending: Int = pendingRegion();
+  const tutorial: Int = useServerState(AreaVarbits.TUTORIAL);
+  const hoverable: Boolean = !onMobile();
+
+  return (
+    <layer x="center" y="center" w={Layout.OVERLAY_W} h={Layout.OVERLAY_H}>
+      {Regions.map((row) => (
+        <>
+          {row.twinPlate !== -1 && (
+            <sprite
+              x={{ center: row.nx }}
+              y={{ center: row.ny }}
+              w={50}
+              h={10}
+              sprite={row.twinPlate}
+              transparency={255}
+            />
+          )}
+          <RegionPlate
+            region={row.region}
+            x={row.nx}
+            y={row.ny}
+            w={50}
+            h={10}
+            resting={row.plate}
+            hovered={hovered === row.region}
+            dim={pending !== -1 && pending !== row.region}
+            tutorial={tutorial}
+            hoverable={hoverable}
+          />
+        </>
+      ))}
+    </layer>
+  );
+}
+
+function LeagueShields(): Component {
+  const [hovered] = useState(HoveredRegion);
+  const pending: Int = pendingRegion();
+  const tutorial: Int = useServerState(AreaVarbits.TUTORIAL);
+  const hoverable: Boolean = !onMobile();
+
+  return (
+    <layer x="center" y="center" w={Layout.OVERLAY_W} h={Layout.OVERLAY_H}>
+      {Regions.map((row) => (
+        <>
+          {row.twinShield !== -1 && (
+            <sprite
+              x={{ center: row.sx }}
+              y={{ center: row.sy }}
+              w={32}
+              h={32}
+              sprite={row.twinShield}
+              transparency={255}
+            />
+          )}
+          <RegionPlate
+            region={row.region}
+            x={row.sx}
+            y={row.sy}
+            w={32}
+            h={32}
+            resting={row.shield}
+            hovered={hovered === row.region}
+            dim={pending !== -1 && pending !== row.region}
+            tutorial={tutorial}
+            hoverable={hoverable}
+          />
+        </>
+      ))}
+    </layer>
+  );
+}
+
+function RegionPlate({
+  region,
+  x,
+  y,
+  w,
+  h,
+  resting,
+  hovered,
+  dim,
+  tutorial,
+  hoverable,
+}: {
+  region: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  resting: Sprite;
+  hovered: Boolean;
+  dim: Boolean;
+  tutorial: Int;
+  hoverable: Boolean;
+}): Component {
+  const art = regionArt(region);
+  const hot: Sprite = art === null ? resting : w === 32 ? art.shieldHover : art.namePlateHover;
+  const cool: Sprite = art === null ? resting : w === 32 ? art.shield : art.namePlate;
+  const skin: Sprite = hovered ? hot : cool;
+  const dimmed: Int = dim ? 130 : 0;
+
+  if (regionHidden(region)) {
+    return <sprite x={{ center: x }} y={{ center: y }} w={w} h={h} sprite={resting} hide />;
+  }
+  if (hoverable) {
+    return (
+      <sprite
+        x={{ center: x }}
+        y={{ center: y }}
+        w={w}
+        h={h}
+        sprite={skin}
+        transparency={dimmed}
+        options={[AreaText.VIEW]}
+        optionSubject={`<col=ff981f>${regionSubject(region)}</col>`}
+        onOptionSelect={() => clickRegion(region, tutorial)}
+        onMouseRepeat={() => hoverRegion(region)}
+        onMouseLeave={() => unhoverRegion()}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={{ center: x }}
+      y={{ center: y }}
+      w={w}
+      h={h}
+      sprite={skin}
+      transparency={dimmed}
+      options={[AreaText.VIEW]}
+      optionSubject={`<col=ff981f>${regionSubject(region)}</col>`}
+      onOptionSelect={() => clickRegion(region, tutorial)}
+    />
+  );
+}
+
+function regionSubject(region: Int): String {
+  return regionName(region);
+}
+
+function LeagueHighlight(): Component {
+  return (
+    <layer ref={leagueHighlightRef} x="center" y="center" w={Layout.OVERLAY_W} h={Layout.OVERLAY_H}>
+      <LeaguePulse />
+    </layer>
+  );
+}
+
+function LeaguePulse(): Component {
+  const pending: Int = pendingRegion();
+  const art = regionArt(pending);
+  const shieldSprite: Sprite = art === null ? -1 : art.shieldHover;
+  const plateSprite: Sprite = art === null ? -1 : art.namePlateHover;
+  const [phase, setPhase] = useState(0);
+  const [rising, setRising] = useState(1);
+  useInterval(() => {
+    if (rising === 1) {
+      if (phase >= 30) {
+        setPhase(phase - 1);
+        setRising(0);
+        return;
+      }
+      setPhase(phase + 1);
+      return;
+    }
+    if (phase <= 0) {
+      setPhase(phase + 1);
+      setRising(1);
+      return;
+    }
+    setPhase(phase - 1);
+  });
+  const fade: Int = CS2.interpolate(0, 255, 0, 30, phase);
+
+  if (shieldSprite === -1) {
+    return null;
+  }
+  return (
+    <>
+      <PulseShield region={pending} sprite={shieldSprite} fade={fade} />
+      <PulsePlate region={pending} sprite={plateSprite} fade={fade} />
+    </>
+  );
+}
+
+function PulseShield({ region, sprite, fade }: { region: Int; sprite: Sprite; fade: Int }): Component {
+  return (
+    <sprite
+      x={{ center: shieldX(region) }}
+      y={{ center: shieldY(region) }}
+      w={32}
+      h={32}
+      sprite={sprite}
+      transparency={fade}
+    />
+  );
+}
+
+function PulsePlate({ region, sprite, fade }: { region: Int; sprite: Sprite; fade: Int }): Component {
+  return (
+    <sprite
+      x={{ center: plateX(region) }}
+      y={{ center: plateY(region) }}
+      w={50}
+      h={10}
+      sprite={sprite}
+      transparency={fade}
+    />
+  );
+}
+
+function shieldX(region: Int): Int {
+  if (region === 1) return 106;
+  if (region === 2) return 50;
+  if (region === 3) return 64;
+  if (region === 4) return -1;
+  if (region === 5) return 169;
+  if (region === 6) return 131;
+  if (region === 7) return -52;
+  if (region === 8) return 10;
+  if (region === 11) return 112;
+  if (region === 20) return -150;
+  return -150;
+}
+
+function shieldY(region: Int): Int {
+  if (region === 1) return 2;
+  if (region === 2) return 61;
+  if (region === 3) return -13;
+  if (region === 4) return 17;
+  if (region === 5) return 2;
+  if (region === 6) return 68;
+  if (region === 7) return 21;
+  if (region === 8) return -49;
+  if (region === 11) return -61;
+  if (region === 20) return -40;
+  return 44;
+}
+
+function plateX(region: Int): Int {
+  if (region === 21) return -149;
+  return shieldX(region);
+}
+
+function plateY(region: Int): Int {
+  return shieldY(region) - 20;
+}
+
+function LoadingWash(): Component {
+  const [shown] = useState(LoadingShown);
+
+  return (
+    <layer ref={loadingRef} x="center" y="center" w="fill" h="fill" hide={shown === 1 ? false : true} noClickThrough>
+      <rect x="center" y="center" w="fill" h="fill" fill transparency={Layout.LOADING_TRANSPARENCY} />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={AreaText.LOADING}
+        font={AreaFonts.HEAVY}
+        color={AreaColor.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

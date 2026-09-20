@@ -1,0 +1,269 @@
+import { useRef, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  bingoLookupPhrase,
+  bingoSelectedGrid,
+  bingoSelectedRewardOption,
+  bingoSelectedTile,
+  bingoShowRewards,
+} from '../lib/game/varcs';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import {
+  bingoClaimReward,
+  bingoClampGrid,
+  bingoHideRewardTip,
+  bingoRewardChoice,
+  bingoRewardClaimState,
+  bingoRewardPopout,
+  bingoRewardPopoutFromCard,
+  bingoRewardPopoutTile,
+  bingoShowRewardTip,
+  bingoShowTip,
+  bingoTilePopout,
+} from './bingo-grid.state';
+import { bingoInfoPopout } from './bingo-panels.state';
+import { NONE } from '../0945_reusable_floater/reusable-floater.data';
+import { SkinPieces } from '../0945_reusable_floater/floater-button.component';
+import { BingoPulse } from './bingo-rows.component';
+import { FloaterSounds } from '../0945_reusable_floater/reusable-floater.constants';
+import {
+  clickWhenDisabled,
+  hoverSkin,
+  normalSkin,
+  pressedSkin,
+  wornHoverSkin,
+  wornStyle,
+} from '../0945_reusable_floater/floater-styles';
+
+export function BingoButton({
+  x,
+  y,
+  w,
+  h,
+  hide,
+  style,
+  toggled,
+  disabled,
+  lit,
+  op,
+  selectTile,
+  gridDelta,
+  toggleRewards,
+  popoutInfo,
+  closePopout,
+  backToTile,
+  chooseReward,
+  claimReward,
+  openRewardSlot,
+  openRewardTile,
+  openRewardFromCard,
+  tip,
+  children,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  hide: Boolean;
+  style: Int;
+  toggled: Int;
+  disabled: Boolean;
+  lit: Boolean;
+  op: String;
+  selectTile: Int;
+  gridDelta: Int;
+  toggleRewards: Boolean;
+  popoutInfo: Boolean;
+  closePopout: Boolean;
+  backToTile: Int;
+  chooseReward: Int;
+  claimReward: Boolean;
+  openRewardSlot: Int;
+  openRewardTile: Int;
+  openRewardFromCard: Boolean;
+  tip: String;
+  children: Component;
+}): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const [, setSelected] = useState(bingoSelectedTile);
+  const [grid, setGrid] = useState(bingoSelectedGrid);
+  const [showRewards, setShowRewards] = useState(bingoShowRewards);
+  const [, setPopout] = useState(bingoInfoPopout);
+  const [, setTilePopout] = useState(bingoTilePopout);
+  const [, setPhrase] = useState(bingoLookupPhrase);
+  const [rewardSlot, setRewardPopout] = useState(bingoRewardPopout);
+  const [, setRewardTile] = useState(bingoRewardPopoutTile);
+  const [, setRewardFromCard] = useState(bingoRewardPopoutFromCard);
+  const [rewardChoice, setRewardChoice] = useState(bingoSelectedRewardOption);
+
+  const worn: Int = wornStyle(style, toggled);
+  const baseHover: Int = hoverSkin(style);
+  const shownHover: Int = wornHoverSkin(style, toggled);
+
+  let clickable: Boolean = true;
+  if (disabled && !clickWhenDisabled(worn)) {
+    clickable = false;
+  }
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      hide={hide}
+      noClickThrough
+      options={[op]}
+      onMouseRepeat={
+        openRewardSlot < 0 && tip.length === 0
+          ? null
+          : (event) => {
+              if (openRewardSlot >= 0) {
+                bingoShowRewardTip(
+                  openRewardSlot,
+                  openRewardTile,
+                  absoluteX(event.component) + x,
+                  absoluteY(event.component) + y,
+                  h,
+                );
+              } else {
+                bingoShowTip(tip, absoluteX(event.component) + x, absoluteY(event.component) + y, h);
+              }
+            }
+      }
+      onMouseLeave={
+        tip.length === 0
+          ? null
+          : () => {
+              bingoHideRewardTip();
+            }
+      }
+      onOptionSelect={(event) => {
+        if (selectTile >= 0) {
+          setSelected(selectTile);
+          setTilePopout(1);
+          setPopout(0);
+          setRewardPopout(-1);
+        }
+        if (gridDelta !== 0) {
+          setGrid(bingoClampGrid(grid + gridDelta));
+        }
+        if (toggleRewards) {
+          setShowRewards(showRewards === 1 ? 0 : 1);
+        }
+        if (popoutInfo) {
+          setPopout(1);
+          setTilePopout(0);
+          setRewardPopout(-1);
+        }
+        if (closePopout) {
+          setTilePopout(0);
+          setPopout(0);
+          setRewardPopout(-1);
+          setPhrase('');
+        }
+        if (backToTile >= 0) {
+          setSelected(backToTile);
+          setTilePopout(1);
+          setPopout(0);
+          setRewardPopout(-1);
+          setPhrase('');
+        }
+        if (chooseReward >= 0) {
+          setRewardChoice(chooseReward);
+        }
+        if (openRewardSlot >= 0) {
+          const [_claimable, claimed] = bingoRewardClaimState(grid, openRewardSlot);
+          setRewardPopout(openRewardSlot);
+          setRewardTile(openRewardTile);
+          setRewardFromCard(openRewardFromCard ? 1 : 0);
+          setRewardChoice(Math.max(claimed, 0));
+          setTilePopout(0);
+          setPopout(0);
+        }
+        if (claimReward) {
+          bingoClaimReward(
+            event.component,
+            event.subId,
+            grid,
+            rewardSlot,
+            bingoRewardChoice(grid, rewardSlot, rewardChoice),
+          );
+        }
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onOptionSelect={
+          disabled
+            ? null
+            : () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+        }
+        onMouseEnter={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  hoverLayer.hide = false;
+                }
+              }
+        }
+        onMouseLeave={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                hoverLayer.hide = true;
+              }
+        }
+        onClick={
+          clickable
+            ? () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (disabled) {
+                  playSound(FloaterSounds.REFUSED);
+                  return;
+                }
+                pressedLayer.hide = false;
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+            : null
+        }
+        onRelease={
+          disabled
+            ? null
+            : () => {
+                pressedLayer.hide = true;
+              }
+        }
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      {baseHover !== NONE && (
+        <layer ref={hoverLayer} w="fill" h="fill" hide={!lit}>
+          <BingoPulse skin={shownHover} armed={lit} />
+        </layer>
+      )}
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      {children}
+    </layer>
+  );
+}

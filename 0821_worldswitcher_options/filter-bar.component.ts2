@@ -1,0 +1,192 @@
+import { CS2, useRef, useServerState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import {
+  AMBER,
+  ButtonArt,
+  Caption,
+  IconTrans,
+  Layout,
+  OPSOUND_MASK,
+  OptionsBits,
+  OptionsFonts,
+  OptionsSprites,
+} from './worldswitcher-options.constants';
+import { worldSwitcherSearchGet, worldSwitcherSearchSet } from './worldswitcher-options.helpers';
+
+export function FilterBar(): Component {
+  const mobile: Boolean = onMobile();
+  const member: Int = useServerState(OptionsBits.FILTER_MEMBER);
+  const country: Int = useServerState(OptionsBits.FILTER_COUNTRY);
+  const theme: Int = useServerState(OptionsBits.FILTER_THEME);
+  const search: String = worldSwitcherSearchGet();
+  const searched: Boolean = CS2.string_length(search) > 0;
+  const anything: Boolean = member !== 0 || country !== 0 || theme !== 0 || searched;
+
+  return (
+    <>
+      <FilterButton x={Layout.MEMBERSHIP_X} caption={Caption.MEMBERSHIP} lit={member !== 0} mobile={mobile} />
+      <FilterButton x={Layout.LOCATION_X} caption={Caption.LOCATION} lit={country !== 0} mobile={mobile} />
+      <FilterButton x={Layout.MODE_X} caption={Caption.MODE} lit={theme !== 0} mobile={mobile} />
+      <SearchBox search={search} lit={searched} mobile={mobile} />
+      <ResetButton lit={anything} mobile={mobile} />
+    </>
+  );
+}
+
+function FilterButton({
+  x,
+  caption,
+  lit,
+  mobile,
+}: {
+  x: Int;
+  caption: String;
+  lit: Boolean;
+  mobile: Boolean;
+}): Component {
+  const icon = useRef();
+  return (
+    <layer
+      x={x}
+      y="center"
+      w={Layout.BUTTON_W}
+      h="fill"
+      options={[Caption.FILTER_OP]}
+      optionSubject={`<col=ff9040>${caption}</col>`}
+      onMouseRepeat={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.HOVER;
+            }
+      }
+      onMouseLeave={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.REST;
+            }
+      }
+      onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+    >
+      {lit ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      <sprite
+        ref={icon}
+        x="center"
+        y="center"
+        w={ButtonArt.ICON}
+        h={ButtonArt.ICON}
+        sprite={OptionsSprites.FILTER}
+        transparency={IconTrans.REST}
+      />
+    </layer>
+  );
+}
+
+function SearchBox({ search, lit, mobile }: { search: String; lit: Boolean; mobile: Boolean }): Component {
+  const icon = useRef();
+  return (
+    <layer
+      x={Layout.SEARCH_X}
+      y="center"
+      w={Layout.SEARCH_W}
+      h="fill"
+      options={[Caption.SEARCH_OP]}
+      onMouseRepeat={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.HOVER;
+            }
+      }
+      onMouseLeave={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.REST;
+            }
+      }
+      onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+    >
+      {lit ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      <sprite
+        ref={icon}
+        x={ButtonArt.GLASS_X}
+        y="center"
+        w={ButtonArt.GLASS_W}
+        h={ButtonArt.GLASS_H}
+        sprite={OptionsSprites.GLASS}
+        transparency={IconTrans.REST}
+      />
+      <text
+        x={{ right: ButtonArt.TEXT_RIGHT }}
+        y="center"
+        w={{ fill: ButtonArt.TEXT_INSET_W }}
+        h="fill"
+        font={OptionsFonts.BODY}
+        color={AMBER}
+        align="center"
+        valign="middle"
+        shadow
+        text={lit ? search : Caption.SEARCH_EMPTY}
+      />
+    </layer>
+  );
+}
+
+function ResetButton({ lit, mobile }: { lit: Boolean; mobile: Boolean }): Component {
+  const icon = useRef();
+  return (
+    <layer
+      x="right"
+      y="center"
+      w={Layout.BUTTON_W}
+      h="fill"
+      options={[Caption.RESET]}
+      onMouseRepeat={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.HOVER;
+            }
+      }
+      onMouseLeave={
+        mobile
+          ? undefined
+          : () => {
+              icon.transparency = IconTrans.REST;
+            }
+      }
+      onOptionSelect={(event) => {
+        if (event.option === 1) {
+          playSound(Sounds.CLICK);
+          worldSwitcherSearchSet('');
+        }
+      }}
+    >
+      {lit ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      <sprite
+        ref={icon}
+        x="center"
+        y="center"
+        w={ButtonArt.ICON}
+        h={ButtonArt.ICON}
+        sprite={OptionsSprites.FILTER}
+        transparency={IconTrans.REST}
+      />
+      <sprite
+        x={{ center: ButtonArt.CROSS_X }}
+        y={{ center: ButtonArt.CROSS_Y }}
+        w={ButtonArt.CROSS}
+        h={ButtonArt.CROSS}
+        sprite={lit ? OptionsSprites.CROSS_LIT : OptionsSprites.CROSS_DIM}
+        transparency={ButtonArt.CROSS_TRANS}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,408 @@
+import { CS2, useInterval, useRef, useServerState, useState, useUniverse } from 'ts2';
+import {
+  CosineDegrees,
+  LoadingIcon,
+  LoadingRingItems,
+  SineDegrees,
+} from '../0284_membership_benefits_prompt/membership-benefits-prompt.constants';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { textLineCount } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+import { Varps } from '../lib/game/varps';
+import { OmnishopShops, OmnishopStock } from './omnishop.data';
+import { ShopColors, ShopFonts, ShopLayout } from './omnishop-main.constants';
+import { omnishopInfoClose } from './omnishop-main.entry';
+import { ButtonsPane } from './omnishop-controls.component';
+import { PointsStrip } from './omnishop-points.component';
+import { slotName } from './omnishop-list.component';
+import { slotObj, stockLineAt } from './omnishop-main.helpers';
+import {
+  omnishopColumnOpen,
+  omnishopInfoBuiltAt,
+  omnishopInventory,
+  omnishopRingLead,
+  omnishopSelectedSlot,
+  omnishopShop,
+} from './omnishop-main.state';
+
+const enum Info {
+  PAD = 10,
+  GAP = 10,
+  LINE = 16,
+  ICON_W = 36,
+  ICON_H = 32,
+  SHADOW = 0x333333,
+  PANE_X = 2,
+  PANE_INSET_W = 19,
+  PANE_INSET_H = 4,
+  SCROLLER_W = 16,
+  INFO_INSET_BASE = 12,
+  RING_DY = 30,
+}
+
+function defaultHelp(): String {
+  return 'This panel will show further information about an item when selected from the left-hand menu.<br><br>Once selected, you may then choose to purchase the item using the buttons below.<br><br>You may also use the options menu to purchase multiples of an item.';
+}
+
+export function shopShowsPoints(shopIndex: Int): Boolean {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return false;
+  }
+  if (shop.costHide) {
+    return false;
+  }
+  return shop.currencyCount > 0;
+}
+
+export function RightColumn(): Component {
+  const expanded: Int = useServerState(Varps.OMNISHOP_VIEW_EXPANDED);
+  const selectedId: Int = useServerState(Varps.OMNISHOP_SELECTED_ID);
+  const [columnOpen] = useState(omnishopColumnOpen);
+  const [shopIndex] = useState(omnishopShop);
+  const open: Int = columnOpen;
+  const shop: Int = shopIndex;
+  let hidden: Boolean = false;
+  if (expanded === 1) {
+    hidden = open === -1 ? selectedId === -1 : open === 0;
+  }
+  const points: Boolean = shopShowsPoints(shop);
+  const shopRow = OmnishopShops.at(shop);
+  let currencies: Int = 0;
+  if (shopRow !== null) {
+    currencies = shopRow.currencyCount;
+  }
+  const pointsH: Int = points ? ShopLayout.POINTS_H : ShopLayout.POINTS_NONE;
+  const inset: Int = expanded === 1 ? 12 : 0;
+  const top: Int = expanded === 1 ? ShopLayout.CONTENT_Y - 6 : 0;
+  if (expanded === 1) {
+    return (
+      <layer x="center" y="center" w="fill" h="fill" noClickThrough hide={hidden}>
+        <ColumnContents
+          expanded={expanded}
+          inset={inset}
+          top={top}
+          pointsH={pointsH}
+          points={points}
+          shopIndex={shop}
+          currencyCount={currencies}
+        />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      x={ShopLayout.UNIVERSE_W - 12 - ShopLayout.RIGHT_COL_W}
+      y={ShopLayout.CONTENT_Y + 6}
+      w={ShopLayout.RIGHT_COL_W}
+      h={{ fill: ShopLayout.CONTENT_Y + 18 }}
+      noClickThrough
+    >
+      <ColumnContents
+        expanded={expanded}
+        inset={inset}
+        top={top}
+        pointsH={pointsH}
+        points={points}
+        shopIndex={shop}
+        currencyCount={currencies}
+      />
+    </layer>
+  );
+}
+
+function ColumnContents({
+  expanded,
+  inset,
+  top,
+  pointsH,
+  points,
+  shopIndex,
+  currencyCount,
+}: {
+  expanded: Int;
+  inset: Int;
+  top: Int;
+  pointsH: Int;
+  points: Boolean;
+  shopIndex: Int;
+  currencyCount: Int;
+}): Component {
+  const infoInset: Int = ShopLayout.BUTTONS_H + pointsH + Info.INFO_INSET_BASE + 2 * inset + top;
+  return (
+    <>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={0}
+        fill
+        transparency={100}
+        hide={expanded === 0}
+        onClick={() => omnishopInfoClose()}
+      />
+      {expanded === 1 ? (
+        <layer x="center" y="center" w={ShopLayout.RIGHT_COL_W + 24} h={{ fill: 18 }} noClickThrough>
+          <layer x="center" y="center" w="fill" h="fill" />
+          <layer x="center" y={inset + top} w={{ fill: 2 * inset }} h={{ fill: infoInset }}>
+            <rect x="center" y="center" w="fill" h="fill" color={0} fill transparency={200} />
+            <layer x={0} y={0} w={{ fill: 15 }} h="fill">
+              <ThinBoxEntrypoint />
+            </layer>
+            <InfoPane />
+          </layer>
+          <layer
+            x="center"
+            y={{ bottom: ShopLayout.BUTTONS_H + 6 + inset }}
+            w={{ fill: 2 * inset }}
+            h={ShopLayout.POINTS_H}
+            hide={!points}
+          >
+            <rect x="center" y="center" w="fill" h="fill" color={0} fill />
+            <layer x={0} y={0} w="fill" h="fill">
+              <ThinBoxEntrypoint />
+            </layer>
+            {points ? <PointsStrip shopIndex={shopIndex} width={ShopLayout.RIGHT_COL_W} count={currencyCount} /> : null}
+          </layer>
+          <layer x="center" y={{ bottom: inset }} w={{ fill: 2 * inset }} h={ShopLayout.BUTTONS_H}>
+            <ButtonsPane />
+          </layer>
+        </layer>
+      ) : (
+        <layer x="center" y="center" w="fill" h="fill" noClickThrough>
+          <layer x="center" y="center" w="fill" h="fill" />
+          <layer x="center" y={inset + top} w={{ fill: 2 * inset }} h={{ fill: infoInset }}>
+            <rect x="center" y="center" w="fill" h="fill" color={0} fill transparency={200} />
+            <layer x={0} y={0} w={{ fill: 15 }} h="fill">
+              <ThinBoxEntrypoint />
+            </layer>
+            <InfoPane />
+          </layer>
+          <layer
+            x="center"
+            y={{ bottom: ShopLayout.BUTTONS_H + 6 + inset }}
+            w={{ fill: 2 * inset }}
+            h={ShopLayout.POINTS_H}
+            hide={!points}
+          >
+            <rect x="center" y="center" w="fill" h="fill" color={0} fill />
+            <layer x={0} y={0} w="fill" h="fill">
+              <ThinBoxEntrypoint />
+            </layer>
+            {points ? <PointsStrip shopIndex={shopIndex} width={ShopLayout.RIGHT_COL_W} count={currencyCount} /> : null}
+          </layer>
+          <layer x="center" y={{ bottom: inset }} w={{ fill: 2 * inset }} h={ShopLayout.BUTTONS_H}>
+            <ButtonsPane />
+          </layer>
+        </layer>
+      )}
+    </>
+  );
+}
+
+function InfoPane(): Component {
+  const universe = useUniverse();
+  const info = useRef();
+  const [shopIndex] = useState(omnishopShop);
+  const [inventory] = useState(omnishopInventory);
+  const [selectedSlot] = useState(omnishopSelectedSlot);
+  const [builtAt] = useState(omnishopInfoBuiltAt);
+  const [ringLead] = useState(omnishopRingLead);
+  const shop: Int = shopIndex;
+  const inv: Int = inventory;
+  const slot: Int = selectedSlot;
+  const since: Int = builtAt;
+  const lead: Int = ringLead;
+  const ringSteps: Int = Math.max(clientClock() - since, 0) + lead;
+  const width: Int = universe.width - Info.PANE_INSET_W;
+  const infoH: Int = universe.height - Info.PANE_INSET_H;
+  const ringSize: Int = Math.min(width, infoH) / LoadingIcon.SIZE_DIVISOR;
+  const ringX: Int = (width - ringSize) / 2;
+  const ringY: Int = (infoH - ringSize) / 2 + Info.RING_DY;
+  const shopRow = OmnishopShops.at(shop);
+
+  let title: String = '';
+  let description: String = '';
+  if (shopRow !== null) {
+    title = shopRow.infoTitle;
+    if (slot === -1) {
+      description = shopRow.introDesc;
+      if (CS2.string_length(description) > 0) {
+        description = `${description}<br><br>`;
+      }
+      if (CS2.string_length(shopRow.instructions) > 0) {
+        description = `${description}${shopRow.instructions}`;
+      } else {
+        description = `${description}${defaultHelp()}`;
+      }
+    }
+  }
+  if (slot !== -1) {
+    title = slotName(shop, inv, slot, false);
+  }
+  const titleH: Int = textLineCount(title, width - Info.PAD * 2, ShopFonts.B12) * Info.LINE;
+  let y: Int = Info.PAD + titleH + Info.GAP;
+  const iconY: Int = y;
+  let shown: Item = slotObj(shop, inv, slot);
+  const line: Int = stockLineAt(shop, slot);
+  const row = OmnishopStock.at(line);
+  if (row !== null) {
+    if (row.displayObj !== -1) {
+      shown = row.displayObj as Item;
+    }
+  }
+  if (slot !== -1) {
+    y = y + Info.ICON_H + Info.GAP / 2;
+  }
+  const descH: Int = textLineCount(description, width - Info.PAD * 2, ShopFonts.P12) * Info.LINE;
+  const descY: Int = y;
+  const extent: Int = descY + descH + Info.GAP;
+
+  return (
+    <>
+      <layer
+        ref={info}
+        x={Info.PANE_X}
+        y={Info.PANE_X}
+        w={{ fill: Info.PANE_INSET_W }}
+        h={{ fill: Info.PANE_INSET_H }}
+        scrollHeight={extent}
+        scrollY={0}
+      >
+        {LoadingRingItems.map(
+          (item, index) =>
+            slot !== -1 && (
+              <InfoRingItem
+                item={item}
+                index={index}
+                centerX={ringX}
+                centerY={ringY}
+                size={ringSize}
+                steps={ringSteps}
+              />
+            ),
+        )}
+        {shopRow !== null ? (
+          <text
+            x={Info.PAD}
+            y={Info.PAD}
+            w={width - Info.PAD * 2}
+            h={titleH}
+            text={title}
+            font={ShopFonts.B12}
+            color={ShopColors.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={Info.LINE}
+          />
+        ) : null}
+        {slot !== -1 ? (
+          <sprite
+            x={width / 2 - Info.ICON_W / 2}
+            y={iconY}
+            w={Info.ICON_W}
+            h={Info.ICON_H}
+            item={shown}
+            itemCount={-1}
+            outline={1}
+            shadowColor={Info.SHADOW}
+          />
+        ) : null}
+        {shopRow !== null ? (
+          <text
+            x={Info.PAD}
+            y={descY}
+            w={width - Info.PAD * 2}
+            h={descH}
+            text={description}
+            font={ShopFonts.P12}
+            color={ShopColors.ORANGE}
+            shadow
+            align="left"
+            valign="top"
+            lineHeight={Info.LINE}
+          />
+        ) : null}
+      </layer>
+      <layer x="right" y={0} w={Info.SCROLLER_W} h="fill">
+        <ScrollbarVertical
+          content={info}
+          track={Sprites.SCROLLBAR_DRAGGER_V2_3}
+          capTopSprite={Sprites.SCROLLBAR_DRAGGER_V2_0}
+          thumbSprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+          capBottomSprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+          arrowUp={Sprites.SCROLLBAR_V2_0}
+          arrowDown={Sprites.SCROLLBAR_V2_1}
+          rebuilt
+        />
+      </layer>
+    </>
+  );
+}
+
+function InfoRingItem({
+  item,
+  index,
+  centerX,
+  centerY,
+  size,
+  steps,
+}: {
+  item: Item;
+  index: Int;
+  centerX: Int;
+  centerY: Int;
+  size: Int;
+  steps: Int;
+}): Component {
+  const angle: Int = index * LoadingIcon.DEGREES_PER_ITEM + Math.min(index + 1, LoadingIcon.DEGREES_SPARE);
+  const zoom: Int = ringZoomAfter(
+    Math.max(LoadingIcon.ZOOM_MAX - index * LoadingIcon.ZOOM_STEP, LoadingIcon.ZOOM_MIN),
+    steps,
+  );
+  const me = useRef();
+  useInterval(() => {
+    const next: Int = me.zoom + LoadingIcon.ZOOM_PER_CYCLE;
+    me.props = {
+      offsetX: 0,
+      offsetY: 0,
+      pitch: LoadingIcon.PITCH,
+      yaw: LoadingIcon.YAW,
+      roll: LoadingIcon.ROLL,
+      zoom: next > LoadingIcon.ZOOM_MAX ? LoadingIcon.ZOOM_MIN : next,
+    };
+  }, me);
+  return (
+    <model
+      ref={me}
+      x={centerX + scaled(CosineDegrees.at(angle) ?? 0, LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      y={centerY + scaled(SineDegrees.at(angle) ?? 0, LoadingIcon.TRIG_UNIT, LoadingIcon.RADIUS)}
+      w={size}
+      h={size}
+      item={item}
+      itemCount={LoadingIcon.STACK}
+      pitch={LoadingIcon.PITCH}
+      yaw={LoadingIcon.YAW}
+      roll={LoadingIcon.ROLL}
+      zoom={zoom}
+    />
+  );
+}
+
+function ringZoomAfter(zoom: Int, steps: Int): Int {
+  let at: Int = zoom;
+  let step: Int = 0;
+  while (step < steps) {
+    at = at + LoadingIcon.ZOOM_PER_CYCLE;
+    if (at > LoadingIcon.ZOOM_MAX) {
+      at = LoadingIcon.ZOOM_MIN;
+    }
+    step = step + 1;
+  }
+  return at;
+}

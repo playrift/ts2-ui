@@ -1,0 +1,160 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { bugreportDesc, bugreportRepro } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import { addToInputString } from '../lib/lib.input';
+import { keyboardHide, keyboardShowString, KEYBOARD_STRING } from '../0162_chatbox/meslayer';
+import { chatDefaultStopInput } from '../0608_fossil_mushtrees/chatdefault-input';
+import {
+  BugreportGate,
+  BugreportInput,
+  BugreportSounds,
+  FORM_PAGE,
+  INTRO_PAGE,
+  KEYBOARD_LIMIT,
+  PARAGRAPH_MODE,
+  REPORT_CAP,
+  REPORT_MIN_LENGTH,
+  REPRO_PAGE,
+} from './bugreport.constants';
+
+export const bugreportActive = sessionState(0);
+
+export const bugreportNews = sessionState('');
+
+export const bugreportNewsShown = sessionState(0);
+
+export function bugreportInit(): void {
+  chatDefaultStopInput();
+  const [, setDesc] = useState(bugreportDesc);
+  const [, setRepro] = useState(bugreportRepro);
+  const [, setActive] = useState(bugreportActive);
+  const [, setNewsShown] = useState(bugreportNewsShown);
+  setDesc('');
+  setRepro('');
+  INTRO_PAGE.hide = false;
+  FORM_PAGE.hide = true;
+  setActive(BugreportInput.DESCRIPTION);
+  setNewsShown(0);
+}
+
+export function bugreportInfo(news: String): void {
+  const [, setNews] = useState(bugreportNews);
+  const [, setShown] = useState(bugreportNewsShown);
+  setNews(news);
+  setShown(1);
+}
+
+export function bugreportParse(raw: String, trailingBreak: Int): String {
+  let rest: String = CS2.escape(raw);
+  const length: Int = rest.length;
+  let endsInBreak: Int = 0;
+  if (length > 0 && CS2.compare(rest.substring(length - 1, length), '|') === 0) {
+    endsInBreak = 1;
+  }
+  let joined: String = '';
+  while (rest.length > 0) {
+    const head: String = pipeHead(rest);
+    rest = pipeTail(rest);
+    if (joined.length > 0) {
+      joined = joined.concat('<br>'.concat(head));
+    } else {
+      joined = head;
+    }
+  }
+  if (endsInBreak === 1 && trailingBreak === 1) {
+    return joined.concat('<br>');
+  }
+  return joined;
+}
+
+export function bugreportKeypress(key: Int, keyChar: Char, input: Int): void {
+  if (dialogueMayAdvance(BugreportGate.THIS_PANEL, BugreportGate.NO_SUB) === false) {
+    return;
+  }
+  if (key === 84 && onMobile()) {
+    keyboardHide();
+  }
+  if (input === BugreportInput.DESCRIPTION) {
+    const [desc, setDesc] = useState(bugreportDesc);
+    setDesc(addToInputString(desc, PARAGRAPH_MODE, key, keyChar));
+    return;
+  }
+  const [repro, setRepro] = useState(bugreportRepro);
+  setRepro(addToInputString(repro, PARAGRAPH_MODE, key, keyChar));
+}
+
+export function bugreportContinue(): void {
+  playSound(BugreportSounds.SELECT);
+  INTRO_PAGE.hide = true;
+  FORM_PAGE.hide = false;
+  if (onMobile()) {
+    const [desc] = useState(bugreportDesc);
+    keyboardShowString(KEYBOARD_STRING, KEYBOARD_LIMIT, desc);
+  }
+}
+
+export function bugreportHome(): void {
+  playSound(BugreportSounds.SELECT);
+  INTRO_PAGE.hide = false;
+  FORM_PAGE.hide = true;
+  if (onMobile()) {
+    keyboardHide();
+  }
+}
+
+export function bugreportNext(): void {
+  playSound(BugreportSounds.SELECT);
+  FORM_PAGE.hide = true;
+  REPRO_PAGE.hide = false;
+  const [, setActive] = useState(bugreportActive);
+  setActive(BugreportInput.REPRODUCTION);
+  if (onMobile()) {
+    const [repro] = useState(bugreportRepro);
+    keyboardShowString(KEYBOARD_STRING, KEYBOARD_LIMIT, repro);
+  }
+}
+
+export function bugreportBack(): void {
+  playSound(BugreportSounds.SELECT);
+  FORM_PAGE.hide = false;
+  REPRO_PAGE.hide = true;
+  const [, setActive] = useState(bugreportActive);
+  setActive(BugreportInput.DESCRIPTION);
+  if (onMobile()) {
+    const [desc] = useState(bugreportDesc);
+    keyboardShowString(KEYBOARD_STRING, KEYBOARD_LIMIT, desc);
+  }
+}
+
+export function bugreportTextinput(input: Int): void {
+  if (!onMobile()) {
+    return;
+  }
+  const [desc] = useState(bugreportDesc);
+  const [repro] = useState(bugreportRepro);
+  keyboardShowString(KEYBOARD_STRING, KEYBOARD_LIMIT, input === BugreportInput.DESCRIPTION ? desc : repro);
+}
+
+export function bugreportSubmit(): void {
+  const [desc] = useState(bugreportDesc);
+  if (desc.length > 0) {
+    playSound(BugreportSounds.SELECT);
+    const [repro] = useState(bugreportRepro);
+    if (useServerState(Varbits.BUGREPORT_CAP) < REPORT_CAP && desc.length >= REPORT_MIN_LENGTH) {
+      CS2.bug_report(0, bugreportParse(desc, 0), bugreportParse(repro, 0));
+    }
+    if (onMobile()) {
+      keyboardHide();
+    }
+    closeInterface();
+    chatMessage('Your bug report has been submitted. Thank you.');
+    return;
+  }
+  playSound(BugreportSounds.WRONG);
+  chatMessage('Please describe the bug.');
+}

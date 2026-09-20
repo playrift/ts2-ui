@@ -1,0 +1,219 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { hasBit } from '../lib/lib.engine';
+import { featureFlag, leagueWorld } from '../0654_league_info/league-info.helpers';
+import { RelicThemes } from '../0655_league_relics/league-relics.data';
+
+import { MasteryColour, MasterySounds } from './league-combat-mastery.constants';
+import { CombatMasteries, MasteryPassives } from './league-combat-mastery.data';
+import {
+  confirmOpen,
+  detailMastery,
+  detailPassive,
+  extraOpen,
+  masteryHover,
+  masteryLoading,
+} from './league-combat-mastery.state';
+
+export const TIERS = 6;
+export const STYLES = 3;
+
+export function masteryLeague(): Int {
+  return useServerState(Varbits.LEAGUE_TYPE);
+}
+
+export function masteryAccent(): Int {
+  const theme = RelicThemes.get(masteryLeague());
+  if (theme === null) {
+    return MasteryColour.GOLD;
+  }
+  return theme.accent;
+}
+
+export function masteryLeagueKnown(): Boolean {
+  const theme = RelicThemes.get(masteryLeague());
+  if (theme === null) {
+    return false;
+  }
+  return true;
+}
+
+export function styleProgress(styleParam: Int): Int {
+  if (styleParam === 3) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS);
+  }
+  if (styleParam === 4) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS);
+  }
+  if (styleParam === 5) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS);
+  }
+  return -1;
+}
+
+export function pointsToSpend(): Int {
+  return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINTS_TO_SPEND);
+}
+
+export function pointsEarned(): Int {
+  return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINTS_EARNED);
+}
+
+export function masteryTab(): Int {
+  return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_TAB);
+}
+
+export function masteryUnlocked(index: Int): Boolean {
+  if (featureFlag(1) === false) {
+    return false;
+  }
+  const row = CombatMasteries.at(index);
+  if (row === null) {
+    return false;
+  }
+  if ((index % TIERS) + 1 <= styleProgress(row.styleParam)) {
+    return true;
+  }
+  return false;
+}
+
+export function masterySelectable(index: Int): Boolean {
+  if (leagueWorld() === false) {
+    return false;
+  }
+  const row = CombatMasteries.at(index);
+  if (row === null) {
+    return false;
+  }
+  if (pointsToSpend() <= 0) {
+    return false;
+  }
+  if ((index % TIERS) + 1 === styleProgress(row.styleParam) + 1) {
+    return true;
+  }
+  return false;
+}
+
+export function masteryState(index: Int): Int {
+  if (masteryUnlocked(index)) {
+    return 2;
+  }
+  if (masterySelectable(index)) {
+    return 1;
+  }
+  return 0;
+}
+
+export function passiveActive(key: Int): Boolean {
+  if (featureFlag(1) === false) {
+    return false;
+  }
+  if (MasteryPassives.get(key) === null) {
+    return false;
+  }
+  if (useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS) >= key) {
+    return true;
+  }
+  if (useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS) >= key) {
+    return true;
+  }
+  if (useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS) >= key) {
+    return true;
+  }
+  return false;
+}
+
+export function taskMet(key: Int): Boolean {
+  if (key === 1) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_1) >= 1;
+  }
+  if (key === 2) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_2) >= 1;
+  }
+  if (key === 3) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_3) >= 1;
+  }
+  if (key === 4) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_4) >= 1;
+  }
+  if (key === 5) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_5) >= 1;
+  }
+  if (key === 6) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_6) >= 1;
+  }
+  if (key === 7) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_7) >= 1;
+  }
+  if (key === 8) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_8) >= 1;
+  }
+  if (key === 9) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_9) >= 1;
+  }
+  if (key === 10) {
+    return useServerState(Varbits.LEAGUE_COMBAT_MASTERY_POINT_UNLOCK_10) >= 1;
+  }
+  return false;
+}
+
+export function leagueCombatMasteryShowDetail(mastery: Int, passive: Int): void {
+  const [, setDetail] = useState(detailMastery);
+  const [, setPassive] = useState(detailPassive);
+  const [, setLoading] = useState(masteryLoading);
+  const [, setExtra] = useState(extraOpen);
+  const [, setConfirm] = useState(confirmOpen);
+  const [, setHover] = useState(masteryHover);
+  if (masteryLeagueKnown() === false) {
+    return;
+  }
+  setPassive(passive);
+  setLoading(0);
+  setExtra(0);
+  setConfirm(0);
+  setHover(-1);
+  setDetail(mastery);
+}
+
+export function masteryDetailBack(): void {
+  CS2.sound_effect(MasterySounds.SELECT, 1, 0);
+  const [, setDetail] = useState(detailMastery);
+  const [, setExtra] = useState(extraOpen);
+  const [, setLoading] = useState(masteryLoading);
+  setLoading(0);
+  setExtra(0);
+  setDetail(-1);
+}
+
+export function masteryTabSelect(tab: Int): void {
+  CS2.sound_effect(MasterySounds.SELECT, 1, 0);
+  predictServerState(Varbits.LEAGUE_COMBAT_MASTERY_TAB, tab);
+}
+
+export function masteryView(): void {
+  CS2.sound_effect(MasterySounds.SELECT, 1, 0);
+  const [, setLoading] = useState(masteryLoading);
+  const [, setHover] = useState(masteryHover);
+  setLoading(1);
+  setHover(-1);
+}
+
+export function masteryRefused(state: Int): void {
+  CS2.sound_effect(MasterySounds.REFUSE, 1, 0);
+  if (state === 2) {
+    CS2.message('You have already unlocked this Combat mastery.');
+    return;
+  }
+  if (state === 0) {
+    CS2.message("You haven't earned enough Combat Mastery points to unlock that.");
+  }
+}
+
+export function tabSelected(tab: Int, current: Int): Boolean {
+  return tab === current;
+}
+
+export function bitSet(word: Int, bit: Int): Boolean {
+  return hasBit(word, bit);
+}

@@ -1,0 +1,167 @@
+import { createRef, useRef, useWatch } from 'ts2';
+import { Varps } from '../lib/game/varps';
+import {
+  ASSIGN_LIST_H,
+  CREW_LIST_H,
+  FACILITIES_LIST_H,
+  STATS_LIST_H,
+  SidepanelTab,
+  SidepanelVarps,
+  TAB_W,
+  assignPageRef,
+  assignPaneRef,
+  crewPageRef,
+  crewPaneRef,
+  facilitiesPageRef,
+  facilitiesPaneRef,
+  statsPageRef,
+  statsPaneRef,
+} from './sailing-sidepanel.constants';
+import { sailingSidepanelBuild, sidepanelHpRedraw } from './sailing-sidepanel.helpers';
+import { AssignBack, AssignBacking, AssignCapacity, AssignRows, AssignScrollbar } from './sidepanel-assign.component';
+import { CrewMessage, SidepanelTitle } from './sidepanel-content.component';
+import { CrewBacking, CrewCapacity, CrewList, CrewRadio, CrewScrollbar } from './sidepanel-crew.component';
+import { sidepanelCrewCapacityTransmit } from './sidepanel-crew.helpers';
+import {
+  FacilitiesBacking,
+  FacilitiesDivider,
+  FacilitiesRows,
+  FacilitiesScrollbar,
+} from './sidepanel-facilities.component';
+import { SidepanelBoatName, SidepanelCombatButton, SidepanelHealthbar } from './sidepanel-header.component';
+import { StatsBacking, StatsRows, StatsScrollbar } from './sidepanel-stats.component';
+import { TabButton, TabRule } from './sidepanel-tabs.component';
+
+const sailingSidepanelRef = createRef('sailing_sidepanel');
+
+export const sailingSidepanelUi = (): UI => (
+  <ui ref={sailingSidepanelRef} x={0} y={0} w={190} h={261}>
+    <SidepanelListeners />
+    <layer x={0} y={0} w={26} h={26}>
+      <SidepanelCombatButton />
+    </layer>
+    <layer x={29} y={0} w={134} h={28}>
+      <SidepanelBoatName />
+    </layer>
+    <layer x={11} y={29} w={170} h={13}>
+      <SidepanelHpListener />
+      <SidepanelHealthbar />
+    </layer>
+    <layer x="center" y={45} w="fill" h={21}>
+      <layer x={4} y={0} w={TAB_W} h="fill">
+        <TabButton tab={SidepanelTab.FACILITIES} label="Facilities" />
+      </layer>
+      <layer x="center" y={0} w={TAB_W} h="fill">
+        <TabButton tab={SidepanelTab.STATS} label="Stats" />
+      </layer>
+      <layer x={{ right: 4 }} y={0} w={TAB_W} h="fill">
+        <TabButton tab={SidepanelTab.CREW} label="Crewmates" />
+      </layer>
+      <layer x={0} y={{ bottom: 0 }} w="fill" h={1}>
+        <TabRule />
+      </layer>
+    </layer>
+    <layer x={4} y={{ bottom: 4 }} w={{ fill: 8 }} h={190}>
+      <layer x={0} y={0} w="fill" h={17}>
+        <SidepanelTitle />
+      </layer>
+
+      <layer static ref={crewPageRef} x={0} y={18} w="fill" h={{ fill: 18 }}>
+        <CrewCapacityListener />
+        <layer x={0} y={20} w="fill" h={{ fill: 42 }}>
+          <CrewBacking />
+        </layer>
+        <layer static ref={crewPaneRef} x={2} y={22} w={{ fill: 18 }} h={{ fill: 46 }}>
+          <layer x={0} y={0} w="fill" h={CREW_LIST_H}>
+            <CrewList />
+          </layer>
+        </layer>
+        <layer x={0} y={{ bottom: 0 }} w="fill" h={20}>
+          <CrewCapacity />
+        </layer>
+        <layer x={0} y={0} w="fill" h={17}>
+          <CrewRadio />
+        </layer>
+        <layer x={{ right: 2 }} y={22} w={16} h={{ fill: 46 }}>
+          <CrewScrollbar />
+        </layer>
+        <layer x={0} y={0} w="fill" h="fill">
+          <CrewMessage />
+        </layer>
+      </layer>
+
+      <layer static ref={statsPageRef} x={0} y={18} w="fill" h={{ fill: 18 }}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <StatsBacking />
+        </layer>
+        <layer static ref={statsPaneRef} x={2} y={2} w={{ fill: 20 }} h={{ fill: 4 }}>
+          <layer x={0} y={0} w="fill" h={STATS_LIST_H}>
+            <StatsRows />
+          </layer>
+        </layer>
+        <layer x={{ right: 2 }} y={2} w={16} h={{ fill: 4 }}>
+          <StatsScrollbar />
+        </layer>
+      </layer>
+
+      <layer static ref={assignPageRef} x={0} y={18} w="fill" h={{ fill: 20 }} hide>
+        <layer x={0} y={0} w="fill" h={{ fill: 22 }}>
+          <AssignBacking />
+        </layer>
+        <layer static ref={assignPaneRef} x={2} y={0} w={{ fill: 20 }} h={{ fill: 24 }}>
+          <layer x={0} y={0} w="fill" h={ASSIGN_LIST_H}>
+            <AssignRows />
+          </layer>
+        </layer>
+        <layer x={34} y={{ bottom: 0 }} w={{ fill: 34 }} h={20}>
+          <AssignCapacity />
+        </layer>
+        <layer x={2} y={{ bottom: 0 }} w={32} h={20}>
+          <AssignBack />
+        </layer>
+        <layer x={{ right: 2 }} y={2} w={16} h={{ fill: 26 }}>
+          <AssignScrollbar />
+        </layer>
+      </layer>
+
+      <layer static ref={facilitiesPageRef} x={0} y={18} w="fill" h={{ fill: 18 }}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <FacilitiesBacking />
+        </layer>
+        <layer static ref={facilitiesPaneRef} x={2} y={2} w={{ fill: 20 }} h={{ fill: 4 }}>
+          <layer x={0} y={0} w="fill" h={FACILITIES_LIST_H}>
+            <FacilitiesRows />
+          </layer>
+        </layer>
+        <layer x={{ right: 56 }} y={1} w={3} h={{ fill: 2 }}>
+          <FacilitiesDivider />
+        </layer>
+        <layer x={{ right: 2 }} y={2} w={16} h={{ fill: 4 }}>
+          <FacilitiesScrollbar />
+        </layer>
+      </layer>
+    </layer>
+  </ui>
+);
+
+function SidepanelListeners(): Component {
+  const host = useRef();
+  useWatch(
+    [SidepanelVarps.ON_BOAT, SidepanelVarps.PANEL_4, SidepanelVarps.BOARDED_NAME],
+    () => sailingSidepanelBuild(),
+    host,
+  );
+  return <layer ref={host} x={0} y={0} w={1} h={1} onLoad={() => sailingSidepanelBuild()} />;
+}
+
+function SidepanelHpListener(): Component {
+  const host = useRef();
+  useWatch([SidepanelVarps.FACILITY_STATES_0, SidepanelVarps.FACILITY_STATES_1], () => sidepanelHpRedraw(), host);
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+function CrewCapacityListener(): Component {
+  const host = useRef();
+  useWatch([Varps.SAILING_SIDEPANEL_BOAT_INFORMATION], () => sidepanelCrewCapacityTransmit(), host);
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}

@@ -1,0 +1,73 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { rgbToHex } from '../0259_area_task/area-task.helpers';
+import { BankFonts, Countdown, THINBOX_INNER, THINBOX_OUTER } from './shared-bank.constants';
+import { countdownLeft } from './shared-bank.cells';
+
+export function sharedBankInitTimer(tag: Int, ticks: Int): void {
+  const [left, setLeft] = useState(countdownLeft);
+  const total: Int = ticks * Countdown.TICK;
+  if (left < 0 && total > 0) {
+    setLeft(total - 1);
+  } else {
+    setLeft(total);
+  }
+}
+
+export function SharedBankCountdown(): Component {
+  const box = useRef();
+  const [left, setLeft] = useState(countdownLeft);
+  const running: Boolean = left >= 0;
+
+  useInterval(
+    running
+      ? () => {
+          if (left > 0) {
+            setLeft(left - 1);
+          }
+        }
+      : undefined,
+    box,
+  );
+
+  let shownLeft: Int = left;
+  if (!running) {
+    shownLeft = 0;
+  }
+
+  const seconds: Int = (shownLeft % Countdown.MINUTE) / Countdown.SECOND;
+  let label: String = `${stringOf(shownLeft / Countdown.MINUTE)}:${stringOf(seconds)}`;
+  if (seconds < 10) {
+    label = `${stringOf(shownLeft / Countdown.MINUTE)}:0${stringOf(seconds)}`;
+  }
+
+  let clamped: Int = shownLeft;
+  if (clamped > Countdown.RED_FROM) {
+    clamped = Countdown.RED_FROM;
+  }
+  const tint: Int = rgbToHex(
+    255,
+    CS2.interpolate(0, clamped, 0, Countdown.RED_FROM, Countdown.GREEN_FULL),
+    CS2.interpolate(0, clamped, 0, Countdown.RED_FROM, Countdown.BLUE_FULL),
+  );
+
+  return (
+    <>
+      <rect ref={box} x="center" y="center" w="fill" h="fill" color={THINBOX_OUTER} hide={!running} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={THINBOX_INNER} hide={!running} />
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={label}
+        font={BankFonts.SMALL}
+        color={tint}
+        align="center"
+        valign="middle"
+        shadow
+        hide={!running}
+      />
+    </>
+  );
+}

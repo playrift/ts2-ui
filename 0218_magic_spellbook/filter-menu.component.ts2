@@ -1,0 +1,160 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { StonePanelEntrypoint } from '../0648_target_streaks/stone-panel-entrypoint.component';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  FilterText,
+  Layout,
+  MENU_TITLE,
+  OP_CHANGE,
+  PanelMode,
+  RowFade,
+  SpellbookColour,
+  SpellbookFonts,
+  SpellbookSounds,
+  SpellbookSprites,
+  SpellbookVarbits,
+} from './magic-spellbook.constants';
+import { spellbookPanelMode } from './magic-spellbook.state';
+
+function checkboxSprite(on: Int): Sprite {
+  if (on === 1) {
+    return SpellbookSprites.CHECKED;
+  }
+  return SpellbookSprites.UNCHECKED;
+}
+
+export function SpellFilterMenu(): Component {
+  const [mode] = useState(spellbookPanelMode);
+  const mobile: Boolean = onMobile();
+  const combat: Int = useServerState(SpellbookVarbits.BLOCK_COMBAT);
+  const teleport: Int = useServerState(SpellbookVarbits.BLOCK_TELEPORT);
+  const utility: Int = useServerState(SpellbookVarbits.BLOCK_UTILITY);
+  const lackLevel: Int = useServerState(SpellbookVarbits.BLOCK_LACK_LEVEL);
+  const lackRunes: Int = useServerState(SpellbookVarbits.BLOCK_LACK_RUNES);
+  const locked: Int = useServerState(SpellbookVarbits.BLOCK_LOCKED);
+  const resizing: Int = useServerState(SpellbookVarbits.BLOCK_RESIZING);
+  const resizeText: String = mobile ? FilterText.RESIZE_MOBILE : FilterText.RESIZE_DESKTOP;
+
+  if (mode !== PanelMode.FILTERS) {
+    return (
+      <layer x="center" y="center" w={Layout.MENU_W} h={Layout.MENU_TITLE_H + Layout.ROW_H * Layout.FILTER_ROWS} hide>
+        <sprite w="fill" h="fill" sprite={SpellbookSprites.MENU_BACKDROP} tiling />
+        <text
+          x="center"
+          w="fill"
+          h={Layout.MENU_TITLE_H}
+          text={MENU_TITLE}
+          font={SpellbookFonts.TITLE}
+          color={SpellbookColour.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+        <layer x="center" y={{ bottom: 2 }} w="fill" h={{ fill: Layout.MENU_TITLE_H }} />
+        <StonePanelEntrypoint divider={26} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer x="center" y="center" w={Layout.MENU_W} h={Layout.MENU_TITLE_H + Layout.ROW_H * Layout.FILTER_ROWS}>
+      <sprite w="fill" h="fill" sprite={SpellbookSprites.MENU_BACKDROP} tiling />
+      <text
+        x="center"
+        w="fill"
+        h={Layout.MENU_TITLE_H}
+        text={MENU_TITLE}
+        font={SpellbookFonts.TITLE}
+        color={SpellbookColour.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <layer x="center" y={{ bottom: 2 }} w="fill" h={{ fill: Layout.MENU_TITLE_H }}>
+        <FilterPlate row={0} />
+        <FilterPlate row={1} />
+        <FilterPlate row={2} />
+        <FilterPlate row={3} />
+        <FilterPlate row={4} />
+        <FilterPlate row={5} />
+        <FilterPlate row={6} />
+        <FilterRow row={0} text={FilterText.COMBAT} sprite={checkboxSprite(combat)} />
+        <FilterRow row={1} text={FilterText.TELEPORT} sprite={checkboxSprite(teleport)} />
+        <FilterRow row={2} text={FilterText.UTILITY} sprite={checkboxSprite(utility)} />
+        <FilterRow row={3} text={FilterText.LACK_LEVEL} sprite={checkboxSprite(lackLevel)} />
+        <FilterRow row={4} text={FilterText.LACK_RUNES} sprite={checkboxSprite(lackRunes)} />
+        <FilterRow row={5} text={FilterText.LOCKED} sprite={checkboxSprite(locked)} />
+        <FilterRow row={6} text={resizeText} sprite={checkboxSprite(resizing)} />
+      </layer>
+      <StonePanelEntrypoint divider={26} />
+    </layer>
+  );
+}
+
+function FilterRow({ row, text, sprite }: { row: Int; text: String; sprite: Sprite }): Component {
+  return (
+    <>
+      <sprite
+        x={Layout.CHECKBOX_X}
+        y={row * Layout.ROW_H + Layout.CHECKBOX_Y}
+        w={Layout.CHECKBOX}
+        h={Layout.CHECKBOX}
+        sprite={sprite}
+      />
+      <text
+        x={{ right: Layout.ROW_TEXT_X }}
+        y={row * Layout.ROW_H}
+        w={{ fill: Layout.ROW_TEXT_RIGHT }}
+        h={Layout.ROW_H}
+        text={text}
+        font={SpellbookFonts.SMALL}
+        color={SpellbookColour.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function FilterPlate({ row }: { row: Int }): Component {
+  const me = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+  useInterval(
+    pressedUntil !== 0
+      ? () => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }
+      : undefined,
+    me,
+  );
+
+  return (
+    <rect
+      ref={me}
+      x="center"
+      y={row * Layout.ROW_H}
+      w="fill"
+      h={Layout.ROW_H}
+      fill
+      color={SpellbookColour.WHITE}
+      transparency={pressedUntil !== 0 ? RowFade.PRESSED : RowFade.REST}
+      options={[OP_CHANGE]}
+      onMouseRepeat={pressedUntil !== 0 ? undefined : (event) => ccSetTrans(event.self, RowFade.HOVER)}
+      onMouseLeave={pressedUntil !== 0 ? undefined : (event) => ccSetTrans(event.self, RowFade.REST)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(SpellbookSounds.CLICK);
+        setPressedUntil(clientClock() + RowFade.PRESS_CYCLES);
+      }}
+    />
+  );
+}

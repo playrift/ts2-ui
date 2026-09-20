@@ -1,0 +1,307 @@
+import { CS2, predictServerState, sessionState, stopTimer, useServerState, useState } from 'ts2';
+
+import { meslayerinput, meslayermode, settingsColourPalletSelected } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { chatMessage, clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { addToInputString, InputKey, InputMode } from '../lib/lib.input';
+import {
+  KEYBOARD_INTEGER,
+  KEYBOARD_STRING,
+  keyboardShow,
+  meslayerClose,
+  meslayerEcho,
+  meslayerOpen,
+} from '../0162_chatbox/meslayer';
+import { mesText2Ref, mesTextRef } from '../0162_chatbox/chatbox.constants';
+import { stringToInt } from '../0162_chatbox/chatbox.strings';
+import { hexToRgb, rgbToHex } from '../0259_area_task/area-task.helpers';
+import { replaceAll } from '../0889_nps/colour-tag';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { SettingsCategories } from '../0134_settings/settings-categories.data';
+import { SettingsRows } from '../0134_settings/settings-rows.data';
+import type { SettingsCategory } from '../0134_settings/settings-categories.data';
+import type { SettingsRow } from '../0134_settings/settings-rows.data';
+import { HexDigitLetters } from './hex-digit-letters.data';
+import {
+  CLAMP,
+  COLOUR_KIND,
+  CustomFields,
+  FADER,
+  Fade,
+  HEX_MODE,
+  Layout,
+  MAX_COLOUR,
+  NO_COLOUR,
+  SELECT_SOUND,
+} from './colour-pallet.constants';
+
+export const colourPalletOpened = sessionState(0);
+
+export const colourPalletOpenedColour = sessionState(-1);
+
+export const colourPalletRow = sessionState(-1);
+
+export function colourPalletOpen(caller: ComponentId, colour: Int): void {
+  CS2.if_size_set(Layout.CLAMP_INSET_X, Layout.CLAMP_INSET_Y, 1, 1, CLAMP);
+  CS2.if_position_set(0, Layout.CLAMP_BOTTOM, 1, 2, CLAMP);
+  FADER.transparency = Fade.CLEAR;
+  const startedAt: Int = clientClock();
+  FADER.onTimer = () => colourPalletFadeStep(startedAt);
+  const [, setOpened] = useState(colourPalletOpened);
+  const [, setRow] = useState(colourPalletRow);
+  const [, setSelected] = useState(settingsColourPalletSelected);
+  setSelected(colour);
+  const row: Int = pickerRowIndex(
+    useServerState(Varbits.SETTINGS_CATEGORY),
+    useServerState(Varbits.SETTINGS_SELECTED_SETTING),
+  );
+  setRow(row);
+  setOpened(1);
+  if (row < 0) {
+    return;
+  }
+  let chosen: Int = colour;
+  if (chosen === -1) {
+    chosen = pickerDefaultColour(row);
+    setSelected(chosen);
+  }
+  const [, setOpenedColour] = useState(colourPalletOpenedColour);
+  setOpenedColour(chosen);
+}
+
+export function colourPalletFadeStep(startedAt: Int): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= Fade.CYCLES) {
+    FADER.transparency = Fade.DIM;
+    stopTimer(FADER);
+    return;
+  }
+  FADER.transparency = Fade.CLEAR + CS2.scale(elapsed, Fade.CYCLES, Fade.DIM - Fade.CLEAR);
+}
+
+export function pickerRowIndex(category: Int, setting: Int): Int {
+  const run: SettingsCategory | null = SettingsCategories.at(category);
+  if (run === null) {
+    return -1;
+  }
+  let last: Int = -1;
+  let ordinal: Int = 0;
+  while (ordinal < run.rowCount) {
+    const index: Int = run.rowBase + ordinal;
+    const candidate: SettingsRow | null = SettingsRows.at(index);
+    if (candidate !== null) {
+      last = index;
+      if ((candidate.kind ?? 0) === COLOUR_KIND && (candidate.settingId ?? 0) === setting) {
+        return index;
+      }
+    }
+    ordinal = ordinal + 1;
+  }
+  return last;
+}
+
+export function pickerTitle(index: Int): String {
+  const row: SettingsRow | null = SettingsRows.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.title ?? '';
+}
+
+export function pickerDefaultColour(index: Int): Int {
+  const row: SettingsRow | null = SettingsRows.at(index);
+  if (row === null) {
+    return 0;
+  }
+  return row.colour ?? 0;
+}
+
+export function colourToString(colour: Int): String {
+  const [red, green, blue] = hexToRgb(colour);
+  let text: String = 'RRGGBB';
+  text = replaceAll(text, 'RR', hexByte(red));
+  text = replaceAll(text, 'GG', hexByte(green));
+  text = replaceAll(text, 'BB', hexByte(blue));
+  return text;
+}
+
+function hexByte(value: Int): String {
+  return `${hexNibble(value / 16)}${hexNibble(value % 16)}`;
+}
+
+function hexNibble(nibble: Int): String {
+  if (nibble < 10) {
+    return `${nibble}`;
+  }
+  return HexDigitLetters.get(nibble - 9) ?? '';
+}
+
+export function colourPalletSet(colour: Int): void {
+  if (colour > MAX_COLOUR || colour < 0) {
+    chatMessage('The colour input was invalid.');
+    return;
+  }
+  const [, setSelected] = useState(settingsColourPalletSelected);
+  setSelected(colour);
+}
+
+export function colourPalletPick(colour: Int): void {
+  playSound(SELECT_SOUND);
+  colourPalletSet(colour);
+}
+
+export function colourPalletDismiss(): void {
+  if (
+    useServerState(Varbits.FLOATER_CHATBOX_OPENED) === 1 ||
+    useServerState(Varbits.SETTINGS_COLOUR_MODAL_OPENED) === 1 ||
+    useServerState(Varbits.SETTINGS_TEXTFIELD_CSV_MODAL_OPENED) === 1
+  ) {
+    return;
+  }
+  CS2.countdialog_resume(`${NO_COLOUR}`);
+}
+
+export function colourPalletCancel(): void {
+  playSound(SELECT_SOUND);
+  CS2.countdialog_resume(`${NO_COLOUR}`);
+}
+
+export function colourPalletSave(): void {
+  playSound(SELECT_SOUND);
+  const [chosen] = useState(settingsColourPalletSelected);
+  CS2.countdialog_resume(`${chosen}`);
+}
+
+export function colourPalletInput(field: Int): void {
+  predictServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+  predictServerState(Varbits.FLOATER_CHATBOX_OPENED, 1);
+  playSound(SELECT_SOUND);
+  if (field > 3) {
+    return;
+  }
+  if (field === 0) {
+    colourPalletPrompt(CustomFields[0].prompt, CustomFields[0].mode);
+  } else if (field === 1) {
+    colourPalletPrompt(CustomFields[1].prompt, CustomFields[1].mode);
+  } else if (field === 2) {
+    colourPalletPrompt(CustomFields[2].prompt, CustomFields[2].mode);
+  } else {
+    colourPalletPrompt(CustomFields[3].prompt, CustomFields[3].mode);
+  }
+}
+
+export function colourPalletPrompt(prompt: String, mode: Int): void {
+  meslayerOpen(mode);
+  mesTextRef.text = prompt;
+  meslayerEcho('');
+  mesText2Ref.onKey = (event) => colourPalletKey(event.keyCode, event.keyChar);
+  if (onMobile()) {
+    if (mode !== HEX_MODE) {
+      keyboardShow(KEYBOARD_INTEGER, 3);
+    } else {
+      keyboardShow(KEYBOARD_STRING, 6);
+    }
+  }
+}
+
+export function colourPalletKey(key: Int, keyChar: Char): void {
+  if (dialogueMayAdvance(-1, 162) === false) {
+    return;
+  }
+  if (key === InputKey.ENTER) {
+    colourPalletApply();
+    return;
+  }
+  if (key === 13) {
+    meslayerClose(true, true, true);
+    return;
+  }
+  const [mode] = useState(meslayermode);
+  const [typed, setTyped] = useState(meslayerinput);
+  setTyped(addToInputString(typed, mode === HEX_MODE ? InputMode.COLOUR : InputMode.PERCENT, key, keyChar));
+  meslayerEcho('');
+}
+
+export function colourPalletApply(): void {
+  const [typed] = useState(meslayerinput);
+  if (typed.length <= 0) {
+    return;
+  }
+  const [mode] = useState(meslayermode);
+  if (mode === 23 || mode === 24 || mode === 25) {
+    colourPalletChannel(mode, typed);
+  } else if (mode === HEX_MODE) {
+    colourPalletHex(typed);
+  }
+  predictServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+  predictServerState(Varbits.FLOATER_CHATBOX_OPENED, 1);
+  meslayerClose(true, true, true);
+}
+
+export function colourPalletChannel(mode: Int, text: String): void {
+  const [chosen] = useState(settingsColourPalletSelected);
+  let [red, green, blue] = hexToRgb(chosen);
+  if (mode === 23) {
+    red = stringToInt(text);
+  } else if (mode === 24) {
+    green = stringToInt(text);
+  } else if (mode === 25) {
+    blue = stringToInt(text);
+  }
+  colourPalletSet(rgbToHex(red, green, blue));
+}
+
+export function colourPalletHex(text: String): void {
+  colourPalletSet(hexStringToInt(text));
+}
+
+export function hexStringToInt(raw: String): Int {
+  const length: Int = raw.length;
+  let text: String = stringFindAndReplace(raw, '#', '');
+  if (length > 6) {
+    text = text.substring(0, 6);
+  } else if (length < 6) {
+    while (text.length < 6) {
+      text = text.concat('0');
+    }
+  }
+  const digits: Int = text.length;
+  let value: Int = 0;
+  let at: Int = 0;
+  while (at < digits) {
+    const character: String = text.substring(at, at + 1);
+    let nibble: Int = CS2.string_indexof_string('0123456789abcdef', character, 0);
+    if (nibble === -1) {
+      nibble = CS2.string_indexof_string('0123456789ABCDEF', character, 0);
+      if (nibble === -1) {
+        return NO_COLOUR;
+      }
+    }
+    value = value + nibble * Math.pow(16, 5 - at);
+    at = at + 1;
+  }
+  return Math.min(MAX_COLOUR, value);
+}
+
+export function meslayerOnDialogAbort(): void {
+  const [mode] = useState(meslayermode);
+  if (
+    mode === 7 ||
+    mode === 8 ||
+    mode === 9 ||
+    mode === 11 ||
+    mode === 14 ||
+    mode === 15 ||
+    mode === 20 ||
+    mode === 21 ||
+    mode === 16 ||
+    mode === 17 ||
+    mode === 18 ||
+    mode === 19 ||
+    mode === 27
+  ) {
+    meslayerClose(true, true, false);
+  }
+}

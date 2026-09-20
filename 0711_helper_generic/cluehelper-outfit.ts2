@@ -1,0 +1,404 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Params } from '../lib/game/params';
+import { Varps } from '../lib/game/varps';
+import { helperGenericAddText } from './helper-generic.state';
+import { ClueParamNames, ClueWearposNames } from './clue-enums.data';
+import { Clue, ClueKind, ClueOutfitsOf, Clues, OutfitItems, OutfitParams } from './clues.data';
+import { clueColourTernary } from './cluehelper.state';
+
+const WEARPOS_HAT = 0;
+const WEARPOS_BACK = 1;
+const WEARPOS_FRONT = 2;
+const WEARPOS_RHAND = 3;
+const WEARPOS_TORSO = 4;
+const WEARPOS_LHAND = 5;
+const WEARPOS_LEGS = 7;
+const WEARPOS_HANDS = 9;
+const WEARPOS_FEET = 10;
+const WEARPOS_RING = 12;
+const WEARPOS_QUIVER = 13;
+const WEARPOS_ANY = -1;
+
+export function outfitItemCount(outfit: Int, wearpos: Int): Int {
+  let n: Int = 0;
+  let i: Int = 0;
+  while (i < OutfitItems.length) {
+    const entry = OutfitItems.at(i);
+    if (entry !== null) {
+      if (entry.row === outfit && entry.wearpos === wearpos) {
+        n = n + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return n;
+}
+
+export function outfitItemAt(outfit: Int, wearpos: Int, n: Int): Item | null {
+  let seen: Int = 0;
+  let found: Item | null = null;
+  let i: Int = 0;
+  while (i < OutfitItems.length) {
+    const entry = OutfitItems.at(i);
+    if (entry !== null) {
+      if (entry.row === outfit && entry.wearpos === wearpos) {
+        if (seen === n) {
+          found = entry.item;
+          if (found === (BLANKOBJECT as Item)) {
+            found = null;
+          }
+          i = OutfitItems.length;
+        }
+        seen = seen + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return found;
+}
+
+const BLANKOBJECT = 6512;
+
+export function outfitParamCount(outfit: Int, wearpos: Int): Int {
+  let n: Int = 0;
+  let i: Int = 0;
+  while (i < OutfitParams.length) {
+    const entry = OutfitParams.at(i);
+    if (entry !== null) {
+      if (entry.row === outfit && entry.wearpos === wearpos) {
+        n = n + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return n;
+}
+
+export function outfitParamFirst(outfit: Int, wearpos: Int): Int {
+  let found: Int = 0;
+  let i: Int = 0;
+  while (i < OutfitParams.length) {
+    const entry = OutfitParams.at(i);
+    if (entry !== null) {
+      if (entry.row === outfit && entry.wearpos === wearpos) {
+        found = entry.param;
+        i = OutfitParams.length;
+      }
+    }
+    i = i + 1;
+  }
+  return found;
+}
+
+export function clueOutfitRows(outfit: Int): void {
+  if (outfit === -1) {
+    return;
+  }
+  slotRow(outfit, WEARPOS_HAT);
+  slotRow(outfit, WEARPOS_BACK);
+  slotRow(outfit, WEARPOS_FRONT);
+  slotRow(outfit, WEARPOS_RHAND);
+  slotRow(outfit, WEARPOS_TORSO);
+  slotRow(outfit, WEARPOS_LHAND);
+  slotRow(outfit, WEARPOS_LEGS);
+  slotRow(outfit, WEARPOS_HANDS);
+  slotRow(outfit, WEARPOS_FEET);
+  slotRow(outfit, WEARPOS_RING);
+  slotRow(outfit, WEARPOS_QUIVER);
+  clueOutfitRow(outfit, WEARPOS_ANY, 0, null, outfitParamCount(outfit, WEARPOS_ANY));
+}
+
+function slotRow(outfit: Int, wearpos: Int): void {
+  clueOutfitRow(
+    outfit,
+    wearpos,
+    outfitItemCount(outfit, wearpos),
+    outfitItemAt(outfit, wearpos, 0),
+    outfitParamCount(outfit, wearpos),
+  );
+}
+
+function clueOutfitRow(outfit: Int, wearpos: Int, items: Int, first: Item | null, params: Int): void {
+  if (params > 0) {
+    if (wearpos >= 0) {
+      helperGenericAddText(clueOutfitParamSlotText(outfitParamFirst(outfit, wearpos), wearpos));
+    } else {
+      helperGenericAddText(clueOutfitParamAnyText(outfitParamFirst(outfit, -1)));
+    }
+  } else if (items === 1) {
+    helperGenericAddText(clueOutfitItemText(first, wearpos));
+  } else if (items > 1) {
+    helperGenericAddText(clueOutfitItemListText(outfit, items, wearpos));
+  }
+}
+
+export function clueOutfitItemText(item: Item | null, wearpos: Int): String {
+  let want: Item | null = item;
+  let text: String = '';
+  if (want === null) {
+    text = `nothing (${ClueWearposNames.get(wearpos) ?? 'null'})`;
+  } else {
+    text = CS2.item_name(want);
+  }
+  let state: Int = 0;
+  const inv: Container = useInventory(Inventories.INV);
+  if (wornSlotItem(wearpos) === want) {
+    state = 1;
+  } else if (want !== null && inv.total(want) > 0) {
+    state = 2;
+  }
+  return clueColourTernary(text, state);
+}
+
+export function clueOutfitItemListText(outfit: Int, items: Int, wearpos: Int): String {
+  const first: Item | null = outfitItemAt(outfit, wearpos, 0);
+  let text: String = '';
+  if (first === null) {
+    text = `nothing (${ClueWearposNames.get(wearpos) ?? 'null'})`;
+  } else {
+    text = CS2.item_name(first);
+  }
+  const held: Item | null = wornSlotItem(wearpos);
+  let i: Int = 0;
+  while (i < items) {
+    if (held === outfitItemAt(outfit, wearpos, i)) {
+      return clueColourTernary(text, 1);
+    }
+    i = i + 1;
+  }
+  if (first !== null) {
+    const inv: Container = useInventory(Inventories.INV);
+    i = 0;
+    while (i < items) {
+      const alt: Item | null = outfitItemAt(outfit, wearpos, i);
+      if (alt !== null) {
+        if (inv.total(alt) > 0) {
+          return clueColourTernary(text, 2);
+        }
+      }
+      i = i + 1;
+    }
+  }
+  return clueColourTernary(text, 0);
+}
+
+export function clueOutfitParamSlotText(wanted: Int, wearpos: Int): String {
+  const text: String = ClueParamNames.get(wanted) ?? 'null';
+  const worn: Container = useInventory(Inventories.WORN);
+  let state: Int = 0;
+  if (wearpos < worn.size && worn.param(wearpos, Params.PARAM_258) === wanted) {
+    state = 1;
+  } else {
+    const inv: Container = useInventory(Inventories.INV);
+    let i: Int = 0;
+    while (i < inv.size && state === 0) {
+      if (inv.param(i, Params.PARAM_258) === wanted) {
+        state = 2;
+      }
+      i = i + 1;
+    }
+  }
+  return clueColourTernary(text, state);
+}
+
+export function clueOutfitParamAnyText(wanted: Int): String {
+  const text: String = ClueParamNames.get(wanted) ?? 'null';
+  const worn: Container = useInventory(Inventories.WORN);
+  let state: Int = 0;
+  let i: Int = 0;
+  while (i < worn.size && state === 0) {
+    if (worn.param(i, Params.PARAM_258) === wanted) {
+      state = 1;
+    }
+    i = i + 1;
+  }
+  if (state === 0) {
+    const inv: Container = useInventory(Inventories.INV);
+    i = 0;
+    while (i < inv.size && state === 0) {
+      if (inv.param(i, Params.PARAM_258) === wanted) {
+        state = 2;
+      }
+      i = i + 1;
+    }
+  }
+  return clueColourTernary(text, state);
+}
+
+function wornSlotItem(wearpos: Int): Item | null {
+  const worn: Container = useInventory(Inventories.WORN);
+  if (wearpos < 0 || wearpos >= worn.size) {
+    return null;
+  }
+  return worn[wearpos];
+}
+
+export function clueOutfitFallbackText(clue: Int): String {
+  const row = Clues.at(clue);
+  if (row === null) {
+    return clueColourTernary('null', 0);
+  }
+  if (row.kind === ClueKind.EMOTE) {
+    return clueColourTernary(row.outfitTextFallback ?? 'null', clueEmoteOutfitState(clue));
+  }
+  if (row.kind === ClueKind.CRYPTIC) {
+    return clueColourTernary(row.outfitTextFallback ?? 'null', clueCrypticOutfitState(clue));
+  }
+  return clueColourTernary('null', 0);
+}
+
+export function clueEmoteOutfitState(clue: Int): Int {
+  if (clue === Clue.EMOTE_MASTER_9) {
+    return clueEmoteMaster9State(clue);
+  }
+  return 0;
+}
+
+export function clueCrypticOutfitState(clue: Int): Int {
+  if (clue === Clue.CRYPTIC_MASTER_JUNA) {
+    return clueJunaState();
+  }
+  if (clue === Clue.CRYPTIC_MASTER_MAGE_OF_ZAMORAK) {
+    return clueZamorakState();
+  }
+  return 0;
+}
+
+export function clueJunaState(): Int {
+  const worn: Container = useInventory(Inventories.WORN);
+  const inv: Container = useInventory(Inventories.INV);
+  let points: Int = 0;
+  let i: Int = 0;
+  while (i < worn.size) {
+    points = points + worn.param(i, Params.PARAM_42);
+    i = i + 1;
+  }
+  if (points >= 3) {
+    return 1;
+  }
+  while (i < inv.size) {
+    points = points + inv.param(i, Params.PARAM_42);
+    i = i + 1;
+  }
+  if (points >= 3) {
+    return 2;
+  }
+  return 0;
+}
+
+export function clueZamorakState(): Int {
+  const worn: Container = useInventory(Inventories.WORN);
+  const inv: Container = useInventory(Inventories.INV);
+  let points: Int = 0;
+  let i: Int = 0;
+  while (i < worn.size) {
+    points = points + worn.param(i, Params.ZAMORAKITEM);
+    i = i + 1;
+  }
+  if (points >= 3) {
+    return 1;
+  }
+  i = 0;
+  while (i < inv.size) {
+    points = points + inv.param(i, Params.ZAMORAKITEM);
+    i = i + 1;
+  }
+  if (points >= 3) {
+    return 2;
+  }
+  return 0;
+}
+
+export function clueEmoteMaster9State(clue: Int): Int {
+  if (useServerState(Varps.WORN_SET) > 0) {
+    return 1;
+  }
+  let i: Int = 0;
+  while (i < ClueOutfitsOf.length) {
+    const entry = ClueOutfitsOf.at(i);
+    if (entry !== null) {
+      if (entry.row === clue) {
+        if (clueOutfitParamInInv(entry.outfit) === true || clueOutfitItemInInv(entry.outfit) === true) {
+          return 2;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return 0;
+}
+
+export function clueOutfitParamInInv(outfit: Int): Boolean {
+  const pHat: Int = outfitParamFirst(outfit, WEARPOS_HAT);
+  const pBack: Int = outfitParamFirst(outfit, WEARPOS_BACK);
+  const pFront: Int = outfitParamFirst(outfit, WEARPOS_FRONT);
+  const pRhand: Int = outfitParamFirst(outfit, WEARPOS_RHAND);
+  const pTorso: Int = outfitParamFirst(outfit, WEARPOS_TORSO);
+  const pLhand: Int = outfitParamFirst(outfit, WEARPOS_LHAND);
+  const pLegs: Int = outfitParamFirst(outfit, WEARPOS_LEGS);
+  const pHands: Int = outfitParamFirst(outfit, WEARPOS_HANDS);
+  const pFeet: Int = outfitParamFirst(outfit, WEARPOS_FEET);
+  const pRing: Int = outfitParamFirst(outfit, WEARPOS_RING);
+  const pQuiver: Int = outfitParamFirst(outfit, WEARPOS_QUIVER);
+  const inv: Container = useInventory(Inventories.INV);
+  let i: Int = 0;
+  while (i < inv.size) {
+    const carried: Int = inv.param(i, Params.PARAM_258);
+    if (carried !== 0) {
+      if (pHat !== 0 && carried === pHat) {
+        return true;
+      }
+      if (pBack !== 0 && carried === pBack) {
+        return true;
+      }
+      if (pFront !== 0 && carried === pFront) {
+        return true;
+      }
+      if (pRhand !== 0 && carried === pRhand) {
+        return true;
+      }
+      if (pTorso !== 0 && carried === pTorso) {
+        return true;
+      }
+      if (pLhand !== 0 && carried === pLhand) {
+        return true;
+      }
+      if (pLegs !== 0 && carried === pLegs) {
+        return true;
+      }
+      if (pHands !== 0 && carried === pHands) {
+        return true;
+      }
+      if (pFeet !== 0 && carried === pFeet) {
+        return true;
+      }
+      if (pRing !== 0 && carried === pRing) {
+        return true;
+      }
+      if (pQuiver !== 0 && carried === pQuiver) {
+        return true;
+      }
+    }
+    i = i + 1;
+  }
+  return false;
+}
+
+export function clueOutfitItemInInv(outfit: Int): Boolean {
+  const inv: Container = useInventory(Inventories.INV);
+  let i: Int = 0;
+  while (i < OutfitItems.length) {
+    const entry = OutfitItems.at(i);
+    if (entry !== null) {
+      if (entry.row === outfit && entry.wearpos >= 0) {
+        if (inv.total(entry.item) > 0) {
+          return true;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return false;
+}

@@ -1,0 +1,469 @@
+import { onMounted, onUpdated, useState } from 'ts2';
+import { sailingSidepanelCaptainName, sailingSidepanelNavigatorName } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { ButtonSprites, SidepanelColor, SidepanelFont, crewPaneRef } from './sailing-sidepanel.constants';
+import {
+  sidepanelCrewCanEdit,
+  sidepanelCrewCapCurrent,
+  sidepanelCrewCapMax,
+  sidepanelCrewCapPlayer,
+  sidepanelCrewExperienced,
+  sidepanelCrewIcon0,
+  sidepanelCrewIcon1,
+  sidepanelCrewIcon2,
+  sidepanelCrewIcon3,
+  sidepanelCrewIcon4,
+  sidepanelCrewId0,
+  sidepanelCrewId1,
+  sidepanelCrewId2,
+  sidepanelCrewId3,
+  sidepanelCrewId4,
+  sidepanelCrewRows,
+  sidepanelCrewView,
+  sidepanelCrewWhirlpool,
+  sidepanelTab,
+} from './sailing-sidepanel.state';
+import { SidepanelPage, sidepanelBlocked, sidepanelPageShown } from './sidepanel-content.component';
+import { crewPortrait, crewRowText, sidepanelCrewSelectView } from './sidepanel-crew.helpers';
+import { Pane, PaneScrollbar } from './sidepanel-scrollbar.component';
+
+const ROW_H = 34;
+const PANE_H = 126;
+
+function crewExtent(view: Int, capCurrent: Int, rows: Int, blocked: Boolean): Int {
+  const listH: Int = rows * ROW_H;
+  if (blocked || view !== 0 || capCurrent === 0 || listH <= PANE_H) {
+    return 0;
+  }
+  return listH;
+}
+
+export function CrewBacking(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const [view] = useState(sidepanelCrewView);
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && view === 0 && (
+        <>
+          <rect x={0} y={0} w="fill" h="fill" fill color={CrewColor.BACKING} />
+          <rect x="center" y="center" w="fill" h="fill" color={CrewColor.BOX_OUTER} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={CrewColor.BOX_INNER} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function CrewList(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const [view] = useState(sidepanelCrewView);
+  const [capCurrent] = useState(sidepanelCrewCapCurrent);
+  const [experienced] = useState(sidepanelCrewExperienced);
+  const [canEdit] = useState(sidepanelCrewCanEdit);
+  const [whirlpoolCell] = useState(sidepanelCrewWhirlpool);
+  const [rows] = useState(sidepanelCrewRows);
+  const [c0] = useState(sidepanelCrewId0);
+  const [c1] = useState(sidepanelCrewId1);
+  const [c2] = useState(sidepanelCrewId2);
+  const [c3] = useState(sidepanelCrewId3);
+  const [c4] = useState(sidepanelCrewId4);
+  const [i0] = useState(sidepanelCrewIcon0);
+  const [i1] = useState(sidepanelCrewIcon1);
+  const [i2] = useState(sidepanelCrewIcon2);
+  const [i3] = useState(sidepanelCrewIcon3);
+  const [i4] = useState(sidepanelCrewIcon4);
+  const [hover, setHover] = useState(0);
+  const [targeted, setTargeted] = useState(0);
+  const blocked: Boolean = sidepanelBlocked();
+
+  const npc: Boolean = !blocked && view === 0;
+  const players: Boolean = !blocked && view !== 0;
+  const whirlpool: Boolean = whirlpoolCell === 1;
+  const listH: Int = rows * ROW_H;
+  const empty: Boolean = npc && capCurrent === 0;
+  const extent: Int = crewExtent(view, capCurrent, rows, blocked);
+
+  onMounted(() => {
+    crewPaneRef.scrollHeight = extent;
+  });
+  onUpdated(() => {
+    crewPaneRef.scrollHeight = extent;
+  });
+
+  const enabled: Boolean = canEdit === 1;
+  const lit: Boolean = enabled && targeted === 1;
+  const hot: Boolean = enabled && !lit && hover === 1;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <layer x={0} y={0} w="fill" h={PANE_H}>
+        {players && (
+          <rect
+            x={30}
+            y={80}
+            w={120}
+            h={30}
+            fill
+            color={0}
+            transparency={enabled ? 255 : 128}
+            targetVerb={enabled ? 'Edit-navigator' : ''}
+            optionPriority={enabled ? -1 : 0}
+            onMouseEnter={enabled && !lit && !onMobile() ? () => setHover(1) : undefined}
+            onMouseLeave={enabled && !lit ? () => setHover(0) : undefined}
+            onTargetEnter={
+              enabled
+                ? () => {
+                    setHover(0);
+                    setTargeted(1);
+                  }
+                : undefined
+            }
+            onTargetLeave={enabled ? () => setTargeted(0) : undefined}
+          />
+        )}
+      </layer>
+
+      <layer x={0} y={0} w="fill" h={npc && !empty ? listH : PANE_H}>
+        {empty && (
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={
+              experienced === 1
+                ? 'No crewmates available.<br><br>You can manage your crewmates with the Crew Registrar.'
+                : 'You are not yet an experienced enough sailor to manage a crew.'
+            }
+            font={SidepanelFont.SMALL}
+            color={SidepanelColor.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={13}
+          />
+        )}
+        {npc && rows > 0 && <CrewRow index={0} crewId={c0} icon={i0 as Sprite} whirlpool={whirlpool} />}
+        {npc && rows > 1 && <CrewRow index={1} crewId={c1} icon={i1 as Sprite} whirlpool={whirlpool} />}
+        {npc && rows > 2 && <CrewRow index={2} crewId={c2} icon={i2 as Sprite} whirlpool={whirlpool} />}
+        {npc && rows > 3 && <CrewRow index={3} crewId={c3} icon={i3 as Sprite} whirlpool={whirlpool} />}
+        {npc && rows > 4 && <CrewRow index={4} crewId={c4} icon={i4 as Sprite} whirlpool={whirlpool} />}
+
+        {players && (
+          <>
+            <sprite x={8} y={18} w={18} h={18} sprite={CrewSprite.CAPTAIN} />
+            <text
+              x={32}
+              y={18}
+              w={{ fill: 56 }}
+              h={18}
+              text="Captain:"
+              font={SidepanelFont.SMALL}
+              color={SidepanelColor.ORANGE}
+              shadow
+              align="left"
+              valign="middle"
+              lineHeight={13}
+            />
+            <CaptainName />
+            <sprite x={8} y={45} w={18} h={18} sprite={CrewSprite.NAVIGATOR} />
+            <text
+              x={32}
+              y={45}
+              w={{ fill: 56 }}
+              h={18}
+              text="Navigator:"
+              font={SidepanelFont.SMALL}
+              color={SidepanelColor.ORANGE}
+              shadow
+              align="left"
+              valign="middle"
+              lineHeight={13}
+            />
+            <NavigatorName />
+            <sprite
+              x={30}
+              y={80}
+              w={120}
+              h={30}
+              sprite={lit ? ButtonSprites.LIT_CENTRE : ButtonSprites.IDLE_CENTRE}
+              tiling
+            />
+            <sprite
+              x={30}
+              y={80}
+              w={5}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_NW : hot ? ButtonSprites.HOVER_NW : ButtonSprites.IDLE_NW}
+              tiling
+            />
+            <sprite
+              x={145}
+              y={80}
+              w={5}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_NE : hot ? ButtonSprites.HOVER_NE : ButtonSprites.IDLE_NE}
+              tiling
+            />
+            <sprite
+              x={30}
+              y={105}
+              w={5}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_SW : hot ? ButtonSprites.HOVER_SW : ButtonSprites.IDLE_SW}
+              tiling
+            />
+            <sprite
+              x={145}
+              y={105}
+              w={5}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_SE : hot ? ButtonSprites.HOVER_SE : ButtonSprites.IDLE_SE}
+              tiling
+            />
+            <sprite
+              x={30}
+              y={85}
+              w={5}
+              h={20}
+              sprite={lit ? ButtonSprites.LIT_W : hot ? ButtonSprites.HOVER_W : ButtonSprites.IDLE_W}
+              tiling
+            />
+            <sprite
+              x={35}
+              y={80}
+              w={110}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_N : hot ? ButtonSprites.HOVER_N : ButtonSprites.IDLE_N}
+              tiling
+            />
+            <sprite
+              x={145}
+              y={85}
+              w={5}
+              h={20}
+              sprite={lit ? ButtonSprites.LIT_E : hot ? ButtonSprites.HOVER_E : ButtonSprites.IDLE_E}
+              tiling
+            />
+            <sprite
+              x={35}
+              y={105}
+              w={110}
+              h={5}
+              sprite={lit ? ButtonSprites.LIT_S : hot ? ButtonSprites.HOVER_S : ButtonSprites.IDLE_S}
+              tiling
+            />
+            <sprite x={0} y={0} w={0} h={0} sprite={-1} />
+            <text
+              x={33}
+              y={83}
+              w={114}
+              h={24}
+              text="Edit navigator"
+              font={SidepanelFont.TITLE}
+              color={!enabled || hot ? SidepanelColor.BUTTON_TEXT_DIM : SidepanelColor.BUTTON_TEXT}
+              shadow
+              align="center"
+              valign="middle"
+              lineHeight={20}
+            />
+          </>
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+export function CrewCapacity(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const [capCurrent] = useState(sidepanelCrewCapCurrent);
+  const [capMax] = useState(sidepanelCrewCapMax);
+  const [capPlayer] = useState(sidepanelCrewCapPlayer);
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={`${capPlayer === 1 ? 'Player crew capacity: ' : 'NPC crew capacity: '}${capCurrent}/${capMax}`}
+          font={SidepanelFont.SMALL}
+          color={SidepanelColor.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={13}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function CrewRadio(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const [view] = useState(sidepanelCrewView);
+  const blocked: Boolean = sidepanelBlocked();
+  const npc: Boolean = view === 0;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && (
+        <>
+          <sprite
+            x={6}
+            y={0}
+            w={17}
+            h={17}
+            sprite={npc ? CrewSprite.RADIO_ON : CrewSprite.RADIO_OFF}
+            options={['Select']}
+            onOptionSelect={() => sidepanelCrewSelectView(0)}
+          />
+          <text
+            x={30}
+            y="center"
+            w={{ fill: 30 }}
+            h="fill"
+            text="NPCs"
+            font={SidepanelFont.SMALL}
+            color={SidepanelColor.ORANGE}
+            shadow
+            align="left"
+            valign="middle"
+            lineHeight={13}
+          />
+          <sprite
+            x={97}
+            y={0}
+            w={17}
+            h={17}
+            sprite={npc ? CrewSprite.RADIO_OFF : CrewSprite.RADIO_ON}
+            options={['Select']}
+            onOptionSelect={() => sidepanelCrewSelectView(1)}
+          />
+          <text
+            x={119}
+            y="center"
+            w={{ fill: 119 }}
+            h="fill"
+            text="Players"
+            font={SidepanelFont.SMALL}
+            color={SidepanelColor.ORANGE}
+            shadow
+            align="left"
+            valign="middle"
+            lineHeight={13}
+          />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function CrewScrollbar(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.CREW);
+  const [view] = useState(sidepanelCrewView);
+  const [capCurrent] = useState(sidepanelCrewCapCurrent);
+  const [rows] = useState(sidepanelCrewRows);
+  const blocked: Boolean = sidepanelBlocked();
+  const extent: Int = crewExtent(view, capCurrent, rows, blocked);
+  const drawn: Boolean = !blocked && view === 0;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {drawn && <PaneScrollbar which={Pane.CREW} extent={extent} height={PANE_H} />}
+    </layer>
+  );
+}
+
+const CrewColor = {
+  BACKING: 0x595046,
+  BOX_OUTER: 0x0e0e0c,
+  BOX_INNER: 0x474745,
+  ROW_EVEN: 0x4e453a,
+  ROW_ODD: 0x595046,
+} as const;
+
+const CrewSprite = {
+  RADIO_ON: 699,
+  RADIO_OFF: 697,
+  CAPTAIN: 7094,
+  NAVIGATOR: 7053,
+} as const;
+
+function CaptainName(): Component {
+  const [captain] = useState(sailingSidepanelCaptainName);
+  return (
+    <text
+      x={100}
+      y={18}
+      w={{ fill: 56 }}
+      h={18}
+      text={captain}
+      font={SidepanelFont.SMALL}
+      color={SidepanelColor.WHITE}
+      shadow
+      align="left"
+      valign="middle"
+      lineHeight={13}
+    />
+  );
+}
+
+function NavigatorName(): Component {
+  const [navigator] = useState(sailingSidepanelNavigatorName);
+  return (
+    <text
+      x={100}
+      y={45}
+      w={{ fill: 56 }}
+      h={18}
+      text={navigator}
+      font={SidepanelFont.SMALL}
+      color={SidepanelColor.WHITE}
+      shadow
+      align="left"
+      valign="middle"
+      lineHeight={13}
+    />
+  );
+}
+
+function CrewRow({
+  index,
+  crewId,
+  icon,
+  whirlpool,
+}: {
+  index: Int;
+  crewId: Int;
+  icon: Sprite;
+  whirlpool: Boolean;
+}): Component {
+  const y: Int = index * ROW_H;
+  return (
+    <>
+      <rect x={0} y={y} w="fill" h={ROW_H} fill color={index % 2 === 0 ? CrewColor.ROW_EVEN : CrewColor.ROW_ODD} />
+      <sprite x={5} y={y + 8} w={18} h={18} sprite={crewPortrait(crewId)} />
+      <sprite x={{ right: 5 }} y={y + 5} w={24} h={24} sprite={icon} />
+      <text
+        x={28}
+        y={y}
+        w={{ fill: 56 }}
+        h={ROW_H}
+        text={crewRowText(crewId, whirlpool)}
+        font={SidepanelFont.SMALL}
+        color={SidepanelColor.WHITE}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={13}
+      />
+    </>
+  );
+}

@@ -1,0 +1,54 @@
+import { useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, TooltipChrome, tooltipUp } from '../lib/tooltip.component';
+import { controlTooltip, controlTooltipWrap } from './xpdrops-setup.helpers';
+import { openControl, tooltipControl, tooltipLeft, tooltipTop } from './xpdrops-setup.state';
+import { XpdropsLayout } from './xpdrops-setup.constants';
+
+export function XpdropsSetupTooltip(): Component {
+  const [control] = useState(tooltipControl);
+  const [left] = useState(tooltipLeft);
+  const [top] = useState(tooltipTop);
+  const [open] = useState(openControl);
+
+  let text: String = '';
+  if (tooltipUp() && control >= 0 && open < 0) {
+    text = controlTooltip(control);
+  }
+  const wrap: Int = control >= 0 ? controlTooltipWrap(control) : 0;
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+
+  const anchorX: Int = (hostW - XpdropsLayout.universe.w) / 2 + XpdropsLayout.contents.x + left;
+  const anchorY: Int = (hostH - XpdropsLayout.universe.h) / 2 + XpdropsLayout.contents.y + top;
+
+  let measure: Int = wrap;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + XpdropsLayout.control.stripH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (text.length === 0) {
+    return <layer w={1} h={1} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}

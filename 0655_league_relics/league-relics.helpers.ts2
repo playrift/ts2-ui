@@ -1,0 +1,216 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { toplevelComponents } from '../lib/lib.helpers';
+
+import { RelicColour, RelicLayout } from './league-relics.constants';
+import {
+  FragmentSlotThresholds,
+  LEAGUE_SHATTERED_RELICS,
+  RelicThemes,
+  RelicTierThresholds,
+} from './league-relics.data';
+
+export function relicLeague(): Int {
+  return useServerState(Varbits.LEAGUE_TYPE);
+}
+
+export function relicPoints(): Int {
+  return useServerState(Varps.LEAGUE_POINTS_CLAIMED);
+}
+
+export function relicAccent(): Int {
+  const theme = RelicThemes.get(relicLeague());
+  if (theme === null) {
+    return RelicColour.GOLD;
+  }
+  return theme.accent;
+}
+
+export function relicTierCount(): Int {
+  const theme = RelicThemes.get(relicLeague());
+  if (theme === null) {
+    return 0;
+  }
+  if (theme.relics) {
+    return RelicTierThresholds.length;
+  }
+  return 0;
+}
+
+export function tierSelection(tier: Int): Int {
+  switch (tier) {
+    case 0:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_0);
+    case 1:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_1);
+    case 2:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_2);
+    case 3:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_3);
+    case 4:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_4);
+    case 5:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_5);
+    case 6:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_6);
+    case 7:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_7);
+  }
+  return 0;
+}
+
+export function tierChosen(tier: Int): Boolean {
+  return tierSelection(tier) !== 0;
+}
+
+function tierRepickFlag(tier: Int): Int {
+  switch (tier) {
+    case 0:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_0);
+    case 1:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_1);
+    case 2:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_2);
+    case 3:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_3);
+    case 4:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_4);
+    case 5:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_5);
+    case 6:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_6);
+    case 7:
+      return useServerState(Varbits.LEAGUE_RELIC_REPICK_7);
+  }
+  return 0;
+}
+
+export function tierRepickable(tier: Int): Boolean {
+  if (tierRepickFlag(tier) === 1 && tierSelection(tier) !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function firstOpenTier(): Int {
+  const count: Int = relicTierCount();
+  const points: Int = relicPoints();
+  let tier: Int = 0;
+  while (tier < count) {
+    if (!tierChosen(tier) && points >= (RelicTierThresholds.at(tier) ?? 0)) {
+      return tier;
+    }
+    tier = tier + 1;
+  }
+  return -1;
+}
+
+export function anyRepickable(): Boolean {
+  const count: Int = relicTierCount();
+  let tier: Int = 0;
+  while (tier < count) {
+    if (tierRepickable(tier)) {
+      return true;
+    }
+    tier = tier + 1;
+  }
+  return false;
+}
+
+export function repickWash(): Int {
+  const theme = RelicThemes.get(relicLeague());
+  if (theme === null) {
+    return 5458494;
+  }
+  return theme.repickWash;
+}
+
+export function barTop(): Int {
+  const league: Int = relicLeague();
+  if (league === LEAGUE_SHATTERED_RELICS) {
+    return FragmentSlotThresholds.at(FragmentSlotThresholds.length - 1) ?? -1;
+  }
+  if (relicTierCount() === 0) {
+    return -1;
+  }
+  return RelicTierThresholds.at(RelicTierThresholds.length - 1) ?? -1;
+}
+
+export function chatOnDarkBackground(): Boolean {
+  if (toplevelComponents() === 1745) {
+    return true;
+  }
+  if (CS2.window_mode_get() !== 1 && useServerState(Varbits.CHATBOX_TRANSPARENCY) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function refusalColourTag(): String {
+  if (chatOnDarkBackground()) {
+    return '<col=ff3045>';
+  }
+  return '<col=e00a19>';
+}
+
+export function lockedMessage(state: Int): String {
+  if (state === 1) {
+    return 'You have already unlocked this Relic.';
+  }
+  if (state === 4) {
+    return 'You have already unlocked a Relic from this tier.';
+  }
+  if (state === 3) {
+    return 'You should unlock a Relic from the previous tier first.';
+  }
+  if (state === 0) {
+    return 'You need to earn more League Points to unlock a Relic from this tier.';
+  }
+  return '';
+}
+
+export function contentY(bp: Int): Int {
+  if (bp === 1 || bp === 2) {
+    return 37;
+  }
+  if (bp === 3) {
+    return 39;
+  }
+  return 35;
+}
+
+export function windowWidth(bp: Int, drawn: Int): Int {
+  if (drawn === 0) {
+    return RelicLayout.WINDOW_W;
+  }
+  if (bp === 1) {
+    return RelicLayout.WINDOW_W_1;
+  }
+  if (bp === 2 || bp === 3) {
+    return RelicLayout.WINDOW_W_2;
+  }
+  return RelicLayout.WINDOW_W;
+}
+
+export function windowHeight(bp: Int, drawn: Int): Int {
+  if (drawn === 0) {
+    return RelicLayout.WINDOW_H;
+  }
+  if (bp === 1) {
+    return RelicLayout.WINDOW_H_1;
+  }
+  if (bp === 2 || bp === 3) {
+    return RelicLayout.WINDOW_H_2;
+  }
+  return RelicLayout.WINDOW_H;
+}
+
+export function relicPageHeight(windowH: Int, bp: Int): Int {
+  return windowH - contentY(bp) - 53;
+}
+
+export function relicDetailPageRoom(windowH: Int, bp: Int): Int {
+  return relicPageHeight(windowH, bp) - 41;
+}

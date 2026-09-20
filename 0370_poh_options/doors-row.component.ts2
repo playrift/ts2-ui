@@ -1,72 +1,73 @@
-import { useRef, useServerState } from 'ts2';
+import { predictServerState, useRef, useServerState, useState, useWatch } from 'ts2';
 import { Sprites, Varbits } from './poh-options.constants';
-import { selectDoors } from './poh-options.helpers';
+import { pohDoorsFace } from './poh-options.state';
 
 export function DoorsRow(): Component {
-  const option = useServerState(Varbits.DOORS_OPTION);
-  const closed = useRef();
-  const open = useRef();
-  const none = useRef();
+  const [option, setOption] = useState(pohDoorsFace);
+  const closedIcon = useRef();
+
+  useWatch(
+    Varbits.DOORS_OPTION,
+    () => {
+      setOption(useServerState(Varbits.DOORS_OPTION));
+    },
+    closedIcon,
+  );
+
+  const pickClosed = () => {
+    predictServerState(Varbits.DOORS_OPTION, 0);
+    setOption(0);
+  };
+  const pickOpen = () => {
+    predictServerState(Varbits.DOORS_OPTION, 1);
+    setOption(1);
+  };
+  const pickNone = () => {
+    predictServerState(Varbits.DOORS_OPTION, 2);
+    setOption(2);
+  };
 
   return (
     <>
       <sprite
+        ref={closedIcon}
         x={50}
         y={123}
         w={19}
         h={30}
         sprite={Sprites.DOOR_CLOSED}
         options={['Select']}
-        onOptionSelect={() => selectDoors(0, closed, open, none)}
+        onOptionSelect={pickClosed}
       />
       <sprite
-        ref={closed}
         x={70}
         y={131}
         w={17}
         h={17}
         options={['Select']}
-        onOptionSelect={() => selectDoors(0, closed, open, none)}
+        onOptionSelect={pickClosed}
         sprite={option === 0 ? Sprites.RADIO_SELECTED : Sprites.RADIO_EMPTY}
       />
 
+      <sprite x={97} y={123} w={19} h={30} sprite={Sprites.DOOR_OPEN} options={['Select']} onOptionSelect={pickOpen} />
       <sprite
-        x={97}
-        y={123}
-        w={19}
-        h={30}
-        sprite={Sprites.DOOR_OPEN}
-        options={['Select']}
-        onOptionSelect={() => selectDoors(1, closed, open, none)}
-      />
-      <sprite
-        ref={open}
         x={117}
         y={131}
         w={17}
         h={17}
         options={['Select']}
-        onOptionSelect={() => selectDoors(1, closed, open, none)}
+        onOptionSelect={pickOpen}
         sprite={option === 1 ? Sprites.RADIO_SELECTED : Sprites.RADIO_EMPTY}
       />
 
+      <sprite x={143} y={123} w={19} h={30} sprite={Sprites.DOOR_NONE} options={['Select']} onOptionSelect={pickNone} />
       <sprite
-        x={143}
-        y={123}
-        w={19}
-        h={30}
-        sprite={Sprites.DOOR_NONE}
-        options={['Select']}
-        onOptionSelect={() => selectDoors(2, closed, open, none)}
-      />
-      <sprite
-        ref={none}
         x={163}
         y={131}
         w={17}
         h={17}
         options={['Select']}
-        onOptionSelect={() => selectDoors(2, closed, open, none)}
+        onOptionSelect={pickNone}
         sprite={option !== 0 && option !== 1 ? Sprites.RADIO_SELECTED : Sprites.RADIO_EMPTY}
       />
     </>

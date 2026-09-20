@@ -1,0 +1,138 @@
+import { useDerived, useInterval, useRef } from 'ts2';
+
+import { clientClock, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SkillIcons, SkillIconsAlt, SkillNames } from '../lib/skills.data';
+import { skillHighlight } from './stats-highlight.helpers';
+import { skillBaseLevel, skillLevel } from './stats-levels.helpers';
+import { StatsColor, StatsFonts, StatsLayout, StatsSprites } from './stats.constants';
+import { skillRestricted } from './stats.helpers';
+import { showStatsTip, hideStatsTip, toggleStatsTip } from './stats-tooltip.component';
+
+export function StatsCell({
+  skill,
+  nudge,
+  x,
+  y,
+  height,
+}: {
+  skill: Int;
+  nudge: Int;
+  x: Int;
+  y: Int;
+  height: Int;
+}): Component {
+  const name: String = SkillNames.get(skill as Skill) ?? 'Skill';
+  const boosted: Int = useDerived(() => skillLevel(skill));
+  const base: Int = useDerived(() => skillBaseLevel(skill));
+  const flagged: Boolean = useDerived(() => skillHighlight(skill)) > 0;
+  const locked: Boolean = skillLocked(skill);
+  const mobile: Boolean = onMobile();
+
+  let toggle: String = '';
+  if (mobile) {
+    toggle = `Toggle <col=ff981f>${name}</col> XP`;
+  }
+
+  const icon = useRef();
+
+  useInterval(() => {
+    if (!flagged) {
+      return;
+    }
+    const phase: Int = clientClock() % 120;
+    if (phase < 60) {
+      icon.transparency = scaled(phase, 60, 200);
+    } else {
+      icon.transparency = scaled(120 - phase, 60, 200);
+    }
+  }, icon);
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={StatsLayout.CELL_W}
+      h={height}
+      options={[toggle, `View <col=ff981f>${name}</col> guide`]}
+      onMouseRepeat={() => showStatsTip(skill, x, y, height)}
+      onMouseLeave={() => hideStatsTip()}
+      onOptionSelect={(event) => selectCellOption(event.option, skill, x, y, height)}
+    >
+      <sprite x={0} y={0} w={StatsLayout.HALF} h={StatsLayout.HALF} sprite={StatsSprites.CELL_LEFT} />
+      <sprite x={StatsLayout.HALF_X} y={0} w={StatsLayout.HALF} h={StatsLayout.HALF} sprite={StatsSprites.CELL_RIGHT} />
+
+      <sprite
+        x={StatsLayout.ICON_X + nudge}
+        y={StatsLayout.ICON_Y}
+        w={StatsLayout.ICON}
+        h={StatsLayout.ICON}
+        sprite={SkillIconsAlt.get(skill as Skill) ?? -1}
+      />
+      <sprite
+        ref={icon}
+        x={StatsLayout.ICON_X + nudge}
+        y={StatsLayout.ICON_Y}
+        w={StatsLayout.ICON}
+        h={StatsLayout.ICON}
+        sprite={SkillIcons.get(skill as Skill) ?? -1}
+      />
+
+      <text
+        x={StatsLayout.LEVEL_X}
+        y={StatsLayout.LEVEL_Y}
+        w={StatsLayout.LEVEL_W}
+        h={StatsLayout.LEVEL_H}
+        text={`${boosted}`}
+        font={StatsFonts.LEVEL}
+        color={StatsColor.LEVEL}
+        align="center"
+        valign="top"
+        shadow
+      />
+      <text
+        x={StatsLayout.BASE_X}
+        y={StatsLayout.BASE_Y}
+        w={StatsLayout.LEVEL_W}
+        h={StatsLayout.LEVEL_H}
+        text={`${base}`}
+        font={StatsFonts.LEVEL}
+        color={StatsColor.LEVEL}
+        align="center"
+        valign="top"
+        shadow
+      />
+
+      {locked ? (
+        <>
+          <sprite
+            x={StatsLayout.LOCK_OFF}
+            y={StatsLayout.LOCK_OFF}
+            w={StatsLayout.HALF}
+            h={StatsLayout.HALF}
+            sprite={StatsSprites.LOCK_LEFT}
+            transparency={90}
+          />
+          <sprite
+            x={StatsLayout.LOCK_X}
+            y={StatsLayout.LOCK_OFF}
+            w={StatsLayout.HALF}
+            h={StatsLayout.HALF}
+            sprite={StatsSprites.LOCK_RIGHT}
+            transparency={90}
+          />
+        </>
+      ) : null}
+    </layer>
+  );
+}
+
+function selectCellOption(option: Int, skill: Int, x: Int, y: Int, height: Int): void {
+  if (option === 1) {
+    toggleStatsTip(skill, x, y, height);
+  }
+}
+
+function skillLocked(skill: Int): Boolean {
+  return skillRestricted(skill as Skill);
+}

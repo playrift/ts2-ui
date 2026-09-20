@@ -1,0 +1,112 @@
+import { CS2, Engine, useState, useWatch } from 'ts2';
+
+import { displaynameInput, displaynameInputListening } from '../lib/game/varcs';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  DisplaynameArt,
+  DisplaynameColor,
+  DisplaynameFonts,
+  DisplaynameGate,
+  KEY_RETURN,
+  Layout,
+  NO_KEY,
+} from './tutorial-displayname.constants';
+import { submitName, tutorialDisplaynameAllowInput } from './tutorial-displayname.input';
+
+export function NameBox(): Component {
+  const [listening] = useState(displaynameInputListening);
+  const [input] = useState(displaynameInput);
+  const [hovered, setHovered] = useState(0);
+  useWatch(Engine.DIALOG_ABORT, () => {
+    const [nowListening] = useState(displaynameInputListening);
+    if (nowListening !== 1) {
+      return;
+    }
+    tutorialDisplaynameAllowInput(false, true);
+  });
+
+  return (
+    <layer
+      x={0}
+      y={Layout.FIELD_Y}
+      w="fill"
+      h={Layout.FIELD_H}
+      options={['Enter name']}
+      onMouseRepeat={() => {
+        const [nowListening] = useState(displaynameInputListening);
+        if (nowListening === 1 && !onMobile()) {
+          return;
+        }
+        setHovered(1);
+      }}
+      onMouseLeave={() => {
+        const [nowListening] = useState(displaynameInputListening);
+        if (nowListening === 1 && !onMobile()) {
+          return;
+        }
+        setHovered(0);
+      }}
+    >
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={DisplaynameColor.WHITE}
+        fill
+        hide={listening !== 1 && hovered === 0}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.FIELD_MID_W_INSET }}
+        h={Layout.FIELD_ART_H}
+        sprite={DisplaynameArt.FIELD_MID}
+        tiling
+      />
+      <sprite
+        x={Layout.FIELD_CAP_X}
+        y="center"
+        w={Layout.FIELD_CAP_W}
+        h={Layout.FIELD_ART_H}
+        sprite={DisplaynameArt.FIELD_LEFT}
+      />
+      <sprite
+        x={{ right: Layout.FIELD_CAP_X }}
+        y="center"
+        w={Layout.FIELD_CAP_W}
+        h={Layout.FIELD_ART_H}
+        sprite={DisplaynameArt.FIELD_RIGHT}
+      />
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h="fill"
+        text={listening === 0 ? input : `${input}*`}
+        font={DisplaynameFonts.BOLD}
+        color={DisplaynameColor.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+        onKey={
+          listening === 1
+            ? (event) => {
+                if (event.keyCode === NO_KEY && CS2.char_printable_is(event.keyChar) === false) {
+                  return;
+                }
+                if (dialogueMayAdvance(DisplaynameGate.TUTORIAL_DISPLAYNAME, DisplaynameGate.NO_SUB) === false) {
+                  return;
+                }
+                if (event.keyCode === KEY_RETURN) {
+                  submitName();
+                  return;
+                }
+              }
+            : null
+        }
+      />
+    </layer>
+  );
+}

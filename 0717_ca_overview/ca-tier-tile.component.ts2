@@ -1,0 +1,217 @@
+import { useServerStateOnce, useState, useUniverse } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+
+import {
+  CaArt,
+  CaColour,
+  CaFonts,
+  CaSounds,
+  Layout,
+  StoneButton,
+  StoneButtonIn,
+  StoneButtonOut,
+} from './ca-overview.constants';
+import { CaTierRow, CaTiers } from './ca-tiers.data';
+import { CaSetupProgressBar, caTierStatus } from './ca-shared.local';
+import { caTasksCompletedTier, caTasksTierTotal } from './ca-overview.helpers';
+
+export function CaTierGrid(): Component {
+  const universe = useUniverse();
+  const tileH: Int = universe.height / Layout.TILE_ROWS - Layout.TILE_GAP_H;
+
+  return (
+    <>
+      {CaTiers.map((row, i) => (
+        <TierTile row={row} index={i} tier={i + 1} tileH={tileH} />
+      ))}
+    </>
+  );
+}
+
+const TierFacts = {
+  SHIFT: 256,
+  CLAIMED: 65536,
+} as const;
+
+function tierFacts(tier: Int): Int {
+  const total: Int = caTasksTierTotal(tier);
+  let done: Int = caTasksCompletedTier(tier);
+  if (done > total) {
+    done = total;
+  }
+  let claimed: Int = 0;
+  if (caTierStatus(tier) === 2) {
+    claimed = 1;
+  }
+  return total + done * TierFacts.SHIFT + claimed * TierFacts.CLAIMED;
+}
+
+function TierTile({ row, index, tier, tileH }: { row: CaTierRow; index: Int; tier: Int; tileH: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const lit: Int = hovered;
+  const mobile: Boolean = onMobile();
+
+  const name: String = row.name;
+  const facts: Int = useServerStateOnce(() => tierFacts(tier));
+  const total: Int = facts % TierFacts.SHIFT;
+  const done: Int = (facts / TierFacts.SHIFT) % TierFacts.SHIFT;
+  const colour: Int = facts / TierFacts.CLAIMED === 1 ? CaColour.CLAIMED : CaColour.YELLOW;
+
+  const x: Int = Layout.TILE_X + (index % 2) * (Layout.TILE_W + Layout.TILE_PITCH_X);
+  const y: Int = (index / 2) * (tileH + Layout.TILE_GAP_Y);
+  const w: Int = Layout.TILE_W;
+  const right: Int = w - StoneButton.CORNER;
+  const bottom: Int = tileH - StoneButton.CORNER;
+  const innerW: Int = w - StoneButton.CORNER * 2;
+  const innerH: Int = tileH - StoneButton.CORNER * 2;
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={tileH}
+      onMouseEnter={mobile ? undefined : () => setHovered(1)}
+      onMouseLeave={mobile ? undefined : () => setHovered(0)}
+    >
+      <sprite w="fill" h="fill" sprite={lit === 1 ? CaArt.BUTTON_BACKDROP_HOVER : CaArt.BUTTON_BACKDROP} tiling />
+      {lit === 1 ? (
+        <>
+          <sprite x={0} y={0} w={StoneButton.CORNER} h={StoneButton.CORNER} sprite={StoneButtonIn.TOP_LEFT} tiling />
+          <sprite
+            x={right}
+            y={0}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonIn.TOP_RIGHT}
+            tiling
+          />
+          <sprite
+            x={0}
+            y={bottom}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonIn.BOTTOM_LEFT}
+            tiling
+          />
+          <sprite
+            x={right}
+            y={bottom}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonIn.BOTTOM_RIGHT}
+            tiling
+          />
+          <sprite x={0} y={StoneButton.CORNER} w={StoneButton.CORNER} h={innerH} sprite={StoneButtonIn.LEFT} tiling />
+          <sprite x={StoneButton.CORNER} y={0} w={innerW} h={StoneButton.CORNER} sprite={StoneButtonIn.TOP} tiling />
+          <sprite
+            x={right}
+            y={StoneButton.CORNER}
+            w={StoneButton.CORNER}
+            h={innerH}
+            sprite={StoneButtonIn.RIGHT}
+            tiling
+          />
+          <sprite
+            x={StoneButton.CORNER}
+            y={bottom}
+            w={innerW}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonIn.BOTTOM}
+            tiling
+          />
+        </>
+      ) : (
+        <>
+          <sprite x={0} y={0} w={StoneButton.CORNER} h={StoneButton.CORNER} sprite={StoneButtonOut.TOP_LEFT} tiling />
+          <sprite
+            x={right}
+            y={0}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonOut.TOP_RIGHT}
+            tiling
+          />
+          <sprite
+            x={0}
+            y={bottom}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonOut.BOTTOM_LEFT}
+            tiling
+          />
+          <sprite
+            x={right}
+            y={bottom}
+            w={StoneButton.CORNER}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonOut.BOTTOM_RIGHT}
+            tiling
+          />
+          <sprite x={0} y={StoneButton.CORNER} w={StoneButton.CORNER} h={innerH} sprite={StoneButtonOut.LEFT} tiling />
+          <sprite x={StoneButton.CORNER} y={0} w={innerW} h={StoneButton.CORNER} sprite={StoneButtonOut.TOP} tiling />
+          <sprite
+            x={right}
+            y={StoneButton.CORNER}
+            w={StoneButton.CORNER}
+            h={innerH}
+            sprite={StoneButtonOut.RIGHT}
+            tiling
+          />
+          <sprite
+            x={StoneButton.CORNER}
+            y={bottom}
+            w={innerW}
+            h={StoneButton.CORNER}
+            sprite={StoneButtonOut.BOTTOM}
+            tiling
+          />
+        </>
+      )}
+      <rect
+        w="fill"
+        h="fill"
+        transparency={StoneButton.CLICK_ALPHA}
+        options={[`${name} Tasks`]}
+        onOptionSelect={() => playSound(CaSounds.SELECT)}
+      />
+      <rect
+        w="fill"
+        h="fill"
+        color={CaColour.BLACK}
+        transparency={Layout.TILE_OUTLINE_ALPHA}
+        optionSubject={`<col=ff981f>${name}</col>`}
+      />
+      <text
+        x={0}
+        y={Layout.TILE_NAME_Y}
+        w={w}
+        h={Layout.TILE_NAME_H}
+        text={name}
+        font={CaFonts.BODY}
+        shadow
+        color={CaColour.CAPTION}
+        align="center"
+        valign="middle"
+      />
+      <sprite
+        x={w / 2 - Layout.TILE_ICON / 2}
+        y={Layout.TILE_ICON_Y}
+        w={Layout.TILE_ICON}
+        h={Layout.TILE_ICON}
+        sprite={row.icon}
+      />
+      <CaSetupProgressBar
+        total={total}
+        done={done}
+        x={Layout.TILE_BAR_X}
+        y={Layout.TILE_BAR_Y}
+        w={w - Layout.TILE_BAR_INSET_W}
+        color={colour}
+        textY={Layout.TILE_BAR_TEXT_Y}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,194 @@
+import { CS2, useState } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+
+import { PASSIVE_PANE, RelicFonts, RelicScrollbarY } from './league-relics.constants';
+import { Relics } from './league-relics.data';
+import { relicAccent, tierRepickable } from './league-relics.helpers';
+import { confirmOpen, detailPassive, detailRelic, passiveOpen } from './league-relics.state';
+
+const enum OverlayText {
+  COLOUR = 0xfbf7f5,
+  MEASURE_WIDE = 416,
+  MEASURE_NARROW = 400,
+}
+
+export function PassiveOverlay(): Component {
+  const [open, setOpen] = useState(passiveOpen);
+  const [passive] = useState(detailPassive);
+  const mobile: Boolean = onMobile();
+  const wideH: Int = textLineCount(passive, OverlayText.MEASURE_WIDE, RelicFonts.BODY) * 15;
+  const fits: Boolean = wideH <= 139;
+  const textW: Int = Math.max(
+    125,
+    textWidth(passive, fits ? OverlayText.MEASURE_WIDE : OverlayText.MEASURE_NARROW, RelicFonts.BODY),
+  );
+  const narrowH: Int = textLineCount(passive, OverlayText.MEASURE_NARROW, RelicFonts.BODY) * 15;
+  const accent: Int = relicAccent();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={open === 0} noClickThrough>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        transparency={75}
+        options={['Close']}
+        onOptionSelect={() => {
+          CS2.sound_effect(2266, 1, 0);
+          setOpen(0);
+        }}
+      />
+      <layer
+        x="center"
+        y="center"
+        noClickThrough
+        w={fits ? textW + 22 : textW + 38}
+        h={fits ? 57 + wideH : { fill: 30 }}
+      >
+        <layer x={0} y={0} w="fill" h="fill">
+          <SteelBorder title="Passive Effects" titleColor={accent} flags={1} />
+        </layer>
+        <layer x={0} y={0} w="fill" h="fill">
+          <sprite
+            x={{ right: mobile ? 1 : 3 }}
+            y={mobile ? 1 : 6}
+            w={mobile ? 33 : 26}
+            h={mobile ? 33 : 23}
+            sprite={mobile ? 1731 : 535}
+            hover={{ sprite: mobile ? 1731 : 536 }}
+            tiling
+            options={['Close']}
+            onOptionSelect={() => {
+              CS2.sound_effect(2266, 1, 0);
+              setOpen(0);
+            }}
+          />
+          <layer
+            ref={PASSIVE_PANE}
+            x={8}
+            y={{ bottom: 8 }}
+            w={{ fill: fits ? 16 : 32 }}
+            h={{ fill: 45 }}
+            scrollHeight={fits ? 0 : narrowH + 12}
+            scrollY={0}
+          >
+            <sprite x={0} y={0} w="fill" h="fill" sprite={897} tiling />
+            <text
+              x={3}
+              y={6}
+              w={textW}
+              h={fits ? { fill: 6 } : narrowH + 12}
+              text={passive}
+              font={RelicFonts.BODY}
+              color={OverlayText.COLOUR}
+              align="left"
+              valign="top"
+              lineHeight={15}
+              shadow
+            />
+            <ThinBoxEntrypoint />
+          </layer>
+          <layer x={{ right: 8 }} y={{ bottom: 8 }} w={16} h={{ fill: 45 }} hide={fits}>
+            {!fits && (
+              <ScrollbarVertical
+                content={PASSIVE_PANE}
+                track={RelicScrollbarY.TRACK}
+                capTopSprite={RelicScrollbarY.CAP_TOP}
+                thumbSprite={RelicScrollbarY.THUMB}
+                capBottomSprite={RelicScrollbarY.CAP_BOTTOM}
+                arrowUp={RelicScrollbarY.ARROW_UP}
+                arrowDown={RelicScrollbarY.ARROW_DOWN}
+              />
+            )}
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+export function ConfirmSheet(): Component {
+  const [open, setOpen] = useState(confirmOpen);
+  const [relic] = useState(detailRelic);
+  const row = Relics.get(relic);
+  const name: String = row === null ? '' : row.name;
+  const repick: Boolean = row === null ? false : tierRepickable(row.tier);
+  const text: String = repick
+    ? `Are you sure that you wish to unlock the <col=ffffff>${name}</col> Relic?<br><br>You <col=ffffff>cannot</col> go back on this decision at any later point.`
+    : `Are you sure that you wish to unlock the <col=ffffff>${name}</col> Relic?<br><br>You can only unlock <col=ffffff>one</col> Relic from each tier, and you <col=ffffff>cannot</col> go back on this decision at any later point.`;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={open === 0} noClickThrough>
+      <rect x={0} y={0} w="fill" h="fill" fill transparency={128} />
+      <layer x="center" y="center" w={300} h={180}>
+        <layer x="center" y="center" w={300} h={180}>
+          <SteelBorder title={name} titleColor={relicAccent()} flags={1} />
+        </layer>
+        <text
+          x="center"
+          y={40}
+          w={{ fill: 20 }}
+          h={95}
+          text={text}
+          font={RelicFonts.BODY}
+          color={OverlayText.COLOUR}
+          align="left"
+          valign="top"
+          lineHeight={15}
+          shadow
+        />
+        <layer x={{ right: 10 }} y={{ bottom: 10 }} w={125} h={25}>
+          <SheetButton label="Confirm" subject="<col=ff981f>Selection</col>" close={false} />
+        </layer>
+        <layer x={10} y={{ bottom: 10 }} w={125} h={25}>
+          <SheetButton label="Cancel" subject="" close />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function SheetButton({ label, subject, close }: { label: String; subject: String; close: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [, setOpen] = useState(confirmOpen);
+  const mobile: Boolean = onMobile();
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      options={[label]}
+      optionSubject={subject}
+      onMouseRepeat={mobile ? undefined : () => setHovered(1)}
+      onMouseLeave={mobile ? undefined : () => setHovered(0)}
+      onOptionSelect={() => {
+        CS2.sound_effect(2266, 1, 0);
+        if (close) {
+          setOpen(0);
+        }
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={RelicFonts.BODY}
+        color={hovered === 1 ? 11184810 : 0xffffff}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

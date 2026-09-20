@@ -1,0 +1,217 @@
+import { useServerState, useState, predictServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { toplevelPanel } from '../lib/game/varcs';
+import { Actions, ActionsRow } from '../0891_hotkey_settings_new/actions.data';
+import { hotkeyAt, setHotkeyAt } from '../0891_hotkey_settings_new/hotkey-settings-new.helpers';
+import { HotkeyArt, HotkeyBits, LOADOUT_MAX, Layout, TUTORIAL_DONE } from './osm-hotkeys.constants';
+
+export function activeHotkey(slot: Int): Int {
+  return hotkeyAt(0, slot);
+}
+
+export function slotVisible(showEmpty: Int, dropdown: Int, action: Int): Boolean {
+  if (dropdown === 1) {
+    return false;
+  }
+  if (showEmpty === 1) {
+    return true;
+  }
+  if (action > 0 && Actions.at(action - 1) !== null) {
+    return true;
+  }
+  return false;
+}
+
+export function slotY(before: Int): Int {
+  return Layout.FIRST_SLOT_Y + Layout.SLOT_PITCH * before;
+}
+
+export function shown(visible: Boolean): Int {
+  if (visible) {
+    return 1;
+  }
+  return 0;
+}
+
+export function toggleHeight(visibleCount: Int): Int {
+  if (visibleCount > 0) {
+    return Layout.TOGGLE_H_WITH_SLOTS;
+  }
+  return Layout.TOGGLE_H_ALONE;
+}
+
+export function contentHeight(visibleCount: Int): Int {
+  return Layout.FIRST_SLOT_Y + Layout.SLOT_PITCH * visibleCount + toggleHeight(visibleCount);
+}
+
+export function hotkeyOn(action: Int): Int {
+  const [panel] = useState(toplevelPanel);
+  switch (action) {
+    case 19:
+      if (panel === 10) {
+        return 1;
+      }
+      break;
+    case 6:
+      if (panel === 3) {
+        return 1;
+      }
+      break;
+    case 7:
+      if (panel === 4) {
+        return 1;
+      }
+      break;
+    case 8:
+      if (panel === 5) {
+        return 1;
+      }
+      break;
+    case 9:
+      if (panel === 6) {
+        return 1;
+      }
+      break;
+    case 10:
+      if (panel === 0) {
+        return 1;
+      }
+      break;
+    case 11:
+      if (panel === 2) {
+        return 1;
+      }
+      break;
+    case 12:
+      if (panel === 1) {
+        return 1;
+      }
+      break;
+    case 13:
+      if (panel === 12) {
+        return 1;
+      }
+      break;
+    case 14:
+      if (panel === 13) {
+        return 1;
+      }
+      break;
+    case 15:
+      if (panel === 7) {
+        return 1;
+      }
+      break;
+    case 17:
+      if (panel === 8) {
+        return 1;
+      }
+      break;
+    case 16:
+      if (panel === 9) {
+        return 1;
+      }
+      break;
+    case 18:
+      if (panel === 11) {
+        return 1;
+      }
+      break;
+    case 4:
+      if (useServerState(Varbits.SETTINGS_MINIMENU_FILTER_WALK) === 1) {
+        return 1;
+      }
+      break;
+    case 5:
+      if (useServerState(Varbits.SETTINGS_MINIMENU_FILTER_ENTITY) === 1) {
+        return 1;
+      }
+      break;
+    case 1:
+      return useServerState(Varbits.SETTINGS_MOBILE_TAPTODROP_ENABLED);
+    case 2:
+      return useServerState(Varps.OPTION_MOUSE);
+    case 3:
+      return useServerState(Varbits.SETTINGS_MOBILE_TILE_HIGHLIGHT_ENABLED);
+    case 25:
+      if (useServerState(Varbits.OPTION_NPC_INDICATORS_TAGGING_ENABLED) === 1) {
+        return 1;
+      }
+      break;
+    case 24:
+      return useServerState(Varbits.GROUND_ITEMS_EDIT_MODE_ENABLED_MOBILE);
+    case 20:
+    case 21:
+      return useServerState(Varbits.QUICKPRAYER_ACTIVE);
+    case 22:
+      return useServerState(Varps.OPTION_RUN);
+  }
+  return 0;
+}
+
+export function slotSelected(action: Int): Int {
+  return hotkeyOn(action);
+}
+
+export function slotBacking(
+  action: Int,
+  selected: Int,
+  poisoned: Boolean,
+  specUp: Boolean,
+  specReady: Boolean,
+): Sprite {
+  if (action === 20) {
+    if (poisoned) {
+      return HotkeyArt.SLOT_IDLE;
+    }
+    return HotkeyArt.SLOT_DISABLED;
+  }
+  if (action === 23) {
+    if (!specReady) {
+      return HotkeyArt.SLOT_DISABLED;
+    }
+    if (specUp) {
+      return HotkeyArt.SLOT_SPEC_ON;
+    }
+    return HotkeyArt.SLOT_SPEC_IDLE;
+  }
+  if (selected === 1) {
+    return HotkeyArt.SLOT_ON;
+  }
+  return HotkeyArt.SLOT_IDLE;
+}
+
+export function toggleAccordionLock(locked: Int): void {
+  predictServerState(HotkeyBits.ACCORDION_LOCKED, 1 - locked);
+}
+
+export function swapLoadout(from: Int, to: Int): void {
+  if (from < 0 || from > LOADOUT_MAX || to < 0 || to > LOADOUT_MAX) {
+    return;
+  }
+  setHotkeyAt(to, 0, hotkeyAt(from, 0));
+  setHotkeyAt(to, 1, hotkeyAt(from, 1));
+  setHotkeyAt(to, 2, hotkeyAt(from, 2));
+  setHotkeyAt(to, 3, hotkeyAt(from, 3));
+  setHotkeyAt(to, 4, hotkeyAt(from, 4));
+}
+
+export function inTutorial(tutorial: Int, tutorial2: Int): Boolean {
+  return tutorial < TUTORIAL_DONE && tutorial2 < TUTORIAL_DONE;
+}
+
+export function iconW(row: ActionsRow | null): Int {
+  if (row === null) {
+    return 1;
+  }
+  return row.iconW;
+}
+
+export function iconH(row: ActionsRow | null): Int {
+  if (row === null) {
+    return 1;
+  }
+  return row.iconH;
+}

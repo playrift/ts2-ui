@@ -1,0 +1,437 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { itemName, textLineCount } from '../lib/lib.engine';
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import { leagueToggleOn, leagueToggleValid } from '../lib/lib.magic';
+import { LeagueToggles } from '../lib/league-toggles.data';
+import { ServerScript } from '../lib/server-scripts';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { colourTag } from '../0889_nps/colour-tag';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { textPlural } from '../0512_trailblazer_areas/time.shared';
+
+import { EFFECTS_PANE, RelicFonts, RelicScrollbarY } from './league-relics.constants';
+import { RelicToggleLists, Relics, ToggleDescriptions } from './league-relics.data';
+import { refusalColourTag, relicAccent } from './league-relics.helpers';
+import {
+  detailCollapsed,
+  detailDescription,
+  detailEffectsH,
+  detailOverflow,
+  detailPassive,
+  detailPassiveFlag,
+  detailPassiveH,
+  detailRelic,
+  detailState,
+  passiveOpen,
+} from './league-relics.state';
+
+const enum Effects {
+  TEXT_COLOUR = 0xfbf7f5,
+  PANE_W = 288,
+  PASSIVE_W = 306,
+  OUTLINE = 3158064,
+  INNER = 6117448,
+  CHECK_ON = 2850,
+  CHECK_OFF = 2849,
+  CHECK_ON_HOVER = 2848,
+  CHECK_OFF_HOVER = 2847,
+  CHECK_LOCKED = 2851,
+}
+
+export function activeTextOf(relic: Int, description: String): String {
+  const accent: Int = relicAccent();
+  const row = Relics.get(relic);
+  let text: String = `${description}<br><br>`;
+  if (row !== null) {
+    if (row.item !== -1) {
+      text = `${text}${colourTag(Effects.TEXT_COLOUR, 'col')}The ${colourTag(accent, 'col')}${itemName(row.item as Item)}</col> can be retrieved from the ${colourTag(accent, 'col')}Leagues tutor</col> in Yama's lair if lost.</col>`;
+    }
+  }
+  return stringFindAndReplace(text, '<col=#>', colourTag(accent, 'col'));
+}
+
+function toggleHeight(toggle: Int): Int {
+  return textLineCount(ToggleDescriptions.at(toggle) ?? '', Effects.PANE_W - 22, RelicFonts.BODY) * 15;
+}
+
+function itemLead(relic: Int): Int {
+  const row = Relics.get(relic);
+  if (row === null) {
+    return 0;
+  }
+  if (row.item !== -1) {
+    return 37;
+  }
+  return 0;
+}
+
+function toggleLead(relic: Int): Int {
+  const row = Relics.get(relic);
+  if (row === null) {
+    return 0;
+  }
+  if (row.toggles === -1) {
+    return 0;
+  }
+  let total: Int = 25;
+  let index: Int = 0;
+  while (index < RelicToggleLists.length) {
+    const entry = RelicToggleLists.at(index);
+    if (entry !== null) {
+      if (entry.row === row.toggles) {
+        total = total + toggleHeight(entry.toggle) + 5;
+      }
+    }
+    index = index + 1;
+  }
+  return total;
+}
+
+export function effectsContentOf(relic: Int, description: String): Int {
+  const textH: Int = textLineCount(activeTextOf(relic, description), Effects.PANE_W, RelicFonts.BODY) * 15;
+  return textH + itemLead(relic) + toggleLead(relic) + 12 + 20;
+}
+
+export function effectsOverflowOf(relic: Int, description: String, room: Int): Boolean {
+  return effectsContentOf(relic, description) > room - 53;
+}
+
+function passiveRoomOf(relic: Int, description: String, room: Int): Int {
+  if (effectsOverflowOf(relic, description, room)) {
+    return 53;
+  }
+  return room - effectsContentOf(relic, description) - 8;
+}
+
+export function passiveCollapsedOf(relic: Int, description: String, passive: String, room: Int): Boolean {
+  return textLineCount(passive, Effects.PASSIVE_W, RelicFonts.BODY) * 15 > passiveRoomOf(relic, description, room) - 33;
+}
+
+export function passiveBoxHeightOf(relic: Int, description: String, passive: String, flag: Int, room: Int): Int {
+  if (flag === -1) {
+    return passiveRoomOf(relic, description, room);
+  }
+  if (passiveCollapsedOf(relic, description, passive, room)) {
+    return 53;
+  }
+  return 33 + textLineCount(passive, Effects.PASSIVE_W, RelicFonts.BODY) * 15;
+}
+
+export function detailWindowHeightOf(
+  relic: Int,
+  description: String,
+  passive: String,
+  flag: Int,
+  room: Int,
+  windowH: Int,
+): Int {
+  const effectsH: Int = effectsOverflowOf(relic, description, room)
+    ? room + 41 - 96
+    : effectsContentOf(relic, description) + 6;
+  const both: Int = effectsH + passiveBoxHeightOf(relic, description, passive, flag, room) + 2;
+  if (both > 192) {
+    return Math.min(both + 41 + 94, windowH);
+  }
+  return 320;
+}
+
+export function EffectsBox(): Component {
+  const [relic] = useState(detailRelic);
+  if (relic === -1) {
+    return null;
+  }
+  const [content] = useState(detailEffectsH);
+  const [overflow] = useState(detailOverflow);
+  return (
+    <layer x={8} y={33} w={{ fill: 148 }} h={overflow === 1 ? { fill: 96 } : content + 6}>
+      <rect x={0} y={0} w="fill" h="fill" color={Effects.OUTLINE} />
+      <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} color={Effects.INNER} />
+      <layer
+        ref={EFFECTS_PANE}
+        x={7}
+        y={2}
+        w={{ fill: 32 }}
+        h={{ fill: 4 }}
+        scrollHeight={overflow === 1 && content > 126 ? content : 0}
+        scrollY={0}
+      >
+        <ActiveEffects />
+      </layer>
+      <layer x={{ right: 2 }} y={2} w={16} h={{ fill: 4 }}>
+        <ScrollbarVertical
+          content={EFFECTS_PANE}
+          track={RelicScrollbarY.TRACK}
+          capTopSprite={RelicScrollbarY.CAP_TOP}
+          thumbSprite={RelicScrollbarY.THUMB}
+          capBottomSprite={RelicScrollbarY.CAP_BOTTOM}
+          arrowUp={RelicScrollbarY.ARROW_UP}
+          arrowDown={RelicScrollbarY.ARROW_DOWN}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function ActiveEffects(): Component {
+  const [relic] = useState(detailRelic);
+  const [description] = useState(detailDescription);
+  const [state] = useState(detailState);
+  const row = Relics.get(relic);
+  const accent: Int = relicAccent();
+  const text: String = activeTextOf(relic, description);
+  const itemH: Int = itemLead(relic);
+  const lead: Int = itemH + toggleLead(relic);
+  const textH: Int = textLineCount(text, Effects.PANE_W, RelicFonts.BODY) * 15;
+  const item: Int = row === null ? -1 : row.item;
+  const toggles: Int = row === null ? -1 : row.toggles;
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer x={0} y={0} w="fill" h="fill">
+        {item !== -1 && <ItemLine item={item as Item} accent={accent} />}
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        {toggles !== -1 && <ToggleRows list={toggles} top={itemH} state={state} />}
+      </layer>
+      <text
+        x={0}
+        y={6 + lead}
+        w="fill"
+        h={20}
+        text="Active Effects:"
+        font={RelicFonts.HEADING}
+        color={accent}
+        align="left"
+        valign="top"
+        shadow
+      />
+      <text
+        x={0}
+        y={26 + lead}
+        w="fill"
+        h={textH}
+        text={text}
+        font={RelicFonts.BODY}
+        color={Effects.TEXT_COLOUR}
+        align="left"
+        valign="top"
+        lineHeight={15}
+        shadow
+      />
+    </layer>
+  );
+}
+
+function ItemLine({ item, accent }: { item: Item; accent: Int }): Component {
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite x={0} y={5} w={36} h={32} item={item} itemCount={-1} shadowColor={0x333333} outline={1} />
+      <text
+        x={41}
+        y={5}
+        w={{ fill: 22 }}
+        h={30}
+        text={`Upon choosing this relic you will receive the ${colourTag(accent, 'col')}${itemName(item)}</col>.`}
+        font={RelicFonts.BODY}
+        color={Effects.TEXT_COLOUR}
+        align="left"
+        valign="middle"
+        lineHeight={15}
+        shadow
+      />
+    </layer>
+  );
+}
+
+function firstToggleIn(list: Int): Int {
+  let index: Int = 0;
+  while (index < RelicToggleLists.length) {
+    const entry = RelicToggleLists.at(index);
+    if (entry !== null) {
+      if (entry.row === list) {
+        return entry.toggle;
+      }
+    }
+    index = index + 1;
+  }
+  return -1;
+}
+
+function togglesIn(list: Int): Int {
+  let count: Int = 0;
+  let index: Int = 0;
+  while (index < RelicToggleLists.length) {
+    const entry = RelicToggleLists.at(index);
+    if (entry !== null) {
+      if (entry.row === list) {
+        count = count + 1;
+      }
+    }
+    index = index + 1;
+  }
+  return count;
+}
+
+function ToggleRows({ list, top, state }: { list: Int; top: Int; state: Int }): Component {
+  const accent: Int = relicAccent();
+  const count: Int = togglesIn(list);
+  const first: Int = firstToggleIn(list);
+  const second: Int = count > 1 ? first + 1 : -1;
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <text
+        x={0}
+        y={top + 5}
+        w={{ fill: 22 }}
+        h={15}
+        text={`Toggleable ${textPlural(count, 'Effect', 'Effects')}`}
+        font={RelicFonts.HEADING}
+        color={accent}
+        align="left"
+        valign="top"
+        lineHeight={15}
+        shadow
+      />
+      <ToggleRow toggle={first} top={top + 25} state={state} />
+      {second !== -1 && <ToggleRow toggle={second} top={top + 25 + toggleHeight(first) + 5} state={state} />}
+    </layer>
+  );
+}
+
+function ToggleRow({ toggle, top, state }: { toggle: Int; top: Int; state: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const height: Int = toggleHeight(toggle);
+  const on: Boolean = leagueToggleOn(toggle);
+  const unlocked: Boolean = state === 1;
+  const rest: Int = unlocked ? (on ? Effects.CHECK_ON : Effects.CHECK_OFF) : Effects.CHECK_LOCKED;
+  const hover: Int = unlocked ? (on ? Effects.CHECK_ON_HOVER : Effects.CHECK_OFF_HOVER) : Effects.CHECK_LOCKED;
+  const swap: Boolean = unlocked && !onMobile();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite x={0} y={top + height / 2 - 9 + 2} w={18} h={18} sprite={(hovered === 1 ? hover : rest) as Sprite} />
+      <text
+        x={24}
+        y={top + 2}
+        w={{ fill: 24 }}
+        h={height}
+        text={ToggleDescriptions.at(toggle) ?? ''}
+        font={RelicFonts.BODY}
+        color={Effects.TEXT_COLOUR}
+        align="left"
+        valign="top"
+        lineHeight={15}
+        shadow
+        transparency={hovered === 1 ? 70 : 0}
+      />
+      <rect
+        x={0}
+        y={top}
+        w="fill"
+        h={height}
+        fill
+        transparency={255}
+        options={['Toggle']}
+        optionSubject="<col=ff9040>Effect</col>"
+        onMouseRepeat={swap ? () => setHovered(1) : undefined}
+        onMouseLeave={swap ? () => setHovered(0) : undefined}
+        onOptionSelect={(event) => {
+          if (relicToggle(toggle, state)) {
+            CS2.if_runscript(ServerScript.LEAGUE_RELIC_TOGGLE, event.component, event.subId, toggle, 'i');
+          }
+        }}
+      />
+    </layer>
+  );
+}
+
+function relicToggle(toggle: Int, state: Int): Boolean {
+  if (state !== 1) {
+    CS2.sound_effect(2277, 1, 0);
+    CS2.message(`${refusalColourTag()}You need to have that relic unlocked in order to toggle its effects.`);
+    return false;
+  }
+  CS2.sound_effect(2266, 1, 0);
+  const row = LeagueToggles.at(toggle);
+  if (leagueToggleValid(row)) {
+    const bit: Int = row === null ? 0 : row.bit;
+    predictServerState(Varps.VARP_5514, CS2.togglebit(useServerState(Varps.VARP_5514), bit));
+  }
+  return true;
+}
+
+export function PassiveBox(): Component {
+  const [relic] = useState(detailRelic);
+  if (relic === -1) {
+    return null;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <PassiveBoxBody />
+    </layer>
+  );
+}
+
+function PassiveBoxBody(): Component {
+  const [passive] = useState(detailPassive);
+  const [flag] = useState(detailPassiveFlag);
+  const [content] = useState(detailEffectsH);
+  const [overflow] = useState(detailOverflow);
+  const [height] = useState(detailPassiveH);
+  const [collapsedCell] = useState(detailCollapsed);
+  const [hovered, setHovered] = useState(0);
+  const [, setOpen] = useState(passiveOpen);
+  const collapsed: Boolean = flag !== -1 && collapsedCell === 1;
+  const accent: Int = relicAccent();
+  return (
+    <layer x={8} y={overflow === 1 ? { bottom: 8 } : content + 41} w={{ fill: 148 }} h={height}>
+      <rect x={0} y={0} w="fill" h="fill" color={Effects.OUTLINE} />
+      <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} color={Effects.INNER} />
+      <text
+        x={7}
+        y={8}
+        w={{ fill: 14 }}
+        h={15}
+        text={flag === -1 ? '' : 'Passive Effects:'}
+        font={RelicFonts.HEADING}
+        color={accent}
+        align="left"
+        valign="top"
+        shadow
+        hide={flag === -1}
+      />
+      <text
+        x={7}
+        y={28}
+        w={{ fill: 14 }}
+        h={{ fill: 33 }}
+        text={flag === -1 ? '' : collapsed ? `${textDevice('Click', 'Tap')} to expand...` : passive}
+        font={RelicFonts.BODY}
+        color={Effects.TEXT_COLOUR}
+        align="left"
+        valign="top"
+        lineHeight={15}
+        shadow
+        hide={flag === -1}
+      />
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        fill
+        hide={!collapsed}
+        transparency={hovered === 1 ? 220 : 255}
+        options={[collapsed ? 'Expand' : '']}
+        onMouseRepeat={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
+        onOptionSelect={() => {
+          if (collapsed) {
+            CS2.sound_effect(2266, 1, 0);
+            setOpen(1);
+          }
+        }}
+      />
+    </layer>
+  );
+}

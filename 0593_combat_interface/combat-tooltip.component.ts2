@@ -1,0 +1,154 @@
+import { CS2, sessionState, useState } from 'ts2';
+
+import { onEnhancedMobile, enhancedAny } from '../0134_settings/settings.helpers';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  TooltipBox,
+  TooltipChrome,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+
+export const comboTipKind = sessionState(0);
+export const comboTipText = sessionState('');
+export const comboTipX = sessionState(0);
+export const comboTipY = sessionState(0);
+export const comboTipW = sessionState(1);
+export const comboTipH = sessionState(1);
+
+const HOST_W = 190;
+const HOST_H = 261;
+const ADD_PAD = 4;
+const ADD_LINE = 13;
+
+export function showComboTip(text: String, anchorX: Int, anchorY: Int, anchorH: Int, dwell: Int, wrap: Int): void {
+  const [, setKind] = useState(comboTipKind);
+  const [, setText] = useState(comboTipText);
+  const [, setX] = useState(comboTipX);
+  const [, setY] = useState(comboTipY);
+  const [, setW] = useState(comboTipW);
+  const [, setH] = useState(comboTipH);
+  if (CS2.string_length(text) === 0) {
+    return;
+  }
+  if (onEnhancedMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (!enhancedAny() && !tooltipDwellElapsed(dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  let measure: Int = wrap;
+  if (measure > HOST_W) {
+    measure = HOST_W;
+  }
+  measure = measure - TooltipBox.padX;
+  const w: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const h: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > HOST_W - w) {
+    x = HOST_W - w;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > HOST_H - h) {
+    y = anchorY - h - TooltipBox.nudge;
+  }
+  setKind(1);
+  setText(text);
+  setX(x);
+  setY(y);
+  setW(w);
+  setH(h);
+  tooltipRaise();
+}
+
+export function showAddTip(text: String, anchorX: Int, anchorY: Int, anchorH: Int, dwell: Int, wrap: Int): void {
+  const [, setKind] = useState(comboTipKind);
+  const [, setText] = useState(comboTipText);
+  const [, setX] = useState(comboTipX);
+  const [, setY] = useState(comboTipY);
+  const [, setW] = useState(comboTipW);
+  const [, setH] = useState(comboTipH);
+  if (onMobile()) {
+    return;
+  }
+  if (enhancedAny()) {
+    return;
+  }
+  if (!tooltipDwellElapsed(dwell)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  let measure: Int = wrap;
+  if (measure > HOST_W) {
+    measure = HOST_W;
+  }
+  measure = measure - ADD_PAD;
+  const w: Int = ADD_PAD + textWidth(text, measure, TooltipBox.font);
+  const h: Int = ADD_PAD + ADD_LINE * textLineCount(text, measure, TooltipBox.font);
+  let x: Int = anchorX + 5;
+  if (x > HOST_W - w) {
+    x = HOST_W - w;
+  }
+  let y: Int = anchorY + anchorH + 5;
+  if (y > HOST_H - h) {
+    y = anchorY - h - 5;
+  }
+  setKind(2);
+  setText(text);
+  setX(x);
+  setY(y);
+  setW(w);
+  setH(h);
+  tooltipRaise();
+}
+
+export function hideComboTip(): void {
+  tooltipHide();
+}
+
+export function ComboTooltip(): Component {
+  const [kind] = useState(comboTipKind);
+  const [text] = useState(comboTipText);
+  const [x] = useState(comboTipX);
+  const [y] = useState(comboTipY);
+  const [w] = useState(comboTipW);
+  const [h] = useState(comboTipH);
+  if (!tooltipUp() || kind === 0) {
+    return <layer x={x} y={y} w={w} h={h} />;
+  }
+  if (kind === 1) {
+    return (
+      <layer x={x} y={y} w={w} h={h}>
+        <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+      </layer>
+    );
+  }
+  return (
+    <layer x={x} y={y} w={w} h={h}>
+      <rect x={{ center: 0 }} y={{ center: 0 }} w="fill" h="fill" fill color={TooltipBox.fill} />
+      <rect x={{ center: 0 }} y={{ center: 0 }} w="fill" h="fill" color={TooltipBox.ink} />
+      <text
+        x={{ center: 0 }}
+        y={{ center: 0 }}
+        w={{ fill: ADD_PAD }}
+        h="fill"
+        text={text}
+        align="left"
+        valign="middle"
+        font={TooltipBox.font}
+        color={TooltipBox.ink}
+      />
+    </layer>
+  );
+}

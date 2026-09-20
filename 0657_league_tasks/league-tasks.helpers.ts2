@@ -1,0 +1,731 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { leagueTaskMenuBuildIsActive, leagueTaskMenuSelectedTask, leagueTasksSearchString } from '../lib/game/varcs';
+import { debugMessageAlias } from '../lib/lib.debug';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { hasBit, playSound, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { RelicThemes } from '../0655_league_relics/league-relics.data';
+import { areaSelected, regionHidden } from '../0512_trailblazer_areas/trailblazer-areas.helpers';
+import { chatDefaultRestoreInput, chatDefaultStopInput } from '../0888_number_pad/chatdefault';
+import { keyboardShow, keyboardShowString } from '../0162_chatbox/meslayer';
+import { settingsOpSound } from '../0890_ironman_setup/ironman-setup.helpers';
+
+import {
+  Filter,
+  Row,
+  TaskColour,
+  TaskFilter,
+  TaskFont,
+  TaskSound,
+  Layout,
+  areaFilterRef,
+  completedFilterRef,
+  contentRef,
+  dropdownBoxRef,
+  dropdownContainerRef,
+  filtersRef,
+  leagueTasksRef,
+  pactFilterRef,
+  skillFilterRef,
+  tierFilterRef,
+  typeFilterRef,
+  universeRef,
+} from './league-tasks.constants';
+import {
+  LeagueAreaFilter,
+  LeagueAreaFilterArea,
+  LeagueCompletedFilter,
+  LeagueFilterEntries,
+  LeagueFilterEntry,
+  LeaguePactFilter,
+  LeagueSkillFilter,
+  LeagueTask,
+  LeagueTierFilter,
+  LeagueTierIcons,
+  LeagueTierIconsPact,
+  LeagueTierPoints,
+  LeagueTypeFilter,
+} from './league-tasks.data';
+import { hideKeyboard } from './league-tasks.keyboard';
+import { dropdownOpenTick, openFilter } from './league-tasks.state';
+
+export function taskLeague(): Int {
+  return useServerState(Varbits.LEAGUE_TYPE);
+}
+
+export function taskLeagueKnown(): Boolean {
+  const theme = RelicThemes.get(taskLeague());
+  if (theme === null) {
+    return false;
+  }
+  return true;
+}
+
+export function taskAccent(): Int {
+  const theme = RelicThemes.get(taskLeague());
+  if (theme === null) {
+    return TaskColour.ORANGE;
+  }
+  return theme.accent;
+}
+
+export function taskDone(index: Int): Int {
+  const bit: Int = index % 32;
+  let flags: Int = 0;
+  switch (index / 32) {
+    case 0:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_0);
+      break;
+    case 1:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_1);
+      break;
+    case 2:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_2);
+      break;
+    case 3:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_3);
+      break;
+    case 4:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_4);
+      break;
+    case 5:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_5);
+      break;
+    case 6:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_6);
+      break;
+    case 7:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_7);
+      break;
+    case 8:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_8);
+      break;
+    case 9:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_9);
+      break;
+    case 10:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_10);
+      break;
+    case 11:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_11);
+      break;
+    case 12:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_12);
+      break;
+    case 13:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_13);
+      break;
+    case 14:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_14);
+      break;
+    case 15:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_15);
+      break;
+    case 16:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_16);
+      break;
+    case 17:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_17);
+      break;
+    case 18:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_18);
+      break;
+    case 19:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_19);
+      break;
+    case 20:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_20);
+      break;
+    case 21:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_21);
+      break;
+    case 22:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_22);
+      break;
+    case 23:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_23);
+      break;
+    case 24:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_24);
+      break;
+    case 25:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_25);
+      break;
+    case 26:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_26);
+      break;
+    case 27:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_27);
+      break;
+    case 28:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_28);
+      break;
+    case 29:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_29);
+      break;
+    case 30:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_30);
+      break;
+    case 31:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_31);
+      break;
+    case 32:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_32);
+      break;
+    case 33:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_33);
+      break;
+    case 34:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_34);
+      break;
+    case 35:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_35);
+      break;
+    case 36:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_36);
+      break;
+    case 37:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_37);
+      break;
+    case 38:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_38);
+      break;
+    case 39:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_39);
+      break;
+    case 40:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_40);
+      break;
+    case 41:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_41);
+      break;
+    case 42:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_42);
+      break;
+    case 43:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_43);
+      break;
+    case 44:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_44);
+      break;
+    case 45:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_45);
+      break;
+    case 46:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_46);
+      break;
+    case 47:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_47);
+      break;
+    case 48:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_48);
+      break;
+    case 49:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_49);
+      break;
+    case 50:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_50);
+      break;
+    case 51:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_51);
+      break;
+    case 52:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_52);
+      break;
+    case 53:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_53);
+      break;
+    case 54:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_54);
+      break;
+    case 55:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_55);
+      break;
+    case 56:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_56);
+      break;
+    case 57:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_57);
+      break;
+    case 58:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_58);
+      break;
+    case 59:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_59);
+      break;
+    case 60:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_60);
+      break;
+    case 61:
+      flags = useServerState(Varps.LEAGUE_TASK_COMPLETED_61);
+      break;
+    default:
+      debugMessageAlias(`Missing plugin. Got ID ${stringOf(index)}.`);
+      return 0;
+  }
+  return hasBit(flags, bit) ? 1 : 0;
+}
+
+export function filterValue(filter: Int): Int {
+  switch (filter) {
+    case TaskFilter.TIER:
+      return useServerState(Varbits.LEAGUE_TASK_FILTER_TIER);
+    case TaskFilter.COMPLETED:
+      return useServerState(Varbits.LEAGUE_TASK_FILTER_COMPLETED);
+    case TaskFilter.TYPE:
+      return useServerState(Varbits.LEAGUE_TASK_FILTER_TYPE);
+    case TaskFilter.SKILL:
+      return useServerState(Varbits.LEAGUE_TASK_FILTER_SKILL);
+    case TaskFilter.AREA:
+      return useServerState(Varbits.LEAGUE_TASK_FILTER_AREA);
+    case TaskFilter.PACT:
+      return useServerState(Varbits.VARBIT_20357);
+    default:
+      return 0;
+  }
+}
+
+export function setFilterValue(filter: Int, value: Int): void {
+  switch (filter) {
+    case TaskFilter.TIER:
+      predictServerState(Varbits.LEAGUE_TASK_FILTER_TIER, value);
+      break;
+    case TaskFilter.COMPLETED:
+      predictServerState(Varbits.LEAGUE_TASK_FILTER_COMPLETED, value);
+      break;
+    case TaskFilter.TYPE:
+      predictServerState(Varbits.LEAGUE_TASK_FILTER_TYPE, value);
+      break;
+    case TaskFilter.SKILL:
+      predictServerState(Varbits.LEAGUE_TASK_FILTER_SKILL, value);
+      break;
+    case TaskFilter.AREA:
+      predictServerState(Varbits.LEAGUE_TASK_FILTER_AREA, value);
+      break;
+    case TaskFilter.PACT:
+      predictServerState(Varbits.VARBIT_20357, value);
+      break;
+    default:
+      break;
+  }
+}
+
+export function filterLabel(filter: Int, key: Int): String {
+  switch (filter) {
+    case TaskFilter.TYPE:
+      return LeagueTypeFilter.get(key) ?? '';
+    case TaskFilter.AREA:
+      return LeagueAreaFilter.get(key) ?? '';
+    case TaskFilter.SKILL:
+      return LeagueSkillFilter.get(key) ?? '';
+    case TaskFilter.COMPLETED:
+      return LeagueCompletedFilter.get(key) ?? '';
+    case TaskFilter.PACT:
+      return LeaguePactFilter.get(key) ?? '';
+    default:
+      return LeagueTierFilter.get(key) ?? '';
+  }
+}
+
+export function filterCaption(filter: Int): String {
+  return `${filterLabel(filter, -1)}:`;
+}
+
+export function filterEntryDrawn(entry: LeagueFilterEntry): Boolean {
+  if (entry.filter !== TaskFilter.AREA) {
+    return true;
+  }
+  return regionHidden(entry.area) === false;
+}
+
+export function withoutSpaces(text: String): String {
+  let out: String = '';
+  let i: Int = 0;
+  while (i < text.length) {
+    const piece: String = text.substring(i, i + 1);
+    if (piece.startsWith(' ')) {
+      i = i + 1;
+    } else {
+      out = `${out}${piece}`;
+      i = i + 1;
+    }
+  }
+  return out;
+}
+
+export function filtersActive(searchLength: Int): Boolean {
+  if (
+    useServerState(Varbits.LEAGUE_TASK_FILTER_TIER) === 0 &&
+    useServerState(Varbits.LEAGUE_TASK_FILTER_TYPE) === 0 &&
+    useServerState(Varbits.LEAGUE_TASK_FILTER_AREA) === 0 &&
+    useServerState(Varbits.VARBIT_20357) === 0 &&
+    searchLength <= 1
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function leagueTaskDisplay(task: LeagueTask, done: Int, search: String, searchLength: Int): Boolean {
+  const tier: Int = useServerState(Varbits.LEAGUE_TASK_FILTER_TIER);
+  if (tier !== 0 && tier !== task.tier) {
+    return false;
+  }
+  const type: Int = useServerState(Varbits.LEAGUE_TASK_FILTER_TYPE);
+  if (type !== 0 && type !== task.type) {
+    return false;
+  }
+  const area: Int = useServerState(Varbits.LEAGUE_TASK_FILTER_AREA);
+  if (area !== 0) {
+    const wanted: Int = LeagueAreaFilterArea.get(area) ?? -1;
+    if (wanted === 24) {
+      if (task.area !== 0 && areaSelected(task.area) === false) {
+        return false;
+      }
+    } else if (wanted !== task.area) {
+      return false;
+    }
+  }
+  const completed: Int = useServerState(Varbits.LEAGUE_TASK_FILTER_COMPLETED);
+  if (completed !== 0 && completed - 1 !== done) {
+    return false;
+  }
+  const pact: Int = useServerState(Varbits.VARBIT_20357);
+  if (pact === 1 && task.pact === false) {
+    return false;
+  }
+  if (pact === 2 && task.pactReset === false) {
+    return false;
+  }
+  if (searchLength > 1) {
+    const needle: String = search.toLowerCase();
+    if (
+      task.name.toLowerCase().includes(needle) === false &&
+      task.description.toLowerCase().includes(needle) === false
+    ) {
+      return false;
+    }
+  }
+  if (regionHidden(task.area)) {
+    return false;
+  }
+  return true;
+}
+
+export function leagueTaskShown(
+  task: LeagueTask,
+  done: Int,
+  active: Boolean,
+  search: String,
+  searchLength: Int,
+): Boolean {
+  if (task.inLeague === false) {
+    return false;
+  }
+  if (active) {
+    return leagueTaskDisplay(task, done, search, searchLength);
+  }
+  const completed: Int = useServerState(Varbits.LEAGUE_TASK_FILTER_COMPLETED);
+  if (completed !== 0 && completed - 1 !== done) {
+    return false;
+  }
+  return true;
+}
+
+export function descriptionLines(task: LeagueTask, paneWidth: Int): Int {
+  return textLineCount(`Description: ${task.description}.`, paneWidth - Row.DESCRIPTION_INSET, TaskFont.SMALL);
+}
+
+export function rowHeight(task: LeagueTask, index: Int, expanded: Int, paneWidth: Int): Int {
+  if (index === expanded) {
+    return Row.H + Row.LINE * descriptionLines(task, paneWidth) + Row.EXPAND_PAD;
+  }
+  return Row.H;
+}
+
+export function rewardText(task: LeagueTask): String {
+  const points: Int = LeagueTierPoints.get(task.tier) ?? 0;
+  const text: String = `Reward: <col=ffffff>${stringOf(points)} League Points`;
+  if (task.pact) {
+    if (task.pactReset) {
+      return `${text}, 1 Demonic Pact (40 Max) & 1 Pact reset.</col>`;
+    }
+    return `${text} & 1 Demonic Pact (40 Max).</col>`;
+  }
+  if (task.pactReset) {
+    return `${text} & 1 Pact reset.</col>`;
+  }
+  return text;
+}
+
+export function tierIcon(task: LeagueTask, league: Int): Sprite {
+  if (league === 6 && task.pact) {
+    return LeagueTierIconsPact.get(task.tier) ?? -1;
+  }
+  return LeagueTierIcons.get(task.tier) ?? -1;
+}
+
+export function leagueTaskSelect(index: Int): void {
+  const [building] = useState(leagueTaskMenuBuildIsActive);
+  if (building === 1) {
+    return;
+  }
+  playSound(TaskSound.SELECT);
+  const [selected, setSelected] = useState(leagueTaskMenuSelectedTask);
+  if (selected === index) {
+    setSelected(-1);
+  } else {
+    setSelected(index);
+  }
+}
+
+export function collapseTasks(): void {
+  const [, setSelected] = useState(leagueTaskMenuSelectedTask);
+  setSelected(-1);
+}
+
+export function leagueGeneralChanged(): void {
+  chatDefaultRestoreInput();
+  predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+  predictServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+  collapseTasks();
+}
+
+export function leagueTasksWindowInit(): void {
+  if (onMobile()) {
+    return;
+  }
+  universeRef.width = Layout.universe.desktopW;
+  universeRef.height = Layout.universe.desktopH;
+}
+
+function filterRowX(filter: Int): Int {
+  switch (filter) {
+    case TaskFilter.TYPE:
+      return typeFilterRef.x;
+    case TaskFilter.AREA:
+      return areaFilterRef.x;
+    case TaskFilter.SKILL:
+      return skillFilterRef.x;
+    case TaskFilter.COMPLETED:
+      return completedFilterRef.x;
+    case TaskFilter.PACT:
+      return pactFilterRef.x;
+    default:
+      return tierFilterRef.x;
+  }
+}
+
+function filterRowY(filter: Int): Int {
+  switch (filter) {
+    case TaskFilter.TYPE:
+      return typeFilterRef.y;
+    case TaskFilter.AREA:
+      return areaFilterRef.y;
+    case TaskFilter.SKILL:
+      return skillFilterRef.y;
+    case TaskFilter.COMPLETED:
+      return completedFilterRef.y;
+    case TaskFilter.PACT:
+      return pactFilterRef.y;
+    default:
+      return tierFilterRef.y;
+  }
+}
+
+function filterRowWidth(filter: Int): Int {
+  switch (filter) {
+    case TaskFilter.TYPE:
+      return typeFilterRef.width;
+    case TaskFilter.AREA:
+      return areaFilterRef.width;
+    case TaskFilter.SKILL:
+      return skillFilterRef.width;
+    case TaskFilter.COMPLETED:
+      return completedFilterRef.width;
+    case TaskFilter.PACT:
+      return pactFilterRef.width;
+    default:
+      return tierFilterRef.width;
+  }
+}
+
+function filterRowHeight(filter: Int): Int {
+  switch (filter) {
+    case TaskFilter.TYPE:
+      return typeFilterRef.height;
+    case TaskFilter.AREA:
+      return areaFilterRef.height;
+    case TaskFilter.SKILL:
+      return skillFilterRef.height;
+    case TaskFilter.COMPLETED:
+      return completedFilterRef.height;
+    case TaskFilter.PACT:
+      return pactFilterRef.height;
+    default:
+      return tierFilterRef.height;
+  }
+}
+
+export function dropdownEntryHeight(): Int {
+  if (onMobile()) {
+    return Filter.entry.mobileH;
+  }
+  return Filter.entry.h;
+}
+
+function drawnEntries(filter: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < LeagueFilterEntries.length) {
+    const entry: LeagueFilterEntry | null = LeagueFilterEntries.at(i);
+    if (entry !== null) {
+      if (entry.filter === filter && filterEntryDrawn(entry)) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+function filterTableSize(filter: Int): Int {
+  let count: Int = 1;
+  let i: Int = 0;
+  while (i < LeagueFilterEntries.length) {
+    const entry: LeagueFilterEntry | null = LeagueFilterEntries.at(i);
+    if (entry !== null) {
+      if (entry.filter === filter) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function leagueTaskFilterOpen(filter: Int): void {
+  predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+  playSound(TaskSound.SELECT);
+  dropdownContainerRef.hide = false;
+  const rowX: Int = filterRowX(filter) + filtersRef.x + contentRef.x + universeRef.x + leagueTasksRef.x;
+  const rowY: Int = filterRowY(filter) + filtersRef.y + contentRef.y + universeRef.y + leagueTasksRef.y;
+  const rowHeight: Int = filterRowHeight(filter);
+  const boxHeight: Int = Filter.dropdown.pad + drawnEntries(filter) * dropdownEntryHeight() + Filter.dropdown.pad;
+  let boxY: Int = rowY + rowHeight - 1;
+  if (boxY + boxHeight + Filter.dropdown.margin > dropdownContainerRef.height) {
+    boxY = rowY + rowHeight - boxHeight - Filter.dropdown.aboveNudge;
+  }
+  dropdownBoxRef.x = rowX;
+  dropdownBoxRef.y = boxY;
+  dropdownBoxRef.width = filterRowWidth(filter);
+  dropdownBoxRef.height = boxHeight;
+  const [opened, setOpened] = useState(dropdownOpenTick);
+  setOpened(opened + 1);
+  const [, setOpen] = useState(openFilter);
+  setOpen(filter);
+}
+
+export function leagueTaskFilterClose(option: Int, key: Int, filter: Int): void {
+  predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+  if (option === 1 && filter !== -1 && (key === -1 || (key >= 0 && key < filterTableSize(filter)))) {
+    playSound(TaskSound.SELECT);
+    if (key !== -1) {
+      setFilterValue(filter, key);
+    }
+    dropdownContainerRef.hide = true;
+    const [, setOpen] = useState(openFilter);
+    setOpen(-1);
+  }
+}
+
+export function leagueTaskFilterCancel(): void {
+  const [open] = useState(openFilter);
+  leagueTaskFilterClose(1, -1, open);
+}
+
+const enum SearchKey {
+  ENTER = 84,
+  BACKSPACE = 85,
+  DELETE = 101,
+}
+
+const enum SearchGate {
+  NO_TOPLEVEL = -1,
+  SETTINGS = 134,
+}
+
+export function leagueTaskSearchOp(): void {
+  settingsOpSound(1);
+  if (
+    useServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING) === 1 &&
+    useServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD) === 1
+  ) {
+    chatDefaultRestoreInput();
+    predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+    predictServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+    return;
+  }
+  chatDefaultStopInput();
+  predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 1);
+  predictServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD, 1);
+  if (onMobile()) {
+    keyboardShow(0, 25);
+  }
+}
+
+export function leagueTaskSearchKeyboard(): void {
+  const [query] = useState(leagueTasksSearchString);
+  keyboardShowString(0, 25, query);
+}
+
+export function typeIntoLeagueSearch(keyCode: Int, keyChar: Char): void {
+  if (dialogueMayAdvance(SearchGate.NO_TOPLEVEL, SearchGate.SETTINGS) === false) {
+    return;
+  }
+  if (useServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD) === 0) {
+    return;
+  }
+  if (useServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING) === 0) {
+    return;
+  }
+  const [query, setQuery] = useState(leagueTasksSearchString);
+  if (keyCode === SearchKey.DELETE) {
+    if (query.length === 0) {
+      return;
+    }
+    setQuery('');
+    collapseTasks();
+    return;
+  }
+  if (keyCode === SearchKey.ENTER) {
+    if (onMobile()) {
+      hideKeyboard();
+      return;
+    }
+    chatDefaultRestoreInput();
+    predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+    predictServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+    collapseTasks();
+    return;
+  }
+  if (keyCode === SearchKey.BACKSPACE) {
+    if (query.length > 0) {
+      setQuery(query.substring(0, query.length - 1));
+      collapseTasks();
+    }
+    return;
+  }
+  if (CS2.char_alpha_numeric_is(keyChar) === false && CS2.string_indexof_char(' -/,', keyChar) === -1) {
+    return;
+  }
+  const next: String = CS2.append_char(query, keyChar);
+  if (next.length > 25) {
+    return;
+  }
+  setQuery(next);
+  collapseTasks();
+}

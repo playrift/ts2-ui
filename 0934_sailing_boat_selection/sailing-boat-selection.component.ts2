@@ -1,0 +1,1277 @@
+import {
+  CS2,
+  intArray,
+  onMounted,
+  onUpdated,
+  resumePauseButton,
+  useOnResize,
+  useRef,
+  useServerState,
+  useState,
+  useUniverse,
+} from 'ts2';
+
+import { CrmLoadingIcon } from '../0284_membership_benefits_prompt/crm-loading-icon.component';
+import { isCargo } from '../0943_sailing_boat_cargohold/cargo-objs.data';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { itemName, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { SailingBoatTypes } from './sailing-boat-selection.data';
+import { sailingBoatSelectionExpandedInfo, sailingBoatSelectionScrollPos } from '../lib/game/varcs';
+import {
+  COINS,
+  Layout,
+  SelectionColors,
+  SelectionFonts,
+  SelectionSprites,
+  SelectionVarbits,
+} from './sailing-boat-selection.constants';
+import {
+  boatCrewOf,
+  boatDock,
+  boatHp,
+  boatMaxHp,
+  boatName,
+  boatPlayersOf,
+  boatSizeDescOf,
+  boatSpriteOf,
+  boatType,
+  brazierIndex,
+  brazierSpriteOf,
+  builtFacility,
+  cargoCapacity,
+  compactCount,
+  facilitySpriteOf,
+  facilityTypeOf,
+  hotspotCountOf,
+  cargoItem,
+  cargoTotal,
+  hasCargo,
+  highestOwnedSlot,
+  hullName,
+  locationName,
+  locationSprite,
+  panelTitle,
+  refusal,
+  Refusal,
+  refusalText,
+  refusalTitle,
+  retrievalCost,
+  rowColour,
+  sailingAvailable,
+  selectionEnabled,
+  selectionText,
+  showsBoatHealth,
+  showsCargoHold,
+  showsEmptySlots,
+  showsRecentBoat,
+  showsRetrievalCost,
+  unlockedSlots,
+} from './sailing-boat-selection.helpers';
+import {
+  boardFriend,
+  cargoSlot,
+  chooseBoat,
+  chosenSlot,
+  closeCargo,
+  closeRefusal,
+  examineCargo,
+  friendOpUsed,
+  openCargo,
+  openRefusal,
+  refusalOpen,
+  refusalTextCell,
+  refusalTitleCell,
+  toggleExpanded,
+} from './sailing-boat-selection.state';
+
+export function SailingBoatSelection(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+  const breakpoint: Int = breakpointOf(stage.width, stage.height);
+  const mainH: Int = mainHeight(breakpoint);
+  onMounted(() => publishBreakpoint(breakpoint));
+  onUpdated(() => publishBreakpoint(breakpoint));
+
+  const [chosen] = useState(chosenSlot);
+  const [cargo] = useState(cargoSlot);
+  const [refusalShown] = useState(refusalOpen);
+  const [friendUsed] = useState(friendOpUsed);
+  const [expanded] = useState(sailingBoatSelectionExpandedInfo);
+  const [scroll] = useState(sailingBoatSelectionScrollPos);
+  const list = useRef();
+
+  const friend: Boolean = useServerState(SelectionVarbits.MODE) === 3 && sailingAvailable();
+
+  const lastBoarded: Int = useServerState(SelectionVarbits.LAST_BOARDED);
+  let recentShown: Boolean = false;
+  let recentH: Int = 0;
+  if (
+    showsRecentBoat() &&
+    lastBoarded >= 1 &&
+    lastBoarded <= 5 &&
+    SailingBoatTypes.at(boatType(lastBoarded)) !== null
+  ) {
+    recentShown = true;
+    recentH = Layout.RECENT_TOP + rowSpan(expanded === lastBoarded) + Layout.RECENT_AFTER + Layout.OTHER_AFTER;
+  }
+
+  const listW: Int = Layout.MAIN_W - Layout.CONTENT_INSET_W - 14 - 20;
+  const recentW: Int = Layout.MAIN_W - Layout.CONTENT_INSET_W - 14;
+  let listH: Int = mainH - Layout.CONTENT_INSET_H - 12 - recentH - 4;
+  if (friend) {
+    listH = listH - Layout.FRIEND_INSET_H;
+  }
+
+  const kinds = intArray(6);
+  const tops = intArray(6);
+  const shades = intArray(6);
+  const highest: Int = highestOwnedSlot();
+  const emptyShown: Boolean = showsEmptySlots();
+  let y: Int = 0;
+  let counter: Int = 1;
+  let lastEmpty: Int = 0;
+  let slot: Int = 1;
+  while (slot <= 5) {
+    let drawn: Int = 0;
+    if (slot <= highest) {
+      if (lastBoarded !== slot) {
+        if (SailingBoatTypes.at(boatType(slot)) !== null) {
+          drawn = 1;
+          kinds[slot] = 1;
+          tops[slot] = y;
+          shades[slot] = counter;
+          y = y + rowSpan(expanded === slot);
+          counter = counter + 1;
+        }
+      } else {
+        drawn = 1;
+      }
+    }
+    if (drawn === 0 && emptyShown) {
+      kinds[slot] = 2;
+      tops[slot] = y;
+      shades[slot] = counter;
+      y = y + Layout.ROW_H;
+      counter = counter + 1;
+      lastEmpty = 1;
+    } else {
+      lastEmpty = 0;
+    }
+    slot = slot + 1;
+  }
+  let extent: Int = 0;
+  if (y > listH + 1) {
+    extent = y - 1;
+  }
+
+  return (
+    <>
+      <layer x="center" y="center" w={Layout.MAIN_W} h={mainH}>
+        <layer w="fill" h="fill">
+          <SteelBorder title={panelTitle()} titleColor={SelectionColors.ORANGE} flags={0} />
+        </layer>
+
+        <layer
+          x="center"
+          y={Layout.CONTENT_Y}
+          w={{ fill: Layout.CONTENT_INSET_W }}
+          h={{ fill: Layout.CONTENT_INSET_H }}
+        >
+          <layer x="center" y={0} w="fill" h={friend ? { fill: Layout.FRIEND_INSET_H } : 'fill'}>
+            <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+              {MARKER_SLOTS.map((marker) => (
+                <ChoiceMarker slot={marker} shown={markerShown(marker, kinds[marker], lastBoarded, recentShown)} />
+              ))}
+            </layer>
+
+            <layer x={7} y={{ bottom: 5 }} w={{ fill: 14 }} h={{ fill: 12 }}>
+              <layer w="fill" h="fill">
+                <RecentBoat
+                  shown={recentShown}
+                  slot={recentShown ? lastBoarded : 1}
+                  width={recentW}
+                  expanded={expanded === lastBoarded}
+                />
+              </layer>
+            </layer>
+
+            <layer x={7} y={{ bottom: 5 }} w={{ fill: 14 }} h={{ fill: 12 + recentH }}>
+              <layer x={0} y={0} w={{ fill: 16 }} h="fill">
+                <rect x="center" y="center" w="fill" h="fill" color={SelectionColors.THINBOX_OUTER} />
+                <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={SelectionColors.THINBOX_INNER} />
+              </layer>
+              <layer ref={list} x={2} y={2} w={{ fill: 20 }} h={{ fill: 4 }} scrollHeight={extent} scrollY={scroll}>
+                {ROW_SLOTS.map((row) => (
+                  <BoatRow
+                    shown={kinds[row] === 1}
+                    slot={row}
+                    top={tops[row]}
+                    counter={shades[row]}
+                    recent={0}
+                    width={listW}
+                  />
+                ))}
+                {ROW_SLOTS.map((row) => (
+                  <EmptySlotRow shown={kinds[row] === 2} slot={row} top={tops[row]} counter={shades[row]} />
+                ))}
+                {ROW_SLOTS.map((row) => (
+                  <rect
+                    x="center"
+                    y={tops[row] - 1}
+                    w={listW + 4}
+                    h={rowSpan(expanded === row) + 1}
+                    color={SelectionColors.ROW_OUTLINE}
+                    hide={kinds[row] !== 1}
+                  />
+                ))}
+                {listH > y && (
+                  <rect
+                    x="center"
+                    y={y}
+                    w="fill"
+                    h={listH - y}
+                    fill
+                    color={lastEmpty === 1 ? 0x000000 : 0xffffff}
+                    transparency={fillerAlpha(lastEmpty, counter)}
+                  />
+                )}
+              </layer>
+              <layer x={0} y={0} w={16} h="fill" right={0}>
+                <ScrollbarVertical
+                  content={list}
+                  track={SelectionSprites.SCROLL_TRACK}
+                  capTopSprite={SelectionSprites.SCROLL_CAP_TOP}
+                  thumbSprite={SelectionSprites.SCROLL_THUMB}
+                  capBottomSprite={SelectionSprites.SCROLL_CAP_BOTTOM}
+                  arrowUp={SelectionSprites.SCROLL_UP}
+                  arrowDown={SelectionSprites.SCROLL_DOWN}
+                />
+              </layer>
+            </layer>
+          </layer>
+
+          <layer
+            x="center"
+            y={{ bottom: 5 }}
+            w={160}
+            h={32}
+            hide={!friend}
+            options={friendUsed === 1 ? undefined : ["Board friend's boat"]}
+            onOptionSelect={() => boardFriend()}
+          >
+            <StoneButtonFree
+              x={0}
+              y={0}
+              w={160}
+              h={32}
+              label="Board friend's boat"
+              colour={SelectionColors.WHITE}
+              hoverColour={SelectionColors.WHITE}
+              pressed={0}
+            />
+          </layer>
+        </layer>
+
+        <layer w="fill" h="fill" hide={chosen === 0} noClickThrough>
+          <rect w="fill" h="fill" fill color={0x000000} transparency={128} />
+          <CrmLoadingIcon />
+        </layer>
+
+        <layer w="fill" h="fill" hide={cargo === 0}>
+          <CargoPanel slot={cargo} />
+        </layer>
+
+        <layer w="fill" h="fill" hide={refusalShown === 0}>
+          <RefusalPopup />
+        </layer>
+      </layer>
+
+      <layer x={0} y={0} w={1} h={1} />
+    </>
+  );
+}
+
+const MARKER_SLOTS = [0, 1, 2, 3, 4, 5] as const;
+
+const ROW_SLOTS = [1, 2, 3, 4, 5] as const;
+
+function rowSpan(open: Boolean): Int {
+  if (open) {
+    return Layout.ROW_H + Layout.ROW_GAP + 125;
+  }
+  return Layout.ROW_H + Layout.ROW_GAP;
+}
+
+function fillerAlpha(lastEmpty: Int, counter: Int): Int {
+  if (lastEmpty === 1) {
+    return counter % 2 === 1 ? 200 : 220;
+  }
+  return counter % 2 === 1 ? 230 : 245;
+}
+
+function markerShown(slot: Int, kind: Int, lastBoarded: Int, recentShown: Boolean): Boolean {
+  if (!selectionEnabled()) {
+    return false;
+  }
+  if (kind === 1) {
+    return true;
+  }
+  return recentShown && slot === lastBoarded;
+}
+
+function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > 640 && height > 480) {
+    level = 1;
+  }
+  if (width > 800 && height > 600) {
+    level = 2;
+  }
+  if (width > 1024 && height > 768) {
+    level = 3;
+  }
+  return level;
+}
+
+function mainHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Layout.MAIN_H_ONE;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return Layout.MAIN_H_WIDE;
+  }
+  return Layout.MAIN_H_BASE;
+}
+
+function publishBreakpoint(breakpoint: Int): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpoint);
+}
+
+function ChoiceMarker({ slot, shown }: { slot: Int; shown: Boolean }): Component {
+  const me = useRef();
+  const [chosen] = useState(chosenSlot);
+  const answer: Boolean = shown && chosen === slot;
+  onUpdated(() => resumeIfChosen(me, answer));
+  return shown ? <rect ref={me} x="center" y={0} w={1} h={1} transparency={255} /> : null;
+}
+
+function resumeIfChosen(marker: Ref, answer: Boolean): void {
+  if (answer) {
+    resumePauseButton(marker);
+  }
+}
+
+function RecentBoat({
+  shown,
+  slot,
+  width,
+  expanded,
+}: {
+  shown: Boolean;
+  slot: Int;
+  width: Int;
+  expanded: Boolean;
+}): Component {
+  const span: Int = rowSpan(expanded);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <text
+        x={5}
+        y={0}
+        w="fill"
+        h={Layout.RECENT_LABEL_H}
+        text="Recent Boat"
+        font={SelectionFonts.BOLD}
+        align="left"
+        valign="middle"
+        shadow
+        color={SelectionColors.ORANGE}
+      />
+      <BoatRow shown slot={slot} top={Layout.RECENT_TOP} counter={1} recent={1} width={width} />
+      <rect x={0} y={Layout.RECENT_TOP} w={width} h={span} color={SelectionColors.RECENT_OUTER} />
+      <rect x={1} y={Layout.RECENT_TOP + 1} w={width - 2} h={span - 2} color={SelectionColors.RECENT_INNER} />
+      <text
+        x={5}
+        y={Layout.RECENT_TOP + span + Layout.RECENT_AFTER}
+        w="fill"
+        h={Layout.RECENT_LABEL_H}
+        text="Other Boats"
+        font={SelectionFonts.BOLD}
+        align="left"
+        valign="middle"
+        shadow
+        color={SelectionColors.ORANGE}
+      />
+    </layer>
+  );
+}
+
+function EmptySlotRow({ shown, slot, top, counter }: { shown: Boolean; slot: Int; top: Int; counter: Int }): Component {
+  let label: String = 'Empty boat slot';
+  if (unlockedSlots() < slot) {
+    label = `Unlocks at level ${unlockLevel(slot)} Sailing`;
+  }
+  return shown ? (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={Layout.ROW_H}
+        fill
+        color={0x000000}
+        transparency={counter % 2 === 1 ? 200 : 220}
+      />
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={Layout.ROW_H}
+        text={label}
+        font={SelectionFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={SelectionColors.GREY}
+      />
+    </>
+  ) : null;
+}
+
+function unlockLevel(slot: Int): Int {
+  switch (slot) {
+    case 2:
+      return 15;
+    case 3:
+      return 50;
+    case 4:
+      return 78;
+  }
+  return 91;
+}
+
+function BoatRow({
+  shown,
+  slot,
+  top,
+  counter,
+  recent,
+  width,
+}: {
+  shown: Boolean;
+  slot: Int;
+  top: Int;
+  counter: Int;
+  recent: Int;
+  width: Int;
+}): Component {
+  const [expanded] = useState(sailingBoatSelectionExpandedInfo);
+  const [chosen] = useState(chosenSlot);
+  const [hovered, setHovered] = useState(0);
+  const type: Int = boatType(slot);
+  const open: Boolean = expanded === slot;
+  const name: String = boatName(slot);
+  const mobile: Boolean = onMobile();
+  const span: Int = rowSpan(open);
+
+  let bodyAlpha: Int = counter % 2 === 1 ? 230 : 245;
+  if (hovered === 1) {
+    bodyAlpha = 210;
+  }
+  if (chosen === slot) {
+    bodyAlpha = 180;
+  }
+
+  const location: String = `<col=ff981f>Location:</col> ${locationName(slot, 0)}`;
+  const locationW: Int = textWidth(location, width, SelectionFonts.SMALL);
+
+  return (
+    <layer x={0} y={top} w="fill" h={span} hide={!shown}>
+      <rect
+        x="center"
+        y={0}
+        w="fill"
+        h={open ? 170 : Layout.ROW_H + Layout.ROW_GAP}
+        fill
+        color={0xffffff}
+        transparency={bodyAlpha}
+        options={[open ? 'Collapse' : 'Expand']}
+        optionSubject={`<col=ff981f>${name}</col>`}
+        onOptionSelect={() => toggleExpanded(slot)}
+        onMouseEnter={() => {
+          if (!mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (!mobile) {
+            setHovered(0);
+          }
+        }}
+      />
+      <sprite x={7} y={5} w={11} h={11} sprite={open ? SelectionSprites.EXPAND_OPEN : SelectionSprites.EXPAND_CLOSED} />
+      <sprite x={10} y={(Layout.ROW_H - 35) / 2} w={35} h={35} sprite={boatSpriteOf(type)} />
+      <text
+        x={Layout.NAME_X}
+        y={3}
+        w={{ fill: Layout.NAME_X }}
+        h={Layout.ROW_H / 2}
+        text={rowLabel(slot, counter, recent, name)}
+        font={SelectionFonts.BODY}
+        align="left"
+        valign="middle"
+        shadow
+        color={rowColour(refusal(type, slot) === Refusal.NONE)}
+      />
+      <RowButton
+        enabled={selectionEnabled()}
+        slot={slot}
+        type={type}
+        top={0}
+        counter={counter}
+        recent={recent}
+        width={width}
+        name={name}
+      />
+      <text
+        x={Layout.NAME_X}
+        y={Layout.ROW_H - 27}
+        w={locationW}
+        h={Layout.ROW_H - 10}
+        text={location}
+        font={SelectionFonts.SMALL}
+        align="left"
+        valign="middle"
+        shadow
+        color={rowColour(refusal(type, slot) === Refusal.NONE)}
+      />
+      <sprite x={Layout.NAME_X + locationW + 5} y={Layout.ROW_H + 7 - 27} w={18} h={18} sprite={locationSprite(slot)} />
+      <BoatDetails shown={open} slot={slot} type={type} top={Layout.ROW_H + Layout.ROW_GAP} width={width} />
+    </layer>
+  );
+}
+
+function rowLabel(slot: Int, counter: Int, recent: Int, name: String): String {
+  const digit: String = keyDigit(counter, recent);
+  if (digit.length > 0 && recent === 0) {
+    return `${digit} - ${name}`;
+  }
+  return name;
+}
+
+function keyDigit(counter: Int, recent: Int): String {
+  if (onMobile() || counter >= 36 || !selectionEnabled() || recent === 1) {
+    return '';
+  }
+  return CS2.tostring(counter);
+}
+
+function RowButton({
+  enabled,
+  slot,
+  type,
+  top,
+  counter,
+  recent,
+  width,
+  name,
+}: {
+  enabled: Boolean;
+  slot: Int;
+  type: Int;
+  top: Int;
+  counter: Int;
+  recent: Int;
+  width: Int;
+  name: String;
+}): Component {
+  const verb: String = selectionText();
+  const reason: Int = refusal(type, slot);
+  const choosable: Boolean = reason === Refusal.NONE;
+  const colour: Int = rowColour(choosable);
+  const coin: Boolean = showsRetrievalCost();
+  const mobile: Boolean = onMobile();
+  const digit: String = keyDigit(counter, recent);
+  const keyCode: Int = recent === 1 && !mobile ? Layout.RECENT_KEYCODE : -1;
+
+  let buttonW: Int = textWidth(verb, width, SelectionFonts.BODY) + Layout.BUTTON_PAD;
+  if (recent === 1) {
+    buttonW = buttonW + Layout.BUTTON_RECENT_PAD;
+  }
+  let answers: Boolean = choosable;
+  if (coin) {
+    buttonW = buttonW + Layout.BUTTON_COIN_PAD;
+    if (boatDock(slot) === 255) {
+      answers = true;
+    }
+  }
+  const x: Int = width - (buttonW + 5);
+  const y: Int = top + (Layout.ROW_H - Layout.BUTTON_H) / 2;
+  const [hovered, setHovered] = useState(0);
+  const pressed: Int = choosable ? 0 : 1;
+  const skinPressed: Int = pressed === 1 || hovered === 1 ? 1 : 0;
+  let labelColour: Int = colour;
+  if (hovered === 1) {
+    labelColour = SelectionColors.WHITE;
+  }
+
+  return enabled ? (
+    <>
+      <NineSlice x={x} y={y} w={buttonW} h={Layout.BUTTON_H} pressed={skinPressed} />
+      {coin && (
+        <sprite
+          x={x + buttonW - 25}
+          y={y + (Layout.BUTTON_H - 42) / 2}
+          w={35}
+          h={35}
+          outline={1}
+          shadowColor={0x333333}
+          item={COINS}
+          itemCount={-1}
+        />
+      )}
+      <text
+        x={coin ? x + 12 : x + Layout.BUTTON_TEXT_INSET}
+        y={coin ? y + 1 : y + Layout.BUTTON_TEXT_INSET}
+        w={coin ? buttonW : buttonW - 6}
+        h={coin ? Layout.BUTTON_H : Layout.BUTTON_H - 6}
+        text={coin ? compactCount(retrievalCost(type, slot), 100000, 1000000, ',') : verb}
+        font={SelectionFonts.BODY}
+        shadow
+        color={labelColour}
+        align={coin ? 'left' : 'center'}
+        valign="middle"
+        lineHeight={Layout.BUTTON_LINE}
+        options={[verb]}
+        optionSubject={`<col=ff981f>${name}</col>`}
+        noClickThrough
+        onMouseEnter={() => {
+          if (pressed === 0 && !mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (pressed === 0 && !mobile) {
+            setHovered(0);
+          }
+        }}
+        onOptionSelect={() => {
+          if (answers) {
+            chooseBoat(slot);
+          } else {
+            openRefusal(refusalTitle(reason), refusalText(reason, type, slot, verb.toLowerCase()));
+          }
+        }}
+        onKey={(event) => {
+          if (mobile) {
+            return;
+          }
+          const [popup] = useState(refusalOpen);
+          const [veil] = useState(chosenSlot);
+          if (popup !== 0 || veil !== 0) {
+            return;
+          }
+          if (dialogueMayAdvance(SelectionGate.THIS_PANEL, SelectionGate.NO_SUB) === false) {
+            return;
+          }
+          if (event.keyChar === -1) {
+            return;
+          }
+          let hit: Boolean = false;
+          if (CS2.string_indexof_char(digit, event.keyChar) !== -1) {
+            hit = true;
+          }
+          if (keyCode !== -1 && event.keyCode === keyCode) {
+            hit = true;
+          }
+          if (!hit) {
+            return;
+          }
+          if (answers) {
+            chooseBoat(slot);
+          } else {
+            openRefusal(refusalTitle(reason), refusalText(reason, type, slot, verb.toLowerCase()));
+          }
+        }}
+      />
+    </>
+  ) : null;
+}
+
+enum SelectionGate {
+  THIS_PANEL = 934,
+  NO_SUB = -1,
+}
+
+function NineSlice({ x, y, w, h, pressed }: { x: Int; y: Int; w: Int; h: Int; pressed: Int }): Component {
+  const r: Int = x + w - 9;
+  const b: Int = y + h - 9;
+  if (pressed === 1) {
+    return (
+      <>
+        <sprite x={x} y={y} w={w} h={h} sprite={SelectionSprites.BACKING_DARK} tiling />
+        <sprite x={x} y={y} w={9} h={9} sprite={SelectionSprites.PRESSED_0} tiling />
+        <sprite x={r} y={y} w={9} h={9} sprite={SelectionSprites.PRESSED_1} tiling />
+        <sprite x={x} y={b} w={9} h={9} sprite={SelectionSprites.PRESSED_2} tiling />
+        <sprite x={r} y={b} w={9} h={9} sprite={SelectionSprites.PRESSED_3} tiling />
+        <sprite x={x} y={y + 9} w={9} h={h - 18} sprite={SelectionSprites.PRESSED_4} tiling />
+        <sprite x={x + 9} y={y} w={w - 18} h={9} sprite={SelectionSprites.PRESSED_5} tiling />
+        <sprite x={r} y={y + 9} w={9} h={h - 18} sprite={SelectionSprites.PRESSED_6} tiling />
+        <sprite x={x + 9} y={b} w={w - 18} h={9} sprite={SelectionSprites.PRESSED_7} tiling />
+      </>
+    );
+  }
+  return (
+    <>
+      <sprite x={x} y={y} w={w} h={h} sprite={SelectionSprites.BACKING} tiling />
+      <sprite x={x} y={y} w={9} h={9} sprite={SelectionSprites.RAISED_0} tiling />
+      <sprite x={r} y={y} w={9} h={9} sprite={SelectionSprites.RAISED_1} tiling />
+      <sprite x={x} y={b} w={9} h={9} sprite={SelectionSprites.RAISED_2} tiling />
+      <sprite x={r} y={b} w={9} h={9} sprite={SelectionSprites.RAISED_3} tiling />
+      <sprite x={x} y={y + 9} w={9} h={h - 18} sprite={SelectionSprites.RAISED_4} tiling />
+      <sprite x={x + 9} y={y} w={w - 18} h={9} sprite={SelectionSprites.RAISED_5} tiling />
+      <sprite x={r} y={y + 9} w={9} h={h - 18} sprite={SelectionSprites.RAISED_6} tiling />
+      <sprite x={x + 9} y={b} w={w - 18} h={9} sprite={SelectionSprites.RAISED_7} tiling />
+    </>
+  );
+}
+
+function StoneButtonFree({
+  x,
+  y,
+  w,
+  h,
+  label,
+  colour,
+  hoverColour,
+  pressed,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  label: String;
+  colour: Int;
+  hoverColour: Int;
+  pressed: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  let labelColour: Int = colour;
+  if (hovered === 1 && !mobile) {
+    labelColour = hoverColour;
+  }
+  return (
+    <>
+      <NineSlice x={x} y={y} w={w} h={h} pressed={pressed === 1 || hovered === 1 ? 1 : 0} />
+      <text
+        x={x + Layout.BUTTON_TEXT_INSET}
+        y={y + Layout.BUTTON_TEXT_INSET}
+        w={w - 6}
+        h={h - 6}
+        text={label}
+        font={SelectionFonts.BODY}
+        shadow
+        color={labelColour}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.BUTTON_LINE}
+        onMouseEnter={() => {
+          if (pressed === 0) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (pressed === 0) {
+            setHovered(0);
+          }
+        }}
+      />
+    </>
+  );
+}
+
+function BoatDetails({
+  shown,
+  slot,
+  type,
+  top,
+  width,
+}: {
+  shown: Boolean;
+  slot: Int;
+  type: Int;
+  top: Int;
+  width: Int;
+}): Component {
+  const start: Int = Layout.DETAIL_GAP;
+  const step: Int = Layout.DETAIL_LINE + Layout.DETAIL_GAP;
+  const size: String = `Boat Size: <col=ffffff>${boatSizeDescOf(type)}`;
+  const crew: String = `Crew Capacity: <col=ffffff>${boatCrewOf(type)} <col=ff981f>Player Capacity: <col=ffffff>${boatPlayersOf(type)}`;
+  const hull: String = `Hull type: <col=ffffff>${hullName(type, slot)}`;
+  const hp: Int = boatHp(slot);
+  const maxHp: Int = boatMaxHp(slot);
+  const hpShown: Boolean = showsBoatHealth() && hp > 0 && maxHp > 0;
+  let cargoY: Int = start;
+  if (hpShown) {
+    cargoY = cargoY + Layout.HP_H + 5;
+  }
+  const full: Boolean = hasCargo(slot);
+  return (
+    <layer x={0} y={top} w="fill" h={125} hide={!shown}>
+      <DetailLine y={start} text={size} width={width} />
+      <DetailLine y={start + step} text={crew} width={width} />
+      <DetailLine y={start + step * 2} text={hull} width={width} />
+      <FacilityLine
+        slot={slot}
+        type={type}
+        y={start + step * 3}
+        facilityType={5}
+        label="Combat Facilities: "
+        width={width}
+      />
+      <FacilityLine
+        slot={slot}
+        type={type}
+        y={start + step * 4}
+        facilityType={6}
+        label="Skilling Facilities: "
+        width={width}
+      />
+      <FacilityLine
+        slot={slot}
+        type={type}
+        y={start + step * 5}
+        facilityType={0}
+        label="Misc Facilities: "
+        width={width}
+      />
+      <HpBar shown={hpShown} x={width - (Layout.HP_W + 5)} y={start} hp={hp} max={maxHp} />
+      <CargoButton
+        shown={showsCargoHold()}
+        slot={slot}
+        x={width - (Layout.CARGO_BUTTON_W + 5)}
+        y={cargoY + 5}
+        full={full}
+      />
+    </layer>
+  );
+}
+
+function DetailLine({ y, text, width }: { y: Int; text: String; width: Int }): Component {
+  return (
+    <text
+      x={5}
+      y={y}
+      w={textWidth(text, width, SelectionFonts.SMALL)}
+      h={Layout.DETAIL_LINE}
+      text={text}
+      font={SelectionFonts.SMALL}
+      align="left"
+      valign="top"
+      shadow
+      color={SelectionColors.ORANGE}
+    />
+  );
+}
+
+function FacilityLine({
+  slot,
+  type,
+  y,
+  facilityType,
+  label,
+  width,
+}: {
+  slot: Int;
+  type: Int;
+  y: Int;
+  facilityType: Int;
+  label: String;
+  width: Int;
+}): Component {
+  const labelW: Int = textWidth(label, width, SelectionFonts.SMALL);
+  const icons = intArray(14);
+  let count: Int = 0;
+  let hotspot: Int = 0;
+  const hotspots: Int = hotspotCountOf(type);
+  while (hotspot < hotspots) {
+    const built: Int = builtFacility(type, slot, hotspot);
+    if (built !== -1) {
+      if (facilityTypeOf(built) === facilityType) {
+        icons[count] = built;
+        count = count + 1;
+      }
+    }
+    hotspot = hotspot + 1;
+  }
+  let brazier: Int = -1;
+  if (facilityType === 0) {
+    brazier = brazierIndex(type, slot);
+  }
+  let drawn: Int = count;
+  if (brazier !== -1) {
+    drawn = drawn + 1;
+  }
+  return (
+    <>
+      <text
+        x={5}
+        y={y}
+        w={labelW}
+        h={Layout.DETAIL_LINE}
+        text={drawn < 1 ? `${label} <col=ffffff>None` : label}
+        font={SelectionFonts.SMALL}
+        align="left"
+        valign="middle"
+        shadow
+        color={SelectionColors.ORANGE}
+      />
+      {ICON_SLOTS.map(
+        (i) =>
+          i < count && (
+            <sprite
+              x={5 + labelW + i * Layout.FACILITY_STEP}
+              y={y - 2}
+              w={Layout.FACILITY_ICON}
+              h={Layout.FACILITY_ICON}
+              sprite={facilitySpriteOf(icons[i])}
+              noClickThrough
+            />
+          ),
+      )}
+      {brazier !== -1 && (
+        <sprite
+          x={5 + labelW + count * Layout.FACILITY_STEP}
+          y={y - 2}
+          w={Layout.FACILITY_ICON}
+          h={Layout.FACILITY_ICON}
+          sprite={brazierSpriteOf(brazier)}
+          noClickThrough
+        />
+      )}
+    </>
+  );
+}
+
+const ICON_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] as const;
+
+function HpBar({ shown, x, y, hp, max }: { shown: Boolean; x: Int; y: Int; hp: Int; max: Int }): Component {
+  const r: Int = x + Layout.HP_W - 4;
+  const b: Int = y + Layout.HP_H - 4;
+  const midW: Int = Layout.HP_W - 8;
+  const midH: Int = Layout.HP_H - 8;
+  const full: Boolean = hp > 0 && hp >= max;
+  let fillW: Int = 0;
+  if (max > 0) {
+    fillW = CS2.scale(hp, max, Layout.HP_W - 4);
+  }
+  return shown ? (
+    <>
+      <sprite x={x} y={y} w={4} h={4} sprite={full ? SelectionSprites.HP_LIT_TL : SelectionSprites.HP_LIT_TL} tiling />
+      <sprite
+        x={x + 4}
+        y={y}
+        w={midW}
+        h={4}
+        sprite={full ? SelectionSprites.HP_LIT_T : SelectionSprites.HP_DARK_T}
+        tiling
+      />
+      <sprite x={r} y={y} w={4} h={4} sprite={full ? SelectionSprites.HP_LIT_TR : SelectionSprites.HP_DARK_TR} tiling />
+      <sprite x={x} y={y + 4} w={4} h={midH} sprite={SelectionSprites.HP_LIT_L} tiling />
+      <sprite
+        x={x + 4}
+        y={y + 4}
+        w={midW}
+        h={midH}
+        sprite={full ? SelectionSprites.HP_LIT_M : SelectionSprites.HP_DARK_M}
+        tiling
+      />
+      <sprite
+        x={r}
+        y={y + 4}
+        w={4}
+        h={midH}
+        sprite={full ? SelectionSprites.HP_LIT_R : SelectionSprites.HP_DARK_R}
+        tiling
+      />
+      <sprite x={x} y={b} w={4} h={4} sprite={SelectionSprites.HP_LIT_BL} tiling />
+      <sprite
+        x={x + 4}
+        y={b}
+        w={midW}
+        h={4}
+        sprite={full ? SelectionSprites.HP_LIT_B : SelectionSprites.HP_DARK_B}
+        tiling
+      />
+      <sprite x={r} y={b} w={4} h={4} sprite={full ? SelectionSprites.HP_LIT_BR : SelectionSprites.HP_DARK_BR} tiling />
+      {!full && <sprite x={x + 2} y={y} w={fillW} h={4} sprite={SelectionSprites.HP_LIT_T} tiling />}
+      {!full && <sprite x={x + 2} y={y + 4} w={fillW} h={midH} sprite={SelectionSprites.HP_LIT_M} tiling />}
+      {!full && <sprite x={x + 2} y={b} w={fillW} h={4} sprite={SelectionSprites.HP_LIT_B} tiling />}
+      <text
+        x={x}
+        y={y + 1}
+        w={Layout.HP_W}
+        h={Layout.HP_H}
+        text={`${hp}/${max}`}
+        font={SelectionFonts.SMALL}
+        shadow
+        color={SelectionColors.WHITE}
+        align="center"
+        valign="middle"
+      />
+    </>
+  ) : null;
+}
+
+function CargoButton({
+  shown,
+  slot,
+  x,
+  y,
+  full,
+}: {
+  shown: Boolean;
+  slot: Int;
+  x: Int;
+  y: Int;
+  full: Boolean;
+}): Component {
+  const colour: Int = rowColour(full);
+  return shown ? (
+    <>
+      <NineSlice x={x} y={y} w={Layout.CARGO_BUTTON_W} h={Layout.CARGO_BUTTON_H} pressed={full ? 0 : 1} />
+      <text
+        x={x + Layout.BUTTON_TEXT_INSET}
+        y={y + Layout.BUTTON_TEXT_INSET}
+        w={Layout.CARGO_BUTTON_W - 6}
+        h={Layout.CARGO_BUTTON_H - 6}
+        text="View Cargo"
+        font={SelectionFonts.BODY}
+        shadow
+        color={colour}
+        align="center"
+        valign="middle"
+        lineHeight={Layout.BUTTON_LINE}
+        options={['View']}
+        optionSubject="<col=ff981f>Cargo</col>"
+        noClickThrough
+        onOptionSelect={() => {
+          if (full) {
+            openCargo(slot);
+          } else {
+            openRefusal('No Cargo', '<col=ff981f>That boat does not have anything stored in its cargo hold.');
+          }
+        }}
+      />
+    </>
+  ) : null;
+}
+
+function RefusalPopup(): Component {
+  return (
+    <>
+      <layer w="fill" h="fill" noClickThrough options={['Close']} onOptionSelect={() => closeRefusal()}>
+        <rect w="fill" h="fill" fill color={0x000000} transparency={128} />
+      </layer>
+      <layer x="center" y="center" w={252} h={134}>
+        <RefusalTitle />
+      </layer>
+      <layer x="center" y={{ center: -2 }} w={236} h={69}>
+        <RefusalText />
+      </layer>
+      <layer x="center" y={{ center: 47 }} w={98} h={26} options={['Close']} onOptionSelect={() => closeRefusal()}>
+        <StoneButtonFree
+          x={0}
+          y={0}
+          w={98}
+          h={26}
+          label="<col=ff981f>Close"
+          colour={SelectionColors.WHITE}
+          hoverColour={SelectionColors.CLOSE_HOVER}
+          pressed={0}
+        />
+      </layer>
+    </>
+  );
+}
+
+function CargoPanel({ slot }: { slot: Int }): Component {
+  const grid = useRef();
+  const stacked: Int = useServerState(SelectionVarbits.DRAW_STACKED);
+  const items = intArray<Item>(240);
+  const counts = intArray(240);
+  let drawn: Int = 0;
+  let held: Int = 0;
+  let pass: Int = 0;
+  while (pass < 2 && slot !== 0) {
+    let index: Int = 0;
+    while (index < Layout.CARGO_SLOTS) {
+      const item: Item = cargoItem(slot, index);
+      if (item !== -1) {
+        let duplicate: Int = 0;
+        if (stacked === 1) {
+          let seen: Int = 0;
+          while (seen < drawn) {
+            if (items[seen] === item) {
+              duplicate = 1;
+            }
+            seen = seen + 1;
+          }
+        }
+        let bucket: Int = 1;
+        if (isCargo(item)) {
+          bucket = 0;
+        }
+        if (duplicate === 0 && bucket === pass) {
+          let count: Int = cargoTotal(slot, item);
+          if (CS2.item_stackable(item)) {
+            held = held + 1;
+          } else {
+            if (stacked === 0) {
+              count = 1;
+            }
+            held = held + count;
+          }
+          items[drawn] = item;
+          counts[drawn] = count;
+          drawn = drawn + 1;
+        }
+      }
+      index = index + 1;
+    }
+    pass = pass + 1;
+  }
+  let lastRowY: Int = 0;
+  if (drawn > 0) {
+    lastRowY = Layout.CARGO_TOP + ((drawn - 1) / Layout.CARGO_COLUMNS) * Layout.CARGO_STEP_Y;
+  }
+  let capacity: Int = 0;
+  let title: String = '';
+  if (slot !== 0) {
+    capacity = Math.min(cargoCapacity(slot), 240);
+    title = `${boatName(slot)}'s Cargo Hold`;
+  }
+  return (
+    <>
+      <layer w="fill" h="fill" noClickThrough options={['Close']} onOptionSelect={() => closeCargo()}>
+        <rect w="fill" h="fill" fill color={0x000000} transparency={128} />
+      </layer>
+      <layer x="center" y="center" w={{ fill: 54 }} h={252}>
+        <SteelBorder title={title} titleColor={SelectionColors.ORANGE} flags={1} />
+      </layer>
+      <layer x="center" y="center" w={{ fill: 54 }} h={252}>
+        <text
+          x={3}
+          y={6}
+          w={32}
+          h={24}
+          text={CS2.tostring(held)}
+          font={SelectionFonts.SMALL}
+          align="center"
+          valign="top"
+          shadow
+          color={SelectionColors.ORANGE}
+        />
+        <line x={13} y={17} w={12} h={0} color={SelectionColors.ORANGE} lineWidth={1} />
+        <text
+          x={3}
+          y={6}
+          w={32}
+          h={24}
+          text={CS2.tostring(capacity)}
+          font={SelectionFonts.SMALL}
+          align="center"
+          valign="bottom"
+          shadow
+          color={SelectionColors.ORANGE}
+        />
+      </layer>
+      <layer x={{ center: -8 }} y={{ center: -1 }} w={{ fill: 89 }} h={169}>
+        <rect x="center" y="center" w="fill" h="fill" color={SelectionColors.THINBOX_OUTER} />
+        <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={SelectionColors.THINBOX_INNER} />
+        <rect x={0} y={0} w="fill" h="fill" fill color={0xffffff} transparency={245} />
+      </layer>
+      <layer
+        ref={grid}
+        x={{ center: -8 }}
+        y="center"
+        w={{ fill: 95 }}
+        h={162}
+        scrollHeight={lastRowY > 162 ? lastRowY : 0}
+        scrollY={0}
+      >
+        {items.map(
+          (item, rank) =>
+            rank < drawn && (
+              <sprite
+                x={Layout.CARGO_LEFT + (rank % Layout.CARGO_COLUMNS) * Layout.CARGO_STEP_X}
+                y={Layout.CARGO_TOP + (rank / Layout.CARGO_COLUMNS) * Layout.CARGO_STEP_Y}
+                w={Layout.CARGO_CELL_W}
+                h={Layout.CARGO_CELL_H}
+                outline={1}
+                transparency={0}
+                shadowColor={0x333333}
+                item={item}
+                itemCount={counts[rank]}
+                options={['Examine']}
+                optionSubject={`<col=ff981f>${itemName(item)}</col>`}
+                onOptionSelect={() => examineCargo(itemName(item), counts[rank])}
+              />
+            ),
+        )}
+      </layer>
+      <layer x={{ right: 36 }} y={{ center: -1 }} w={16} h={169}>
+        <ScrollbarVertical
+          content={grid}
+          track={SelectionSprites.SCROLL_TRACK}
+          capTopSprite={SelectionSprites.SCROLL_CAP_TOP}
+          thumbSprite={SelectionSprites.SCROLL_THUMB}
+          capBottomSprite={SelectionSprites.SCROLL_CAP_BOTTOM}
+          arrowUp={SelectionSprites.SCROLL_UP}
+          arrowDown={SelectionSprites.SCROLL_DOWN}
+        />
+      </layer>
+      <layer x="center" y={{ center: 101 }} w={74} h={30} options={['Close']} onOptionSelect={() => closeCargo()}>
+        <StoneButtonFree
+          x={0}
+          y={0}
+          w={74}
+          h={30}
+          label="<col=ff981f>Close"
+          colour={SelectionColors.WHITE}
+          hoverColour={SelectionColors.CLOSE_HOVER}
+          pressed={0}
+        />
+      </layer>
+    </>
+  );
+}
+
+function RefusalTitle(): Component {
+  const [title] = useState(refusalTitleCell);
+  return <SteelBorder title={title} titleColor={SelectionColors.ORANGE} flags={1} />;
+}
+
+function RefusalText(): Component {
+  const [text] = useState(refusalTextCell);
+  return (
+    <text
+      x={5}
+      y={5}
+      w={{ fill: 10 }}
+      h={{ fill: 5 }}
+      text={text}
+      font={SelectionFonts.BODY}
+      align="center"
+      valign="middle"
+      shadow
+      color={SelectionColors.ORANGE}
+    />
+  );
+}

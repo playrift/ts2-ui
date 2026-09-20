@@ -1,16 +1,8 @@
-import { useDerived, useRef, useState } from 'ts2';
+import { useDerived, useState } from 'ts2';
 
 import { onMobile } from '../lib/lib.helpers';
-import { paintDropdownControl } from '../0764_pvp_arena_board_options/dropdown-control';
-import {
-  ClanWarsColor,
-  ClanWarsFonts,
-  ClanWarsSprites,
-  ClanWarsWash,
-  Layout,
-  OptionSet,
-  SmallBox,
-} from './clanwars-setup.constants';
+import { dropdownChevronSprite, dropdownChevronWash, dropdownStripWash, dropdownValueColor } from './dropdown-control';
+import { ClanWarsColor, ClanWarsFonts, ClanWarsSprites, Layout, OptionSet, SmallBox } from './clanwars-setup.constants';
 import { optionLabel, optionSetting } from './clanwars-setup.helpers';
 import { hideClanWarsTooltip, openSmallBox, openDropdown, showBoxTooltip } from './clanwars-setup.state';
 
@@ -25,10 +17,6 @@ export function SmallBoxControl({
   title: String;
   icon: Sprite;
 }): Component {
-  const strip = useRef();
-  const chevron = useRef();
-  const value = useRef();
-
   const setting: Int = useDerived(() => optionSetting(set));
   const label: String = optionLabel(set, setting);
 
@@ -37,29 +25,36 @@ export function SmallBoxControl({
   if (open === box) {
     lit = 1;
   }
+  const [hovered, setHovered] = useState(0);
+  const stripWash: Int = dropdownStripWash(lit, hovered);
+  const chevronWash: Int = dropdownChevronWash(lit, hovered);
+  const chevronSprite: Sprite = dropdownChevronSprite(lit);
+  const valueColor: Int = dropdownValueColor(lit, hovered);
 
   return (
     <layer w="fill" h="fill" onMouseRepeat={() => showBoxTooltip(box)} onMouseLeave={() => hideClanWarsTooltip()}>
       <sprite
-        ref={strip}
         x="center"
         y="bottom"
         w="fill"
         h={Layout.box.stripH}
         sprite={ClanWarsSprites.STRIP}
         tiling
-        transparency={lit === 1 ? ClanWarsWash.CLEAR : ClanWarsWash.OPAQUE}
-        onMouseEnter={() => {
-          if (lit !== 1 && !onMobile()) {
-            paintDropdownControl(strip, chevron, value, true);
-          }
+        transparency={stripWash}
+        onMouseEnter={
+          lit === 1
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  setHovered(1);
+                }
+              }
+        }
+        onMouseLeave={lit === 1 ? null : () => setHovered(0)}
+        onClick={() => {
+          openDropdown(box);
+          setHovered(0);
         }}
-        onMouseLeave={() => {
-          if (lit !== 1) {
-            paintDropdownControl(strip, chevron, value, false);
-          }
-        }}
-        onClick={() => openDropdown(box)}
       />
 
       <rect x="center" y="bottom" w="fill" h={Layout.box.stripH} fill={false} color={ClanWarsColor.EDGE} />
@@ -74,24 +69,22 @@ export function SmallBoxControl({
       />
 
       <sprite
-        ref={chevron}
         x={{ right: Layout.box.chevronRight }}
         y={{ bottom: Layout.box.chevronBottom }}
         w={Layout.box.chevron}
         h={Layout.box.chevron}
-        sprite={lit === 1 ? ClanWarsSprites.ARROW_UP : ClanWarsSprites.ARROW_DOWN}
-        transparency={ClanWarsWash.OPAQUE}
+        sprite={chevronSprite}
+        transparency={chevronWash}
       />
 
       <text
-        ref={value}
         x={Layout.box.valueX}
         y={{ bottom: Layout.box.valueBottom }}
         w={{ fill: Layout.box.valueInset }}
         h={Layout.box.valueH}
         text={label}
         font={ClanWarsFonts.VALUE}
-        color={lit === 1 ? ClanWarsColor.LABEL_HOT : ClanWarsColor.LABEL}
+        color={valueColor}
         align="center"
         valign="middle"
         shadow

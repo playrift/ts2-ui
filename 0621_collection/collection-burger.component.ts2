@@ -1,0 +1,118 @@
+import { useState } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { playSound } from '../lib/lib.engine';
+import { graphicSwapperUnlessMobile, onMobile } from '../lib/lib.helpers';
+import {
+  Build,
+  CollectionColor,
+  CollectionFonts,
+  CollectionSounds,
+  CollectionSprites,
+  Copy,
+  Layout,
+  burgerGlyphRef,
+} from './collection.constants';
+import { collectionBurgerOpen, collectionTab } from './collection.state';
+
+export function BurgerGlyph(): Component {
+  const [open] = useState(collectionBurgerOpen);
+  const [tab] = useState(collectionTab);
+  return (
+    <sprite
+      ref={burgerGlyphRef}
+      x="center"
+      y="center"
+      w={Layout.BURGER}
+      h={Layout.BURGER}
+      sprite={open === 1 ? CollectionSprites.BURGER_LIT : CollectionSprites.BURGER}
+      hide={tab === -1}
+      onMouseRepeat={(event) => graphicSwapperUnlessMobile(event.self, CollectionSprites.BURGER_LIT)}
+      onMouseLeave={(event) => graphicSwapperUnlessMobile(event.self, CollectionSprites.BURGER)}
+    />
+  );
+}
+
+export function toggleBurgerMenu(option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  const [open, setOpen] = useState(collectionBurgerOpen);
+  setOpen(open === 1 ? 0 : 1);
+}
+
+export function closeBurgerMenu(): void {
+  const [, setOpen] = useState(collectionBurgerOpen);
+  playSound(CollectionSounds.SELECT);
+  setOpen(0);
+}
+
+export function BurgerMenu(): Component {
+  const rowH: Int = (onMobile() ? Build.MENU_ROWS_H_MOBILE : Build.MENU_ROWS_H) / 2;
+  const rowW: Int = (onMobile() ? Build.MENU_W_MOBILE : Build.MENU_W) - Build.MENU_PAD;
+
+  return (
+    <>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={CollectionSprites.BACKDROP_LIGHT} />
+
+      <SteelFrame backdrop={false} />
+
+      <rect
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET}
+        w={rowW}
+        h={rowH}
+        fill
+        color={CollectionColor.WHITE}
+        transparency={Build.MENU_HIGHLIGHT}
+      />
+      <text
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET}
+        w={rowW}
+        h={rowH}
+        text={Copy.MENU_LOG}
+        font={CollectionFonts.BODY}
+        color={CollectionColor.MENU_SELECTED}
+        transparency={Build.MENU_LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        options={[Copy.MENU_LOG_OP]}
+        onOptionSelect={() => closeBurgerMenu()}
+      />
+
+      <rect
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET + rowH}
+        w={rowW}
+        h={rowH}
+        fill
+        color={CollectionColor.WHITE}
+        transparency={Build.INVISIBLE}
+      />
+      <text
+        x={Build.MENU_INSET}
+        y={Build.MENU_INSET + rowH}
+        w={rowW}
+        h={rowH}
+        text={Copy.MENU_OVERVIEW}
+        font={CollectionFonts.BODY}
+        color={CollectionColor.ORANGE}
+        align="center"
+        valign="middle"
+        shadow
+        options={[Copy.MENU_OVERVIEW_OP]}
+        onOptionSelect={() => closeBurgerMenu()}
+        onMouseEnter={(event) => hoverMenuLabel(event.self, CollectionColor.WHITE)}
+        onMouseLeave={(event) => hoverMenuLabel(event.self, CollectionColor.ORANGE)}
+      />
+    </>
+  );
+}
+
+function hoverMenuLabel(target: ComponentId, color: Int): void {
+  if (!onMobile()) {
+    target.color = color;
+  }
+}

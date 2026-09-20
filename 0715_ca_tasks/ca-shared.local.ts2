@@ -1,0 +1,580 @@
+import { predictServerState, useServerState, useState, useUniverse } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { chatDefaultSetOnKey, keyboardHide } from '../0162_chatbox/meslayer';
+import { Varbits } from '../lib/game/varbits';
+import { snapshotOpen } from '../lib/game/varcs';
+import { playSound, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { CaBurger, CaColour, CaFont, CaSound, CaSprite } from './ca-tasks.constants';
+import { CaTask, CaTaskList } from './ca-tasks.data';
+
+export function caTierStatus(tier: Int): Int {
+  switch (tier) {
+    case 1:
+      return useServerState(Varbits.CA_TIER_STATUS_EASY);
+    case 2:
+      return useServerState(Varbits.CA_TIER_STATUS_MEDIUM);
+    case 3:
+      return useServerState(Varbits.CA_TIER_STATUS_HARD);
+    case 4:
+      return useServerState(Varbits.CA_TIER_STATUS_ELITE);
+    case 5:
+      return useServerState(Varbits.CA_TIER_STATUS_MASTER);
+    case 6:
+      return useServerState(Varbits.CA_TIER_STATUS_GRANDMASTER);
+    default:
+      return -1;
+  }
+}
+
+export function caTaskIsDisabled(task: CaTask, groupSize: Int): Int {
+  if (groupSize <= 1 || groupSize > 5) {
+    return 0;
+  }
+  if (groupSize <= task.gimGroupLimit) {
+    return 1;
+  }
+  return 0;
+}
+
+export function caTasksBossTotal(monster: Int, groupSize: Int): Int {
+  if (monster === 0) {
+    return 0;
+  }
+  let total: Int = 0;
+  let i: Int = 0;
+  while (i < CaTaskList.length) {
+    const task: CaTask | null = CaTaskList.at(i);
+    if (task !== null && task.monster === monster && caTaskIsDisabled(task, groupSize) === 0) {
+      total = total + 1;
+    }
+    i = i + 1;
+  }
+  return total;
+}
+
+export function caSpecificTaskcount(monster: Int): Int {
+  switch (monster) {
+    case 1:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ABYSSALSIRE);
+    case 2:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_HYDRABOSS);
+    case 3:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_AMOXLIATL);
+    case 4:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ARAXXOR);
+    case 5:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_BARROWS);
+    case 7:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_BRYOPHYTA);
+    case 8:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CALLISTO);
+    case 9:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CERBERUS);
+    case 10:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CHAOSELE);
+    case 11:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CHAOSFANATIC);
+    case 12:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CRAZYARCHAEOLOGIST);
+    case 13:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_XERICCHAMBERS);
+    case 14:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_XERICCHAMBERS_CHALLENGE);
+    case 15:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CORP);
+    case 16:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_SARADOMIN);
+    case 17:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_GAUNTLET);
+    case 18:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_GAUNTLET_HM);
+    case 19:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_PRIME);
+    case 20:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_REX);
+    case 21:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_SUPREME);
+    case 22:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_DERANGEDARCHAEOLOGIST);
+    case 24:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_DUKESUCELLUS);
+    case 25:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_COLOSSEUM);
+    case 26:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_BANDOS);
+    case 27:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_MOLE);
+    case 28:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_GARGBOSS);
+    case 29:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_HESPORI);
+    case 30:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_HUEYCOATL);
+    case 31:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_KALPHITE);
+    case 32:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_KBD);
+    case 33:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_KRAKEN_BOSS);
+    case 34:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ARMADYL);
+    case 35:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ZAMORAK);
+    case 36:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_LEVIATHAN);
+    case 37:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_MIMIC);
+    case 38:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_PERILOUS_MOONS);
+    case 39:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_NEX);
+    case 40:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_NIGHTMARE);
+    case 41:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_PHOSANIS);
+    case 42:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_HILLGIANT_BOSS);
+    case 43:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_MUSPAH);
+    case 44:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ROYAL_TITANS);
+    case 45:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_RAT_BOSS);
+    case 46:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_SARACHNIS);
+    case 47:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_SCORPIA);
+    case 48:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_GRYPHON_BOSS);
+    case 49:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_CATA_BOSS);
+    case 50:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_TEMPOROSS);
+    case 51:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_THEATREOFBLOOD_STORY);
+    case 52:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_THEATREOFBLOOD);
+    case 53:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_THEATREOFBLOOD_HARD);
+    case 54:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_THERMY);
+    case 55:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_TOMBSOFAMASCUT_ENTRY);
+    case 56:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_TOMBSOFAMASCUT);
+    case 57:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_TOMBSOFAMASCUT_EXPERT);
+    case 58:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_TZHAARKETRAK);
+    case 59:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ZUK);
+    case 60:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_JAD);
+    case 61:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_VARDORVIS);
+    case 62:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_VENENATIS);
+    case 63:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_VETION);
+    case 64:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_VORKATH);
+    case 65:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_WHISPERER);
+    case 66:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_WINTERTODT);
+    case 67:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_YAMA);
+    case 23:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_DOM);
+    case 68:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_ZALCANO);
+    case 69:
+      return useServerState(Varbits.CA_TOTAL_TASKS_COMPLETED_SNAKEBOSS);
+    case 6:
+      return useServerState(Varbits.VARBIT_20083);
+    default:
+      return 0;
+  }
+}
+
+export const enum CaBarMode {
+  TIER = 0,
+  BOSS = 1,
+  ALL = 2,
+}
+
+export function CaTasksProgressBar({ mode, groupSize }: { mode: Int; groupSize: Int }): Component {
+  const points: Int = useServerState(Varbits.CA_POINTS);
+  const easy: Int = useServerState(Varbits.CA_THRESHOLD_EASY);
+  const medium: Int = useServerState(Varbits.CA_THRESHOLD_MEDIUM);
+  const hard: Int = useServerState(Varbits.CA_THRESHOLD_HARD);
+  const elite: Int = useServerState(Varbits.CA_THRESHOLD_ELITE);
+  const master: Int = useServerState(Varbits.CA_THRESHOLD_MASTER);
+  const grandmaster: Int = useServerState(Varbits.CA_THRESHOLD_GRANDMASTER);
+
+  let reached: Int = 0;
+  let toNext: Int = 0;
+  let found: Int = 0;
+  if (found === 0) {
+    if (points < easy) {
+      toNext = easy - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+  if (found === 0) {
+    if (points < medium) {
+      toNext = medium - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+  if (found === 0) {
+    if (points < hard) {
+      toNext = hard - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+  if (found === 0) {
+    if (points < elite) {
+      toNext = elite - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+  if (found === 0) {
+    if (points < master) {
+      toNext = master - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+  if (found === 0) {
+    if (points < grandmaster) {
+      toNext = grandmaster - points;
+      found = 1;
+    } else {
+      reached = reached + 1;
+    }
+  }
+
+  let pending: Int = 0;
+  let tier: Int = 0;
+  while (tier < 6) {
+    if (caTierStatus(tier) === 1) {
+      pending = 1;
+    }
+    tier = tier + 1;
+  }
+
+  const top: Int = Math.max(1, grandmaster);
+
+  const host = useUniverse();
+  const width: Int = host.width;
+  const inner: Int = width - 4;
+
+  let font: Font = CaFont.BODY;
+  let caption: String = '';
+  if (pending === 1) {
+    font = CaFont.BOLD;
+    if (useServerState(Varbits.WGS_HERO_PART_2_VIS) !== 0) {
+      caption = 'You have rewards to collect from Laidee Gnonock!';
+    } else {
+      caption = 'You have rewards to collect from Ghommal!';
+    }
+  } else if (reached >= 6) {
+    caption = `Total Points: ${stringOf(points)}`;
+  } else {
+    caption = `Total Points: ${stringOf(points)} - Next unlock in ${stringOf(toNext)} points`;
+  }
+
+  let fill: Int = 0;
+  let bossTotal: Int = 0;
+  let bossDone: Int = 0;
+  if (mode === CaBarMode.ALL) {
+    fill = scaled(Math.min(points, top), top, inner);
+  } else if (mode === CaBarMode.BOSS) {
+    const boss: Int = useServerState(Varbits.CA_BOSS_SELECTED);
+    bossTotal = caTasksBossTotal(boss, groupSize);
+    bossDone = caSpecificTaskcount(boss);
+    if (bossDone > bossTotal) {
+      bossDone = bossTotal;
+    }
+    fill = scaled(bossDone, Math.max(bossTotal, 1), inner);
+    if (bossTotal <= 0) {
+      caption = 'No Tasks Available';
+    } else {
+      caption = `Tasks Completed: ${stringOf(bossDone)}/${stringOf(bossTotal)}`;
+    }
+  } else if (pending === 1 || reached >= 6) {
+    fill = inner;
+  } else {
+    const lower: Int = thresholdAt(reached, easy, medium, hard, elite, master, grandmaster);
+    const upper: Int = thresholdAt(reached + 1, easy, medium, hard, elite, master, grandmaster);
+    fill = scaled(Math.max(0, points - lower), Math.max(1, upper - lower), inner);
+  }
+  if (fill > inner) {
+    fill = inner;
+  }
+
+  const hovered: Boolean = mode === CaBarMode.BOSS && bossTotal > 0;
+  const mobile: Boolean = onMobile();
+
+  const [captionLit, setCaptionLit] = useState(0);
+
+  return (
+    <>
+      {hovered ? (
+        <sprite
+          x={2}
+          y={2}
+          w={inner}
+          h={27}
+          options={['View Tasks']}
+          onOptionSelect={() => playSound(CaSound.SELECT)}
+          transparency={250}
+        />
+      ) : null}
+      <rect x={1} y={1} w={width - 2} h={29} color={CaColour.INK_INNER} />
+      <sprite x={2} y={2} w={inner} h={27} sprite={CaSprite.BAR_TRACK} tiling />
+      <sprite x={2} y={2} w={fill} h={27} sprite={CaSprite.BAR_FILL} tiling />
+      <text
+        x={0}
+        y={0}
+        w={width}
+        h="fill"
+        text={caption}
+        font={font}
+        color={captionLit === 1 ? CaColour.ORANGE : CaColour.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+        onMouseEnter={
+          hovered && !mobile
+            ? () => {
+                setCaptionLit(1);
+              }
+            : undefined
+        }
+        onMouseLeave={
+          hovered
+            ? () => {
+                setCaptionLit(0);
+              }
+            : undefined
+        }
+      />
+      <rect x={0} y={0} w={width} h={31} color={CaColour.INK_OUTER} />
+    </>
+  );
+}
+
+function thresholdAt(index: Int, easy: Int, medium: Int, hard: Int, elite: Int, master: Int, grandmaster: Int): Int {
+  switch (index) {
+    case 1:
+      return easy;
+    case 2:
+      return medium;
+    case 3:
+      return hard;
+    case 4:
+      return elite;
+    case 5:
+      return master;
+    case 6:
+      return grandmaster;
+    default:
+      return 0;
+  }
+}
+
+export const enum CaPage {
+  OVERVIEW = 0,
+  TASKS = 1,
+  REWARDS = 2,
+  BOSSES = 3,
+}
+
+const CaBurgerEntries = [
+  { label: 'Overview', op: 'View Overview', page: CaPage.OVERVIEW },
+  { label: 'Tasks', op: 'View Tasks', page: CaPage.TASKS },
+  { label: 'Bosses', op: 'View Bosses', page: CaPage.BOSSES },
+  { label: 'Rewards', op: 'View Rewards', page: CaPage.REWARDS },
+] as const;
+
+export function CaBurgerMenu({ current, mobile }: { current: Int; mobile: Boolean }): Component {
+  const [open, setOpen] = useState(0);
+  const [lit, setLit] = useState(0);
+
+  const buttonSize: Int = mobile ? CaBurger.BUTTON_SIZE_MOBILE : CaBurger.BUTTON_SIZE;
+  const buttonXY: Int = mobile ? CaBurger.BUTTON_XY_MOBILE : CaBurger.BUTTON_XY;
+  const menuW: Int = mobile ? CaBurger.MENU_W_MOBILE : CaBurger.MENU_W;
+  const menuH: Int = mobile ? CaBurger.MENU_H_MOBILE : CaBurger.MENU_H;
+  const rowH: Int = mobile ? CaBurger.ROW_H_MOBILE : CaBurger.ROW_H;
+  const rowW: Int = menuW - CaBurger.ROW_INSET;
+
+  return (
+    <>
+      <layer
+        x={buttonXY}
+        y={buttonXY}
+        w={buttonSize}
+        h={buttonSize}
+        options={['Show Menu']}
+        onOptionSelect={(event) => {
+          caBurgerSearchOff();
+          if (event.option === 1) {
+            const next: Int = open === 1 ? 0 : 1;
+            setOpen(next);
+            setLit(next);
+          }
+        }}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w={CaBurger.ICON_SIZE}
+          h={CaBurger.ICON_SIZE}
+          sprite={lit === 1 ? CaSprite.MENU_ACTIVE : CaSprite.MENU}
+          onMouseRepeat={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(1);
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(0);
+                }
+          }
+        />
+      </layer>
+
+      {open === 1 ? (
+        <layer
+          w="fill"
+          h="fill"
+          noClickThrough
+          onClick={() => {
+            caBurgerCloseEffects();
+            setOpen(0);
+            setLit(0);
+          }}
+        />
+      ) : null}
+
+      {open === 1 ? (
+        <layer x={0} y={CaBurger.MENU_Y} w={menuW} h={menuH} noClickThrough>
+          <sprite w="fill" h="fill" sprite={CaSprite.TRADEBACKING_LIGHT} />
+          <SteelFrame backdrop={false} />
+          <layer w="fill" h="fill">
+            {CaBurgerEntries.map((entry, i) => (
+              <>
+                <rect
+                  x={CaBurger.ROW_X}
+                  y={CaBurger.ROW_Y + rowH * i}
+                  w={rowW}
+                  h={rowH}
+                  color={CaColour.WHITE}
+                  fill
+                  transparency={entry.page === current ? CaBurger.WASH_CURRENT : CaBurger.WASH_HIDDEN}
+                />
+                {entry.page === current ? (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.CURRENT}
+                    align="center"
+                    valign="middle"
+                  />
+                ) : mobile ? (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.ORANGE}
+                    align="center"
+                    valign="middle"
+                    options={[entry.op]}
+                    onOptionSelect={() => {
+                      caBurgerCloseEffects();
+                      setOpen(0);
+                      setLit(0);
+                    }}
+                  />
+                ) : (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.ORANGE}
+                    align="center"
+                    valign="middle"
+                    hover={{ color: CaColour.WHITE }}
+                    options={[entry.op]}
+                    onOptionSelect={() => {
+                      caBurgerCloseEffects();
+                      setOpen(0);
+                      setLit(0);
+                    }}
+                  />
+                )}
+              </>
+            ))}
+          </layer>
+        </layer>
+      ) : null}
+    </>
+  );
+}
+
+function caBurgerSearchOff(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+    caBossDisableSearch();
+  }
+}
+
+function caBurgerCloseEffects(): void {
+  caBurgerSearchOff();
+  playSound(CaSound.SELECT);
+}
+
+export function caBossDisableSearch(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+    chatdefaultRestoreInput();
+    predictServerState(Varbits.CA_BOSSES_IS_SEARCHING, 0);
+  }
+}
+
+export function chatdefaultRestoreInput(): void {
+  chatDefaultSetOnKey(1);
+  const [, setSnapshotOpen] = useState(snapshotOpen);
+  setSnapshotOpen(0);
+  if (onMobile()) {
+    keyboardHide();
+  }
+}

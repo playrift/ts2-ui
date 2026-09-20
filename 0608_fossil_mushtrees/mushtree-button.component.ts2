@@ -1,0 +1,61 @@
+import { CS2, resumePauseButton, useInterval, useRef, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { MushtreeGate, NO_CHAR, PRESS_CYCLES } from './fossil-mushtrees.constants';
+
+export function MushtreeButton({ keys }: { keys: String }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (deadline === 0) {
+      return;
+    }
+    if (clientClock() < deadline) {
+      return;
+    }
+    setDeadline(0);
+    setPressed(0);
+  }, timerHost);
+
+  const [pressed, setPressed] = useState(0);
+  const [deadline, setDeadline] = useState(0);
+
+  return (
+    <layer
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      continueOp
+      onMouseRepeat={() => {
+        setPressed(1);
+      }}
+      onMouseLeave={() => {
+        setPressed(0);
+      }}
+      onKey={
+        deadline !== 0
+          ? null
+          : (event) => {
+              if (event.keyChar === NO_CHAR) {
+                return;
+              }
+              if (dialogueMayAdvance(MushtreeGate.FOSSIL_MUSHTREES, MushtreeGate.NO_SUB) === false) {
+                return;
+              }
+              if (CS2.string_indexof_char(keys, event.keyChar) !== -1) {
+                setPressed(1);
+                setDeadline(clientClock() + PRESS_CYCLES);
+                resumePauseButton(event.self);
+              }
+            }
+      }
+      ref={timerHost}
+    >
+      {pressed === 1 ? <StoneButtonPressed /> : <StoneButton />}
+    </layer>
+  );
+}

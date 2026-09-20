@@ -1,0 +1,337 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  CurrencyLine,
+  OmnishopShops,
+  OmnishopStock,
+  ShopCurrencySlots,
+  ShopStockSlots,
+  StockCosts,
+  StockLine,
+  StockMod,
+} from './omnishop.data';
+import { SigilStateBits } from './sigil-state-bits.data';
+
+export function shopSlotCount(shopIndex: Int, inventory: Int): Int {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return 0;
+  }
+  if (shop.stockCount > 0) {
+    return shop.stockCount;
+  }
+  if (inventory < 0) {
+    return 0;
+  }
+  return CS2.inv_size(inventory as Inventory);
+}
+
+export function stockLineAt(shopIndex: Int, slot: Int): Int {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return -1;
+  }
+  if (slot < 0 || slot >= shop.stockCount) {
+    return -1;
+  }
+  return ShopStockSlots.at(shop.stockBase + slot) ?? -1;
+}
+
+export function alternateObjApplies(line: Int): Boolean {
+  if (
+    line === StockLine.TITHE_SHOP_FARMERS_HAT ||
+    line === StockLine.TITHE_SHOP_FARMERS_TORSO ||
+    line === StockLine.TITHE_SHOP_FARMERS_LEGS ||
+    line === StockLine.TITHE_SHOP_FARMERS_FEET
+  ) {
+    const bodyType: Int = useServerState(Varbits.PLAYER_DESIGN_BODYTYPE);
+    return bodyType === 1;
+  }
+  if (line === StockLine.TITHE_SHOP_AUTOWEED_TOGGLE) {
+    const blockWeeds: Int = useServerState(Varbits.FARMING_BLOCKWEEDS);
+    return blockWeeds === 1;
+  }
+  return false;
+}
+
+export function slotObj(shopIndex: Int, inventory: Int, slot: Int): Item {
+  const line: Int = stockLineAt(shopIndex, slot);
+  if (line >= 0) {
+    const row = OmnishopStock.at(line);
+    if (row === null) {
+      return -1 as Item;
+    }
+    if (alternateObjApplies(line)) {
+      return row.alternateObj as Item;
+    }
+    return row.obj as Item;
+  }
+  if (inventory < 0) {
+    return -1 as Item;
+  }
+  return CS2.inv_item_get(inventory as Inventory, slot);
+}
+
+export function slotStockCount(shopIndex: Int, inventory: Int, slot: Int): Int {
+  if (slot < 0) {
+    return 0;
+  }
+  const line: Int = stockLineAt(shopIndex, slot);
+  if (line < 0) {
+    if (inventory < 0) {
+      return 0;
+    }
+    return CS2.inv_num_get(inventory as Inventory, slot);
+  }
+  const row = OmnishopStock.at(line);
+  const shop = OmnishopShops.at(shopIndex);
+  if (row === null || shop === null) {
+    return 0;
+  }
+  let count: Int = -1;
+  if (shop.inventory >= 0) {
+    count = CS2.inv_total(shop.inventory as Inventory, slotObj(shopIndex, inventory, slot));
+  }
+  let limit: Int = row.restricted;
+  const category: Int = row.restrictedCategory;
+  if (limit !== 0 || category !== 0 || row.maxPurchase !== 0) {
+    if (limit === 0) {
+      limit = category;
+    } else if (category !== 0 && category < limit) {
+      limit = category;
+    }
+    if (limit === 0) {
+      limit = row.maxPurchase;
+    }
+    if (count === -1) {
+      count = limit;
+    } else {
+      count = Math.min(count, limit);
+    }
+  }
+  return count;
+}
+
+export function lineHidden(line: Int, item: Item): Boolean {
+  if (line === StockLine.TITHE_SHOP_GRAPE_BLESSING) {
+    const grapes: Int = useServerState(Varbits.HOSIDIUS_EVILGRAPES);
+    if (grapes < 2) {
+      return true;
+    }
+  } else if (line === StockLine.TITHE_SHOP_AUTOWEED_TOGGLE) {
+    const blockWeeds: Int = useServerState(Varbits.FARMING_BLOCKWEEDS);
+    if (blockWeeds === 0) {
+      return true;
+    }
+  } else if (line === StockLine.TITHE_SHOP_AUTOWEED) {
+    const blockWeeds: Int = useServerState(Varbits.FARMING_BLOCKWEEDS);
+    if (blockWeeds > 0) {
+      return true;
+    }
+  } else if (line === StockLine.TITHE_SHOP_WATERING_CAN) {
+    const hasItem: Int = useServerState(Varbits.OMNISHOP_HASITEM);
+    if (hasItem === 1) {
+      return true;
+    }
+  } else if (line === StockLine.TITHE_SHOP_WATERING_CAN_RECHARGE) {
+    const hasItem: Int = useServerState(Varbits.OMNISHOP_HASITEM);
+    if (hasItem === 0) {
+      return true;
+    }
+  } else if (line === StockLine.CW_SHOP_DATA_CASTLEWARS_CRATE) {
+    if (!CS2.map_members()) {
+      return true;
+    }
+  }
+  if (deadmanLampOwned(item)) {
+    return true;
+  }
+  const sigil: Int = item.deadmanSigil ?? 0;
+  if (sigil > 0) {
+    const bit: Int = SigilStateBits.get(sigil) ?? -1;
+    if (bit !== -1) {
+      const owned: Int = useServerState(Varps.SIGIL_STATE_1);
+      if (CS2.testbit(owned, bit)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function deadmanLampOwned(item: Item): Boolean {
+  const id: Int = item as Int;
+  if (id === 28551) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_1) === 1;
+  }
+  if (id === 28552) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_2) === 1;
+  }
+  if (id === 28553) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_3) === 1;
+  }
+  if (id === 28554) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_4) === 1;
+  }
+  if (id === 33004) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_5) === 1;
+  }
+  if (id === 33005) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_6) === 1;
+  }
+  if (id === 33006) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_7) === 1;
+  }
+  if (id === 33007) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_8) === 1;
+  }
+  if (id === 33008) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_9) === 1;
+  }
+  if (id === 33009) {
+    return useServerState(Varbits.DEADMAN_QUEST_LAMP_TIER_10) === 1;
+  }
+  return false;
+}
+
+export function costOverride(line: Int, amount: Int): Int {
+  if (line === StockLine.TITHE_SHOP_AUTOWEED_TOGGLE) {
+    const blockWeeds: Int = useServerState(Varbits.FARMING_BLOCKWEEDS);
+    if (blockWeeds > 0) {
+      return 0;
+    }
+  } else if (line === StockLine.TITHE_SHOP_WATERING_CAN_RECHARGE) {
+    return 0;
+  }
+  return amount;
+}
+
+export function currencyBalance(currency: Int): Int {
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_OMNI_POINTS) {
+    return useServerState(Varps.GIANTS_FOUNDRY_REWARD_SHOP_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_BH_POINTS) {
+    return useServerState(Varps.BH_2023_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_BREW_PIECES) {
+    return useServerState(Varps.BREW_PIECES);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_DEADMAN_POINTS) {
+    return useServerState(Varps.DEADMAN_POINTS_CURRENCY);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_MIXOLOGY_AGA) {
+    return useServerState(Varps.MIXOLOGY_AGA_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_MIXOLOGY_MOX) {
+    return useServerState(Varps.MIXOLOGY_MOX_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_MIXOLOGY_LYE) {
+    return useServerState(Varps.MIXOLOGY_LYE_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_TITHE_POINTS) {
+    return useServerState(Varbits.HOSIDIUS_TITHE_REWARDPOINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_CW_PLAUDITS) {
+    return useServerState(Varps.CASTLEWARS_PLAUDITS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_ENT_TOTEMS_RESEARCH_POINTS) {
+    return useServerState(Varps.ENT_TOTEMS_RESEARCH_POINTS);
+  }
+  if (currency === CurrencyLine.OMNISHOP_CURRENCY_DEADMAN_SKULL_POINTS) {
+    return useServerState(Varps.DEADMAN_SKULL_POINTS);
+  }
+  return -1;
+}
+
+export function buyPrice(base: Int, haggle: Int, buyMod: Int, stock: Int): Int {
+  let pull: Int = Math.min(1000, Math.max(-5000, stock * haggle));
+  pull = Math.max(100, buyMod - pull);
+  let price: Int = CS2.scale(pull, 1000, base);
+  if (price < 0) {
+    price = 2000000000;
+  }
+  return Math.max(price, 1);
+}
+
+export function sellPrice(base: Int, haggle: Int, sellMod: Int, stock: Int): Int {
+  let pull: Int = Math.min(1000, Math.max(-1000, stock * haggle));
+  pull = Math.max(100, sellMod - pull);
+  const price: Int = CS2.scale(pull, 1000, base);
+  return price < 0 ? 0 : price;
+}
+
+export function slotCost(shopIndex: Int, inventory: Int, slot: Int, costIndex: Int, buying: Int): [Int, Int] {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return [-1, 0];
+  }
+  let haggle: Int = shop.costModHaggle;
+  let buyMod: Int = shop.costModBuy;
+  let sellMod: Int = shop.costModSell;
+  const line: Int = stockLineAt(shopIndex, slot);
+  let item: Item = -1 as Item;
+  if (shop.stockCount > 0) {
+    const row = OmnishopStock.at(line);
+    if (row === null) {
+      return [-1, 0];
+    }
+    if (buying === 0 && !row.sellable) {
+      return [-1, 0];
+    }
+    if (buying === 1 && !row.buyable) {
+      return [-1, 0];
+    }
+    if (row.costCount > 0) {
+      if (costIndex < row.costCount) {
+        const cost = StockCosts.at(row.costBase + costIndex);
+        if (cost === null) {
+          return [-1, 0];
+        }
+        if (row.costModHaggle !== StockMod.INHERIT) {
+          haggle = row.costModHaggle;
+        }
+        let amount: Int = 0;
+        if (buying === 1) {
+          if (row.costModBuy !== StockMod.INHERIT) {
+            buyMod = row.costModBuy;
+          }
+          amount = buyPrice(cost.amount, haggle, buyMod, 0);
+        } else {
+          if (row.costModSell !== StockMod.INHERIT) {
+            sellMod = row.costModSell;
+          }
+          amount = sellPrice(cost.amount, haggle, sellMod, 0);
+        }
+        return [cost.currency, costOverride(line, amount)];
+      }
+      return [-1, 0];
+    }
+    item = row.obj as Item;
+  } else if (inventory >= 0) {
+    item = CS2.inv_item_get(inventory as Inventory, slot);
+  }
+  if (costIndex === 0) {
+    const base: Int = shopCost(inventory, item);
+    if (buying === 1) {
+      return [shop.costCurrency, buyPrice(base, haggle, buyMod, 0)];
+    }
+    return [shop.costCurrency, sellPrice(base, haggle, sellMod, 0)];
+  }
+  return [-1, 0];
+}
+
+export function shopCost(inventory: Int, item: Item): Int {
+  return CS2.item_cost(item);
+}
+
+export function shopCurrencyAt(shopIndex: Int, index: Int): Int {
+  const shop = OmnishopShops.at(shopIndex);
+  if (shop === null) {
+    return -1;
+  }
+  if (index >= shop.currencyCount) {
+    return -1;
+  }
+  return ShopCurrencySlots.at(shop.currencyBase + index) ?? -1;
+}

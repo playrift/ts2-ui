@@ -1,0 +1,1515 @@
+import { CS2, intArray, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
+import { clientClock, playSound, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { Quest } from '../lib/lib.quests';
+import { SteelBorder } from '../lib/steel-border.component';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  crQuestsClientCachedRecommendations,
+  crQuestsUiClickedRecommendationIndex,
+  crQuestsUiExpandedStates,
+  crUiWindowHeight,
+  crUiWindowWidth,
+  crUiWindowX,
+  crUiWindowY,
+  playermember,
+} from '../lib/game/varcs';
+import { CrmLoadingIcon } from '../0284_membership_benefits_prompt/crm-loading-icon.component';
+import { Skills } from '../0320_stats/stats.constants';
+import { skillBaseLevel } from '../0320_stats/stats-levels.helpers';
+import { settingColourOrDefault } from '../0399_questlist/settings-colour';
+import {
+  QuestOverviewRow,
+  QuestOverviews,
+  QuestPrerequisites,
+  QuestStatRecommendations,
+  QuestStatRequirements,
+  QuestStatRow,
+} from '../0782_questjournal_overview/questjournal-overview.data';
+import { questName } from '../0782_questjournal_overview/questjournal-overview.helpers';
+import { colourTag } from '../0889_nps/colour-tag';
+import {
+  CrColour,
+  CrFont,
+  CrLimit,
+  CrSound,
+  CrSprite,
+  JournalLook,
+  Layout,
+  Tab,
+  journalSprite,
+  recommendationsRef,
+  universeRef,
+  windowRef,
+} from './cr-ui.constants';
+import { CrQuestRow, CrQuestRows, QuestLocationNames, SkillIcons } from './cr-ui.data';
+import {
+  crQuestsRefreshTick,
+  crQuestsSkillTransmit,
+  crQuestsToggle,
+  crQuestsVarTransmit,
+  crUiOpenEntry,
+  entryExpanded,
+  expandedOffset,
+  miscRequirementsMet,
+  questById,
+  questStatus,
+  recommendationReason,
+  requiredQuestDone,
+  serialisedLength,
+  serialisedValue,
+} from './cr-ui.helpers';
+import {
+  descriptionCursorAt,
+  descriptionPieceTop,
+  descriptionWidth,
+  detailPieceTop,
+  detailsWidth,
+  opacityToTransparency,
+  summaryPieceTop,
+} from './cr-ui.layout';
+import {
+  QuestsView,
+  crQuestsGeneration,
+  crQuestsListExtent,
+  crQuestsListPaneHeight,
+  crQuestsRefreshPressedAt,
+  crQuestsRefreshShown,
+  crQuestsTabsAll,
+  crQuestsView,
+  crUiAnchorBound,
+} from './cr-ui.state';
+import { RecommendationsScrollbar } from './recommendations-scrollbar.component';
+import { FloaterHandles, FloaterKind, floaterPlaced } from './floater';
+
+export function CrUi(): Component {
+  return (
+    <layer static ref={universeRef} x={0} y={0} w="fill" h="fill" onLoad={() => crUiOpenEntry()}>
+      <layer static ref={windowRef} x="center" y="center" w={Layout.WINDOW_W} h={Layout.WINDOW_H} noClickThrough>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <SteelBorder title="Activity Adviser" titleColor={CrColour.ORANGE} flags={3} />
+        </layer>
+        <CrCloseButton />
+        <layer
+          static
+          x="center"
+          y={{ bottom: Layout.CONTENT_BOTTOM }}
+          w={{ fill: Layout.CONTENT_INSET_W }}
+          h={{ fill: Layout.CONTENT_INSET_H }}
+        >
+          <layer static x={0} y={0} w={Layout.TABS_W} h="fill" hide />
+          <layer static x={{ right: 0 }} y={0} w="fill" h="fill">
+            <layer static x={0} y={0} w="fill" h="fill">
+              <layer static x={0} y={0} w="fill" h={Layout.HEADER_H}>
+                <layer static x={0} y={0} w="fill" h="fill">
+                  <QuestsHeader />
+                </layer>
+                <layer static x={0} y={0} w="fill" h="fill" />
+                <layer static x={0} y={0} w="fill" h="fill">
+                  <QuestsRefreshButton />
+                </layer>
+              </layer>
+              <layer
+                static
+                ref={recommendationsRef}
+                x={0}
+                y={Layout.HEADER_H}
+                w={{ fill: Layout.SCROLLBAR_W }}
+                h={{ fill: Layout.HEADER_H }}
+              >
+                <layer static x={0} y={0} w="fill" h="fill">
+                  <QuestRecommendations />
+                </layer>
+                <layer static x={0} y={0} w="fill" h="fill" />
+              </layer>
+              <layer static x={{ right: 0 }} y={Layout.HEADER_H} w={Layout.SCROLLBAR_W} h={{ fill: Layout.HEADER_H }}>
+                <QuestsScrollbar />
+              </layer>
+            </layer>
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+            <layer static x={0} y={0} w="fill" h="fill" hide />
+          </layer>
+        </layer>
+      </layer>
+      <layer static x="center" y="center" w={Layout.WINDOW_W} h={Layout.WINDOW_H} />
+      <CrUiFloater />
+    </layer>
+  );
+}
+
+const KEY_ESCAPE = 13;
+
+function CrCloseButton(): Component {
+  if (onMobile()) {
+    return (
+      <sprite
+        x={{ right: 2 }}
+        y={2}
+        w={33}
+        h={33}
+        sprite={CrSprite.CLOSE_MOBILE}
+        options={['Close', { label: '', hotkey: KEY_ESCAPE }]}
+        onMouseLeave={(event) => {
+          event.self.sprite = CrSprite.CLOSE_MOBILE;
+        }}
+        onOptionSelect={(event) => {
+          opsound(event.option, 2);
+        }}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={{ right: 7 }}
+      y={7}
+      w={26}
+      h={23}
+      sprite={CrSprite.CLOSE}
+      hover={{ sprite: CrSprite.CLOSE_HOVER }}
+      options={['Close', { label: '', hotkey: KEY_ESCAPE }]}
+      onOptionSelect={(event) => {
+        opsound(event.option, 2);
+      }}
+    />
+  );
+}
+
+function CrUiFloater(): Component {
+  const [x] = useState(crUiWindowX);
+  const [y] = useState(crUiWindowY);
+  const [w] = useState(crUiWindowWidth);
+  const [h] = useState(crUiWindowHeight);
+  const [anchorBound] = useState(crUiAnchorBound);
+  return (
+    <FloaterHandles
+      kind={FloaterKind.CR_UI}
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      anchored={anchorBound === 1}
+      hideOnMobile={false}
+    />
+  );
+}
+
+function QuestsHeader(): Component {
+  const [view] = useState(crQuestsView);
+  const [tabsAll] = useState(crQuestsTabsAll);
+  const [generation] = useState(crQuestsGeneration);
+  const listing: Boolean = view === QuestsView.LIST;
+  return (
+    <>
+      <line x={0} y={{ bottom: 2 }} w="fill" h={0} color={CrColour.RULE_LIGHT} lineWidth={1} hide={!listing} />
+      <line x={0} y={{ bottom: 1 }} w="fill" h={0} color={CrColour.RULE_DARK} lineWidth={1} hide={!listing} />
+      <HeaderTab
+        x={0}
+        label="All Quests"
+        icon={CrSprite.QUEST_ICON}
+        iconSize={18}
+        active={tabsAll === 1}
+        generation={generation}
+        listing={listing}
+      />
+      <HeaderTab
+        x={Tab.W}
+        label="Free Quests Only"
+        icon={CrSprite.FREE_STAR}
+        iconSize={16}
+        active={tabsAll !== 1}
+        generation={generation}
+        listing={listing}
+      />
+    </>
+  );
+}
+
+const TabLook = {
+  REST: 0,
+  ACTIVE: 1,
+  HOVER: 2,
+  CLICKED: 3,
+} as const;
+
+function HeaderTab({
+  x,
+  label,
+  icon,
+  iconSize,
+  active,
+  generation,
+  listing,
+}: {
+  x: Int;
+  label: String;
+  icon: Sprite;
+  iconSize: Int;
+  active: Boolean;
+  generation: Int;
+  listing: Boolean;
+}): Component {
+  const mobile: Boolean = onMobile();
+  const hit = useRef();
+  const [look, setLook] = useState(0);
+  const [clickedAt, setClickedAt] = useState(-1);
+  const [lookGeneration, setLookGeneration] = useState(-1);
+
+  const own: Int = lookGeneration === generation ? look : TabLook.REST;
+  const shown: Int = active ? TabLook.ACTIVE : own;
+  const live: Boolean = shown === TabLook.REST || shown === TabLook.HOVER;
+  const hoverable: Boolean = live && !mobile;
+  const edge: Sprite =
+    shown === TabLook.REST
+      ? CrSprite.TAB_EDGE
+      : shown === TabLook.HOVER
+        ? CrSprite.TAB_HOVER_EDGE
+        : CrSprite.TAB_ACTIVE_EDGE;
+  const middle: Sprite =
+    shown === TabLook.REST
+      ? CrSprite.TAB_MIDDLE
+      : shown === TabLook.HOVER
+        ? CrSprite.TAB_HOVER_MIDDLE
+        : CrSprite.TAB_ACTIVE_MIDDLE;
+  const colour: Int = shown === TabLook.ACTIVE ? CrColour.TAB_ACTIVE : CrColour.ORANGE;
+
+  const labelW: Int = textWidth(label, Tab.W, CrFont.SMALL);
+  const iconX: Int = x + Tab.W / 2 - (iconSize + Tab.ICON_GAP + labelW) / 2;
+
+  useInterval(() => {
+    if (own === TabLook.CLICKED && clientClock() >= clickedAt + 50 * 2) {
+      setLook(TabLook.REST);
+    }
+  }, hit);
+
+  return (
+    <>
+      <sprite x={x} y={{ bottom: Tab.BOTTOM }} w={Tab.EDGE_W} h={Tab.H} sprite={edge} hide={!listing} />
+      <sprite
+        x={x + Tab.EDGE_W}
+        y={{ bottom: Tab.BOTTOM }}
+        w={Tab.W - Tab.EDGE_W * 2}
+        h={Tab.H}
+        sprite={middle}
+        tiling
+        hide={!listing}
+      />
+      <sprite
+        x={x + Tab.W - Tab.EDGE_W}
+        y={{ bottom: Tab.BOTTOM }}
+        w={Tab.EDGE_W}
+        h={Tab.H}
+        sprite={edge}
+        hflip
+        hide={!listing}
+      />
+      <sprite
+        x={iconX}
+        y={{ bottom: (Tab.H - iconSize) / 2 + Tab.BOTTOM }}
+        w={iconSize}
+        h={iconSize}
+        sprite={icon}
+        hide={!listing}
+      />
+      <text
+        x={iconX + iconSize + Tab.ICON_GAP}
+        y={{ bottom: Tab.BOTTOM - 2 }}
+        w={labelW}
+        h={Tab.H}
+        text={label}
+        font={CrFont.SMALL}
+        color={colour}
+        shadow
+        align="left"
+        valign="middle"
+        hide={!listing}
+      />
+      <rect
+        ref={hit}
+        x={x}
+        y={{ bottom: Tab.BOTTOM }}
+        w={Tab.W}
+        h={Tab.H}
+        fill
+        color={CrColour.WHITE}
+        transparency={255}
+        hide={!listing}
+        optionSubject={`<col=ff981f>${label}</col>`}
+        options={live ? ['View'] : []}
+        onOptionSelect={
+          live
+            ? () => {
+                playSound(CrSound.SELECT);
+                setLook(TabLook.CLICKED);
+                setClickedAt(clientClock());
+                setLookGeneration(generation);
+              }
+            : undefined
+        }
+        onMouseRepeat={
+          hoverable
+            ? () => {
+                setLook(TabLook.HOVER);
+                setLookGeneration(generation);
+              }
+            : undefined
+        }
+        onMouseLeave={
+          hoverable
+            ? () => {
+                setLook(TabLook.REST);
+              }
+            : undefined
+        }
+      />
+    </>
+  );
+}
+
+function QuestsRefreshButton(): Component {
+  const [view] = useState(crQuestsView);
+  const [shown] = useState(crQuestsRefreshShown);
+  const [pressedAt, setPressedAt] = useState(crQuestsRefreshPressedAt);
+  const icon = useRef();
+  const pressed: Boolean = pressedAt >= 0;
+
+  useInterval(() => {
+    if (pressedAt >= 0 && clientClock() >= pressedAt + 50 * 4) {
+      setPressedAt(-1);
+    }
+  }, icon);
+
+  return (
+    <sprite
+      ref={icon}
+      x={{ right: 5 }}
+      y="center"
+      w={21}
+      h={21}
+      hide={view !== QuestsView.LIST || shown !== 1}
+      sprite={pressed ? CrSprite.REFRESH_PRESSED : CrSprite.REFRESH}
+      optionSubject="<col=ff981f>Quest suggestions</col>"
+      options={pressed ? [] : ['Refresh']}
+      onOptionSelect={
+        pressed
+          ? undefined
+          : () => {
+              playSound(CrSound.SELECT);
+              setPressedAt(clientClock());
+            }
+      }
+    />
+  );
+}
+
+function QuestsScrollbar(): Component {
+  const [view] = useState(crQuestsView);
+  const [extent] = useState(crQuestsListExtent);
+  const [paneHeight] = useState(crQuestsListPaneHeight);
+  return <>{view === QuestsView.LIST && <RecommendationsScrollbar extent={extent} paneHeight={paneHeight} />}</>;
+}
+
+function QuestRecommendations(): Component {
+  const [view] = useState(crQuestsView);
+  const host = useRef();
+
+  useWatch(
+    [
+      Skills.ATTACK,
+      Skills.DEFENCE,
+      Skills.STRENGTH,
+      Skills.HITPOINTS,
+      Skills.RANGED,
+      Skills.PRAYER,
+      Skills.MAGIC,
+      Skills.COOKING,
+      Skills.WOODCUTTING,
+      Skills.FLETCHING,
+      Skills.FISHING,
+      Skills.FIREMAKING,
+      Skills.CRAFTING,
+      Skills.SMITHING,
+      Skills.MINING,
+      Skills.HERBLORE,
+      Skills.AGILITY,
+      Skills.THIEVING,
+      Skills.SLAYER,
+      Skills.FARMING,
+      Skills.RUNECRAFT,
+      Skills.HUNTER,
+      Skills.CONSTRUCTION,
+      Skills.SAILING,
+    ],
+    () => crQuestsSkillTransmit(),
+    host,
+  );
+  useWatch([Varps.QP_TOTAL, Varps.QP_TOTAL2, Varps.QP_TOTAL3], () => crQuestsVarTransmit(), host);
+  useInterval(() => crQuestsRefreshTick(), host);
+
+  const [data] = useState(crQuestsClientCachedRecommendations);
+
+  return (
+    <>
+      <layer ref={host} x={0} y={0} w={1} h={1} />
+      {view === QuestsView.LOADING && <CrmLoadingIcon />}
+      <QuestList listing={view === QuestsView.LIST} data={data} />
+    </>
+  );
+}
+
+const PIECE_STRIDE = 10;
+const F_X = 0;
+const F_Y = 1;
+const F_W = 2;
+const F_H = 3;
+const F_ART = 4;
+const F_CODE = 5;
+const F_ARG = 6;
+const F_CUT = 7;
+const F_QUEST = 8;
+
+const PK_BG = 1;
+const PK_TOGGLE = 2;
+const PK_SPRITE = 3;
+const PK_TILED = 4;
+const PK_TEXT = 5;
+const PK_CTEXT = 6;
+const PK_HIT = 7;
+
+function pieceKindOf(value: Int): Int {
+  return value % 256;
+}
+
+function pieceEntryOf(value: Int): Int {
+  return (value / 256) % 256;
+}
+
+function pieceFlagOf(value: Int): Int {
+  return value / 65536;
+}
+
+const ITEM_STRIDE = 8;
+const G_REQ = 0;
+const G_REC = 1;
+const G_OTHER = 2;
+const LABEL_NONE = -1;
+
+const TC_NAME = 1;
+const TC_LABEL = 2;
+const TC_NUMBER = 3;
+const TC_QP = 4;
+const TC_QUESTS = 5;
+const TC_PLUS = 6;
+const TC_OTHER = 7;
+const TC_MORE = 8;
+const TC_REASON = 9;
+const TC_LOCATION = 10;
+const TC_MEMBERS = 11;
+const TC_JOURNAL = 12;
+const TC_NOTICE = 13;
+
+const CUT_NONE = 0;
+const CUT_ELLIPSIS = 1;
+const CUT_HEAD = 2;
+const CUT_TAIL = 3;
+
+const ENTRY_HOVER_T = 217;
+
+function QuestList({ listing, data }: { listing: Boolean; data: String }): Component {
+  const [flags] = useState(crQuestsUiExpandedStates);
+  const [clicked, setClicked] = useState(crQuestsUiClickedRecommendationIndex);
+  const [generation] = useState(crQuestsGeneration);
+  const [windowX] = useState(crUiWindowX);
+  const [windowY] = useState(crUiWindowY);
+  const [windowW] = useState(crUiWindowWidth);
+  const [windowH] = useState(crUiWindowHeight);
+  const [member] = useState(playermember);
+  const [hoveredEntry, setHoveredEntry] = useState(-1);
+  const [, setPublishedExtent] = useState(crQuestsListExtent);
+  const [, setPublishedPaneHeight] = useState(crQuestsListPaneHeight);
+  const mobile: Boolean = onMobile();
+
+  const [placedX, placedY, placedW, placedH] = floaterPlaced(FloaterKind.CR_UI, windowX, windowY, windowW, windowH);
+  const listW: Int = placedW - Layout.CONTENT_INSET_W - Layout.SCROLLBAR_W;
+  const paneH: Int = placedH - Layout.CONTENT_INSET_H - Layout.HEADER_H;
+  const summaryW: Int = descriptionWidth(listW);
+
+  const cells = intArray(CrLimit.CELLS);
+  const [declared, firstValue] = serialisedLength(data);
+  let at: Int = firstValue;
+  let parsed: Int = 0;
+  let parsing: Boolean = listing && declared > 0;
+  while (parsing && parsed < CrLimit.CELLS) {
+    const [value, next] = serialisedValue(data, at);
+    cells[parsed] = value;
+    parsed = parsed + 1;
+    at = next;
+    if (at >= data.length) {
+      parsing = false;
+    }
+  }
+  const rows: Int = listing ? cells[0] : 0;
+  const columns: Int = cells[1];
+  const readable: Boolean = rows > 0 && columns > 0;
+
+  const kinds = intArray(CrLimit.PIECES);
+  const fields = intArray(CrLimit.PIECE_CELLS);
+  const items = intArray(CrLimit.ITEM_CELLS);
+  let pc: Int = 0;
+  let listY: Int = 0;
+  let visible: Int = 0;
+  let scrollBump: Int = 0;
+  const offset: Int = expandedOffset(flags);
+
+  let r: Int = 0;
+  while (r < rows && r < CrLimit.ROWS) {
+    const rowBase: Int = 2 + columns * r;
+    const questId: Int = readable ? cells[rowBase + 1] : 0;
+    const quest: Int = questId > 0 ? questById(questId) : -1;
+    if (quest >= 0) {
+      const kind: Int = readable ? cells[rowBase] : 0;
+      const reason: Int = readable ? cells[rowBase + 2] : 0;
+      const expanded: Boolean = entryExpanded(r, flags, offset);
+      const top: Int = listY;
+      const facts: CrQuestRow | null = CrQuestRows.at(quest);
+      const members: Boolean = facts === null ? false : facts.members;
+
+      const bgPiece: Int = pc;
+      if (pc < CrLimit.PIECES) {
+        kinds[pc] = PK_BG + 256 * r;
+        fields[pc * PIECE_STRIDE + F_X] = 0;
+        fields[pc * PIECE_STRIDE + F_Y] = top;
+        fields[pc * PIECE_STRIDE + F_H] = 1;
+        fields[pc * PIECE_STRIDE + F_ART] = visible % 2 === 0 ? opacityToTransparency(10) : opacityToTransparency(4);
+        pc = pc + 1;
+      }
+      const toggleTop: Int = summaryPieceTop(top, 23);
+      if (pc < CrLimit.PIECES) {
+        kinds[pc] = PK_TOGGLE + 256 * r + 65536 * (expanded ? 1 : 0);
+        fields[pc * PIECE_STRIDE + F_X] = 2 + 2 - 5;
+        fields[pc * PIECE_STRIDE + F_Y] = toggleTop - 1;
+        fields[pc * PIECE_STRIDE + F_W] = 24;
+        fields[pc * PIECE_STRIDE + F_H] = 23;
+        pc = pc + 1;
+      }
+      let cursor: Int = 2 + 24 - 5;
+      let bottom: Int = toggleTop + 23 + 4;
+
+      const iconTop: Int = summaryPieceTop(top, 18);
+      if (pc < CrLimit.PIECES) {
+        kinds[pc] = PK_SPRITE + 256 * r;
+        fields[pc * PIECE_STRIDE + F_X] = 2 + cursor;
+        fields[pc * PIECE_STRIDE + F_Y] = iconTop;
+        fields[pc * PIECE_STRIDE + F_W] = 18;
+        fields[pc * PIECE_STRIDE + F_H] = 18;
+        fields[pc * PIECE_STRIDE + F_ART] = CrSprite.QUEST_ICON;
+        pc = pc + 1;
+      }
+      cursor = cursor + 18 + 3;
+      bottom = iconTop + 18 + 4;
+
+      const nameW: Int = textWidth(questName(quest as Quest), summaryW, CrFont.BODY);
+      const nameTop: Int = summaryPieceTop(top, 16);
+      if (pc < CrLimit.PIECES) {
+        kinds[pc] = PK_TEXT + 256 * r;
+        fields[pc * PIECE_STRIDE + F_X] = 2 + cursor;
+        fields[pc * PIECE_STRIDE + F_Y] = nameTop;
+        fields[pc * PIECE_STRIDE + F_W] = nameW;
+        fields[pc * PIECE_STRIDE + F_H] = 16;
+        fields[pc * PIECE_STRIDE + F_ART] =
+          kind === 2
+            ? settingColourOrDefault(227)
+            : questStatus(quest) === 0
+              ? settingColourOrDefault(225)
+              : CrColour.ORANGE;
+        fields[pc * PIECE_STRIDE + F_CODE] = TC_NAME;
+        fields[pc * PIECE_STRIDE + F_CUT] = CUT_NONE;
+        fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+        pc = pc + 1;
+      }
+      cursor = cursor + nameW + 3;
+      bottom = nameTop + 16 + 4;
+
+      if (member === 0 && !members) {
+        const starTop: Int = summaryPieceTop(top, 16);
+        if (pc < CrLimit.PIECES) {
+          kinds[pc] = PK_SPRITE + 256 * r;
+          fields[pc * PIECE_STRIDE + F_X] = 2 + cursor;
+          fields[pc * PIECE_STRIDE + F_Y] = starTop - 1;
+          fields[pc * PIECE_STRIDE + F_W] = 16;
+          fields[pc * PIECE_STRIDE + F_H] = 16;
+          fields[pc * PIECE_STRIDE + F_ART] = CrSprite.FREE_STAR;
+          pc = pc + 1;
+        }
+        cursor = cursor + 16 + 3;
+        bottom = starTop + 16 + 4;
+      }
+
+      cursor = 0;
+      let line: Int = -1;
+
+      let itemCount: Int = 0;
+      const overview: QuestOverviewRow | null = QuestOverviews.at(quest);
+      if (kind === 2 && overview !== null) {
+        let s: Int = 0;
+        while (s < overview.statReqCount && itemCount < CrLimit.ITEMS) {
+          const stat: QuestStatRow | null = QuestStatRequirements.at(overview.statReqFrom + s);
+          if (stat !== null) {
+            const short: Int = stat.level - skillBaseLevel(stat.skill);
+            if (short > 0) {
+              const ib: Int = itemCount * ITEM_STRIDE;
+              items[ib] = G_REQ;
+              items[ib + 1] = 0;
+              items[ib + 2] = TC_NUMBER;
+              items[ib + 3] = stat.level;
+              items[ib + 4] = short;
+              items[ib + 5] = (SkillIcons.get(stat.skill as Skill) ?? -1) as Int;
+              items[ib + 6] = 13;
+              items[ib + 7] = 0;
+              itemCount = itemCount + 1;
+            }
+          }
+          s = s + 1;
+        }
+        const combatShort: Int = overview.combatRequirement - useServerState(Varbits.COMBATLEVEL_TRANSMIT);
+        if (combatShort > 0 && itemCount < CrLimit.ITEMS) {
+          const ib: Int = itemCount * ITEM_STRIDE;
+          items[ib] = G_REQ;
+          items[ib + 1] = 0;
+          items[ib + 2] = TC_NUMBER;
+          items[ib + 3] = overview.combatRequirement;
+          items[ib + 4] = combatShort;
+          items[ib + 5] = CrSprite.COMBAT;
+          items[ib + 6] = 18;
+          items[ib + 7] = 0;
+          itemCount = itemCount + 1;
+        }
+        const pointsShort: Int = overview.questPoints - useServerState(Varps.QP);
+        if (pointsShort > 0 && itemCount < CrLimit.ITEMS) {
+          const ib: Int = itemCount * ITEM_STRIDE;
+          items[ib] = G_REQ;
+          items[ib + 1] = 0;
+          items[ib + 2] = TC_QP;
+          items[ib + 3] = overview.questPoints;
+          items[ib + 4] = pointsShort;
+          items[ib + 5] = CrSprite.QUEST_POINTS;
+          items[ib + 6] = 13;
+          items[ib + 7] = 0;
+          itemCount = itemCount + 1;
+        }
+        let unmet: Int = 0;
+        let p: Int = 0;
+        while (p < overview.questReqCount) {
+          if (!requiredQuestDone(QuestPrerequisites.at(overview.questReqFrom + p) ?? -1)) {
+            unmet = unmet + 1;
+          }
+          p = p + 1;
+        }
+        if (unmet > 0 && itemCount < CrLimit.ITEMS) {
+          const ib: Int = itemCount * ITEM_STRIDE;
+          items[ib] = G_REQ;
+          items[ib + 1] = 0;
+          items[ib + 2] = TC_QUESTS;
+          items[ib + 3] = overview.questReqCount;
+          items[ib + 4] = unmet;
+          items[ib + 5] = CrSprite.QUEST_POINTS;
+          items[ib + 6] = 13;
+          items[ib + 7] = 0;
+          itemCount = itemCount + 1;
+        }
+        let t: Int = 0;
+        while (t < overview.statRecCount && itemCount < CrLimit.ITEMS) {
+          const stat: QuestStatRow | null = QuestStatRecommendations.at(overview.statRecFrom + t);
+          if (stat !== null) {
+            const short: Int = stat.level - skillBaseLevel(stat.skill);
+            if (short > 0) {
+              const ib: Int = itemCount * ITEM_STRIDE;
+              items[ib] = G_REC;
+              items[ib + 1] = 1;
+              items[ib + 2] = TC_NUMBER;
+              items[ib + 3] = stat.level;
+              items[ib + 4] = short;
+              items[ib + 5] = (SkillIcons.get(stat.skill as Skill) ?? -1) as Int;
+              items[ib + 6] = 13;
+              items[ib + 7] = 0;
+              itemCount = itemCount + 1;
+            }
+          }
+          t = t + 1;
+        }
+        const combatWant: Int = overview.combatRecommendation - useServerState(Varbits.COMBATLEVEL_TRANSMIT);
+        if (combatWant > 0 && itemCount < CrLimit.ITEMS) {
+          const ib: Int = itemCount * ITEM_STRIDE;
+          items[ib] = G_REC;
+          items[ib + 1] = 1;
+          items[ib + 2] = TC_NUMBER;
+          items[ib + 3] = overview.combatRecommendation;
+          items[ib + 4] = combatWant;
+          items[ib + 5] = CrSprite.COMBAT;
+          items[ib + 6] = 18;
+          items[ib + 7] = 0;
+          itemCount = itemCount + 1;
+        }
+        if ((!miscRequirementsMet(quest) || itemCount === 0) && itemCount < CrLimit.ITEMS) {
+          const ib: Int = itemCount * ITEM_STRIDE;
+          items[ib] = G_OTHER;
+          items[ib + 1] = LABEL_NONE;
+          items[ib + 2] = TC_OTHER;
+          items[ib + 3] = itemCount > 0 ? 1 : 0;
+          items[ib + 4] = -1;
+          items[ib + 5] = -1;
+          items[ib + 6] = 0;
+          items[ib + 7] = 1;
+          itemCount = itemCount + 1;
+        }
+      }
+
+      let first: Boolean = true;
+      let more: Int = 0;
+      let newLine: Int = 0;
+      let count: Int = 0;
+      let group: Int = G_REQ;
+      let k: Int = 0;
+      while (k < itemCount) {
+        const ib: Int = k * ITEM_STRIDE;
+        const itemGroup: Int = items[ib];
+        if (itemGroup !== group) {
+          group = itemGroup;
+          if (itemGroup === G_REC) {
+            first = true;
+            newLine = 0;
+          }
+        }
+        if (itemGroup === G_REC && first && count > 0) {
+          newLine = 1;
+        }
+        if (itemGroup === G_OTHER) {
+          first = true;
+          if (count > 0) {
+            newLine = 1;
+          }
+        }
+        const short: Int = items[ib + 4];
+        const art: Int = items[ib + 5];
+        const artSize: Int = items[ib + 6];
+        const noRetry: Int = items[ib + 7];
+
+        let itemLine: Int = line;
+        let itemCursor: Int = cursor;
+        if (newLine === 1) {
+          itemLine = itemLine + 1;
+          itemCursor = 0;
+        }
+        if (itemLine >= 0 && !expanded) {
+          more = more + 1;
+        } else {
+          if (first && items[ib + 1] !== LABEL_NONE) {
+            const labelText: String = pieceText(TC_LABEL, items[ib + 1], quest);
+            const [ld, lx, ly, lw, lh, lcut, lline, lcursor, lbottom] = textPlacement(
+              labelText,
+              itemLine,
+              itemCursor,
+              expanded,
+              top,
+              listW,
+              0,
+            );
+            if (ld === 1 && pc < CrLimit.PIECES) {
+              kinds[pc] = PK_TEXT + 256 * r;
+              fields[pc * PIECE_STRIDE + F_X] = lx;
+              fields[pc * PIECE_STRIDE + F_Y] = ly + 1;
+              fields[pc * PIECE_STRIDE + F_W] = lw;
+              fields[pc * PIECE_STRIDE + F_H] = lh;
+              fields[pc * PIECE_STRIDE + F_ART] = CrColour.ORANGE;
+              fields[pc * PIECE_STRIDE + F_CODE] = TC_LABEL;
+              fields[pc * PIECE_STRIDE + F_ARG] = items[ib + 1];
+              fields[pc * PIECE_STRIDE + F_CUT] = cutField(lcut, expanded);
+              fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+              pc = pc + 1;
+              itemLine = lline;
+              itemCursor = lcursor;
+              bottom = lbottom;
+              if (lcut >= 0 && expanded) {
+                const [td, tx, ty, tw, th, tcut, tline, tcursor, tbottom] = textPlacement(
+                  tailOf(labelText, lcut),
+                  itemLine + 1,
+                  0,
+                  expanded,
+                  top,
+                  listW,
+                  0,
+                );
+                if (td === 1 && pc < CrLimit.PIECES) {
+                  kinds[pc] = PK_TEXT + 256 * r;
+                  fields[pc * PIECE_STRIDE + F_X] = tx;
+                  fields[pc * PIECE_STRIDE + F_Y] = ty + 1;
+                  fields[pc * PIECE_STRIDE + F_W] = tw;
+                  fields[pc * PIECE_STRIDE + F_H] = th;
+                  fields[pc * PIECE_STRIDE + F_ART] = CrColour.ORANGE;
+                  fields[pc * PIECE_STRIDE + F_CODE] = TC_LABEL;
+                  fields[pc * PIECE_STRIDE + F_ARG] = items[ib + 1];
+                  fields[pc * PIECE_STRIDE + F_CUT] = CUT_TAIL * 10000 + lcut;
+                  fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+                  pc = pc + 1;
+                  itemLine = tline;
+                  itemCursor = tcursor;
+                  bottom = tbottom;
+                }
+              }
+            }
+          }
+          first = false;
+
+          const valueText: String = pieceText(items[ib + 2], items[ib + 3], quest);
+          const plusText: String = short > 0 ? pieceText(TC_PLUS, short, quest) : '';
+          let placing: Boolean = true;
+          let skipped: Boolean = false;
+          let tries: Int = 0;
+          while (placing && tries < 32) {
+            const maxW: Int = itemLine < 0 ? descriptionWidth(listW) : detailsWidth(listW);
+            const total: Int =
+              artSize +
+              1 +
+              textWidth(valueText, maxW, CrFont.SMALL) +
+              (short > 0 ? 1 : 0) +
+              textWidth(plusText, maxW, CrFont.SMALL);
+            if (noRetry === 0 && itemCursor + total > maxW) {
+              if (itemLine + 1 >= 0 && !expanded) {
+                more = more + 1;
+                skipped = true;
+                placing = false;
+              } else {
+                itemLine = itemLine + 1;
+                itemCursor = 0;
+              }
+            } else {
+              placing = false;
+            }
+            tries = tries + 1;
+          }
+
+          if (!skipped) {
+            if (art !== -1 && pc < CrLimit.PIECES) {
+              const artTop: Int =
+                itemLine < 0 ? descriptionPieceTop(top, artSize) : detailPieceTop(itemLine, 1, top, artSize);
+              kinds[pc] = PK_SPRITE + 256 * r;
+              fields[pc * PIECE_STRIDE + F_X] = 23 + itemCursor;
+              fields[pc * PIECE_STRIDE + F_Y] = artTop;
+              fields[pc * PIECE_STRIDE + F_W] = artSize;
+              fields[pc * PIECE_STRIDE + F_H] = artSize;
+              fields[pc * PIECE_STRIDE + F_ART] = art;
+              pc = pc + 1;
+              itemCursor = itemCursor + artSize + 1;
+              bottom = artTop + artSize + (itemLine < 0 ? 5 : 4);
+            }
+            const valueGap: Int = short === -1 ? 4 : short > 0 ? 1 : 0;
+            const [vd, vx, vy, vw, vh, vcut, vline, vcursor, vbottom] = textPlacement(
+              valueText,
+              itemLine,
+              itemCursor,
+              expanded,
+              top,
+              listW,
+              valueGap,
+            );
+            if (vd === 1 && pc < CrLimit.PIECES) {
+              kinds[pc] = PK_TEXT + 256 * r;
+              fields[pc * PIECE_STRIDE + F_X] = vx;
+              fields[pc * PIECE_STRIDE + F_Y] = vy + 1;
+              fields[pc * PIECE_STRIDE + F_W] = vw;
+              fields[pc * PIECE_STRIDE + F_H] = vh;
+              fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+              fields[pc * PIECE_STRIDE + F_CODE] = items[ib + 2];
+              fields[pc * PIECE_STRIDE + F_ARG] = items[ib + 3];
+              fields[pc * PIECE_STRIDE + F_CUT] = cutField(vcut, expanded);
+              fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+              pc = pc + 1;
+              itemLine = vline;
+              itemCursor = vcursor;
+              bottom = vbottom;
+              if (vcut >= 0 && expanded) {
+                const [td, tx, ty, tw, th, tcut, tline, tcursor, tbottom] = textPlacement(
+                  tailOf(valueText, vcut),
+                  itemLine + 1,
+                  0,
+                  expanded,
+                  top,
+                  listW,
+                  valueGap,
+                );
+                if (td === 1 && pc < CrLimit.PIECES) {
+                  kinds[pc] = PK_TEXT + 256 * r;
+                  fields[pc * PIECE_STRIDE + F_X] = tx;
+                  fields[pc * PIECE_STRIDE + F_Y] = ty + 1;
+                  fields[pc * PIECE_STRIDE + F_W] = tw;
+                  fields[pc * PIECE_STRIDE + F_H] = th;
+                  fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+                  fields[pc * PIECE_STRIDE + F_CODE] = items[ib + 2];
+                  fields[pc * PIECE_STRIDE + F_ARG] = items[ib + 3];
+                  fields[pc * PIECE_STRIDE + F_CUT] = CUT_TAIL * 10000 + vcut;
+                  fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+                  pc = pc + 1;
+                  itemLine = tline;
+                  itemCursor = tcursor;
+                  bottom = tbottom;
+                }
+              }
+            }
+            if (short !== -1) {
+              const [qd, qx, qy, qw, qh, qcut, qline, qcursor, qbottom] = textPlacement(
+                plusText,
+                itemLine,
+                itemCursor,
+                expanded,
+                top,
+                listW,
+                4,
+              );
+              if (qd === 1 && pc < CrLimit.PIECES) {
+                kinds[pc] = PK_TEXT + 256 * r;
+                fields[pc * PIECE_STRIDE + F_X] = qx;
+                fields[pc * PIECE_STRIDE + F_Y] = qy + 1;
+                fields[pc * PIECE_STRIDE + F_W] = qw;
+                fields[pc * PIECE_STRIDE + F_H] = qh;
+                fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+                fields[pc * PIECE_STRIDE + F_CODE] = TC_PLUS;
+                fields[pc * PIECE_STRIDE + F_ARG] = short;
+                fields[pc * PIECE_STRIDE + F_CUT] = cutField(qcut, expanded);
+                fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+                pc = pc + 1;
+                itemLine = qline;
+                itemCursor = qcursor;
+                bottom = qbottom;
+              }
+            }
+          }
+          line = itemLine;
+          cursor = itemCursor;
+        }
+        count = count + 1;
+        k = k + 1;
+      }
+
+      if (kind === 2) {
+        if (more > 0) {
+          if (pc > 0) {
+            const moreWidth: Int = textWidth(pieceText(TC_MORE, more, quest), listW, CrFont.SMALL);
+            if (summaryW - cursor < moreWidth && pc >= 3) {
+              more = more + 1;
+              cursor = descriptionCursorAt(fields[(pc - 3) * PIECE_STRIDE + F_X]);
+              pc = pc - 3;
+            }
+          }
+          const moreText: String = pieceText(TC_MORE, more, quest);
+          const [md, mx, my, mw, mh, mcut, mline, mcursor, mbottom] = textPlacement(
+            moreText,
+            line,
+            cursor,
+            expanded,
+            top,
+            listW,
+            0,
+          );
+          if (md === 1 && pc < CrLimit.PIECES) {
+            kinds[pc] = PK_TEXT + 256 * r;
+            fields[pc * PIECE_STRIDE + F_X] = mx;
+            fields[pc * PIECE_STRIDE + F_Y] = my + 1;
+            fields[pc * PIECE_STRIDE + F_W] = mw;
+            fields[pc * PIECE_STRIDE + F_H] = mh;
+            fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+            fields[pc * PIECE_STRIDE + F_CODE] = TC_MORE;
+            fields[pc * PIECE_STRIDE + F_ARG] = more;
+            fields[pc * PIECE_STRIDE + F_CUT] = cutField(mcut, expanded);
+            fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+            pc = pc + 1;
+            line = mline;
+            cursor = mcursor;
+            bottom = mbottom;
+          }
+        }
+        if (count > 0) {
+          line = line + 1;
+        }
+        cursor = 0;
+      }
+
+      const reasonText: String = pieceText(TC_REASON, reason, quest);
+      const [rd, rx, ry, rw, rh, rcut, rline, rcursor, rbottom] = textPlacement(
+        reasonText,
+        line,
+        cursor,
+        expanded,
+        top,
+        listW,
+        0,
+      );
+      if (rd === 1 && pc < CrLimit.PIECES) {
+        kinds[pc] = PK_TEXT + 256 * r;
+        fields[pc * PIECE_STRIDE + F_X] = rx;
+        fields[pc * PIECE_STRIDE + F_Y] = ry + 1;
+        fields[pc * PIECE_STRIDE + F_W] = rw;
+        fields[pc * PIECE_STRIDE + F_H] = rh;
+        fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+        fields[pc * PIECE_STRIDE + F_CODE] = TC_REASON;
+        fields[pc * PIECE_STRIDE + F_ARG] = reason;
+        fields[pc * PIECE_STRIDE + F_CUT] = cutField(rcut, expanded);
+        fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+        pc = pc + 1;
+        line = rline;
+        cursor = rcursor;
+        bottom = rbottom;
+        if (rcut >= 0 && expanded) {
+          const [td, tx, ty, tw, th, tcut, tline, tcursor, tbottom] = textPlacement(
+            tailOf(reasonText, rcut),
+            line + 1,
+            0,
+            expanded,
+            top,
+            listW,
+            0,
+          );
+          if (td === 1 && pc < CrLimit.PIECES) {
+            kinds[pc] = PK_TEXT + 256 * r;
+            fields[pc * PIECE_STRIDE + F_X] = tx;
+            fields[pc * PIECE_STRIDE + F_Y] = ty + 1;
+            fields[pc * PIECE_STRIDE + F_W] = tw;
+            fields[pc * PIECE_STRIDE + F_H] = th;
+            fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+            fields[pc * PIECE_STRIDE + F_CODE] = TC_REASON;
+            fields[pc * PIECE_STRIDE + F_ARG] = reason;
+            fields[pc * PIECE_STRIDE + F_CUT] = CUT_TAIL * 10000 + rcut;
+            fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+            pc = pc + 1;
+            line = tline;
+            cursor = tcursor;
+            bottom = tbottom;
+          }
+        }
+      }
+      line = line + 1;
+      cursor = 0;
+
+      if (expanded) {
+        const [ad, ax, ay, aw, ah, acut, aline, acursor, abottom] = textPlacement(
+          pieceText(TC_LOCATION, 0, quest),
+          line,
+          cursor,
+          expanded,
+          top,
+          listW,
+          0,
+        );
+        if (ad === 1 && pc < CrLimit.PIECES) {
+          kinds[pc] = PK_TEXT + 256 * r;
+          fields[pc * PIECE_STRIDE + F_X] = ax;
+          fields[pc * PIECE_STRIDE + F_Y] = ay + 1;
+          fields[pc * PIECE_STRIDE + F_W] = aw;
+          fields[pc * PIECE_STRIDE + F_H] = ah;
+          fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+          fields[pc * PIECE_STRIDE + F_CODE] = TC_LOCATION;
+          fields[pc * PIECE_STRIDE + F_CUT] = CUT_NONE;
+          fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+          pc = pc + 1;
+          line = aline;
+          bottom = abottom;
+        }
+        line = line + 1;
+        cursor = 0;
+        if (member === 0 && members) {
+          const [bd, bx, by, bw, bh, bcut, bline, bcursor, bbottom] = textPlacement(
+            pieceText(TC_MEMBERS, 0, quest),
+            line,
+            cursor,
+            expanded,
+            top,
+            listW,
+            0,
+          );
+          if (bd === 1 && pc < CrLimit.PIECES) {
+            kinds[pc] = PK_TEXT + 256 * r;
+            fields[pc * PIECE_STRIDE + F_X] = bx;
+            fields[pc * PIECE_STRIDE + F_Y] = by + 1;
+            fields[pc * PIECE_STRIDE + F_W] = bw;
+            fields[pc * PIECE_STRIDE + F_H] = bh;
+            fields[pc * PIECE_STRIDE + F_ART] = CrColour.WHITE;
+            fields[pc * PIECE_STRIDE + F_CODE] = TC_MEMBERS;
+            fields[pc * PIECE_STRIDE + F_CUT] = CUT_NONE;
+            fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+            pc = pc + 1;
+            line = bline;
+            bottom = bbottom;
+          }
+          line = line + 1;
+          cursor = 0;
+        }
+      }
+
+      let height: Int = bottom - top + 6;
+      if (expanded) {
+        const clearance: Int = bottom - (detailPieceTop(0, 1, top, 0) - 12 / 2);
+        if (clearance < 30) {
+          height = height + (30 - clearance);
+        }
+      }
+      if (bgPiece < pc) {
+        fields[bgPiece * PIECE_STRIDE + F_H] = height;
+      }
+      if (pc < CrLimit.PIECES) {
+        kinds[pc] = PK_HIT + 256 * r + 65536 * (expanded ? 1 : 0);
+        fields[pc * PIECE_STRIDE + F_Y] = top;
+        fields[pc * PIECE_STRIDE + F_H] = height;
+        fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+        pc = pc + 1;
+      }
+      if (expanded) {
+        const buttonX: Int = listW - 80 - 4;
+        const buttonY: Int = top + height - 30 - 6;
+        let slice: Int = 0;
+        while (slice < 9 && pc < CrLimit.PIECES) {
+          kinds[pc] = PK_TILED + 256 * r;
+          fields[pc * PIECE_STRIDE + F_X] = buttonX + journalSliceX(slice);
+          fields[pc * PIECE_STRIDE + F_Y] = buttonY + journalSliceY(slice);
+          fields[pc * PIECE_STRIDE + F_W] = journalSliceW(slice);
+          fields[pc * PIECE_STRIDE + F_H] = journalSliceH(slice);
+          fields[pc * PIECE_STRIDE + F_ART] = journalSprite(JournalLook.REST, slice) as Int;
+          pc = pc + 1;
+          slice = slice + 1;
+        }
+        if (pc < CrLimit.PIECES) {
+          kinds[pc] = PK_CTEXT + 256 * r;
+          fields[pc * PIECE_STRIDE + F_X] = buttonX;
+          fields[pc * PIECE_STRIDE + F_Y] = buttonY;
+          fields[pc * PIECE_STRIDE + F_W] = 80;
+          fields[pc * PIECE_STRIDE + F_H] = 30;
+          fields[pc * PIECE_STRIDE + F_ART] = CrColour.ORANGE;
+          fields[pc * PIECE_STRIDE + F_CODE] = TC_JOURNAL;
+          fields[pc * PIECE_STRIDE + F_CUT] = CUT_NONE;
+          fields[pc * PIECE_STRIDE + F_QUEST] = quest;
+          pc = pc + 1;
+        }
+      }
+
+      listY = listY + height;
+      visible = visible + 1;
+    }
+    if (clicked !== -1 && r === clicked) {
+      scrollBump = Math.max(0, listY - (paneH + recommendationsRef.scrollY) + 10);
+    }
+    r = r + 1;
+  }
+
+  if (listing && visible <= 0 && pc < CrLimit.PIECES) {
+    kinds[pc] = PK_CTEXT;
+    fields[pc * PIECE_STRIDE + F_X] = 10;
+    fields[pc * PIECE_STRIDE + F_Y] = 0;
+    fields[pc * PIECE_STRIDE + F_W] = listW - 20;
+    fields[pc * PIECE_STRIDE + F_H] = paneH - 16;
+    fields[pc * PIECE_STRIDE + F_ART] = CrColour.ORANGE;
+    fields[pc * PIECE_STRIDE + F_CODE] = TC_NOTICE;
+    fields[pc * PIECE_STRIDE + F_ARG] =
+      useServerState(Varbits.QUESTS_COMPLETED_COUNT) >= useServerState(Varbits.QUESTS_TOTAL_COUNT)
+        ? 0
+        : useServerState(Varbits.CR_QUESTS_INCLUDE_MEMBERS) === 0
+          ? 1
+          : 2;
+    fields[pc * PIECE_STRIDE + F_CUT] = CUT_NONE;
+    pc = pc + 1;
+  }
+
+  let extent: Int = listY;
+  let scrollTo: Int = recommendationsRef.scrollY + scrollBump;
+  if (extent <= paneH) {
+    extent = 0;
+    scrollTo = 0;
+  }
+  if (listing) {
+    recommendationsRef.scrollHeight = extent;
+    recommendationsRef.scrollY = scrollTo;
+    setPublishedExtent(extent);
+    setPublishedPaneHeight(paneH);
+  }
+  if (clicked !== -1) {
+    setClicked(-1);
+  }
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {kinds.map(
+        (value, i) =>
+          pieceKindOf(value) === PK_BG && (
+            <rect
+              x={0}
+              y={fields[i * PIECE_STRIDE + F_Y]}
+              w="fill"
+              h={fields[i * PIECE_STRIDE + F_H]}
+              fill
+              color={CrColour.WHITE}
+              transparency={hoveredEntry === pieceEntryOf(value) ? ENTRY_HOVER_T : fields[i * PIECE_STRIDE + F_ART]}
+            />
+          ),
+      )}
+      {kinds.map(
+        (value, i) =>
+          (pieceKindOf(value) === PK_SPRITE || pieceKindOf(value) === PK_TILED || pieceKindOf(value) === PK_TOGGLE) && (
+            <sprite
+              x={fields[i * PIECE_STRIDE + F_X]}
+              y={fields[i * PIECE_STRIDE + F_Y]}
+              w={fields[i * PIECE_STRIDE + F_W]}
+              h={fields[i * PIECE_STRIDE + F_H]}
+              sprite={
+                pieceKindOf(value) === PK_TOGGLE
+                  ? toggleSprite(pieceFlagOf(value), hoveredEntry === pieceEntryOf(value))
+                  : (fields[i * PIECE_STRIDE + F_ART] as Sprite)
+              }
+              tiling={pieceKindOf(value) === PK_TILED}
+            />
+          ),
+      )}
+      {kinds.map(
+        (value, i) =>
+          pieceKindOf(value) === PK_TEXT && (
+            <text
+              x={fields[i * PIECE_STRIDE + F_X]}
+              y={fields[i * PIECE_STRIDE + F_Y]}
+              w={fields[i * PIECE_STRIDE + F_W]}
+              h={fields[i * PIECE_STRIDE + F_H]}
+              text={cutText(
+                pieceText(
+                  fields[i * PIECE_STRIDE + F_CODE],
+                  fields[i * PIECE_STRIDE + F_ARG],
+                  fields[i * PIECE_STRIDE + F_QUEST],
+                ),
+                fields[i * PIECE_STRIDE + F_CUT],
+              )}
+              font={fields[i * PIECE_STRIDE + F_CODE] === TC_NAME ? CrFont.BODY : CrFont.SMALL}
+              color={fields[i * PIECE_STRIDE + F_ART]}
+              shadow
+              align="left"
+              valign="middle"
+              lineHeight={fields[i * PIECE_STRIDE + F_CODE] === TC_NAME ? 16 : 13}
+            />
+          ),
+      )}
+      {kinds.map(
+        (value, i) =>
+          pieceKindOf(value) === PK_CTEXT && (
+            <text
+              x={fields[i * PIECE_STRIDE + F_X]}
+              y={fields[i * PIECE_STRIDE + F_Y]}
+              w={fields[i * PIECE_STRIDE + F_W]}
+              h={fields[i * PIECE_STRIDE + F_H]}
+              text={pieceText(
+                fields[i * PIECE_STRIDE + F_CODE],
+                fields[i * PIECE_STRIDE + F_ARG],
+                fields[i * PIECE_STRIDE + F_QUEST],
+              )}
+              font={fields[i * PIECE_STRIDE + F_CODE] === TC_NOTICE ? CrFont.BODY : CrFont.SMALL}
+              color={fields[i * PIECE_STRIDE + F_ART]}
+              shadow
+              align="center"
+              valign="middle"
+              lineHeight={fields[i * PIECE_STRIDE + F_CODE] === TC_NOTICE ? 16 : 14}
+            />
+          ),
+      )}
+      {kinds.map(
+        (value, i) =>
+          pieceKindOf(value) === PK_HIT && (
+            <rect
+              x={0}
+              y={fields[i * PIECE_STRIDE + F_Y]}
+              w="fill"
+              h={fields[i * PIECE_STRIDE + F_H]}
+              fill
+              color={CrColour.WHITE}
+              transparency={255}
+              optionSubject={`<col=ff981f>${questName(fields[i * PIECE_STRIDE + F_QUEST] as Quest)}</col>`}
+              options={[pieceFlagOf(value) === 1 ? 'Collapse' : 'Expand']}
+              onOptionSelect={() => crQuestsToggle(pieceEntryOf(value), rows, pieceFlagOf(value) === 0)}
+              onMouseRepeat={mobile ? undefined : () => setHoveredEntry(pieceEntryOf(value))}
+              onMouseLeave={mobile ? undefined : () => setHoveredEntry(-1)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function textPlacement(
+  text: String,
+  line: Int,
+  cursor: Int,
+  expanded: Boolean,
+  top: Int,
+  listW: Int,
+  gap: Int,
+): [Int, Int, Int, Int, Int, Int, Int, Int, Int] {
+  if (line >= 0 && !expanded) {
+    return [0, 0, 0, 0, 0, -1, line, cursor, 0];
+  }
+  const maxW: Int = line < 0 ? descriptionWidth(listW) : detailsWidth(listW);
+  if (line < 0) {
+    const width: Int = textWidth(text, maxW - cursor, CrFont.SMALL);
+    const lines: Int = textLineCount(text, maxW - cursor, CrFont.SMALL);
+    const cut: Int = lines > 1 ? ellipsisCut(text, maxW - cursor) : -1;
+    const y: Int = descriptionPieceTop(top, 13);
+    return [1, 23 + cursor, y, width, 13, cut, line, cursor + width + gap, y + 13 + 5];
+  }
+  let at: Int = cursor;
+  let row: Int = line;
+  let width: Int = textWidth(text, maxW - at, CrFont.SMALL);
+  let lines: Int = textLineCount(text, maxW - at, CrFont.SMALL);
+  if (at > 0 && lines > 1) {
+    row = row + 1;
+    at = 0;
+    width = textWidth(text, maxW, CrFont.SMALL);
+    lines = textLineCount(text, maxW, CrFont.SMALL);
+  }
+  const h: Int = 13 * lines;
+  const y: Int = detailPieceTop(row, lines, top, h);
+  return [1, 23 + at, y, width, h, -1, row + lines - 1, at + width + gap, y + h + 4];
+}
+
+function ellipsisCut(text: String, width: Int): Int {
+  let end: Int = text.length;
+  if (end <= 0 || textWidth(text, 765, CrFont.SMALL) <= width) {
+    return -1;
+  }
+  let found: Boolean = false;
+  while (end >= 1 && !found) {
+    end = end - 1;
+    while (end >= 1 && CS2.compare(text.substring(end, end + 1), ' ') !== 0) {
+      end = end - 1;
+    }
+    if (textWidth(`${text.substring(0, end)}...`, 765, CrFont.SMALL) <= width) {
+      found = true;
+    }
+  }
+  return end;
+}
+
+function cutField(cut: Int, expanded: Boolean): Int {
+  if (cut < 0) {
+    return CUT_NONE;
+  }
+  return (expanded ? CUT_HEAD : CUT_ELLIPSIS) * 10000 + cut;
+}
+
+function tailOf(text: String, cut: Int): String {
+  return text.substring(cut + 1, text.length);
+}
+
+function cutText(text: String, cut: Int): String {
+  const mode: Int = cut / 10000;
+  const at: Int = cut % 10000;
+  if (mode === CUT_ELLIPSIS) {
+    return `${text.substring(0, at)}...`;
+  }
+  if (mode === CUT_HEAD) {
+    return text.substring(0, at);
+  }
+  if (mode === CUT_TAIL) {
+    return tailOf(text, at);
+  }
+  return text;
+}
+
+function pieceText(code: Int, arg: Int, quest: Int): String {
+  if (code === TC_NAME) {
+    return questName(quest as Quest);
+  }
+  if (code === TC_LABEL) {
+    return arg === 1 ? 'Recommended: ' : 'Requirements: ';
+  }
+  if (code === TC_NUMBER) {
+    return `${arg}`;
+  }
+  if (code === TC_QP) {
+    return `${arg} QP`;
+  }
+  if (code === TC_QUESTS) {
+    return arg > 1 ? `${arg} Quests` : `${arg} Quest`;
+  }
+  if (code === TC_PLUS) {
+    return `${colourTag(CrColour.YELLOW, 'col')}(+${arg})</col>`;
+  }
+  if (code === TC_OTHER) {
+    const label: String = arg === 1 ? 'Other Requirements: ' : 'Requirements: ';
+    return `${colourTag(CrColour.ORANGE, 'col')}${label}</col>View journal for details.`;
+  }
+  if (code === TC_MORE) {
+    return `+${arg} more`;
+  }
+  if (code === TC_REASON) {
+    return recommendationReason(quest, arg);
+  }
+  if (code === TC_LOCATION) {
+    const facts: CrQuestRow | null = CrQuestRows.at(quest);
+    const location: Int = facts === null ? -1 : facts.location;
+    return `${colourTag(CrColour.ORANGE, 'col')}Location: </col>${QuestLocationNames.at(location) ?? 'No Location'}`;
+  }
+  if (code === TC_MEMBERS) {
+    return `${colourTag(CrColour.YELLOW, 'col')}Requires membership</col>`;
+  }
+  if (code === TC_JOURNAL) {
+    return 'View journal';
+  }
+  if (code === TC_NOTICE) {
+    if (arg === 0) {
+      return "You've completed every quest! Congratulations!";
+    }
+    if (arg === 1) {
+      return 'No free quest suggestions available.<br>Check the <col=ffffff>All Quests</col> tab, <col=ffffff>Quest List</col> or <col=ffffff>Skill Guides</col> to find more goals.';
+    }
+    return 'No quest suggestions available.<br>Check the <col=ffffff>Quest List</col> or <col=ffffff>Skill Guides</col> to find more goals.';
+  }
+  return '';
+}
+
+function toggleSprite(expanded: Int, hovered: Boolean): Sprite {
+  if (expanded === 1) {
+    return hovered ? CrSprite.COLLAPSE_HOVER : CrSprite.COLLAPSE;
+  }
+  return hovered ? CrSprite.EXPAND_HOVER : CrSprite.EXPAND;
+}
+
+function journalSliceX(slice: Int): Int {
+  if (slice === 2 || slice === 4 || slice === 7) {
+    return 80 - 9;
+  }
+  if (slice === 6 || slice === 8) {
+    return 9;
+  }
+  return 0;
+}
+
+function journalSliceY(slice: Int): Int {
+  if (slice === 3 || slice === 4 || slice === 8) {
+    return 30 - 9;
+  }
+  if (slice === 5 || slice === 7) {
+    return 9;
+  }
+  return 0;
+}
+
+function journalSliceW(slice: Int): Int {
+  if (slice === 0) {
+    return 80;
+  }
+  if (slice === 6 || slice === 8) {
+    return 80 - 18;
+  }
+  return 9;
+}
+
+function journalSliceH(slice: Int): Int {
+  if (slice === 0) {
+    return 30;
+  }
+  if (slice === 5 || slice === 7) {
+    return 30 - 18;
+  }
+  return 9;
+}

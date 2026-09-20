@@ -1,91 +1,57 @@
-import { CS2 } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 
-import { clientClock } from '../lib/lib.engine';
+import { atmosphericRef, PORTAL_ANIM, Wipe } from './gotr-overlay.constants';
+import { gotrOverlayReset, gotrOverlayTick } from './gotr-overlay.helpers';
 import {
-  atmosphericRef,
-  ComponentType,
-  Fade,
-  PORTAL_ANIM,
-  PosMode,
-  SizeMode,
-  Wipe,
-  WipeChild,
-} from './gotr-overlay.constants';
+  gotrWipeBuilt,
+  gotrWipeColour,
+  gotrWipeModel,
+  gotrWipeStartedAt,
+  gotrWipeWash,
+  gotrWipeZoom,
+} from './gotr-overlay.state';
 
 export function GotrOverlay(): Component {
-  return <layer static ref={atmosphericRef} w="fill" h="fill" x="center" y="center" />;
+  return (
+    <layer ref={atmosphericRef} w="fill" h="fill" x="center" y="center" onLoad={() => gotrOverlayReset()}>
+      <GotrWipe />
+    </layer>
+  );
 }
 
-export function gotrOverlayFadeIn(model: Model, colour: Int, container: ComponentId = atmosphericRef): void {
-  CS2.cc_all_delete(container);
+function GotrWipe(): Component {
+  const [built] = useState(gotrWipeBuilt);
+  const [modelId] = useState(gotrWipeModel);
+  const model: Model = modelId as Model;
+  const [colour] = useState(gotrWipeColour);
+  const [zoom] = useState(gotrWipeZoom);
+  const [wash] = useState(gotrWipeWash);
+  const [startedAt] = useState(gotrWipeStartedAt);
+  const host = useRef();
+  useInterval(() => gotrOverlayTick(), host);
 
-  CS2.cc_create(container, ComponentType.MODEL, WipeChild.MODEL, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_hide_set(false);
-  CS2.cc_model_set(model);
-  CS2.cc_model_angle_set(0, Wipe.MODEL_OFFSET_Y, 0, 0, 0, Wipe.START_ZOOM);
-  CS2.cc_model_anim_set(PORTAL_ANIM);
-
-  CS2.cc_create(container, ComponentType.RECT, WipeChild.WASH, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_fill_set(true);
-  CS2.cc_colour_set(colour);
-  CS2.cc_transparency_set(Wipe.CLEAR);
-
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => gotrOverlayTick(startedAt, Fade.IN, container), container);
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={built}>
+      <layer ref={host} x={0} y={0} w={1} h={1} hide={startedAt < 0} />
+      {built > 0 && <WipeArt model={model} colour={colour} zoom={zoom} wash={wash} />}
+    </layer>
+  );
 }
 
-export function gotrOverlayFadeOut(container: ComponentId = atmosphericRef): void {
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => gotrOverlayTick(startedAt, Fade.OUT, container), container);
-}
-
-function gotrOverlayTick(start: Int, direction: Int, container: ComponentId): void {
-  const elapsed: Int = clientClock() - start;
-
-  if (elapsed >= Wipe.CYCLES) {
-    if (direction === Fade.OUT) {
-      CS2.cc_all_delete(container);
-    } else if (CS2.cc_find(container, WipeChild.WASH)) {
-      CS2.cc_transparency_set(Wipe.OPAQUE);
-    }
-    CS2.if_on_timer_set(null, container);
-    return;
-  }
-
-  if (CS2.cc_find(container, WipeChild.MODEL)) {
-    if (direction === Fade.IN) {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(Wipe.MIN_ZOOM, CS2.scale(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, CS2.cc_model_zoom_get())),
-      );
-    } else {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(
-          Wipe.MIN_ZOOM,
-          CS2.scale(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(CS2.cc_model_zoom_get(), Wipe.MIN_ZOOM_OUT)),
-        ),
-      );
-    }
-  }
-
-  if (CS2.cc_find(container, WipeChild.WASH)) {
-    if (direction === Fade.IN) {
-      CS2.cc_transparency_set(CS2.cc_trans_get() - Wipe.STEP);
-    } else {
-      CS2.cc_transparency_set(CS2.cc_trans_get() + Wipe.STEP);
-    }
-  }
+function WipeArt({ model, colour, zoom, wash }: { model: Model; colour: Int; zoom: Int; wash: Int }): Component {
+  return (
+    <>
+      <model
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        model={model}
+        anim={PORTAL_ANIM}
+        offsetY={Wipe.MODEL_OFFSET_Y}
+        zoom={zoom}
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={colour} fill transparency={wash} />
+    </>
+  );
 }

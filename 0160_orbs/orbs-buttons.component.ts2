@@ -1,0 +1,605 @@
+import { Engine, useRef, useRerenderOn, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { crUiOpen } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { bondsHidden } from '../0589_displayname/displayname.helpers';
+import { compassOp } from '../0601_toplevel_osm/toplevel-osm.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { hideMapTip, showMapTip } from './orbs-extras.component';
+import { ButtonBox, OrbArt, OrbFonts, OrbText, OrbsPanel, STORE_OPSOUND } from './orbs.constants';
+import {
+  adviserShown,
+  buttonOp,
+  deviceSprite,
+  floatingPanelOpen,
+  mapGlobe,
+  mapGlobeHover,
+  noFrame,
+  onFixedFrame,
+  onMobileFrame,
+  storeButtonShown,
+  xpDropsOp,
+} from './orbs.helpers';
+
+function phoneArt(panel: Int): Boolean {
+  return panel === OrbsPanel.OSM || panel === OrbsPanel.OSM_NOMAP;
+}
+
+export function XpDropsButton({ left, top, fromRight }: { left: Int; top: Int; fromRight: Boolean }): Component {
+  const on: Boolean = useServerState(Varbits.XPDROPS_ENABLED) === 1;
+  const rest: Sprite = on ? OrbArt.XP_ON : OrbArt.XP;
+  const hover: Sprite = on ? OrbArt.XP_ON_HOVER : OrbArt.XP_HOVER;
+  return (
+    <sprite
+      x={fromRight ? { right: left } : left}
+      y={top}
+      w={ButtonBox.XP}
+      h={ButtonBox.XP}
+      sprite={rest}
+      optionSubject={OrbText.XP_DROPS}
+      options={[on ? OrbText.HIDE : OrbText.SHOW, 'Setup']}
+      onOptionSelect={(event) => xpDropsOp(event.option, on ? 0 : 1)}
+      onMouseRepeat={(event) => {
+        event.self.sprite = hover;
+      }}
+      onMouseLeave={(event) => {
+        event.self.sprite = rest;
+      }}
+    />
+  );
+}
+
+export function StoreButton({
+  panel,
+  filler,
+  wholeClick,
+}: {
+  panel: Int;
+  filler: Boolean;
+  wholeClick: Boolean;
+}): Component {
+  const ring = useRef();
+  const frameless: Boolean = noFrame();
+  const hidden: Boolean = !frameless && !storeButtonShown();
+  const live: Boolean = !frameless && !hidden;
+
+  let rest: Sprite = phoneArt(panel) ? OrbArt.RING_MOBILE : OrbArt.RING;
+  if (live) {
+    rest = deviceSprite(OrbArt.RING, OrbArt.RING_MOBILE);
+  }
+  const hover: Sprite = deviceSprite(OrbArt.RING_HOVER, OrbArt.RING_MOBILE_HOVER);
+  let secondOp: String = OrbText.BOND_POUCH;
+  if (bondsHidden() && useServerState(Varbits.HAS_BONDS) === 0) {
+    secondOp = '';
+  }
+
+  let x: Int = 85;
+  let y: Int = 143;
+  let fromRight: Boolean = false;
+  let fromBottom: Boolean = false;
+  if (panel === OrbsPanel.NOMAP) {
+    x = 62;
+    y = 81;
+    fromRight = true;
+  } else if (panel === OrbsPanel.OSM) {
+    x = 156;
+    y = 46;
+    fromRight = true;
+    fromBottom = true;
+  } else if (panel === OrbsPanel.OSM_NOMAP) {
+    x = 44;
+    y = 144;
+    fromRight = true;
+  }
+  if (live) {
+    if (onMobileFrame()) {
+      if (useServerState(Varbits.OSM_MINIMAP_TOGGLE) === 1) {
+        if (panel === OrbsPanel.OSM_NOMAP) {
+          x = 44;
+          y = 144;
+          fromRight = true;
+          fromBottom = false;
+        }
+      } else if (panel === OrbsPanel.OSM) {
+        x = 63;
+        y = 160;
+        fromRight = true;
+        fromBottom = false;
+      }
+    } else if (useServerState(Varbits.MINIMAP_TOGGLE) === 1 && !onFixedFrame()) {
+      if (panel === OrbsPanel.NOMAP) {
+        x = 62;
+        y = 72;
+        fromRight = false;
+        fromBottom = false;
+      }
+    } else if (onFixedFrame()) {
+      if (panel === OrbsPanel.DESKTOP) {
+        x = 0;
+        y = 83;
+        fromRight = true;
+        fromBottom = false;
+      }
+    } else if (panel === OrbsPanel.DESKTOP) {
+      x = 85;
+      y = 143;
+      fromRight = false;
+      fromBottom = false;
+    }
+  }
+
+  return (
+    <layer x={fromRight ? { right: x } : x} y={fromBottom ? { bottom: y } : y} w={ButtonBox.RING} h={ButtonBox.RING}>
+      <sprite
+        ref={ring}
+        x="center"
+        y="center"
+        w={ButtonBox.RING}
+        h={ButtonBox.RING}
+        sprite={rest}
+        hide={hidden}
+        noClickThrough={!frameless}
+      />
+      {filler && (
+        <sprite
+          x="center"
+          y="center"
+          w={ButtonBox.FACE}
+          h={ButtonBox.FACE}
+          sprite={OrbArt.STORE_FILLER}
+          transparency={25}
+          hide={hidden}
+        />
+      )}
+      <layer
+        x={wholeClick ? 0 : 'center'}
+        y={wholeClick ? 0 : 'center'}
+        w={wholeClick ? ButtonBox.RING : ButtonBox.FACE}
+        h={wholeClick ? ButtonBox.RING : ButtonBox.FACE}
+        hide={hidden}
+        noClickThrough={!frameless}
+        options={frameless ? ['*', '*'] : live ? [OrbText.OPEN_STORE, secondOp] : undefined}
+        onOptionSelect={live ? (event) => buttonOp(event.option, STORE_OPSOUND) : null}
+        onMouseRepeat={
+          live
+            ? () => {
+                ring.sprite = hover;
+              }
+            : null
+        }
+        onMouseLeave={
+          live
+            ? () => {
+                ring.sprite = rest;
+              }
+            : null
+        }
+      />
+      <sprite x="center" y="center" w={ButtonBox.FACE} h={ButtonBox.FACE} sprite={OrbArt.STORE_ICON} hide={hidden} />
+    </layer>
+  );
+}
+
+export function AdviserButton({ panel, wholeClick }: { panel: Int; wholeClick: Boolean }): Component {
+  const ring = useRef();
+  const frameless: Boolean = noFrame();
+  const hidden: Boolean = !frameless && !adviserShown();
+  const live: Boolean = !frameless && !hidden;
+  const [adviserOpen] = useState(crUiOpen);
+
+  let rest: Sprite = phoneArt(panel) ? OrbArt.RING_MOBILE : OrbArt.RING;
+  if (live) {
+    rest = deviceSprite(OrbArt.RING, OrbArt.RING_MOBILE);
+  }
+  const hover: Sprite = deviceSprite(OrbArt.RING_HOVER, OrbArt.RING_MOBILE_HOVER);
+
+  let x: Int = 54;
+  let y: Int = 163;
+  let fromRight: Boolean = false;
+  let fromBottom: Boolean = false;
+  if (panel === OrbsPanel.NOMAP) {
+    x = -3;
+    y = 103;
+    fromRight = true;
+  } else if (panel === OrbsPanel.OSM) {
+    x = 101;
+    y = 39;
+    fromRight = true;
+    fromBottom = true;
+  } else if (panel === OrbsPanel.OSM_NOMAP) {
+    x = 79;
+    y = 144;
+    fromRight = true;
+  }
+  if (live) {
+    if (onMobileFrame()) {
+      if (useServerState(Varbits.OSM_MINIMAP_TOGGLE) === 1) {
+        if (panel === OrbsPanel.OSM_NOMAP) {
+          x = storeButtonShown() ? 79 : 44;
+          y = 144;
+          fromRight = true;
+          fromBottom = false;
+        }
+      } else if (panel === OrbsPanel.OSM) {
+        x = 101;
+        y = 156;
+        fromRight = false;
+        fromBottom = false;
+      }
+    } else if (onFixedFrame()) {
+      if (panel === OrbsPanel.DESKTOP) {
+        x = 0;
+        y = 50;
+        fromRight = true;
+        fromBottom = false;
+      }
+    } else if (!onMobile() && useServerState(Varbits.MINIMAP_TOGGLE) === 1) {
+      if (panel === OrbsPanel.NOMAP) {
+        x = -3;
+        y = 103;
+        fromRight = true;
+        fromBottom = false;
+      }
+    } else if (panel === OrbsPanel.DESKTOP) {
+      if (storeButtonShown()) {
+        x = 55;
+        y = 162;
+      } else {
+        x = 85;
+        y = 143;
+      }
+      fromRight = false;
+      fromBottom = false;
+    }
+  }
+
+  const box: Int = panel === OrbsPanel.NOMAP ? ButtonBox.ADVISER_NOMAP : ButtonBox.RING;
+
+  return (
+    <layer x={fromRight ? { right: x } : x} y={fromBottom ? { bottom: y } : y} w={box} h={box}>
+      <sprite
+        ref={ring}
+        x="center"
+        y="center"
+        w={ButtonBox.RING}
+        h={ButtonBox.RING}
+        sprite={rest}
+        hide={hidden}
+        noClickThrough={!frameless}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={ButtonBox.FACE}
+        h={ButtonBox.FACE}
+        sprite={OrbArt.ADVISER_FILLER}
+        hide={hidden}
+      />
+      <layer
+        x={wholeClick ? 0 : 'center'}
+        y={wholeClick ? 0 : 'center'}
+        w={wholeClick ? ButtonBox.RING : ButtonBox.FACE}
+        h={wholeClick ? ButtonBox.RING : ButtonBox.FACE}
+        hide={hidden}
+        noClickThrough={!frameless}
+        options={
+          frameless ? ['*'] : live ? [adviserOpen === 1 ? OrbText.CLOSE_ADVISER : OrbText.OPEN_ADVISER] : undefined
+        }
+        onOptionSelect={live ? (event) => buttonOp(event.option, -1) : null}
+        onMouseRepeat={
+          live
+            ? () => {
+                ring.sprite = hover;
+              }
+            : null
+        }
+        onMouseLeave={
+          live
+            ? () => {
+                ring.sprite = rest;
+              }
+            : null
+        }
+      />
+      <sprite x="center" y="center" w={ButtonBox.FACE} h={ButtonBox.FACE} sprite={OrbArt.ADVISER_ICON} hide={hidden} />
+    </layer>
+  );
+}
+
+export function WorldMapButton({ panel, spare }: { panel: Int; spare: Boolean }): Component {
+  useRerenderOn(Engine.SUB_CHANGE);
+  const frameless: Boolean = noFrame();
+  const mobileFrame: Boolean = onMobileFrame();
+  const mobile: Boolean = onMobile();
+  const fixed: Boolean = onFixedFrame();
+  const gauntlet: Boolean = useServerState(Varbits.PLAYER_IN_GAUNTLET) === 1;
+
+  let x: Int = 0;
+  let y: Int = 30;
+  let fromBottom: Boolean = true;
+  let box: Int = ButtonBox.MAP_RING;
+  let face: Int = ButtonBox.MAP_FACE;
+  let ringArt: Sprite = OrbArt.MAP_RING;
+  let globeArt: Sprite = OrbArt.MAP_GLOBE;
+  if (panel === OrbsPanel.NOMAP) {
+    x = 62;
+    y = 37;
+    fromBottom = false;
+    box = 40;
+    face = 32;
+    ringArt = OrbArt.MAP_RING_LARGE;
+    globeArt = OrbArt.MAP_GLOBE_LARGE;
+  } else if (panel === OrbsPanel.OSM) {
+    box = ButtonBox.RING;
+    face = ButtonBox.FACE;
+    ringArt = OrbArt.RING_MOBILE;
+    globeArt = OrbArt.MAP_GLOBE_MOBILE;
+  } else if (panel === OrbsPanel.OSM_NOMAP) {
+    x = 5;
+    y = 108;
+    fromBottom = false;
+    box = ButtonBox.RING;
+    face = ButtonBox.FACE;
+    ringArt = OrbArt.RING_MOBILE;
+    globeArt = OrbArt.MAP_GLOBE_MOBILE;
+  }
+  let spareFace: Int = face;
+  if (!frameless) {
+    fromBottom = false;
+    if (mobileFrame) {
+      if (useServerState(Varbits.OSM_MINIMAP_TOGGLE) === 0) {
+        x = 0;
+        y = 130;
+      } else {
+        x = 5;
+        y = 108;
+      }
+      box = ButtonBox.RING;
+      face = ButtonBox.FACE;
+      ringArt = OrbArt.RING_MOBILE;
+    } else {
+      if (!mobile && !fixed) {
+        if (useServerState(Varbits.MINIMAP_TOGGLE) === 0) {
+          x = 0;
+          y = 115;
+        } else {
+          x = 62;
+          y = 37;
+        }
+      } else if (fixed) {
+        x = 10;
+        y = 115;
+      } else {
+        x = 0;
+        y = 115;
+      }
+      box = ButtonBox.MAP_RING;
+      face = ButtonBox.MAP_FACE;
+      ringArt = OrbArt.MAP_RING;
+      if (!mobile && useServerState(Varbits.SETTINGS_WORLD_MAP_HOTKEY_DISABLED) === 0) {
+        spareFace = ButtonBox.MAP_FACE;
+      }
+    }
+  }
+
+  const floating: Boolean = !frameless && floatingPanelOpen();
+  const globeRest: Sprite = mapGlobe();
+  const globeHover: Sprite = mapGlobeHover();
+  let globe: Sprite = globeArt;
+  if (!frameless) {
+    globe = floating ? globeHover : globeRest;
+  }
+  const opOne: String = gauntlet ? OrbText.MAP_GAUNTLET : '';
+
+  const tipBound: Boolean =
+    spare && !frameless && !mobileFrame && !mobile && useServerState(Varbits.SETTINGS_WORLD_MAP_HOTKEY_DISABLED) === 0;
+  let tipText: String = OrbText.TIP_SHORT;
+  if (!fixed) {
+    if (!enhancedAny() && useServerState(Varbits.MINIMAP_TOGGLE) === 0) {
+      tipText = OrbText.TIP_NARROW;
+    }
+  } else if (!enhancedAny()) {
+    tipText = OrbText.TIP_FIXED;
+  }
+  const tipRight: Int = x + box;
+
+  return (
+    <layer x={{ right: x }} y={fromBottom ? { bottom: y } : y} w={box} h={box}>
+      <sprite
+        x="center"
+        y="center"
+        w={box}
+        h={box}
+        sprite={ringArt}
+        onMouseRepeat={tipBound ? () => showMapTip(tipText, tipRight, y, box) : null}
+        onMouseLeave={tipBound ? () => hideMapTip() : null}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={face}
+        h={face}
+        sprite={globe}
+        transparency={floating ? 125 : 0}
+        options={
+          frameless
+            ? phoneArt(panel) && panel === OrbsPanel.OSM
+              ? ['*', '*', '', '*']
+              : ['*', '*', '*', '*']
+            : floating
+              ? ['', OrbText.MAP_CLOSE_FLOATING]
+              : mobileFrame
+                ? [
+                    opOne,
+                    OrbText.MAP_OPEN,
+                    '',
+                    useServerState(Varbits.OSM_MINIMAP_TOGGLE) === 0 ? OrbText.MAP_MINIMISE : OrbText.MAP_RESTORE,
+                  ]
+                : !mobile && !fixed
+                  ? [
+                      opOne,
+                      OrbText.MAP_FLOATING,
+                      OrbText.MAP_FULLSCREEN,
+                      useServerState(Varbits.MINIMAP_TOGGLE) === 0 ? OrbText.MAP_MINIMISE : OrbText.MAP_RESTORE,
+                    ]
+                  : [opOne, OrbText.MAP_FLOATING, OrbText.MAP_FULLSCREEN]
+        }
+        onOptionSelect={frameless ? null : (event) => buttonOp(event.option, -1)}
+        onMouseRepeat={
+          frameless
+            ? null
+            : (event) => {
+                if (floating) {
+                  event.self.transparency = 0;
+                } else {
+                  event.self.sprite = globeHover;
+                }
+              }
+        }
+        onMouseLeave={
+          frameless
+            ? null
+            : (event) => {
+                if (floating) {
+                  event.self.transparency = 125;
+                } else {
+                  event.self.sprite = globeRest;
+                }
+              }
+        }
+      />
+      {spare && <layer x="center" y="center" w={spareFace} h={spareFace} />}
+    </layer>
+  );
+}
+
+export function WikiButton({ panel, compact, subject }: { panel: Int; compact: Int; subject: String }): Component {
+  const glyph = useRef();
+  const [targeted, setTargeted] = useState(0);
+  const frameless: Boolean = noFrame();
+  const disabled: Boolean = useServerState(Varbits.WIKI_ICON_DISABLED) === 1;
+  const mobile: Boolean = onMobile();
+  const shows: Boolean = !frameless && !disabled;
+  const phone: Boolean = phoneArt(panel);
+
+  let x: Int = 1;
+  let y: Int = 0;
+  let fromBottom: Boolean = true;
+  let boxW: Int = ButtonBox.WIKI_W;
+  if (panel === OrbsPanel.NOMAP) {
+    x = 8;
+    y = 101;
+    fromBottom = false;
+  } else if (panel === OrbsPanel.OSM) {
+    x = 46;
+    y = 31;
+    boxW = ButtonBox.RING;
+  } else if (panel === OrbsPanel.OSM_NOMAP) {
+    x = 5;
+    y = 144;
+    fromBottom = false;
+    boxW = ButtonBox.RING;
+  }
+  if (shows) {
+    fromBottom = false;
+    if (onMobileFrame()) {
+      if (compact === 0) {
+        x = 5;
+        y = 144;
+      } else {
+        x = 28;
+        y = 151;
+      }
+    } else if (compact === 0) {
+      if (storeButtonShown()) {
+        x = 57;
+        y = 96;
+      } else {
+        x = 62;
+        y = 75;
+      }
+    } else if (onFixedFrame()) {
+      x = 8;
+      y = 135;
+    } else {
+      x = 0;
+      y = 135;
+    }
+  }
+
+  let glyphArt: Sprite = phone ? OrbArt.WIKI_MOBILE : OrbArt.WIKI;
+  if (targeted === 1) {
+    glyphArt = deviceSprite(OrbArt.WIKI_HOVER, OrbArt.WIKI_MOBILE_HOVER);
+  } else if (targeted === 2) {
+    glyphArt = deviceSprite(OrbArt.WIKI, OrbArt.WIKI_MOBILE);
+  }
+  const hovers: Boolean = !mobile && targeted !== 1 && (targeted === 2 || shows);
+  const lit: Sprite = OrbArt.WIKI_HOVER;
+  const unlit: Sprite = OrbArt.WIKI;
+
+  return (
+    <layer x={{ right: x }} y={fromBottom ? { bottom: y } : y} w={boxW} h={ButtonBox.RING}>
+      <layer
+        x="center"
+        y="center"
+        w={shows ? (mobile ? ButtonBox.RING : ButtonBox.WIKI_W) : 'fill'}
+        h={shows ? (mobile ? ButtonBox.RING : ButtonBox.WIKI_H) : 'fill'}
+        hide={!frameless && disabled}
+        noClickThrough
+        optionSubject={subject}
+        options={['', '', '', '', '', '', '', '', '', OrbText.WIKI_SEARCH]}
+        targetVerb={OrbText.WIKI_VERB}
+        spellTargets={['groundItem', 'npc', 'object', 'component']}
+        onTargetEnter={() => setTargeted(1)}
+        onTargetLeave={() => setTargeted(2)}
+        onMouseRepeat={
+          hovers
+            ? () => {
+                glyph.sprite = lit;
+              }
+            : null
+        }
+        onMouseLeave={
+          hovers
+            ? () => {
+                glyph.sprite = unlit;
+              }
+            : null
+        }
+      >
+        {phone && <sprite x="center" y="center" w={ButtonBox.RING} h={ButtonBox.RING} sprite={OrbArt.RING_MOBILE} />}
+        <sprite
+          ref={glyph}
+          x="center"
+          y="center"
+          w={phone ? ButtonBox.FACE : ButtonBox.WIKI_W}
+          h={phone ? ButtonBox.FACE : ButtonBox.WIKI_SPRITE_H}
+          sprite={glyphArt}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+export function CompassClick(): Component {
+  const state: Int = useServerState(Varbits.MINIMAP_STATE);
+  let live: Boolean = true;
+  if (state === 3 || state === 4 || state === 5) {
+    live = false;
+  }
+  return (
+    <>
+      <text x={0} y={0} w="fill" h="fill" font={OrbFonts.NUMBER} noClickThrough onClick={() => buttonOp(0, 0)} />
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        font={OrbFonts.NUMBER}
+        options={live ? ['Look North', 'Look East', 'Look South', 'Look West'] : undefined}
+        onOptionSelect={live ? (event) => compassOp(event.option) : undefined}
+      />
+    </>
+  );
+}

@@ -1,0 +1,430 @@
+import { useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { LeagueRelicTiers, Relic } from '../lib/league-relics.data';
+
+import { RelicColour, RelicFade, RelicFonts, RelicLayout, RelicSprites, RelicText } from './league-relics.constants';
+import { Relics, RelicThemes } from './league-relics.data';
+import {
+  anyRepickable,
+  firstOpenTier,
+  relicAccent,
+  relicLeague,
+  relicTierCount,
+  repickWash,
+  tierChosen,
+  tierRepickable,
+} from './league-relics.helpers';
+import { relicHover, relicView } from './league-relics.state';
+
+const SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23] as const;
+
+const TIERS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+const enum TierState {
+  LOCKED = 0,
+  CHOSEN = 1,
+  REPICK = 2,
+  OPEN = 3,
+}
+
+function tierState(tier: Int): Int {
+  if (tierChosen(tier)) {
+    if (tierRepickable(tier)) {
+      return TierState.REPICK;
+    }
+    return TierState.CHOSEN;
+  }
+  if (tier === firstOpenTier()) {
+    return TierState.OPEN;
+  }
+  return TierState.LOCKED;
+}
+
+function tierFade(tier: Int): Int {
+  const state: Int = tierState(tier);
+  if (state === TierState.REPICK || state === TierState.OPEN) {
+    return RelicFade.HALF;
+  }
+  return RelicFade.INVISIBLE;
+}
+
+function breakpoint(): Int {
+  const [value] = useState(responsiveCurrentBreakpoint);
+  return value;
+}
+
+function large(bp: Int): Boolean {
+  return bp === 2 || bp === 3;
+}
+
+function columns(bp: Int): Int {
+  return bp === 0 ? RelicLayout.COLUMNS_SMALL : RelicLayout.COLUMNS;
+}
+
+function tierFont(bp: Int): Font {
+  return bp === 0 ? RelicFonts.SMALL : RelicFonts.BODY;
+}
+
+function relicAt(tier: Int, slot: Int): Int {
+  const tiers = LeagueRelicTiers.get(relicLeague());
+  if (tiers === null) {
+    return -1;
+  }
+  const selections = tiers.get(tier);
+  if (selections === null) {
+    return -1;
+  }
+  return selections.get(slot) ?? -1;
+}
+
+function relicsInTier(tier: Int): Int {
+  const tiers = LeagueRelicTiers.get(relicLeague());
+  if (tiers === null) {
+    return 0;
+  }
+  const selections = tiers.get(tier);
+  if (selections === null) {
+    return 0;
+  }
+  return selections.length;
+}
+
+function columnWidth(paneW: Int, bp: Int): Int {
+  return paneW / columns(bp);
+}
+
+function gridLeft(paneW: Int, bp: Int): Int {
+  return (paneW - columnWidth(paneW, bp) * columns(bp)) / 2;
+}
+
+function rowHeight(paneH: Int): Int {
+  return (paneH - RelicLayout.ROW_SLACK) / 3;
+}
+
+function rowsTop(tier: Int, paneH: Int, bp: Int): Int {
+  const row: Int = rowHeight(paneH);
+  let top: Int = (paneH - RelicLayout.ROW_PAD - row * 3) / 2;
+  if (relicsInTier(tier) === 2) {
+    top = row / 2 + (paneH - RelicLayout.ROW_PAD - row * 3) / 2;
+  }
+  if (large(bp)) {
+    top = top + RelicLayout.LARGE_DROP;
+  }
+  return top;
+}
+
+function slotRelic(index: Int): Int {
+  return relicAt(index / 3, (index % 3) + 1);
+}
+
+function slotName(index: Int): String {
+  const row = Relics.get(slotRelic(index));
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+function slotActive(index: Int): Boolean {
+  const relic: Int = slotRelic(index);
+  if (relic === -1) {
+    return false;
+  }
+  return leagueRelicActive(relic as Relic) === 1;
+}
+
+function slotIcon(index: Int, bp: Int): Sprite {
+  const row = Relics.get(slotRelic(index));
+  if (row === null) {
+    return -1;
+  }
+  if (slotActive(index)) {
+    return large(bp) ? row.iconLarge : row.icon;
+  }
+  return large(bp) ? row.iconLargeOff : row.iconOff;
+}
+
+function slotHoverIcon(index: Int, bp: Int): Sprite {
+  const state: Int = tierState(index / 3);
+  if (state === TierState.REPICK || state === TierState.OPEN) {
+    const row = Relics.get(slotRelic(index));
+    if (row === null) {
+      return -1;
+    }
+    return large(bp) ? row.iconLarge : row.icon;
+  }
+  return slotIcon(index, bp);
+}
+
+function slotNameColour(index: Int): Int {
+  if (slotActive(index)) {
+    return relicAccent();
+  }
+  if (tierState(index / 3) === TierState.CHOSEN) {
+    return RelicColour.CHOSEN_NAME;
+  }
+  return relicAccent();
+}
+
+function slotHoverColour(index: Int): Int {
+  if (slotActive(index)) {
+    return RelicColour.WHITE;
+  }
+  if (tierState(index / 3) === TierState.CHOSEN) {
+    return RelicColour.CHOSEN_HOVER;
+  }
+  return RelicColour.WHITE;
+}
+
+function slotFrameFade(index: Int, hovered: Boolean): Int {
+  const fade: Int = tierFade(index / 3);
+  if (hovered) {
+    if (slotActive(index)) {
+      return 0;
+    }
+    return Math.max(0, fade - 128);
+  }
+  if (slotActive(index)) {
+    return RelicFade.INVISIBLE;
+  }
+  return fade;
+}
+
+function slotX(index: Int, paneW: Int, bp: Int): Int {
+  return gridLeft(paneW, bp) + columnWidth(paneW, bp) * (index / 3);
+}
+
+function slotY(index: Int, paneH: Int, bp: Int): Int {
+  return rowsTop(index / 3, paneH, bp) + rowHeight(paneH) * (index % 3);
+}
+
+export function TierLabels(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const count: Int = relicTierCount();
+  if (firstOpenTier() !== -1 || anyRepickable()) {
+    return null;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={RelicSprites.WASH_LIGHT} />
+      {TIERS.map(
+        (tier) =>
+          tier < count && (
+            <text
+              x={gridLeft(box.width, bp) + columnWidth(box.width, bp) * tier}
+              y={0}
+              w={columnWidth(box.width, bp)}
+              h="fill"
+              text={`Tier ${stringOf(tier + 1)}`}
+              font={tierFont(bp)}
+              color={relicAccent()}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function RelicMessage(): Component {
+  const bp: Int = breakpoint();
+  const open: Boolean = firstOpenTier() !== -1;
+  const repick: Boolean = anyRepickable();
+  if (!open && !repick) {
+    return null;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <sprite x={0} y={0} w="fill" h="fill" sprite={RelicSprites.WASH_LIGHT} />
+      <text
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        text={open && repick ? RelicText.NEW_RELICS : RelicText.NEW_RELIC}
+        font={tierFont(bp)}
+        color={relicAccent()}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+export function TierWashes(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const count: Int = relicTierCount();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {TIERS.map(
+        (tier) =>
+          tier < count && <TierWash tier={tier} x={slotX(tier * 3, box.width, bp)} w={columnWidth(box.width, bp)} />,
+      )}
+    </layer>
+  );
+}
+
+function TierWash({ tier, x, w }: { tier: Int; x: Int; w: Int }): Component {
+  const state: Int = tierState(tier);
+  if (state === TierState.REPICK) {
+    return <rect x={x} y={0} w={w} h="fill" color={repickWash()} transparency={RelicFade.WASH} fill />;
+  }
+  return (
+    <sprite
+      x={x}
+      y={0}
+      w={w}
+      h="fill"
+      tiling
+      sprite={state === TierState.OPEN ? RelicSprites.WASH_LIGHT : RelicSprites.WASH_DARK}
+    />
+  );
+}
+
+export function TierDividers(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const count: Int = relicTierCount();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {TIERS.map(
+        (tier) =>
+          tier > 0 &&
+          tier < count && (
+            <line x={slotX(tier * 3, box.width, bp)} y={0} w={0} h="fill" color={RelicColour.DIVIDER} lineWidth={1} />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function GridGuides(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const count: Int = relicTierCount();
+  const w: Int = count > 0 ? columnWidth(box.width, bp) : 0;
+  const h: Int = count > 0 ? rowHeight(box.height + RelicLayout.LABEL_H) : 0;
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <rect x={0} y={0} w={w} h="fill" transparency={RelicFade.INVISIBLE} />
+      <rect x={0} y={0} w={w} h={h} transparency={RelicFade.INVISIBLE} />
+    </layer>
+  );
+}
+
+export function RelicFrames(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const paneH: Int = box.height + RelicLayout.LABEL_H;
+  const theme = RelicThemes.get(relicLeague());
+  const frame: Sprite = theme === null ? 2593 : large(bp) ? theme.frameLarge : theme.frame;
+  const size: Int = (large(bp) ? RelicLayout.ICON_LARGE : RelicLayout.ICON) + RelicLayout.FRAME_PAD;
+  const [hover] = useState(relicHover);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {SLOTS.map(
+        (index) =>
+          slotRelic(index) !== -1 && (
+            <sprite
+              x={slotX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2}
+              y={slotY(index, paneH, bp) + rowHeight(paneH) / 2 - (size - 1)}
+              w={size}
+              h={size}
+              sprite={frame}
+              transparency={slotFrameFade(index, hover === index)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function RelicIcons(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const paneH: Int = box.height + RelicLayout.LABEL_H;
+  const size: Int = large(bp) ? RelicLayout.ICON_LARGE : RelicLayout.ICON;
+  const [hover] = useState(relicHover);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {SLOTS.map(
+        (index) =>
+          slotRelic(index) !== -1 && (
+            <sprite
+              x={slotX(index, box.width, bp) + columnWidth(box.width, bp) / 2 - size / 2}
+              y={slotY(index, paneH, bp) + rowHeight(paneH) / 2 - (size + 1)}
+              w={size}
+              h={size}
+              sprite={hover === index ? slotHoverIcon(index, bp) : slotIcon(index, bp)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function RelicNames(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const paneH: Int = box.height + RelicLayout.LABEL_H;
+  const [hover] = useState(relicHover);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {SLOTS.map(
+        (index) =>
+          slotRelic(index) !== -1 && (
+            <text
+              x={slotX(index, box.width, bp) + RelicLayout.NAME_INSET / 2}
+              y={slotY(index, paneH, bp) + rowHeight(paneH) / 2 + 1}
+              w={columnWidth(box.width, bp) - RelicLayout.NAME_INSET}
+              h={RelicLayout.NAME_H}
+              text={slotName(index)}
+              font={tierFont(bp)}
+              color={hover === index ? slotHoverColour(index) : slotNameColour(index)}
+              align="center"
+              valign="middle"
+              shadow
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function RelicClicks(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const paneH: Int = box.height + RelicLayout.LABEL_H;
+  const mobile: Boolean = onMobile();
+  const [, setHover] = useState(relicHover);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {SLOTS.map(
+        (index) =>
+          slotRelic(index) !== -1 && (
+            <rect
+              x={slotX(index, box.width, bp)}
+              y={slotY(index, paneH, bp)}
+              w={columnWidth(box.width, bp)}
+              h={rowHeight(paneH)}
+              fill
+              transparency={RelicFade.INVISIBLE}
+              options={['View']}
+              optionSubject={`<col=ff981f>${slotName(index)}</col>`}
+              onOptionSelect={() => relicView()}
+              onMouseRepeat={mobile ? undefined : () => setHover(index)}
+              onMouseLeave={mobile ? undefined : () => setHover(-1)}
+            />
+          ),
+      )}
+    </layer>
+  );
+}

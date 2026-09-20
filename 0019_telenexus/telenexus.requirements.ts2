@@ -1,0 +1,347 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+
+import { Relic } from '../lib/league-relics.data';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { Quest, questComplete } from '../lib/lib.quests';
+
+import { SkillNames, TelenexusInventories, TelenexusTeleport } from './telenexus.constants';
+
+export function teleportRequirements(row: TelenexusTeleport): [Boolean, String] {
+  let text: String = '';
+  let met: Boolean = true;
+
+  const arceuus: Int = useServerState(Varbits.ARCEUUS_SPELLBOOK_UNLOCKED) === 0 ? 0 : 1;
+
+  const skill: Skill = row.skill ?? -1;
+  const level: Int = row.level ?? -1;
+  if (skill !== -1) {
+    if (CS2.stat_base(skill) >= level) {
+      text = `${text}<col=0dc10d>`;
+    } else {
+      text = `${text}<col=ff0000>`;
+      met = false;
+    }
+    text = `${text}Level ${level} ${SkillNames.get(skill) ?? 'Skill'}. </col>`;
+  }
+
+  if ((row.hasUnlockRequirement ?? -1) === 1) {
+    if (skill !== -1) {
+      text = `${text}<br>`;
+    }
+    const [unlocked, unlockText] = unlockLine(row.structId, arceuus);
+    if (unlocked === false) {
+      met = false;
+    }
+    text = `${text}${unlockText}`;
+  }
+
+  let shortfall: String = '';
+  const cost1: ItemName = row.cost1Item ?? -1;
+  if (cost1 !== -1 && affordable(cost1) < (row.cost1Count ?? -1)) {
+    met = false;
+    shortfall = '<br><col=ff0000>Can not afford cost. ';
+  }
+  const cost2: ItemName = row.cost2Item ?? -1;
+  if (cost2 !== -1 && affordable(cost2) < (row.cost2Count ?? -1)) {
+    met = false;
+    shortfall = '<br><col=ff0000>Can not afford cost. ';
+  }
+  const cost3: ItemName = row.cost3Item ?? -1;
+  if (cost3 !== -1 && affordable(cost3) < (row.cost3Count ?? -1)) {
+    met = false;
+    shortfall = '<br><col=ff0000>Can not afford cost. ';
+  }
+  const cost4: ItemName = row.cost4Item ?? -1;
+  if (cost4 !== -1 && affordable(cost4) < (row.cost4Count ?? -1)) {
+    met = false;
+    shortfall = '<br><col=ff0000>Can not afford cost. ';
+  }
+
+  return [met, `${text}${shortfall}`];
+}
+
+export function affordable(item: ItemName): Int {
+  const backpack = useInventory(TelenexusInventories.BACKPACK);
+  const promised = useInventory(TelenexusInventories.COST);
+  return backpack.total(item as Item) - promised.total(item as Item);
+}
+
+export function desertTreasureDone(): Boolean {
+  if (useServerState(Varbits.DESERTTREASURE) >= 15) {
+    return true;
+  }
+  if (leagueRelicActive(Relic.GRIMOIRE) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function lunarDiplomacyDone(): Boolean {
+  if (useServerState(Varbits.LUNAR_QUEST_MAIN) >= 190) {
+    return true;
+  }
+  if (leagueRelicActive(Relic.GRIMOIRE) === 1) {
+    return true;
+  }
+  return false;
+}
+
+function unlockLine(structId: Int, arceuus: Int): [Boolean, String] {
+  let met: Boolean = true;
+  let text: String = '';
+  switch (structId) {
+    case 462:
+    case 464:
+    case 465:
+    case 468:
+    case 6418:
+    case 6419:
+    case 6420:
+    case 6421: {
+      if (lunarDiplomacyDone()) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Lunar Diplomacy. </col>`;
+      return [met, text];
+    }
+    case 456: {
+      if (useServerState(Varps.ELENAQUEST) >= 30) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Learned Ardougne Teleport spell. </col>`;
+      return [met, text];
+    }
+    case 457: {
+      if (useServerState(Varps.ITWATCHTOWER) >= 14) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Learned Watchtower Teleport spell. </col>`;
+      return [met, text];
+    }
+    case 460: {
+      if (useServerState(Varbits.HUNDRED_ILM_QUEST) >= 50) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Saved Awowogei in Recipe for Disaster. </col>`;
+      return [met, text];
+    }
+    case 459:
+    case 466:
+    case 461:
+    case 469:
+    case 470:
+    case 6415:
+    case 6416:
+    case 6417: {
+      if (desertTreasureDone()) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Desert Treasure I. </col>`;
+      return [met, text];
+    }
+    case 463: {
+      if (useServerState(Varbits.VEOS_PROGRESS) >= 7) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Client of Kourend. </col>`;
+      return [met, text];
+    }
+    case 855: {
+      if (questComplete(Quest.TWILIGHT_S_PROMISE)) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Twilight's Promise. </col>`;
+      return [met, text];
+    }
+    case 467:
+    case 592: {
+      if (useServerState(Varbits.MY2ARM_STATUS) >= 200) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Making Friends with My Arm. </col>`;
+      return [met, text];
+    }
+    case 451: {
+      if (
+        useServerState(Varbits.VARROCK_MEDIUM_REWARD) === 1 ||
+        useServerState(Varbits.VARROCK_HARD_REWARD) === 1 ||
+        useServerState(Varbits.VARROCK_ELITE_REWARD) === 1
+      ) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed the medium, hard or elite tier of the Varrock achievement diary. </col>`;
+      return [met, text];
+    }
+    case 455: {
+      if (useServerState(Varbits.KANDARIN_HARD_REWARD) === 1 || useServerState(Varbits.KANDARIN_ELITE_REWARD) === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed the hard or elite tier of the Kandarin achievement diary. </col>`;
+      return [met, text];
+    }
+    case 458: {
+      if (useServerState(Varbits.ARDOUGNE_HARD_REWARD) === 1 || useServerState(Varbits.ARDOUGNE_ELITE_REWARD) === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed the hard or elite tier of the Ardougne achievement diary. </col>`;
+      return [met, text];
+    }
+    case 1247: {
+      if (useServerState(Varbits.ZEAH_PLAYERHASVISITED) === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Visited Kourend. </col>`;
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 1249:
+    case 1250:
+    case 1254: {
+      if (useServerState(Varps.PRIESTPERIL) >= 61) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Priest in Peril. </col>`;
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 1251: {
+      if (useServerState(Varps.BIOHAZARD) >= 16) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Biohazard. </col>`;
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 1252: {
+      if (useServerState(Varps.BRAIN_QUEST_VAR) >= 130) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed The Great Brain Robbery. </col>`;
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 1255: {
+      if (useServerState(Varps.MM_MAIN) >= 9) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Monkey Madness. </col>`;
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 2887:
+    case 1246:
+    case 1248:
+    case 1253:
+    case 6422: {
+      if (arceuus === 1) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Unlocked Arceuus Spells. </col>`;
+      return [met, text];
+    }
+    case 6414: {
+      if (useServerState(Varps.EADGAR_QUEST) >= 110) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Eadgar's Ruse. </col>`;
+      return [met, text];
+    }
+    case 6423: {
+      if (useServerState(Varps.SAILING_INTRO_PRIMARY) >= 50) {
+        text = `${text}<col=0dc10d>`;
+      } else {
+        text = `${text}<col=ff0000>`;
+        met = false;
+      }
+      text = `${text}Completed Pandemonium. </col>`;
+      return [met, text];
+    }
+  }
+  return [met, text];
+}

@@ -1,0 +1,132 @@
+import { useRef, useServerState, useState, useWatch } from 'ts2';
+
+import { farmingViewScrollpos } from '../lib/game/varcs';
+import { Varps } from '../lib/game/varps';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { FarmingPatchCells } from './farming-view.cells';
+import { Cell, FarmingSprites, FarmingVarbits, Layout, TabPatchCounts } from './farming-view.constants';
+import { scrollFarmingTo } from './farming-view.helpers';
+
+export function FarmingPane(): Component {
+  const tab: Int = useServerState(FarmingVarbits.TAB);
+  const [remembered, setRemembered] = useState(farmingViewScrollpos);
+  const [drawn, setDrawn] = useState(0);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [seated, setSeated] = useState(false);
+  const [thumbFor, setThumbFor] = useState(-1);
+  const gutter = useRef();
+  const pane = useRef();
+  useWatch([Varps.MUSICLOOP], () => setSeated(true), pane);
+
+  const paneH: Int = Layout.CONTENTS_H - Layout.BODY_INSET_H;
+  const shown: Int = TabPatchCounts.at(tab) ?? 0;
+  const rows: Int = (shown + Layout.CELL_GAP) / Layout.COLUMNS;
+  const extent: Int = rows > 0 ? rows * Cell.H + (rows - 1) * Layout.CELL_GAP : 0;
+  const scrolls: Boolean = extent > paneH;
+  const range: Int = scrolls ? Math.max(1, extent - paneH) : 1;
+  const at: Int = scrolls && seated === true ? Math.clamp(0, range, remembered) : 0;
+  setRemembered(seated === true ? at : remembered);
+
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const thumbY: Int = thumbFor === at ? thumbAt : ARROW + (travel * at) / range;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        y="center"
+        w={{ fill: Layout.PANE_INSET_W }}
+        h="fill"
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={at}
+        onScrollWheel={(event) => {
+          const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+          scrollFarmingTo(next);
+          setDrawn(next);
+          setSeated(true);
+          setThumbFor(-1);
+        }}
+      >
+        <FarmingPatchCells tab={tab} />
+      </layer>
+
+      <layer x="right" y="center" w={Layout.BAR_W} h="fill">
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={FarmingSprites.BAR_TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + event.mouseY * WHEEL) : 0;
+            scrollFarmingTo(next);
+            setDrawn(next);
+            setSeated(true);
+            setThumbFor(-1);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            scrollFarmingTo(next);
+            setDrawn(next);
+            setSeated(true);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={FarmingSprites.BAR_THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            scrollFarmingTo(next);
+            setDrawn(next);
+            setSeated(true);
+            setThumbAt(offset + ARROW);
+            setThumbFor(next);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={FarmingSprites.BAR_CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={FarmingSprites.BAR_CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={FarmingSprites.BAR_ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at - STEP) : 0;
+            scrollFarmingTo(next);
+            setDrawn(next);
+            setSeated(true);
+            setThumbFor(-1);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={FarmingSprites.BAR_ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const next: Int = scrolls ? Math.clamp(0, range, at + STEP) : 0;
+            scrollFarmingTo(next);
+            setDrawn(next);
+            setSeated(true);
+            setThumbFor(-1);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

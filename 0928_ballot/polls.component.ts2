@@ -1,0 +1,470 @@
+import { CS2, intArray, useInterval, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { Varbits } from '../lib/game/varbits';
+import { setTransparency } from '../lib/lib.components';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import { BallotFont, BallotPage } from './ballot.constants';
+import { ballotPage } from './ballot.state';
+import { ballotSetPollsRowsTotal } from './ballot.entry';
+import { PollCategories } from './polls.data';
+import {
+  POLLS_MAX_ROWS,
+  POLLS_FIRST_YEAR,
+  POLLS_YEAR_BITS,
+  PollsRowField,
+  pollCategoryIcon,
+  pollsListBuild,
+  pollsLoadingExpired,
+  pollsLoadingRow,
+  pollsRowCount,
+  pollsRowField,
+  pollsRows,
+  pollsSelectYear,
+  pollsToggleFilter,
+  pollsViewPoll,
+  pollsYear,
+  pollsYearMask,
+} from './polls.state';
+
+const FilterLayout = {
+  BUTTON_W: 40,
+  PITCH: 45,
+  CORNER: 6,
+  ICON_W: 30,
+  ICON_H: 35,
+} as const;
+
+const RowLayout = {
+  YEAR_H: 25,
+  TEXT_INSET: 76,
+  TITLE_LINE: 15,
+  TITLE_PAD: 5,
+  SUB_LINE: 12,
+  SUB_PAD: 3,
+  MIN_H: 35,
+  ICON_W: 30,
+  ICON_H: 35,
+  ICON_INSET: 5,
+  GAP: 5,
+  EMPTY_LINE: 20,
+  EMPTY_PAD: 50,
+  EMPTY_LINE_HEIGHT: 20,
+} as const;
+
+const PollsColour = {
+  WASH: 0x726451,
+  WHITE: 0xffffff,
+  ORANGE: 0xff981f,
+  SUBTITLE: 0xafafaf,
+  EMPTY: 0x9f9f9f,
+} as const;
+
+const PollsWash = {
+  YEAR_EVEN: 220,
+  YEAR_ODD: 170,
+  YEAR_HELD: 120,
+  ROW_REST: 255,
+  ROW_HOVER: 220,
+  FILTER_HELD: 100,
+  FILTER_REST: 0,
+} as const;
+
+const PollsFont = {
+  SUBTITLE: Fonts.P11_FULL,
+} as const;
+
+export function PollsPage({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const hiddenCategories: Int = useServerState(Varbits.POLL_FILTERS_CATEGORIES);
+  const hiddenStatuses: Int = useServerState(Varbits.POLL_FILTERS_STATUSES);
+  const mobile: Boolean = onMobile();
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={page !== BallotPage.POLLS}>
+      {PollCategories.map((row) => (
+        <PollsFilterButton
+          category={row.category}
+          bitKey={row.id}
+          label={row.opbase}
+          icon={row.icon}
+          hidden={row.category ? CS2.testbit(hiddenCategories, row.id) : CS2.testbit(hiddenStatuses, row.id)}
+          mobile={mobile}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function PollsFilterButton({
+  category,
+  bitKey,
+  label,
+  icon,
+  hidden,
+  mobile,
+}: {
+  category: Boolean;
+  bitKey: Int;
+  label: String;
+  icon: Sprite;
+  hidden: Boolean;
+  mobile: Boolean;
+}): Component {
+  const offset: Int = bitKey * FilterLayout.PITCH;
+  return (
+    <layer
+      x={category ? offset : { right: offset }}
+      y="center"
+      w={FilterLayout.BUTTON_W}
+      h="fill"
+      options={[hidden ? 'Show' : 'Hide']}
+      optionSubject={`<col=ff9040>${label}</col>`}
+      onOptionSelect={(event) => {
+        pollsToggleFilter(category, bitKey, hidden, event.component, event.subId);
+      }}
+      onMouseRepeat={mobile ? undefined : (event) => setTransparency(event.self, PollsWash.FILTER_HELD)}
+      onMouseLeave={mobile ? undefined : (event) => setTransparency(event.self, PollsWash.FILTER_REST)}
+    >
+      <PollsNineSlice hidden={hidden} />
+      <sprite x="center" y="center" w={FilterLayout.ICON_W} h={FilterLayout.ICON_H} sprite={icon} tiling />
+    </layer>
+  );
+}
+
+function PollsNineSlice({ hidden }: { hidden: Boolean }): Component {
+  const c: Int = FilterLayout.CORNER;
+  if (hidden) {
+    return (
+      <>
+        <sprite x={0} y={0} w={c} h={c} sprite={1150} tiling />
+        <sprite x={c} y={0} w={{ fill: c * 2 }} h={c} sprite={1151} tiling />
+        <sprite x={{ right: 0 }} y={0} w={c} h={c} sprite={1152} tiling />
+        <sprite x={0} y={c} w={c} h={{ fill: c * 2 }} sprite={1153} tiling />
+        <sprite x={c} y={c} w={{ fill: c * 2 }} h={{ fill: c * 2 }} sprite={1154} tiling />
+        <sprite x={{ right: 0 }} y={c} w={c} h={{ fill: c * 2 }} sprite={1155} tiling />
+        <sprite x={0} y={{ bottom: 0 }} w={c} h={c} sprite={1156} tiling />
+        <sprite x={c} y={{ bottom: 0 }} w={{ fill: c * 2 }} h={c} sprite={1157} tiling />
+        <sprite x={{ right: 0 }} y={{ bottom: 0 }} w={c} h={c} sprite={1158} tiling />
+      </>
+    );
+  }
+  return (
+    <>
+      <sprite x={0} y={0} w={c} h={c} sprite={1141} tiling />
+      <sprite x={c} y={0} w={{ fill: c * 2 }} h={c} sprite={1142} tiling />
+      <sprite x={{ right: 0 }} y={0} w={c} h={c} sprite={1143} tiling />
+      <sprite x={0} y={c} w={c} h={{ fill: c * 2 }} sprite={1144} tiling />
+      <sprite x={c} y={c} w={{ fill: c * 2 }} h={{ fill: c * 2 }} sprite={1145} tiling />
+      <sprite x={{ right: 0 }} y={c} w={c} h={{ fill: c * 2 }} sprite={1146} tiling />
+      <sprite x={0} y={{ bottom: 0 }} w={c} h={c} sprite={1147} tiling />
+      <sprite x={c} y={{ bottom: 0 }} w={{ fill: c * 2 }} h={c} sprite={1148} tiling />
+      <sprite x={{ right: 0 }} y={{ bottom: 0 }} w={c} h={c} sprite={1149} tiling />
+    </>
+  );
+}
+
+export function PollsYearsPane({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const [selected] = useState(pollsYear);
+  const [mask] = useState(pollsYearMask);
+  const mobile: Boolean = onMobile();
+
+  const years = intArray(POLLS_YEAR_BITS);
+  let shown: Int = 0;
+  let bit: Int = POLLS_YEAR_BITS - 1;
+  while (bit >= 0) {
+    if (CS2.testbit(mask, bit)) {
+      years[shown] = POLLS_FIRST_YEAR + bit;
+      shown = shown + 1;
+    }
+    bit = bit - 1;
+  }
+  let rest: Int = shown;
+  while (rest < POLLS_YEAR_BITS) {
+    years[rest] = -1;
+    rest = rest + 1;
+  }
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={mask} hide={page !== BallotPage.POLLS}>
+      {years.map(
+        (year, index) =>
+          year !== -1 && (
+            <PollsYearRow
+              year={year}
+              selected={year === selected}
+              top={index * RowLayout.YEAR_H}
+              wash={index % 2 === 0 ? PollsWash.YEAR_EVEN : PollsWash.YEAR_ODD}
+              mobile={mobile}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function PollsYearRow({
+  year,
+  selected,
+  top,
+  wash,
+  mobile,
+}: {
+  year: Int;
+  selected: Boolean;
+  top: Int;
+  wash: Int;
+  mobile: Boolean;
+}): Component {
+  return (
+    <>
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={RowLayout.YEAR_H}
+        color={PollsColour.WASH}
+        fill
+        transparency={wash}
+        options={['Load']}
+        optionSubject={`<col=ff9040>${year}</col>`}
+        onOptionSelect={(event) => {
+          pollsSelectYear(year, event.component, event.subId);
+        }}
+        onMouseRepeat={mobile ? undefined : (event) => setTransparency(event.self, PollsWash.YEAR_HELD)}
+        onMouseLeave={(event) => setTransparency(event.self, wash)}
+      />
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={RowLayout.YEAR_H}
+        text={`${year}`}
+        font={BallotFont.BODY}
+        color={selected ? PollsColour.WHITE : PollsColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function PollsRowsPane({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const [count] = useState(pollsRowCount);
+  const [rows] = useState(pollsRows);
+  const [loading] = useState(pollsLoadingRow);
+  const [build] = useState(pollsListBuild);
+  const hiddenCategories: Int = useServerState(Varbits.POLL_FILTERS_CATEGORIES);
+  const hiddenStatuses: Int = useServerState(Varbits.POLL_FILTERS_STATUSES);
+  const mobile: Boolean = onMobile();
+
+  const universe = useUniverse();
+  const textW: Int = universe.width - RowLayout.TEXT_INSET;
+
+  const rowY = intArray(POLLS_MAX_ROWS);
+  const rowH = intArray(POLLS_MAX_ROWS);
+  let stack: Int = 0;
+  let at: Int = 0;
+  while (at < POLLS_MAX_ROWS) {
+    rowY[at] = -1;
+    rowH[at] = 0;
+    if (at < count) {
+      const word: Int = parseInt(pollsRowField(rows, at, PollsRowField.FILTER));
+      const categoryKey: Int = CS2.bit_range_get(word, 0, 7);
+      const statusKey: Int = CS2.bit_range_get(word, 8, 15);
+      if (!CS2.testbit(hiddenCategories, categoryKey) && !CS2.testbit(hiddenStatuses, statusKey)) {
+        const titleH: Int =
+          CS2.paraheight(pollsRowField(rows, at, PollsRowField.TITLE), textW, BallotFont.BODY) * RowLayout.TITLE_LINE +
+          RowLayout.TITLE_PAD;
+        const subH: Int =
+          CS2.paraheight(pollsRowField(rows, at, PollsRowField.SUBTITLE), textW, PollsFont.SUBTITLE) *
+            RowLayout.SUB_LINE +
+          RowLayout.SUB_PAD;
+        const h: Int = titleH + subH > RowLayout.MIN_H ? titleH + subH : RowLayout.MIN_H;
+        if (stack > 0) {
+          stack = stack + RowLayout.GAP;
+        }
+        rowY[at] = stack;
+        rowH[at] = h;
+        stack = stack + h;
+      }
+    }
+    at = at + 1;
+  }
+  const contentH: Int = stack;
+  const emptyText: String =
+    'No polls were found matching<br>these filter settings.<br><br>Please adjust your filters<br>or select another year.';
+
+  let total: Int = contentH;
+  if (contentH <= 0) {
+    total = CS2.paraheight(emptyText, universe.width, BallotFont.BODY) * RowLayout.EMPTY_LINE + RowLayout.EMPTY_PAD;
+  }
+
+  ballotSetPollsRowsTotal(total);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={build} hide={page !== BallotPage.POLLS}>
+      {rowY.map(
+        (y, index) =>
+          y !== -1 && (
+            <PollsRow
+              title={pollsRowField(rows, index, PollsRowField.TITLE)}
+              subtitle={pollsRowField(rows, index, PollsRowField.SUBTITLE)}
+              pollId={parseInt(pollsRowField(rows, index, PollsRowField.ID))}
+              filterWord={parseInt(pollsRowField(rows, index, PollsRowField.FILTER))}
+              index={index}
+              top={contentH - y - rowH[index]}
+              height={rowH[index]}
+              textW={textW}
+              loading={index === loading}
+              mobile={mobile}
+            />
+          ),
+      )}
+
+      {contentH <= 0 && (
+        <text
+          x="center"
+          y={0}
+          w="fill"
+          h="fill"
+          text={emptyText}
+          font={BallotFont.BODY}
+          color={PollsColour.EMPTY}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={RowLayout.EMPTY_LINE_HEIGHT}
+        />
+      )}
+
+      <PollsLoadingTimer waiting={loading !== -1} />
+    </layer>
+  );
+}
+
+function PollsRow({
+  title,
+  subtitle,
+  pollId,
+  filterWord,
+  index,
+  top,
+  height,
+  textW,
+  loading,
+  mobile,
+}: {
+  title: String;
+  subtitle: String;
+  pollId: Int;
+  filterWord: Int;
+  index: Int;
+  top: Int;
+  height: Int;
+  textW: Int;
+  loading: Boolean;
+  mobile: Boolean;
+}): Component {
+  const titleH: Int = CS2.paraheight(title, textW, BallotFont.BODY) * RowLayout.TITLE_LINE + RowLayout.TITLE_PAD;
+  const subH: Int = CS2.paraheight(subtitle, textW, PollsFont.SUBTITLE) * RowLayout.SUB_LINE + RowLayout.SUB_PAD;
+  const spare: Int = height - (titleH + subH);
+  const dy: Int = spare > 0 ? spare / 2 : 0;
+
+  const categoryIcon: Int = pollCategoryIcon(true, CS2.bit_range_get(filterWord, 0, 7));
+  const statusIcon: Int = pollCategoryIcon(false, CS2.bit_range_get(filterWord, 8, 15));
+
+  return (
+    <layer
+      x="center"
+      y={top}
+      w="fill"
+      h={height}
+      options={['View']}
+      onOptionSelect={(event) => {
+        pollsViewPoll(index, pollId, event.component, event.subId);
+      }}
+    >
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={PollsColour.WASH}
+        fill
+        transparency={PollsWash.ROW_REST}
+        onMouseEnter={mobile ? undefined : (event) => setTransparency(event.self, PollsWash.ROW_HOVER)}
+        onMouseLeave={(event) => setTransparency(event.self, PollsWash.ROW_REST)}
+      />
+      <text
+        x="center"
+        y={dy}
+        w={textW}
+        h={titleH}
+        text={loading ? `<col=ffffff>Loading...</col>` : title}
+        font={BallotFont.BODY}
+        color={PollsColour.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="center"
+        y={height - dy - subH}
+        w={textW}
+        h={subH}
+        text={subtitle}
+        font={PollsFont.SUBTITLE}
+        color={PollsColour.SUBTITLE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      {categoryIcon !== -1 && (
+        <sprite
+          x={RowLayout.ICON_INSET}
+          y="center"
+          w={RowLayout.ICON_W}
+          h={RowLayout.ICON_H}
+          sprite={categoryIcon as Sprite}
+        />
+      )}
+      {statusIcon !== -1 && (
+        <sprite
+          x={{ right: RowLayout.ICON_INSET }}
+          y="center"
+          w={RowLayout.ICON_W}
+          h={RowLayout.ICON_H}
+          sprite={statusIcon as Sprite}
+        />
+      )}
+    </layer>
+  );
+}
+
+function PollsLoadingTimer({ waiting }: { waiting: Boolean }): Component {
+  const host = useRef();
+  useInterval(() => {
+    pollsLoadingExpired();
+  }, host);
+  return <layer ref={host} x={0} y={0} w={1} h={1} hide={!waiting} />;
+}
+
+export function PollsScrollbar({ content }: { content: Ref }): Component {
+  return (
+    <ScrollbarVertical
+      content={content}
+      track={ScrollbarSprites.TRACK}
+      capTopSprite={ScrollbarSprites.CAP_TOP}
+      thumbSprite={ScrollbarSprites.THUMB}
+      capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+      arrowUp={ScrollbarSprites.ARROW_UP}
+      arrowDown={ScrollbarSprites.ARROW_DOWN}
+      rebuilt
+    />
+  );
+}

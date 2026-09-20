@@ -1,24 +1,35 @@
-import { predictServerState, useServerState } from 'ts2';
+import { predictServerState, useServerState, useState, useWatch } from 'ts2';
 
 import { closeInterface, graphicSwapper } from '../lib/lib.helpers';
 import { Layout, TrawlerArt, TrawlerFonts, TrawlerModel, TrawlerState } from './trawler-start.constants';
+import { trawlerInfoboxHeld } from './trawler-start.state';
 
-export function trawlerStartSetGraphic(component: ComponentId): void {
-  if (useServerState(TrawlerState.INFOBOX) === 0) {
-    component.sprite = TrawlerArt.UNCHECKED;
-  } else {
-    component.sprite = TrawlerArt.CHECKED;
+export function tickSprite(infobox: Int): Sprite {
+  if (infobox === 0) {
+    return TrawlerArt.UNCHECKED;
   }
+  return TrawlerArt.CHECKED;
 }
 
-export function trawlerStartToggle(component: ComponentId): void {
-  predictServerState(TrawlerState.INFOBOX, (useServerState(TrawlerState.INFOBOX) + 1) % 2);
-  trawlerStartSetGraphic(component);
+export function trawlerStartToggle(): void {
+  const infobox: Int = useServerState(TrawlerState.INFOBOX);
+  const [held, setHeld] = useState(trawlerInfoboxHeld);
+  if (held < 0) {
+    setHeld(infobox);
+  }
+  predictServerState(TrawlerState.INFOBOX, (infobox + 1) % 2);
+}
+
+export function trawlerInfoboxRelease(): void {
+  const [, setHeld] = useState(trawlerInfoboxHeld);
+  setHeld(-1);
 }
 
 export function TrawlerStart(): Component {
   return (
     <>
+      <layer x={0} y={0} w={0} h={0} onLoad={() => trawlerInfoboxRelease()} />
+
       <model x={240} y={141} w={Layout.ICON} h={Layout.ICON} model={TrawlerModel.SHIP} zoom={472} pitch={484} yaw={3} />
 
       <model
@@ -149,15 +160,8 @@ export function TrawlerStart(): Component {
         onMouseLeave={(event) => graphicSwapper(event.component, TrawlerArt.CLOSE)}
       />
 
-      <layer
-        x="center"
-        y={269}
-        w={438}
-        h={37}
-        options={['Select']}
-        onOptionSelect={(event) => trawlerStartToggle(event.component)}
-      >
-        <sprite x={{ center: -88 }} y={5} w={18} h={18} sprite={TrawlerArt.UNCHECKED} />
+      <layer x="center" y={269} w={438} h={37} options={['Select']} onOptionSelect={() => trawlerStartToggle()}>
+        <TrawlerTickBox />
 
         <text
           x={{ center: 35 }}
@@ -172,4 +176,11 @@ export function TrawlerStart(): Component {
       </layer>
     </>
   );
+}
+
+function TrawlerTickBox(): Component {
+  const infobox: Int = useServerState(TrawlerState.INFOBOX);
+  const [held] = useState(trawlerInfoboxHeld);
+  useWatch(TrawlerState.INFOBOX, () => trawlerInfoboxRelease());
+  return <sprite x={{ center: -88 }} y={5} w={18} h={18} sprite={tickSprite(held >= 0 ? held : infobox)} />;
 }

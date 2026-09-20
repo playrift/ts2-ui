@@ -1,34 +1,38 @@
-import { createRef, useInterval } from 'ts2';
+import { onMounted, onUpdated, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
 
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
 import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
 import {
+  dodger,
+  Infection,
+  INFECTION_MAX,
   InfectionColor,
   InfectionFonts,
   InfectionSprites,
+  InfectionVarbits,
   Layout,
-  PERCENT_TEXT,
+  overlay,
   ROOT_H,
   ROOT_W,
   SHINE_H,
   SHINE_WASH,
+  universe,
 } from './dt2-infection.constants';
-import { infectionBar, infectionRelayout } from './dt2-infection.helpers';
-
-const timerHost1 = createRef('0836_dt2_infection_timer_host1');
-
-const timerHost2 = createRef('0836_dt2_infection_timer_host2');
-
-const universe = createRef('dt2_infection_universe');
-
-const overlay = createRef('dt2_infection_overlay');
-
-const barFill = createRef('dt2_infection_infection_bar_foreground');
-const percentage = createRef('dt2_infection_infection_percentage');
-const glyph = createRef('dt2_infection_infection_icon');
+import {
+  barTarget,
+  glyphAlphaFor,
+  overlayWidth,
+  publishBreakpoint,
+  infectionBar,
+  infectionCaption,
+  infectionTick,
+  Snap,
+} from './dt2-infection.helpers';
+import { infectionBarPx, infectionGlyphAlpha, infectionLaidOutAt, infectionMeasuredPx } from './dt2-infection.state';
 
 export function Dt2Infection(): Component {
-  useInterval(() => infectionRelayout(timerHost1, universe, overlay), timerHost1);
-  useInterval(() => infectionBar(timerHost2, percentage, barFill, glyph), timerHost2);
+  useInterval(() => publishBreakpoint(), universe);
 
   return (
     <layer ref={universe} w={ROOT_W} h={ROOT_H}>
@@ -36,75 +40,132 @@ export function Dt2Infection(): Component {
         <rect w="fill" h="fill" fill color={InfectionColor.FADE} />
       </layer>
 
-      <layer w="fill" h="fill" ref={timerHost1}>
-        <layer ref={overlay} x={Layout.CARD_X} y={Layout.CARD_Y} w={Layout.CARD_W} h={Layout.CARD_H}>
-          <layer
-            x={Layout.BAR_X}
-            y="center"
-            w={{ fill: Layout.BAR_INSET_W }}
-            h={{ fill: Layout.BAR_INSET_H }}
-            ref={timerHost2}
-          >
-            <rect w="fill" h="fill" fill color={InfectionColor.BAR_BACK} />
-
-            <rect ref={barFill} w="fill" h="fill" fill color={InfectionColor.BAR_FILL} />
-
-            <rect w="fill" h={SHINE_H} fill color={InfectionColor.SHINE} transparency={SHINE_WASH} />
-
-            <text
-              ref={percentage}
-              x="center"
-              y={{ center: Layout.PERCENT_Y }}
-              w={Layout.PERCENT_W}
-              h={Layout.PERCENT_H}
-              text={PERCENT_TEXT}
-              font={InfectionFonts.PERCENT}
-              align="center"
-              valign="middle"
-              shadow
-              color={InfectionColor.TEXT}
-            />
-
-            <rect
-              x={{ right: Layout.DOT_INSET }}
-              y={{ bottom: Layout.DOT_INSET }}
-              w={Layout.DOT}
-              h={Layout.DOT}
-              fill
-              color={InfectionColor.CORNER}
-            />
-            <rect
-              x={{ right: Layout.DOT_INSET }}
-              y={Layout.DOT_INSET}
-              w={Layout.DOT}
-              h={Layout.DOT}
-              fill
-              color={InfectionColor.CORNER}
-            />
-
-            <ThinBoxEntrypoint />
-          </layer>
-
-          <layer w={Layout.ICON_W} h={Layout.ICON_H}>
-            <sprite x={Layout.ORB_X} y={Layout.ORB_Y} w={Layout.ORB} h={Layout.ORB} sprite={InfectionSprites.ORB} />
-            <sprite
-              x={Layout.GLYPH_X}
-              y={Layout.GLYPH_Y}
-              w={Layout.GLYPH}
-              h={Layout.GLYPH}
-              sprite={InfectionSprites.ICON_BACK}
-            />
-            <sprite
-              ref={glyph}
-              x={Layout.GLYPH_X}
-              y={Layout.GLYPH_Y}
-              w={Layout.GLYPH}
-              h={Layout.GLYPH}
-              sprite={InfectionSprites.ICON}
-            />
-          </layer>
+      <layer w="fill" h="fill" ref={dodger}>
+        <layer static ref={overlay} x={Layout.CARD_X} y={Layout.CARD_Y} w={Layout.CARD_W} h={Layout.CARD_H}>
+          <InfectionCard />
         </layer>
       </layer>
     </layer>
+  );
+}
+
+function placeCard(width: Int, breakpoint: Int): void {
+  overlay.props = { w: width, h: Layout.CARD_H };
+  overlayInit(dodger, overlay, Infection.DODGE, Anchor.LEFT, Anchor.TOP, 1);
+  const [, setLaidOutAt] = useState(infectionLaidOutAt);
+  setLaidOutAt(breakpoint);
+}
+
+function InfectionCard(): Component {
+  const track = useRef();
+
+  const infection: Int = useServerState(InfectionVarbits.INFECTION);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const [barPx] = useState(infectionBarPx);
+  const [alpha] = useState(infectionGlyphAlpha);
+  const [measured] = useState(infectionMeasuredPx);
+  const [laidOutAt] = useState(infectionLaidOutAt);
+
+  const width: Int = overlayWidth(breakpoint);
+  const trackW: Int = width - Layout.BAR_INSET_W;
+  const target: Int = barTarget(infection, trackW);
+  const caption: String = infectionCaption(infection);
+  let captionColor: Int = InfectionColor.TEXT;
+  if (infection === 0) {
+    captionColor = InfectionColor.HEALTHY;
+  } else if (infection === INFECTION_MAX) {
+    captionColor = InfectionColor.STRANGLED;
+  }
+  let walking: Boolean = false;
+  if (infection > 0 && infection < INFECTION_MAX) {
+    walking = true;
+  }
+
+  let drawn: Int = barPx;
+  let shownAlpha: Int = alpha;
+  if (measured !== trackW) {
+    drawn = target;
+    if (walking) {
+      shownAlpha = glyphAlphaFor(target, trackW);
+    }
+  } else if (walking && drawn <= 0) {
+    drawn = 1;
+  }
+
+  let relayout: Boolean = false;
+  if (laidOutAt !== breakpoint) {
+    relayout = true;
+  }
+  onMounted(() => placeCard(width, breakpoint));
+  onUpdated(() => {
+    if (relayout) {
+      placeCard(width, breakpoint);
+    }
+  });
+
+  useWatch(InfectionVarbits.INFECTION, () => infectionBar(Snap.WALK), track);
+  useInterval(() => infectionTick());
+
+  return (
+    <>
+      <layer ref={track} x={Layout.BAR_X} y="center" w={{ fill: Layout.BAR_INSET_W }} h={{ fill: Layout.BAR_INSET_H }}>
+        <rect w="fill" h="fill" fill color={InfectionColor.BAR_BACK} />
+
+        <rect w={drawn} h="fill" fill color={InfectionColor.BAR_FILL} />
+
+        <rect w="fill" h={SHINE_H} fill color={InfectionColor.SHINE} transparency={SHINE_WASH} />
+
+        <text
+          x="center"
+          y={{ center: Layout.PERCENT_Y }}
+          w={Layout.PERCENT_W}
+          h={Layout.PERCENT_H}
+          text={caption}
+          font={InfectionFonts.PERCENT}
+          align="center"
+          valign="middle"
+          shadow
+          color={captionColor}
+        />
+
+        <rect
+          x={{ right: Layout.DOT_INSET }}
+          y={{ bottom: Layout.DOT_INSET }}
+          w={Layout.DOT}
+          h={Layout.DOT}
+          fill
+          color={InfectionColor.CORNER}
+        />
+        <rect
+          x={{ right: Layout.DOT_INSET }}
+          y={Layout.DOT_INSET}
+          w={Layout.DOT}
+          h={Layout.DOT}
+          fill
+          color={InfectionColor.CORNER}
+        />
+
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer w={Layout.ICON_W} h={Layout.ICON_H}>
+        <sprite x={Layout.ORB_X} y={Layout.ORB_Y} w={Layout.ORB} h={Layout.ORB} sprite={InfectionSprites.ORB} />
+        <sprite
+          x={Layout.GLYPH_X}
+          y={Layout.GLYPH_Y}
+          w={Layout.GLYPH}
+          h={Layout.GLYPH}
+          sprite={InfectionSprites.ICON_BACK}
+        />
+        <sprite
+          x={Layout.GLYPH_X}
+          y={Layout.GLYPH_Y}
+          w={Layout.GLYPH}
+          h={Layout.GLYPH}
+          sprite={InfectionSprites.ICON}
+          transparency={shownAlpha}
+        />
+      </layer>
+    </>
   );
 }

@@ -1,0 +1,92 @@
+import { useServerState } from 'ts2';
+
+import { AdventureTasks } from '../0644_adventurepath_side/adventure-tasks.data';
+import { hasBit } from '../lib/lib.engine';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+
+const BITS = 32;
+
+export function pathComplete(path: Int): Boolean {
+  if (path < BITS) {
+    return hasBit(useServerState(Varps.ADVENTUREPATH_1_PATH_COMPLETE), path);
+  }
+  return false;
+}
+
+export function pathRewardFree(path: Int): Boolean {
+  if (path < BITS) {
+    return hasBit(useServerState(Varps.ADVENTUREPATH_1_REWARD_F2P), path);
+  }
+  return false;
+}
+
+export function pathRewardMembers(path: Int): Boolean {
+  if (path < BITS) {
+    return hasBit(useServerState(Varps.ADVENTUREPATH_1_REWARD_P2P), path);
+  }
+  return false;
+}
+
+export function pathLength(path: Int): Int {
+  if (path === -1) {
+    return 0;
+  }
+  let cursor: Int = 0;
+  let total: Int = 0;
+  while (cursor < AdventureTasks.length) {
+    const task = AdventureTasks.at(cursor);
+    const rowPath: Int = task === null ? -1 : task.path;
+    if (rowPath === path) {
+      total = total + 1;
+    }
+    cursor = cursor + 1;
+  }
+  return total;
+}
+
+export function pathTasksDone(path: Int): Int {
+  if (path === -1) {
+    return 0;
+  }
+  if (path === 0) {
+    return useServerState(Varbits.ADVENTUREPATH_COMBAT);
+  }
+  if (path === 1) {
+    return useServerState(Varbits.ADVENTUREPATH_GATHERER);
+  }
+  if (path === 2) {
+    return useServerState(Varbits.ADVENTUREPATH_WARRIOR);
+  }
+  if (path === 3) {
+    return useServerState(Varbits.ADVENTUREPATH_WIZARD);
+  }
+  if (path === 4) {
+    return useServerState(Varbits.ADVENTUREPATH_RANGER);
+  }
+  return 0;
+}
+
+function combatPathEnabled(): Int {
+  return 1;
+}
+
+function skillPathsEnabled(): Int {
+  return 0;
+}
+
+export function pathAvailable(path: Int): Boolean {
+  if (path === 0 && combatPathEnabled() === 0) {
+    return false;
+  }
+  if (path === 2 || path === 3 || path === 4) {
+    if (skillPathsEnabled() === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function rgb(red: Int, green: Int, blue: Int): Int {
+  return (Math.clamp(0, 255, red) * 65536) | (Math.clamp(0, 255, green) * 256) | Math.clamp(0, 255, blue);
+}

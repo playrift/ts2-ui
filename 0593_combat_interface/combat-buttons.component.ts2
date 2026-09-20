@@ -1,0 +1,131 @@
+import { predictServerState, useInventory, useServerState, useSkill } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { spellbookHasRunes, spellSprite } from '../lib/lib.magic';
+import {
+  AutocastBox,
+  Category,
+  CombatColors,
+  CombatFonts,
+  CombatInventories,
+  CombatSkills,
+  CombatSprites,
+  CombatVarbits,
+  CombatVarps,
+  WornSlot,
+} from './combat-interface.constants';
+import { AutocastSpells } from './autocast-spells.data';
+import { hideComboTip, showComboTip } from './combat-tooltip.component';
+
+export function StyleButton({
+  slot,
+  x,
+  y,
+  w,
+  h,
+  name,
+  tip,
+  sprite,
+  selected,
+  iconY,
+  iconW,
+  iconH,
+  labelY,
+}: {
+  slot: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  name: String;
+  tip: String;
+  sprite: Sprite;
+  selected: Boolean;
+  iconY: Int;
+  iconW: Int;
+  iconH: Int;
+  labelY: Int;
+}): Component {
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      options={[name]}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        predictServerState(CombatVarps.STYLE, slot);
+      }}
+      onMouseRepeat={() => showComboTip(tip, x, y, h, 25, 140)}
+      onMouseLeave={() => hideComboTip()}
+    >
+      {selected ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      <sprite x={{ center: 0 }} y={{ center: iconY }} w={iconW} h={iconH} sprite={sprite} />
+      <text
+        x={{ center: 0 }}
+        y={{ center: labelY }}
+        w={68}
+        h={13}
+        text={name}
+        font={CombatFonts.SMALL}
+        color={CombatColors.ORANGE}
+        align="center"
+        valign="top"
+        shadow
+      />
+    </layer>
+  );
+}
+
+export function AutocastSkin({ defensive }: { defensive: Int }): Component {
+  const spell: Item = AutocastSpells.get(useServerState(CombatVarbits.AUTOCAST_SPELL)) ?? -1;
+  const mode: Int = useServerState(CombatVarbits.AUTOCAST_DEFENSIVE);
+  if (spell !== -1 && mode === defensive) {
+    return <ButtonBackgroundPressed />;
+  }
+  return <ButtonBackground />;
+}
+
+export function AutocastIcon({ defensive }: { defensive: Int }): Component {
+  const spell: Item = AutocastSpells.get(useServerState(CombatVarbits.AUTOCAST_SPELL)) ?? -1;
+  const worn = useInventory(CombatInventories.WORN);
+  const magic: Int = useSkill(CombatSkills.MAGIC);
+  const x: Int = defensive === 1 ? AutocastBox.DEFENSIVE_X : 0;
+  if (spell === -1) {
+    return (
+      <sprite
+        x={{ center: x }}
+        y={{ center: AutocastBox.Y }}
+        w={AutocastBox.EMPTY_W}
+        h={AutocastBox.EMPTY_H}
+        sprite={CombatSprites.NO_SPELL}
+      />
+    );
+  }
+  const weapon: Item = worn[WornSlot.WEAPON];
+  const shield: Item = worn[WornSlot.SHIELD];
+  const lit: Int = spellbookHasRunes(spell, weapon, shield) && magic >= (spell.spellLevelreq ?? 0) ? 1 : 0;
+  const icon: Sprite = spellSprite(spell, AutocastBox.SPELL, lit);
+  if (icon === -1) {
+    return (
+      <sprite
+        x={{ center: x }}
+        y={{ center: AutocastBox.Y }}
+        w={AutocastBox.EMPTY_W}
+        h={AutocastBox.EMPTY_H}
+        sprite={CombatSprites.NO_SPELL}
+      />
+    );
+  }
+  return (
+    <sprite x={{ center: x }} y={{ center: AutocastBox.Y }} w={AutocastBox.SPELL} h={AutocastBox.SPELL} sprite={icon} />
+  );
+}
+
+export function ToggleSkin({ on }: { on: Boolean }): Component {
+  return on ? <ButtonBackgroundPressed /> : <ButtonBackground />;
+}

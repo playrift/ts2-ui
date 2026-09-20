@@ -10,7 +10,7 @@ import {
   VsyncIndex,
   VsyncValues,
 } from './settings-options.data';
-import { CS2, predictServerState, sessionState, useDerived, useServerState, useState } from 'ts2';
+import { CS2, predictServerState, sessionState, useDerived, useRef, useServerState, useState } from 'ts2';
 import { Sprites } from '../lib/game/sprites';
 import { Varbits } from '../lib/game/varbits';
 import { Varps } from '../lib/game/varps';
@@ -56,6 +56,7 @@ export const Drop = {
   hover: 240,
   plateRest: 255,
   maxEntries: 13,
+  synchCycles: 35,
 } as const;
 
 export const DropColour = {
@@ -70,6 +71,9 @@ export const openDropdownX = sessionState(-1);
 export const openDropdownY = sessionState(-1);
 export const openDropdownW = sessionState(-1);
 export const openDropdownH = sessionState(-1);
+
+export const openDropdownCaption = sessionState(-1);
+export const openDropdownChevron = sessionState(-1);
 
 export function optionEntry(options: List<String>, index: Int): String {
   return options.at(index) ?? '';
@@ -812,12 +816,14 @@ export function SettingsDropdown({
 }): Component {
   const settingId: Int = row.settingId ?? 0;
   const options: List<String> = rowOptions(row, mobile);
-  const [open, setOpen] = useState(openDropdownSetting);
+  const [, setOpen] = useState(openDropdownSetting);
   const [, setOpenRow] = useState(openDropdownRow);
   const [, setOpenX] = useState(openDropdownX);
   const [, setOpenY] = useState(openDropdownY);
   const [, setOpenW] = useState(openDropdownW);
   const [, setOpenH] = useState(openDropdownH);
+  const caption = useRef();
+  const chevron = useRef();
   const enabledFlag: Int = useDerived(() => settingEnabled(row));
   const value: Int = useDerived(() => dropdownValue(settingId));
 
@@ -834,7 +840,6 @@ export function SettingsDropdown({
   const centre: Int = top + (box / 2 - Drop.controlHalf);
   const lit: Boolean = rowLit(enabled, enabledFlag);
   const label: String = optionLabel(settingId, options, fallback, value);
-  const expanded: Boolean = isOpen(open, settingId);
 
   return (
     <>
@@ -889,13 +894,15 @@ export function SettingsDropdown({
         color={DropColour.OUTLINE_INNER}
       />
       <sprite
+        ref={chevron}
         x={{ right: Drop.chevronRight }}
         y={top + (box / 2 - Drop.chevronHalf)}
         w={Drop.chevron}
         h={Drop.chevron}
-        sprite={expanded ? Art.BAR_ARROW_UP : Art.BAR_ARROW_DOWN}
+        sprite={Art.BAR_ARROW_DOWN}
       />
       <text
+        ref={caption}
         x={{ right: Drop.valueRight }}
         y={top + (box / 2 - Drop.chevronHalf)}
         w={valueBox}
@@ -907,6 +914,29 @@ export function SettingsDropdown({
         align="center"
         valign="middle"
       />
+
+      {!mobile && lit ? (
+        <rect
+          x={{ right: Drop.controlRight }}
+          y={centre}
+          w={control}
+          h={Drop.controlH}
+          fill
+          color={Colour.BLACK}
+          transparency={Drop.plateRest}
+          hover={{ transparency: Drop.entryStripeA }}
+        />
+      ) : (
+        <rect
+          x={{ right: Drop.controlRight }}
+          y={centre}
+          w={control}
+          h={Drop.controlH}
+          fill
+          color={Colour.BLACK}
+          transparency={Drop.plateRest}
+        />
+      )}
 
       {(row.dropdownInput ?? 0) === 1 ? (
         <rect
@@ -927,7 +957,9 @@ export function SettingsDropdown({
               setOpenY(centre);
               setOpenW(control);
               setOpenH(Drop.controlH);
+              latchOpenComponents(caption, chevron);
               setOpen(settingId);
+              chevron.sprite = Art.BAR_ARROW_UP;
             } else {
               playSound(Sounds.DISMISS);
               chatMessage(rowLockedMessage(row));
@@ -952,35 +984,14 @@ export function SettingsDropdown({
               setOpenY(centre);
               setOpenW(control);
               setOpenH(Drop.controlH);
+              latchOpenComponents(caption, chevron);
               setOpen(settingId);
+              chevron.sprite = Art.BAR_ARROW_UP;
             } else {
               playSound(Sounds.DISMISS);
               chatMessage(rowLockedMessage(row));
             }
           }}
-        />
-      )}
-
-      {!mobile && lit ? (
-        <rect
-          x={{ right: Drop.controlRight }}
-          y={centre}
-          w={control}
-          h={Drop.controlH}
-          fill
-          color={Colour.BLACK}
-          transparency={Drop.plateRest}
-          hover={{ transparency: Drop.entryStripeA }}
-        />
-      ) : (
-        <rect
-          x={{ right: Drop.controlRight }}
-          y={centre}
-          w={control}
-          h={Drop.controlH}
-          fill
-          color={Colour.BLACK}
-          transparency={Drop.plateRest}
         />
       )}
 
@@ -1030,6 +1041,8 @@ export function DropdownEntry({
   count,
   entryH,
   mobile,
+  captionIndex,
+  chevronIndex,
 }: {
   row: SettingsRow;
   optionsId: List<String>;
@@ -1037,12 +1050,15 @@ export function DropdownEntry({
   count: Int;
   entryH: Int;
   mobile: Boolean;
+  captionIndex: Int;
+  chevronIndex: Int;
 }): Component {
   const [, setOpen] = useState(openDropdownSetting);
   const settingId: Int = row.settingId ?? 0;
   const disabled: Boolean = optionDisabled(settingId, index);
   const y: Int = index * entryH;
   const optionsFallback: String = rowOptionsFallback(row, mobile);
+  const text: String = optionLabel(settingId, optionsId, optionsFallback, index);
 
   return (
     <>
@@ -1073,7 +1089,7 @@ export function DropdownEntry({
             y={y}
             w="fill"
             h={entryH}
-            text={optionLabel(settingId, optionsId, optionsFallback, index)}
+            text={text}
             font={SettingsFonts.BODY}
             shadow
             color={disabled ? Colour.GREY : Colour.AMBER}
@@ -1091,11 +1107,8 @@ export function DropdownEntry({
             transparency={Drop.plateRest}
             hide={disabled}
             options={['Select']}
-            onOptionSelect={() => {
-              playSound(Sounds.TAB_SELECT);
-              if (!(row.live ?? false)) {
-                settingsSetDropdown(row, mobile, index);
-              }
+            onOptionSelect={(event) => {
+              dropdownEntryOp(event.component, captionIndex, chevronIndex, text, row, mobile, index);
               setOpen(-1);
             }}
           />
@@ -1105,15 +1118,62 @@ export function DropdownEntry({
   );
 }
 
-function rowLit(enabled: Boolean, flag: Int): Boolean {
-  if (enabled && flag === 1) {
-    return true;
-  }
-  return false;
+export function latchOpenComponents(caption: Ref, chevron: Ref): void {
+  const [, setOpenCaption] = useState(openDropdownCaption);
+  const [, setOpenChevron] = useState(openDropdownChevron);
+  setOpenCaption(caption as Int);
+  setOpenChevron(chevron as Int);
 }
 
-function isOpen(open: Int, settingId: Int): Boolean {
-  if (open === settingId) {
+export function dropdownEntryOp(
+  mount: ComponentId,
+  captionIndex: Int,
+  chevronIndex: Int,
+  text: String,
+  row: SettingsRow,
+  mobile: Boolean,
+  index: Int,
+): void {
+  playSound(Sounds.TAB_SELECT);
+  if (CS2.cc_find(mount, captionIndex)) {
+    CS2.cc_text_set(text);
+    if (!(row.live ?? false)) {
+      settingsSetDropdown(row, mobile, index);
+      if (CS2.cc_find(mount, captionIndex)) {
+        CS2.cc_on_timer_set(() => dropdownSynch(0, mount, captionIndex, row, mobile));
+      }
+    }
+  }
+  if (CS2.cc_find(mount, chevronIndex)) {
+    CS2.cc_sprite_set(Art.BAR_ARROW_DOWN);
+  }
+}
+
+export function dropdownSynch(
+  count: Int,
+  mount: ComponentId,
+  captionIndex: Int,
+  row: SettingsRow,
+  mobile: Boolean,
+): void {
+  if (!CS2.cc_find(mount, captionIndex)) {
+    return;
+  }
+  if (count < Drop.synchCycles) {
+    const next: Int = count + 1;
+    CS2.cc_on_timer_set(() => dropdownSynch(next, mount, captionIndex, row, mobile));
+    return;
+  }
+  const settingId: Int = row.settingId ?? 0;
+  const options: List<String> = rowOptions(row, mobile);
+  const fallback: String = rowOptionsFallback(row, mobile);
+  const label: String = optionLabel(settingId, options, fallback, dropdownValue(settingId));
+  CS2.cc_text_set(label);
+  CS2.cc_on_timer_set(null);
+}
+
+function rowLit(enabled: Boolean, flag: Int): Boolean {
+  if (enabled && flag === 1) {
     return true;
   }
   return false;

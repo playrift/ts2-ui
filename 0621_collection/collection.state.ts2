@@ -1,0 +1,161 @@
+import { CS2, predictServerState, sessionState, useServerState, useState } from 'ts2';
+
+import { keyboardHide, keyboardShow, keyboardShowString } from '../0162_chatbox/meslayer';
+import { settingsOpSound } from '../0890_ironman_setup/ironman-setup.helpers';
+import { onMobile } from '../lib/lib.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { settingsSearchString } from '../lib/game/varcs';
+import { CollectionTabs } from './collection.data';
+import { chatdefaultRestoreInput, chatdefaultStopInput } from './collection-chatdefault';
+import { layoutPanel } from './collection-chrome';
+import {
+  Build,
+  bossContainerRef,
+  clueContainerRef,
+  minigameContainerRef,
+  otherContainerRef,
+  raidContainerRef,
+} from './collection.constants';
+
+export const collectionTab = sessionState(-1);
+export const collectionListTab = sessionState(-1);
+export const collectionSelected = sessionState(-1);
+export const collectionLogCategory = sessionState(-1);
+export const collectionSearchOpen = sessionState(0);
+export const collectionSearchQuery = sessionState('');
+
+export const collectionBurgerOpen = sessionState(0);
+
+export function collectionDrawList(tab: Int, index: Int): void {
+  const [, setTab] = useState(collectionTab);
+  const [, setListTab] = useState(collectionListTab);
+  const [, setSelected] = useState(collectionSelected);
+  const [, setLogCategory] = useState(collectionLogCategory);
+
+  layoutPanel();
+  collectionSearchInit();
+  toggleSearch(1);
+
+  const rowHeight: Int = onMobile() ? Build.ROW_H_MOBILE : Build.ROW_H;
+  listExtent(tab, rowHeight * tabCategoryCount(tab));
+
+  setTab(tab);
+  setListTab(tab);
+  setSelected(index);
+  setLogCategory(tabFirstCategory(tab) + index);
+}
+
+function listExtent(tab: Int, extent: Int): void {
+  if (tab === 1) {
+    applyListExtent(raidContainerRef, extent);
+  } else if (tab === 2) {
+    applyListExtent(clueContainerRef, extent);
+  } else if (tab === 3) {
+    applyListExtent(minigameContainerRef, extent);
+  } else if (tab === 4) {
+    applyListExtent(otherContainerRef, extent);
+  } else {
+    applyListExtent(bossContainerRef, extent);
+  }
+}
+
+function applyListExtent(container: ComponentId, extent: Int): void {
+  if (extent > CS2.if_height_get(container)) {
+    CS2.if_scroll_size_set(0, extent, container);
+  } else {
+    CS2.if_scroll_size_set(0, 0, container);
+  }
+  CS2.if_scroll_pos_set(0, CS2.if_scroll_y_get(container), container);
+}
+
+export function tabFirstCategory(tab: Int): Int {
+  const row = CollectionTabs.at(tab);
+  if (row === null) {
+    return 0;
+  }
+  return row.firstCategory;
+}
+
+export function tabCategoryCount(tab: Int): Int {
+  const row = CollectionTabs.at(tab);
+  if (row === null) {
+    return 0;
+  }
+  return row.categoryCount;
+}
+
+export function toggleSearch(forceClose: Int): void {
+  const [open, setOpen] = useState(collectionSearchOpen);
+  const [, setQuery] = useState(settingsSearchString);
+
+  if (open === 1 || forceClose === 1) {
+    chatdefaultRestoreInput();
+    predictServerState(Varbits.FLOATER_IS_SEARCHING, 0);
+    predictServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+    predictServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING, 0);
+    predictServerState(Varbits.LEAGUE_TASKS_SEARCH_LISTEN_FOR_KEYBOARD, 0);
+    if (onMobile()) {
+      keyboardHide();
+    }
+    setOpen(0);
+    return;
+  }
+
+  setOpen(1);
+  setQuery('');
+  searchbarOp();
+}
+
+export function collectionSearchInit(): void {
+  const [, setQuery] = useState(settingsSearchString);
+  const [, setOpen] = useState(collectionSearchOpen);
+  if (useServerState(Varbits.FLOATER_IS_SEARCHING) === 0) {
+    setQuery('');
+  }
+  setOpen(0);
+  populateSearchResults(1);
+}
+
+export function populateSearchResults(committed: Int): void {
+  const [query] = useState(settingsSearchString);
+  const [, setResults] = useState(collectionSearchQuery);
+  if (onMobile() && query.length !== 0 && committed === 0) {
+    return;
+  }
+  setResults(query);
+}
+
+export function searchbarOp(): void {
+  settingsOpSound(1);
+  if (useServerState(Varbits.FLOATER_IS_SEARCHING) === 1) {
+    return;
+  }
+  chatdefaultStopInput();
+  predictServerState(Varbits.FLOATER_IS_SEARCHING, 1);
+  predictServerState(Varbits.FLOATER_SEARCH_LISTEN_FOR_KEYBOARD, 1);
+  if (onMobile()) {
+    keyboardShow(Build.KEYBOARD_MODE, Build.QUERY_LIMIT);
+  }
+  const [, setQuery] = useState(settingsSearchString);
+  setQuery('');
+  populateSearchResults(1);
+}
+
+export function searchButtonPress(): void {
+  keyboardHide();
+  populateSearchResults(1);
+}
+
+export function settingsShowKeyboard(): void {
+  const [query] = useState(settingsSearchString);
+  keyboardShowString(Build.KEYBOARD_MODE, Build.QUERY_LIMIT, query);
+}
+
+export function searchPickCategory(tab: Int, category: Int): void {
+  const [, setTab] = useState(collectionTab);
+  const [, setLogCategory] = useState(collectionLogCategory);
+  toggleSearch(0);
+  collectionSearchInit();
+  setTab(tab);
+  setLogCategory(category);
+}

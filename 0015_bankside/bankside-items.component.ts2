@@ -1,0 +1,416 @@
+import { CS2, useInventory, useServerState, useState } from 'ts2';
+
+import { defaultQuantityLabel } from '../0012_bankmain/bankmain.helpers';
+import { banksideExtraOp, sideSlotLocked, sideSlotShowOp } from '../0192_bank_depositbox/bank-depositbox.helpers';
+import { LockFrames } from '../0192_bank_depositbox/deposit-grid.component';
+import { bankWornmode } from '../lib/game/varcs';
+import { flashFor } from '../lib/lib.components';
+import { hasBit, membersWorld } from '../lib/lib.engine';
+import {
+  BankView,
+  BanksideColor,
+  BanksideInventories,
+  BanksideItems,
+  BanksideSprites,
+  BanksideVarbits,
+  BanksideVarps,
+  Grid,
+  Wash,
+} from './bankside.constants';
+import { isPrepotDevice, orangeName, selectView } from './bankside.helpers';
+
+function viewModeOf(item: Item, hasLoot: Int): Int {
+  if (item === -1) {
+    return 0;
+  }
+  if (item === BanksideItems.LOOTING_BAG || item === BanksideItems.LOOTING_BAG_OPEN) {
+    if (hasLoot === 1) {
+      return BankView.LOOTING_BAG;
+    }
+    return 0;
+  }
+  if (item === BanksideItems.LEAGUE_SECOND_INVENTORY || item === BanksideItems.LEAGUE_SECOND_INVENTORY_OPEN) {
+    return BankView.SECOND_INVENTORY;
+  }
+  if (item === BanksideItems.BH_RUNE_POUCH || item === BanksideItems.BH_RUNE_POUCH_TROUVER) {
+    return BankView.RUNE_POUCH;
+  }
+  if (item === BanksideItems.DIVINE_RUNE_POUCH || item === BanksideItems.DIVINE_RUNE_POUCH_TROUVER) {
+    return BankView.DIVINE_RUNE_POUCH;
+  }
+  if (isPrepotDevice(item)) {
+    return BankView.PREPOT_DEVICE;
+  }
+  return 0;
+}
+
+function SlotGlow({ item, slot, hasLoot }: { item: Item; slot: Int; hasLoot: Int }): Component {
+  if (viewModeOf(item, hasLoot) === 0) {
+    return null;
+  }
+  return (
+    <sprite
+      x={Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X}
+      y={Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y}
+      w={Grid.GLOW}
+      h={Grid.GLOW}
+      sprite={BanksideSprites.GLOW}
+      transparency={Grid.GLOW_TRANS}
+    />
+  );
+}
+
+function EmptySlot({ slot, locked, lockOp }: { slot: Int; locked: Boolean; lockOp: Boolean }): Component {
+  const x: Int = Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X;
+  const y: Int = Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y;
+  if (locked && lockOp) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Grid.W}
+        h={Grid.H}
+        item={BanksideItems.BLANK}
+        itemCount={1}
+        outline={Grid.OUTLINE}
+        shadowColor={BanksideColor.SLOT_SHADOW}
+        transparency={Wash.EMPTY}
+        dragDeadZone={Grid.DRAG_DEAD}
+        dragDeadTime={Grid.DRAG_DEAD}
+        options={['', '', '', '', '', '', '', '', '', 'Unlock-slot']}
+        optionSubject="<col=ff9040>Slot</col>"
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={BanksideItems.BLANK}
+      itemCount={1}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={Wash.EMPTY}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+    />
+  );
+}
+
+function HeldSlot({
+  item,
+  count,
+  slot,
+  hasLoot,
+  depositDefault,
+  depositOne,
+  depositRequested,
+  locked,
+  lockOp,
+  hideSideOps,
+  if1,
+  if2,
+  if3,
+  if4,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  hasLoot: Int;
+  depositDefault: String;
+  depositOne: String;
+  depositRequested: String;
+  locked: Boolean;
+  lockOp: Boolean;
+  hideSideOps: Int;
+  if1: Int;
+  if2: Int;
+  if3: Int;
+  if4: Int;
+}): Component {
+  const x: Int = Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X;
+  const y: Int = Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y;
+  const mode: Int = viewModeOf(item, hasLoot);
+  const op9: String = banksideExtraOp(item, slot, hideSideOps, if1, if2, if3, if4);
+  let op10: String = 'Examine';
+  if (lockOp) {
+    if (locked) {
+      op10 = 'Unlock-slot';
+    } else {
+      op10 = 'Lock-slot';
+    }
+  }
+  let op1: String = '';
+  if (mode === BankView.LOOTING_BAG || mode === BankView.SECOND_INVENTORY) {
+    op1 = 'View';
+  }
+  if (mode >= BankView.RUNE_POUCH) {
+    op1 = 'Configure';
+  }
+
+  if (mode > 0) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Grid.W}
+        h={Grid.H}
+        item={item}
+        itemCount={count}
+        outline={Grid.OUTLINE}
+        shadowColor={BanksideColor.SLOT_SHADOW}
+        transparency={Wash.CLEAR}
+        dragDeadZone={Grid.DRAG_DEAD}
+        dragDeadTime={Grid.DRAG_DEAD}
+        options={[
+          op1,
+          depositDefault,
+          depositOne,
+          'Deposit-5',
+          'Deposit-10',
+          depositRequested,
+          'Deposit-X',
+          'Deposit-All',
+          op9,
+          op10,
+        ]}
+        optionSubject={orangeName(item)}
+        onOptionSelect={(event) => selectView(event.option, item, mode)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={Wash.CLEAR}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={[
+        '',
+        depositDefault,
+        depositOne,
+        'Deposit-5',
+        'Deposit-10',
+        depositRequested,
+        'Deposit-X',
+        'Deposit-All',
+        op9,
+        op10,
+      ]}
+      optionSubject={orangeName(item)}
+      onOptionSelect={(event) => flashFor(event.self, Wash.FLASH, Wash.CLEAR)}
+    />
+  );
+}
+
+function ItemSlot({
+  item,
+  count,
+  slot,
+  hasLoot,
+  depositDefault,
+  depositOne,
+  depositRequested,
+  overview,
+  ignoreLocks,
+  showOp,
+  hideSideOps,
+  if1,
+  if2,
+  if3,
+  if4,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  hasLoot: Int;
+  depositDefault: String;
+  depositOne: String;
+  depositRequested: String;
+  overview: Int;
+  ignoreLocks: Int;
+  showOp: Int;
+  hideSideOps: Int;
+  if1: Int;
+  if2: Int;
+  if3: Int;
+  if4: Int;
+}): Component {
+  const locked: Boolean = sideSlotLocked(ignoreLocks, overview, slot);
+  const lockOp: Boolean = sideSlotShowOp(ignoreLocks, showOp);
+  if (item === -1) {
+    return <EmptySlot slot={slot} locked={locked} lockOp={lockOp} />;
+  }
+  return (
+    <HeldSlot
+      item={item}
+      count={count}
+      slot={slot}
+      hasLoot={hasLoot}
+      depositDefault={depositDefault}
+      depositOne={depositOne}
+      depositRequested={depositRequested}
+      locked={locked}
+      lockOp={lockOp}
+      hideSideOps={hideSideOps}
+      if1={if1}
+      if2={if2}
+      if3={if3}
+      if4={if4}
+    />
+  );
+}
+
+function HeldWornSlot({ item, count, slot, if2 }: { item: Item; count: Int; slot: Int; if2: Int }): Component {
+  const x: Int = Grid.ORIGIN_X + (slot % Grid.COLUMNS) * Grid.STRIDE_X;
+  const y: Int = Grid.ORIGIN_Y + (slot / Grid.COLUMNS) * Grid.STRIDE_Y;
+  let op1: String = '';
+  if (hasBit(if2, slot)) {
+    let offerable: Boolean = false;
+    if (membersWorld()) {
+      offerable = true;
+    }
+    if (CS2.item_members(item) === 0) {
+      offerable = true;
+    }
+    if (offerable) {
+      op1 = CS2.item_iop(item, item.banksideOpIndex!);
+    }
+  }
+
+  if (op1.length > 0) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Grid.W}
+        h={Grid.H}
+        item={item}
+        itemCount={count}
+        outline={Grid.OUTLINE}
+        shadowColor={BanksideColor.SLOT_SHADOW}
+        transparency={Wash.CLEAR}
+        dragDeadZone={Grid.DRAG_DEAD}
+        dragDeadTime={Grid.DRAG_DEAD}
+        options={[op1, '', '', '', '', '', '', '', 'Deposit', 'Examine']}
+        optionSubject={orangeName(item)}
+        onOptionSelect={(event) => flashFor(event.self, Wash.FLASH, Wash.CLEAR)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={Wash.DIM}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={['', '', '', '', '', '', '', '', 'Deposit', 'Examine']}
+      optionSubject={orangeName(item)}
+      onOptionSelect={(event) => flashFor(event.self, Wash.DIM_FLASH, Wash.DIM)}
+    />
+  );
+}
+
+function WornSlot({ item, count, slot, if2 }: { item: Item; count: Int; slot: Int; if2: Int }): Component {
+  if (item === -1) {
+    return <EmptySlot slot={slot} locked={false} lockOp={false} />;
+  }
+  return <HeldWornSlot item={item} count={count} slot={slot} if2={if2} />;
+}
+
+function lootingBagHeld(): Int {
+  const bag = useInventory(BanksideInventories.LOOTING_BAG);
+  let held: Int = 0;
+  let slot: Int = bag.size;
+  while (slot > 0) {
+    slot = slot - 1;
+    if (bag[slot] !== -1) {
+      held = 1;
+    }
+  }
+  return held;
+}
+
+export function ItemsView(): Component {
+  const inv = useInventory(BanksideInventories.INV);
+  const [worn] = useState(bankWornmode);
+  const wornMode: Int = worn;
+  const if1: Int = useServerState(BanksideVarps.IF1);
+  const if2: Int = useServerState(BanksideVarps.IF2);
+  const if3: Int = useServerState(BanksideVarps.IF3);
+  const if4: Int = useServerState(BanksideVarps.IF4);
+  const quantityType: Int = useServerState(BanksideVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(BanksideVarbits.REQUESTED_QUANTITY);
+  const hideSideOps: Int = useServerState(BanksideVarbits.HIDE_SIDE_OPS);
+  const overview: Int = useServerState(BanksideVarbits.SIDE_SLOT_OVERVIEW);
+  const ignoreLocks: Int = useServerState(BanksideVarbits.SIDE_SLOT_IGNOREINVLOCKS);
+  const showOp: Int = useServerState(BanksideVarbits.SIDE_SLOT_SHOWOP);
+
+  if (wornMode === 1) {
+    return (
+      <>
+        <layer x="center" y="center" w="fill" h="fill" hide />
+        <layer x="center" y="center" w="fill" h="fill" hide />
+        <layer x="center" y="center" w="fill" h="fill">
+          {inv.map((item, slot) => (
+            <WornSlot item={item} count={inv.count(slot)} slot={slot} if2={if2} />
+          ))}
+        </layer>
+      </>
+    );
+  }
+
+  const hasLoot: Int = lootingBagHeld();
+  const depositDefault: String = `Deposit-${defaultQuantityLabel(quantityType, requested)}`;
+  const depositOne: String = quantityType !== 0 ? 'Deposit-1' : '';
+  const depositRequested: String = requested > 0 ? `Deposit-${requested}` : '';
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h="fill">
+        <LockFrames />
+        {inv.map((item, slot) => (
+          <SlotGlow item={item} slot={slot} hasLoot={hasLoot} />
+        ))}
+      </layer>
+      <layer x="center" y="center" w="fill" h="fill">
+        {inv.map((item, slot) => (
+          <ItemSlot
+            item={item}
+            count={inv.count(slot)}
+            slot={slot}
+            hasLoot={hasLoot}
+            depositDefault={depositDefault}
+            depositOne={depositOne}
+            depositRequested={depositRequested}
+            overview={overview}
+            ignoreLocks={ignoreLocks}
+            showOp={showOp}
+            hideSideOps={hideSideOps}
+            if1={if1}
+            if2={if2}
+            if3={if3}
+            if4={if4}
+          />
+        ))}
+      </layer>
+      <layer x="center" y="center" w="fill" h="fill" hide />
+    </>
+  );
+}

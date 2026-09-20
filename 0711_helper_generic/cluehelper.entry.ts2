@@ -1,0 +1,102 @@
+import { CS2, useInventory, useServerState, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Varps } from '../lib/game/varps';
+import { coordDistance } from '../0874_quetzal_menu/quetzal-menu.helpers';
+import { clueHotColdCandidate, clueHotColdCandidateCount, cluehelperInfoboxDrawContent } from './cluehelper-content';
+import {
+  clueDifficulty,
+  clueHelperClue,
+  clueHotColdBand,
+  clueHotColdEliminate,
+  clueHotColdListInit,
+  clueHotColdMaskClear,
+  clueHotColdPossible,
+  clueHotColdStored,
+  clueTarget,
+  clueTargetCoord,
+} from './cluehelper.state';
+import { ClueKind, Clues } from './clues.data';
+
+export function cluehelperInfoboxInit(clue: Int): void {
+  clueHelperResetData();
+  const [, setClue] = useState(clueHelperClue);
+  setClue(clue);
+  cluehelperInfoboxDrawContent();
+}
+
+export function cluehelperInfoboxResetDataEntrypoint(): void {
+  clueHelperResetData();
+}
+
+export function clueHelperResetData(): void {
+  const [, setClue] = useState(clueHelperClue);
+  const [, setStored] = useState(clueHotColdStored);
+  setClue(-1);
+  setStored(0);
+  clueHotColdMaskClear();
+}
+
+export function clueHotColdOrbUsed(at: Coord, previous: Coord | null, reading: Int, previousReading: Int): void {
+  const [clue] = useState(clueHelperClue);
+  const row = Clues.at(clue);
+  if (row === null) {
+    return;
+  }
+  if (row.kind !== ClueKind.HOTCOLD) {
+    return;
+  }
+  const [stored] = useState(clueHotColdStored);
+  if (at === previous && stored === 1) {
+    return;
+  }
+  const difficulty: Int = clueDifficulty(clue);
+  const candidates: Int = clueHotColdCandidateCount(clue, difficulty);
+  if (stored === 0) {
+    clueHotColdListInit();
+  }
+  let trend: Int = 0;
+  if (reading < previousReading) {
+    trend = -1;
+  } else if (reading > previousReading) {
+    trend = 1;
+  }
+  let i: Int = 0;
+  while (i < candidates) {
+    if (clueHotColdPossible(i)) {
+      const here: Coord | null = clueTargetCoord(clueTarget(clueHotColdCandidate(clue, difficulty, i)));
+      if (here === null) {
+        clueHotColdEliminate(i);
+      } else {
+        const now: Int = clampDistance(coordDistance(at, here));
+        if (clueHotColdBand(reading, now, difficulty) === 0) {
+          clueHotColdEliminate(i);
+        } else if (previous !== null) {
+          const was: Int = clampDistance(coordDistance(previous, here));
+          if (trend === -1) {
+            if (now > was) {
+              clueHotColdEliminate(i);
+            }
+          } else if (trend === 0) {
+            if (now !== was) {
+              clueHotColdEliminate(i);
+            }
+          } else {
+            if (now < was) {
+              clueHotColdEliminate(i);
+            }
+          }
+        }
+      }
+    }
+    i = i + 1;
+  }
+  cluehelperInfoboxDrawContent();
+}
+
+function clampDistance(d: Int): Int {
+  if (d > 4095) {
+    return 4095;
+  }
+  return d;
+}

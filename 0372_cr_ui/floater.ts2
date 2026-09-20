@@ -1,0 +1,442 @@
+import { CS2, onMounted, onUpdated, useInterval, useRef, useState } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  bingoOverlayHeight,
+  bingoOverlayWidth,
+  bingoOverlayX,
+  bingoOverlayY,
+  crUiWindowHeight,
+  crUiWindowWidth,
+  crUiWindowX,
+  crUiWindowY,
+  osmTaptodropEnabled,
+  osmTileHighlightingOpEnabled,
+  osmTileHighlightsDisabled,
+  talentTreeOverlayHeight,
+  talentTreeOverlayWidth,
+  talentTreeOverlayX,
+  talentTreeOverlayY,
+  toplevelFloaterDefaultHeight,
+  toplevelFloaterDefaultWidth,
+  toplevelFloaterMinHeight,
+  toplevelFloaterMinWidth,
+  xpdropsFake4,
+} from '../lib/game/varcs';
+import { CrColour, CrSprite, windowRef } from './cr-ui.constants';
+import { bingoWindowRef } from '../0926_bingo_overlay/bingo-overlay.constants';
+import { crUiDefaultHeight, crUiDefaultWidth, crUiMinHeight, crUiMinWidth } from './cr-ui.layout';
+
+export function floaterSlotSize(): [Int, Int] {
+  const slot: ComponentId = gameframeSlot(GameframeSlot.SUB_MOUNT);
+  if (slot === -1) {
+    return [-1, -1];
+  }
+  return [CS2.if_width_get(slot), CS2.if_height_get(slot)];
+}
+
+export const FloaterKind = {
+  CR_UI: 0,
+  BINGO: 1,
+  BALLOT: 2,
+  TALENT_TREE: 3,
+} as const;
+
+export function floaterTopBar(): Int {
+  if (onMobile()) {
+    return 165 - 20;
+  }
+  return 0;
+}
+
+export function floaterRect(kind: Int): [Int, Int, Int, Int] {
+  if (kind === FloaterKind.CR_UI) {
+    const [x] = useState(crUiWindowX);
+    const [y] = useState(crUiWindowY);
+    const [w] = useState(crUiWindowWidth);
+    const [h] = useState(crUiWindowHeight);
+    return [x, y, w, h];
+  }
+  if (kind === FloaterKind.BINGO) {
+    const [x] = useState(bingoOverlayX);
+    const [y] = useState(bingoOverlayY);
+    const [w] = useState(bingoOverlayWidth);
+    const [h] = useState(bingoOverlayHeight);
+    return [x, y, w, h];
+  }
+  if (kind === FloaterKind.TALENT_TREE) {
+    const [x] = useState(talentTreeOverlayX);
+    const [y] = useState(talentTreeOverlayY);
+    const [w] = useState(talentTreeOverlayWidth);
+    const [h] = useState(talentTreeOverlayHeight);
+    return [x, y, w, h];
+  }
+  if (kind === FloaterKind.BALLOT) {
+    const [x] = useState(xpdropsFake4);
+    const [y] = useState(osmTileHighlightingOpEnabled);
+    const [w] = useState(osmTileHighlightsDisabled);
+    const [h] = useState(osmTaptodropEnabled);
+    return [x, y, w, h];
+  }
+  return [-1, -1, -1, -1];
+}
+
+export function floaterSetRect(kind: Int, x: Int, y: Int, w: Int, h: Int): void {
+  if (kind === FloaterKind.CR_UI) {
+    const [, setX] = useState(crUiWindowX);
+    const [, setY] = useState(crUiWindowY);
+    const [, setW] = useState(crUiWindowWidth);
+    const [, setH] = useState(crUiWindowHeight);
+    setX(x);
+    setY(y);
+    setW(w);
+    setH(h);
+    return;
+  }
+  if (kind === FloaterKind.BINGO) {
+    const [, setX] = useState(bingoOverlayX);
+    const [, setY] = useState(bingoOverlayY);
+    const [, setW] = useState(bingoOverlayWidth);
+    const [, setH] = useState(bingoOverlayHeight);
+    setX(x);
+    setY(y);
+    setW(w);
+    setH(h);
+    return;
+  }
+  if (kind === FloaterKind.TALENT_TREE) {
+    const [, setX] = useState(talentTreeOverlayX);
+    const [, setY] = useState(talentTreeOverlayY);
+    const [, setW] = useState(talentTreeOverlayWidth);
+    const [, setH] = useState(talentTreeOverlayHeight);
+    setX(x);
+    setY(y);
+    setW(w);
+    setH(h);
+    return;
+  }
+  if (kind === FloaterKind.BALLOT) {
+    const [, setX] = useState(xpdropsFake4);
+    const [, setY] = useState(osmTileHighlightingOpEnabled);
+    const [, setW] = useState(osmTileHighlightsDisabled);
+    const [, setH] = useState(osmTaptodropEnabled);
+    setX(x);
+    setY(y);
+    setW(w);
+    setH(h);
+  }
+}
+
+export function floaterBounds(kind: Int): [Int, Int, Int, Int] {
+  if (kind === FloaterKind.CR_UI) {
+    return [crUiMinWidth(), crUiMinHeight(), crUiDefaultWidth(), crUiDefaultHeight()];
+  }
+  if (kind === FloaterKind.BINGO) {
+    return [326, 331, 512, 334];
+  }
+  if (kind === FloaterKind.TALENT_TREE && !onMobile()) {
+    return [512, 334, 512, 334];
+  }
+  const [minW] = useState(toplevelFloaterMinWidth);
+  const [minH] = useState(toplevelFloaterMinHeight);
+  const [defW] = useState(toplevelFloaterDefaultWidth);
+  const [defH] = useState(toplevelFloaterDefaultHeight);
+  return [Math.max(minW, 200), Math.max(minH, 200), Math.max(defW, 200), Math.max(defH, 200)];
+}
+
+export function floaterSetBounds(minW: Int, minH: Int, defW: Int, defH: Int): void {
+  const [, setMinW] = useState(toplevelFloaterMinWidth);
+  const [, setMinH] = useState(toplevelFloaterMinHeight);
+  const [, setDefW] = useState(toplevelFloaterDefaultWidth);
+  const [, setDefH] = useState(toplevelFloaterDefaultHeight);
+  const w: Int = Math.max(minW, 200);
+  const h: Int = Math.max(minH, 200);
+  setMinW(w);
+  setMinH(h);
+  setDefW(Math.max(defW, w));
+  setDefH(Math.max(defH, h));
+}
+
+export function floaterClamp(kind: Int, x: Int, y: Int, w: Int, h: Int): [Int, Int, Int, Int] {
+  const [viewW, viewH] = floaterSlotSize();
+  const top: Int = floaterTopBar();
+  const [minW, minH, defW, defH] = floaterBounds(kind);
+  const usableH: Int = viewH - top;
+  const cw: Int = Math.max(minW, Math.min(w, viewW));
+  const ch: Int = Math.max(minH, Math.min(h, usableH));
+  const cx: Int = Math.max(0, Math.min(x, viewW - cw));
+  const cy: Int = Math.max(top, Math.min(y, top + usableH - ch));
+  return [cx, cy, cw, ch];
+}
+
+export function floaterPlaced(kind: Int, x: Int, y: Int, w: Int, h: Int): [Int, Int, Int, Int] {
+  const [viewW, viewH] = floaterSlotSize();
+  const top: Int = floaterTopBar();
+  const [minW, minH, defW, defH] = floaterBounds(kind);
+  const pw: Int = w < minW ? defW : w;
+  const ph: Int = h < minH ? defH : h;
+  const px: Int = x < 0 ? (viewW - pw) / 2 : x;
+  let py: Int = y;
+  if (y < top) {
+    py = Math.max(top, (viewH - ph) / 2);
+    if (onMobile()) {
+      py = viewH - ph;
+    }
+  }
+  return floaterClamp(kind, px, py, pw, ph);
+}
+
+export function floaterPlace(kind: Int, x: Int, y: Int, w: Int, h: Int): void {
+  const [px, py, pw, ph] = floaterPlaced(kind, x, y, w, h);
+  floaterSetRect(kind, px, py, pw, ph);
+}
+
+export function floaterDragRect(
+  kind: Int,
+  handle: Int,
+  toX: Int,
+  toY: Int,
+  originX: Int,
+  originY: Int,
+  viewW: Int,
+  viewH: Int,
+): [Int, Int, Int, Int] {
+  const top: Int = floaterTopBar();
+  const usableH: Int = viewH - top;
+  let [x, y, w, h] = floaterRect(kind);
+  const dx: Int = toX - originX;
+  const dy: Int = toY - originY;
+  if (handle === 0) {
+    x = x + dx;
+    y = y + dy;
+  } else if (handle === 1) {
+    h = h + dy;
+  } else if (handle === 2) {
+    w = w - dx;
+    x = x + dx;
+  } else if (handle === 3) {
+    w = w + dx;
+  } else if (handle === 4) {
+    w = w - dx;
+    x = x + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (handle === 5) {
+    w = w + dx;
+    h = h - dy;
+    y = y + dy;
+  } else if (handle === 6) {
+    w = w - dx;
+    x = x + dx;
+    h = h + dy;
+  } else if (handle === 7) {
+    w = w + dx;
+    h = h + dy;
+  }
+  if (x < 10) {
+    w = w + x;
+    x = 0;
+  }
+  const right: Int = viewW - (x + w);
+  if (right < 10) {
+    w = w + right;
+  }
+  if (y < top + 10) {
+    h = h + Math.max(0, y - top);
+    y = top;
+  }
+  const bottom: Int = usableH + top - (y + h);
+  if (bottom < 10) {
+    h = h + bottom;
+  }
+  return floaterClamp(kind, x, y, w, h);
+}
+
+export function floaterAnchor(kind: Int, lastW: Int, lastH: Int, viewW: Int, viewH: Int): void {
+  const top: Int = floaterTopBar();
+  const usableH: Int = viewH - top;
+  if (lastW === viewW && lastH === usableH) {
+    return;
+  }
+  let [x, y, w, h] = floaterRect(kind);
+  const drawnX: Int = x;
+  const drawnY: Int = y;
+  if (drawnX + w >= lastW - 10) {
+    if (drawnX <= 10) {
+      w = w + (viewW - lastW);
+    } else {
+      x = x + (viewW - lastW);
+    }
+  }
+  if (drawnY + h >= lastH - 10) {
+    if (drawnY <= top + 10) {
+      h = h + (usableH - lastH);
+    } else {
+      y = y + (usableH - lastH);
+    }
+  }
+  floaterPlace(kind, x, y, w, h);
+}
+
+export function handleX(handle: Int, x: Int, w: Int): Int {
+  if (handle === 0 || handle === 1) {
+    return x + 6;
+  }
+  if (handle === 3 || handle === 5 || handle === 7) {
+    return x + w - 6;
+  }
+  return x;
+}
+
+export function handleY(handle: Int, y: Int, h: Int): Int {
+  if (handle === 1 || handle === 6 || handle === 7) {
+    return y + h - 6;
+  }
+  if (handle === 2 || handle === 3) {
+    return y + 6;
+  }
+  return y;
+}
+
+export function handleW(handle: Int, w: Int): Int {
+  if (handle === 0) {
+    return w - 6 * 2 - 27;
+  }
+  if (handle === 1) {
+    return w - 6 * 2;
+  }
+  return 6;
+}
+
+export function handleH(handle: Int, h: Int): Int {
+  if (handle === 0) {
+    return 29;
+  }
+  if (handle === 2 || handle === 3) {
+    return h - 6 * 2;
+  }
+  return 6;
+}
+
+function floaterWriteWindow(kind: Int, hide: Boolean, x: Int, y: Int, w: Int, h: Int): void {
+  if (kind === FloaterKind.CR_UI) {
+    windowRef.props = { hide: hide, x: x, y: y, w: w, h: h };
+  }
+  if (kind === FloaterKind.BINGO) {
+    bingoWindowRef.props = { hide: hide, x: x, y: y, w: w, h: h };
+  }
+}
+
+const HANDLES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+const PREVIEW_RECTS = [0, 1, 2, 3] as const;
+
+export function FloaterHandles({
+  kind,
+  x,
+  y,
+  w,
+  h,
+  anchored,
+  hideOnMobile,
+}: {
+  kind: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  anchored: Boolean;
+  hideOnMobile: Boolean;
+}): Component {
+  const bounds = useRef();
+  const [px, py, pw, ph] = floaterPlaced(kind, x, y, w, h);
+
+  const [hovered, setHovered] = useState(-1);
+  const [dragging, setDragging] = useState(-1);
+  const [previewX, setPreviewX] = useState(0);
+  const [previewY, setPreviewY] = useState(0);
+  const [previewW, setPreviewW] = useState(300);
+  const [previewH, setPreviewH] = useState(200);
+  const [commitAt, setCommitAt] = useState(0);
+  const [seenW, setSeenW] = useState(-1);
+  const [seenH, setSeenH] = useState(-1);
+
+  const hideWindow: Boolean = dragging >= 0;
+
+  onMounted(() => {
+    floaterWriteWindow(kind, hideWindow, px, py, pw, ph);
+    floaterSetRect(kind, px, py, pw, ph);
+  });
+  onUpdated(() => {
+    floaterWriteWindow(kind, hideWindow, px, py, pw, ph);
+  });
+
+  useInterval(() => {
+    if (dragging >= 0 && clientClock() >= commitAt) {
+      floaterPlace(kind, previewX, previewY, previewW, previewH);
+      setDragging(-1);
+    }
+    const nowW: Int = bounds.width;
+    const nowH: Int = bounds.height - floaterTopBar();
+    if (anchored && (seenW !== nowW || seenH !== nowH)) {
+      if (seenW >= 0) {
+        floaterAnchor(kind, seenW, seenH, bounds.width, bounds.height);
+      }
+      setSeenW(nowW);
+      setSeenH(nowH);
+    }
+  }, bounds);
+
+  return (
+    <layer ref={bounds} x={0} y={0} w="fill" h="fill">
+      {HANDLES.map((handle) => (
+        <sprite
+          x={handleX(handle, px, pw)}
+          y={handleY(handle, py, ph)}
+          w={handleW(handle, pw)}
+          h={handleH(handle, ph)}
+          sprite={dragging === handle ? -1 : CrSprite.HANDLE}
+          tiling
+          hide={hideOnMobile && onMobile()}
+          transparency={hovered === handle ? 200 : 255}
+          draggable={bounds}
+          dragDeadZone={1}
+          dragDeadTime={5}
+          onMouseRepeat={() => setHovered(handle)}
+          onMouseLeave={() => setHovered(-1)}
+          onDrag={(event) => {
+            const [nx, ny, nw, nh] = floaterDragRect(
+              kind,
+              handle,
+              event.mouseX,
+              event.mouseY,
+              handleX(handle, px, pw),
+              handleY(handle, py, ph),
+              bounds.width,
+              bounds.height,
+            );
+            setPreviewX(nx);
+            setPreviewY(ny);
+            setPreviewW(nw);
+            setPreviewH(nh);
+            setDragging(handle);
+            setCommitAt(clientClock() + 3);
+          }}
+        />
+      ))}
+
+      <layer x={previewX} y={previewY} w={previewW} h={previewH} hide={dragging < 0}>
+        {PREVIEW_RECTS.map((ring) => (
+          <rect
+            x={ring}
+            y={ring}
+            w={{ fill: ring * 2 }}
+            h={{ fill: ring * 2 }}
+            color={CrColour.PREVIEW}
+            transparency={100 + ring * 10}
+          />
+        ))}
+      </layer>
+    </layer>
+  );
+}

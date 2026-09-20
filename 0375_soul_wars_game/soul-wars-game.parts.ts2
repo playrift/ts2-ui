@@ -1,10 +1,10 @@
-import { useDerived, useServerState, useState } from 'ts2';
+import { useDerived, useInterval, useRef, useServerState, useWatch } from 'ts2';
 
 import { StonePanel } from '../0648_target_streaks/stone-panel.component';
 import { Varbits } from '../lib/game/varbits';
 import { scaled } from '../lib/lib.engine';
 import { Activity, Alignment, Layout, SoulWarsColor } from './soul-wars-game.constants';
-import { Site, holderColor, siteAlignment, siteContested, siteHolder, soulWarsFlash } from './soul-wars-game.state';
+import { Site, holderColor, siteAlignment, siteFlash, siteHolder } from './soul-wars-game.state';
 import { StonePanelBlue, StonePanelRed } from './stone-panel-tinted.component';
 
 function minmax(low: Int, high: Int, value: Int): Int {
@@ -71,19 +71,27 @@ export function SiteBar({ site }: { site: Site }): Component {
 }
 
 export function SiteFrame({ site }: { site: Site }): Component {
-  const contested: Int = useDerived(() => siteContested(site));
-  const [phase] = useState(soulWarsFlash);
-  let lit: Int = 0;
-  if (contested === 1 || contested === 2) {
-    if (phase === 1) {
-      lit = contested;
-    }
-  }
+  const frame = useRef();
+  const plain = useRef();
+  const blue = useRef();
+  const red = useRef();
+  useInterval(() => siteFlash(frame, plain, blue, red, site), frame);
+  useWatch(
+    [Varbits.SOUL_WARS_WEST_GY_CONTESTED, Varbits.SOUL_WARS_OBELISK_CONTESTED, Varbits.SOUL_WARS_EAST_GY_CONTESTED],
+    () => siteFlash(frame, plain, blue, red, site),
+    frame,
+  );
   return (
-    <layer w="fill" h="fill">
-      {lit === 1 && <StonePanelBlue divider={Layout.SITE_DIVIDER} />}
-      {lit === 2 && <StonePanelRed divider={Layout.SITE_DIVIDER} />}
-      {lit === 0 && <StonePanel divider={Layout.SITE_DIVIDER} />}
+    <layer ref={frame} w="fill" h="fill">
+      <layer ref={blue} w="fill" h="fill" hide>
+        <StonePanelBlue divider={Layout.SITE_DIVIDER} />
+      </layer>
+      <layer ref={red} w="fill" h="fill" hide>
+        <StonePanelRed divider={Layout.SITE_DIVIDER} />
+      </layer>
+      <layer ref={plain} w="fill" h="fill">
+        <StonePanel divider={Layout.SITE_DIVIDER} />
+      </layer>
     </layer>
   );
 }

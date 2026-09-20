@@ -1,0 +1,106 @@
+import { onMounted, onUpdated, useServerState, useState } from 'ts2';
+import { xpdropsFake6 } from '../lib/game/varcs';
+import { SuppliesTab } from '../lib/pvp-arena/kit-tab.component';
+import { Copy, Layout, PROGRESS_AGREED, UnrankedTab, UnrankedVarbits } from './pvp-arena-unrankedduel.constants';
+import { displayA, displayB, displayC, opponentPage, statsPage } from './pvp-arena-unrankedduel.refs';
+
+export function UnrankedTabStrip(): Component {
+  const progress: Int = useServerState(UnrankedVarbits.PROGRESS);
+  const build: Int = useServerState(UnrankedVarbits.BUILD);
+  const [tab] = useState(xpdropsFake6);
+
+  onMounted(() => selectUnrankedDisplays(progress, build, tab));
+  onUpdated(() => selectUnrankedDisplays(progress, build, tab));
+
+  return (
+    <>
+      <layer x={0} y="center" w={Layout.tabs.statsW} h="fill">
+        <SuppliesTab
+          index={UnrankedTab.STATS}
+          label={Copy.TAB_STATS}
+          active={unrankedTabActive(progress, tab, UnrankedTab.STATS)}
+        />
+      </layer>
+      <layer x={Layout.tabs.kitX} y="center" w={Layout.tabs.kitW} h="fill" hide={!loadoutStage(progress)}>
+        <SuppliesTab
+          index={UnrankedTab.MY_KIT}
+          label={kitTabLabel(build)}
+          active={unrankedTabActive(progress, tab, UnrankedTab.MY_KIT)}
+        />
+      </layer>
+      <layer x={Layout.tabs.opponentX} y="center" w={Layout.tabs.opponentW} h="fill" hide={!loadoutStage(progress)}>
+        <SuppliesTab
+          index={UnrankedTab.OPPONENT}
+          label={Copy.TAB_OPPONENT}
+          active={unrankedTabActive(progress, tab, UnrankedTab.OPPONENT)}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function loadoutStage(progress: Int): Boolean {
+  if (progress < PROGRESS_AGREED) {
+    return false;
+  }
+  return true;
+}
+
+export function unrankedTabActive(progress: Int, tab: Int, which: Int): Boolean {
+  if (progress < PROGRESS_AGREED) {
+    return which === UnrankedTab.STATS;
+  }
+  if (which === UnrankedTab.MY_KIT) {
+    return tab === UnrankedTab.MY_KIT;
+  }
+  if (which === UnrankedTab.OPPONENT) {
+    return tab === UnrankedTab.OPPONENT;
+  }
+  if (tab === UnrankedTab.MY_KIT || tab === UnrankedTab.OPPONENT) {
+    return false;
+  }
+  return true;
+}
+
+export function kitTabLabel(build: Int): String {
+  if (build === 1) {
+    return Copy.TAB_ZERKER;
+  }
+  if (build === 2) {
+    return Copy.TAB_PURE;
+  }
+  return Copy.TAB_MAX_MED;
+}
+
+export function selectUnrankedDisplays(progress: Int, build: Int, tab: Int): void {
+  let hideKitA: Boolean = true;
+  let hideKitB: Boolean = true;
+  let hideKitC: Boolean = true;
+  let hideStats: Boolean = false;
+  if (progress >= PROGRESS_AGREED) {
+    if (tab === UnrankedTab.MY_KIT) {
+      hideStats = true;
+      if (build === 1) {
+        hideKitB = false;
+      } else if (build === 2) {
+        hideKitC = false;
+      } else {
+        hideKitA = false;
+      }
+    } else if (tab === UnrankedTab.OPPONENT) {
+      hideStats = true;
+    }
+  }
+  statsPage.hide = hideStats;
+  displayA.hide = hideKitA;
+  displayB.hide = hideKitB;
+  displayC.hide = hideKitC;
+  if (progress < PROGRESS_AGREED) {
+    if (tab !== UnrankedTab.STATS) {
+      const [, setTab] = useState(xpdropsFake6);
+      setTab(UnrankedTab.STATS);
+    }
+    return;
+  }
+  opponentPage.hide = tab !== UnrankedTab.OPPONENT;
+}

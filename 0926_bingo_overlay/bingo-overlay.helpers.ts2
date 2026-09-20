@@ -1,0 +1,1296 @@
+import { CS2, param, paramText, useServerState, useState } from 'ts2';
+import { hasBit, itemName } from '../lib/lib.engine';
+import { debugMessageAlias } from '../lib/lib.debug';
+import { onMobile } from '../lib/lib.helpers';
+import { bingoLookupPhrase, bingoSelectedGrid, bingoSelectedTile, bingoShowRewards } from '../lib/game/varcs';
+import { FloaterKind, floaterPlace } from '../0372_cr_ui/floater';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { Params } from '../lib/game/params';
+import { questComplete } from '../lib/lib.quests';
+import { textPlural } from '../0512_trailblazer_areas/time.shared';
+import { replaceAll } from '../0889_nps/colour-tag';
+import { CombatMasteries, MasteryPassives } from '../0311_league_combat_mastery/league-combat-mastery.data';
+import { CaTierNames } from '../0716_ca_bosses/ca-shared.data';
+import { featureFlag } from '../0134_settings/settings.helpers';
+import { masteryIcon } from '../0529_league_summary/league-summary.helpers';
+import {
+  BINGO_CUSTOM_TRACKING_CHALLENGE,
+  BingoChallengeCategories,
+  BingoChallengeItems,
+  BingoChallengeNpcs,
+  BingoChallengeRow,
+  BingoChallengeShowRelevant,
+  BingoChallenges,
+  BingoEvents,
+  BingoGrids,
+  BingoRewardMasteryTiers,
+  BingoRewardObjectRow,
+  BingoRewardObjects,
+  BingoRewardSlotRewards,
+  BingoRewardQuestUnlocks,
+  BingoRewardSlots,
+  BingoRewards,
+  CombatAchievementTierItems,
+  DiaryTierNames,
+} from './bingo-overlay.data';
+import { BINGO_FEATURE_FLAG } from './bingo-overlay.constants';
+
+export function bingoEventRow(): Int {
+  if (!featureFlag(BINGO_FEATURE_FLAG)) {
+    return -1;
+  }
+  return 0;
+}
+
+export function bingoEventActive(): Boolean {
+  return bingoEventRow() !== -1;
+}
+
+export function bingoGridCount(): Int {
+  if (bingoEventRow() === -1) {
+    return 0;
+  }
+  return 1;
+}
+
+export function bingoGridLayout(grid: Int): Int {
+  if (grid < 0 || grid >= bingoGridCount()) {
+    return 0;
+  }
+  const row = BingoGrids.at(BingoEvents.at(0).grid);
+  if (row === null) {
+    return 0;
+  }
+  return row.gridLayout;
+}
+
+export function bingoSquare(side: Int): Int {
+  if (side < 1) {
+    return 0;
+  }
+  return side * side;
+}
+
+export function bingoRewardSlots(side: Int): Int {
+  if (side < 2) {
+    return 0;
+  }
+  return side * 2 + 2;
+}
+
+export function bingoGridSide(grid: Int): Int {
+  const layout: Int = bingoGridLayout(grid);
+  if (layout === 1) {
+    return 3;
+  }
+  if (layout === 2) {
+    return 4;
+  }
+  if (layout === 3) {
+    return 5;
+  }
+  if (layout === 4 || layout === 5) {
+    return 7;
+  }
+  return 0;
+}
+
+export function bingoTileCount(grid: Int): Int {
+  return bingoSquare(bingoGridSide(grid));
+}
+
+export function bingoRewardCount(grid: Int): Int {
+  return bingoRewardSlots(bingoGridSide(grid));
+}
+
+export function bingoTileCell(grid: Int, index: Int): [Int, Int] {
+  const side: Int = bingoGridSide(grid);
+  if (side === 0 || index < 0 || index >= bingoSquare(side)) {
+    return [-1, -1];
+  }
+  return [index % side, index / side];
+}
+
+export function bingoChallengeId(grid: Int, index: Int): Int {
+  if (grid < 0 || grid >= bingoGridCount() || index < 0 || index >= bingoTileCount(grid)) {
+    return -1;
+  }
+  let before: Int = 0;
+  let g: Int = 0;
+  while (g < grid) {
+    before = before + bingoTileCount(g);
+    g = g + 1;
+  }
+  return before + index;
+}
+
+export function bingoChallenge(id: Int): BingoChallengeRow | null {
+  return BingoChallenges.at(id);
+}
+
+export function bingoChallengePoints(id: Int): Int {
+  const row: BingoChallengeRow | null = bingoChallenge(id);
+  if (row === null) {
+    return 0;
+  }
+  return row.points;
+}
+
+export function bingoPointsToProgress(grid: Int): Int {
+  if (grid < 0 || grid >= bingoGridCount()) {
+    return 0;
+  }
+  const row = BingoGrids.at(BingoEvents.at(0).grid);
+  if (row === null) {
+    return 0;
+  }
+  return row.bingoPointsToProgress;
+}
+
+export function bingoCompleteWord(word: Int): Int {
+  if (word === 0) {
+    return useServerState(Varps.BINGO_CHALLENGE_COMPLETE_VAR_0);
+  }
+  if (word === 1) {
+    return useServerState(Varps.BINGO_CHALLENGE_COMPLETE_VAR_1);
+  }
+  return 0;
+}
+
+export function bingoChallengeComplete(id: Int): Boolean {
+  if (id < 0) {
+    return false;
+  }
+  return hasBit(bingoCompleteWord(id / 32), id % 32);
+}
+
+export function bingoChallengeProgress(id: Int): Int {
+  const raw: Int = bingoProgressVar(id);
+  if (id === BINGO_CUSTOM_TRACKING_CHALLENGE) {
+    return CS2.bitcount(raw);
+  }
+  return raw;
+}
+
+export function bingoGridPoints(grid: Int): [Int, Int] {
+  const first: Int = bingoChallengeId(grid, 0);
+  if (first === -1) {
+    return [-1, -1];
+  }
+  let earned: Int = 0;
+  const last: Int = first + bingoTileCount(grid);
+  let id: Int = first;
+  while (id < last) {
+    if (bingoChallengeComplete(id)) {
+      earned = earned + bingoChallengePoints(id);
+    }
+    id = id + 1;
+  }
+  return [earned, bingoPointsToProgress(grid)];
+}
+
+export function bingoUnlockedGrids(): [Int, Int, Int] {
+  let earned: Int = 0;
+  let needed: Int = 0;
+  let grid: Int = 0;
+  while (grid < bingoGridCount() && bingoGridLayout(grid) !== 0) {
+    const [gridEarned, gridNeeded] = bingoGridPoints(grid);
+    earned = earned + gridEarned;
+    needed = needed + gridNeeded;
+    grid = grid + 1;
+    if (earned < needed) {
+      return [grid, earned, needed];
+    }
+  }
+  return [grid, earned, needed];
+}
+
+export function bingoTileRewardSlot(grid: Int, index: Int): Int {
+  if (index < 0 || index >= bingoTileCount(grid)) {
+    return -1;
+  }
+  if (bingoGridLayout(grid) === 5) {
+    return bingoRewardSlots(bingoGridSide(grid)) + index;
+  }
+  return -1;
+}
+
+export function bingoProgressVar(id: Int): Int {
+  if (id === 0) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_0);
+  }
+  if (id === 1) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_1);
+  }
+  if (id === 2) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_2);
+  }
+  if (id === 3) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_3);
+  }
+  if (id === 4) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_4);
+  }
+  if (id === 5) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_5);
+  }
+  if (id === 6) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_6);
+  }
+  if (id === 7) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_7);
+  }
+  if (id === 8) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_8);
+  }
+  if (id === 9) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_9);
+  }
+  if (id === 10) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_10);
+  }
+  if (id === 11) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_11);
+  }
+  if (id === 12) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_12);
+  }
+  if (id === 13) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_13);
+  }
+  if (id === 14) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_14);
+  }
+  if (id === 15) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_15);
+  }
+  if (id === 16) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_16);
+  }
+  if (id === 17) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_17);
+  }
+  if (id === 18) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_18);
+  }
+  if (id === 19) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_19);
+  }
+  if (id === 20) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_20);
+  }
+  if (id === 21) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_21);
+  }
+  if (id === 22) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_22);
+  }
+  if (id === 23) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_23);
+  }
+  if (id === 24) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_24);
+  }
+  if (id === 25) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_25);
+  }
+  if (id === 26) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_26);
+  }
+  if (id === 27) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_27);
+  }
+  if (id === 28) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_28);
+  }
+  if (id === 29) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_29);
+  }
+  if (id === 30) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_30);
+  }
+  if (id === 31) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_31);
+  }
+  if (id === 32) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_32);
+  }
+  if (id === 33) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_33);
+  }
+  if (id === 34) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_34);
+  }
+  if (id === 35) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_35);
+  }
+  if (id === 36) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_36);
+  }
+  if (id === 37) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_37);
+  }
+  if (id === 38) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_38);
+  }
+  if (id === 39) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_39);
+  }
+  if (id === 40) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_40);
+  }
+  if (id === 41) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_41);
+  }
+  if (id === 42) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_42);
+  }
+  if (id === 43) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_43);
+  }
+  if (id === 44) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_44);
+  }
+  if (id === 45) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_45);
+  }
+  if (id === 46) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_46);
+  }
+  if (id === 47) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_47);
+  }
+  if (id === 48) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_48);
+  }
+  if (id === 49) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_49);
+  }
+  if (id === 50) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_50);
+  }
+  if (id === 51) {
+    return useServerState(Varbits.BINGO_CHALLENGE_PROGRESS_51);
+  }
+  return 0;
+}
+
+export function bingoOpenEntry(): void {
+  if (bingoEventRow() === -1) {
+    return;
+  }
+  const [grid, setGrid] = useState(bingoSelectedGrid);
+  setGrid(Math.max(0, Math.min(grid, bingoGridCount() - 1)));
+
+  const [, setShowRewards] = useState(bingoShowRewards);
+  setShowRewards(0);
+  const [, setPhrase] = useState(bingoLookupPhrase);
+  setPhrase('');
+
+  const tiles: Int = bingoTileCount(grid);
+  const [tile, setTile] = useState(bingoSelectedTile);
+  if (tiles === 0) {
+    setTile(-1);
+  } else if (tile < 0 || tile >= tiles) {
+    if (tiles % 2 === 1) {
+      setTile(tiles / 2);
+    } else {
+      setTile(0);
+    }
+  }
+
+  if (onMobile()) {
+    floaterPlace(FloaterKind.BINGO, 16, 16, 326, 331);
+  }
+}
+
+export function bingoEventName(): String {
+  const row = BingoEvents.at(0);
+  if (row === null) {
+    return '';
+  }
+  return row.eventName;
+}
+
+export const BINGO_SPRITE_XP_ALL = 222;
+export const BINGO_SPRITE_DIARY = 6762;
+export const BINGO_SPRITE_QUEST = 6761;
+export const BINGO_ITEM_DRAGON_ARROW = 11212;
+export const BINGO_ITEM_DRAGON_ARROW_5 = 11216;
+
+export function bingoRewardIcon(reward: Int, objectIndex: Int): [Sprite, Item, String] {
+  const row = BingoRewards.at(reward);
+  if (row === null) {
+    return [-1, -1, ''];
+  }
+  const name: String = row.name;
+  if (row.displayGraphic !== -1) {
+    return [row.displayGraphic, -1, name];
+  }
+  if (row.displayObject !== -1) {
+    return [-1, row.displayObject, name];
+  }
+  if (row.leagueRelic) {
+    return [row.leagueRelicIcon, -1, name];
+  }
+  if (row.masteryTiers > 0) {
+    let t: Int = 0;
+    while (t < BingoRewardMasteryTiers.length) {
+      const tier = BingoRewardMasteryTiers.at(t);
+      if (tier !== null) {
+        if (tier.reward === reward) {
+          const icon: Sprite = masteryIcon(tier.kind - 3, tier.tier);
+          if (icon !== -1) {
+            return [icon, -1, name];
+          }
+        }
+      }
+      t = t + 1;
+    }
+  }
+  if (row.xpBoostAllStat > 0) {
+    return [BINGO_SPRITE_XP_ALL, -1, name];
+  }
+  if (row.objects > 0) {
+    const object = bingoRewardObject(reward, objectIndex < row.objects ? objectIndex : 0);
+    if (object !== null) {
+      if (object.item === BINGO_ITEM_DRAGON_ARROW) {
+        return [-1, BINGO_ITEM_DRAGON_ARROW_5, name];
+      }
+      return [-1, object.item, name];
+    }
+  }
+  if (row.combatAchievement > 0) {
+    return [-1, CombatAchievementTierItems.get(row.combatAchievement) ?? -1, name];
+  }
+  if (row.achievementDiary > 0) {
+    return [BINGO_SPRITE_DIARY, -1, name];
+  }
+  if (row.questUnlocks > 0) {
+    return [BINGO_SPRITE_QUEST, -1, name];
+  }
+  return [-1, -1, name];
+}
+
+export function bingoRewardObject(reward: Int, index: Int): BingoRewardObjectRow | null {
+  let seen: Int = 0;
+  let i: Int = 0;
+  while (i < BingoRewardObjects.length) {
+    const object = BingoRewardObjects.at(i);
+    if (object !== null) {
+      if (object.reward === reward) {
+        if (seen === index) {
+          return object;
+        }
+        seen = seen + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return null;
+}
+
+export function bingoRewardIconAt0(reward: Int): [Sprite, Item, String] {
+  return bingoRewardIcon(reward, 0);
+}
+
+export function bingoSlotRewardIcon(slot: Int, index: Int): [Sprite, Item, String] {
+  if (BingoRewardSlots.at(slot) === null) {
+    return [-1, -1, ''];
+  }
+  const reward: Int = bingoSlotReward(slot, index);
+  if (reward === -1) {
+    return [-1, -1, ''];
+  }
+  return bingoRewardIconAt0(reward);
+}
+
+export function bingoSlotReward(slot: Int, index: Int): Int {
+  if (index < 0) {
+    return -1;
+  }
+  let seen: Int = 0;
+  let i: Int = 0;
+  while (i < BingoRewardSlotRewards.length) {
+    const held = BingoRewardSlotRewards.at(i);
+    if (held !== null) {
+      if (held.slot === slot) {
+        if (seen === index) {
+          return held.reward;
+        }
+        seen = seen + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+export function bingoSlotRewardCount(slot: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < BingoRewardSlotRewards.length) {
+    const held = BingoRewardSlotRewards.at(i);
+    if (held !== null) {
+      if (held.slot === slot) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function bingoChallengeShowRelevant(id: Int): Boolean {
+  return BingoChallengeShowRelevant.get(id) ?? true;
+}
+
+export function bingoChallengeItemCount(id: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < BingoChallengeItems.length) {
+    const held = BingoChallengeItems.at(i);
+    if (held !== null) {
+      if (held.challenge === id) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function bingoChallengeNpcCount(id: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < BingoChallengeNpcs.length) {
+    const held = BingoChallengeNpcs.at(i);
+    if (held !== null) {
+      if (held.challenge === id) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function bingoChallengeCategoryCount(id: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < BingoChallengeCategories.length) {
+    const held = BingoChallengeCategories.at(i);
+    if (held !== null) {
+      if (held.challenge === id) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+const BINGO_WHITE = '<col=ffffff>';
+const BINGO_GREY = '<col=9f9f9f>';
+const BINGO_STRIKE = '<str=9f9f9f>';
+const BINGO_MASTERY_TIERS = 6;
+
+export function tagsRemove(subject: String): String {
+  let out: String = '';
+  let from: Int = 0;
+  let open: Int = subject.indexOf('<', from);
+  while (open !== -1) {
+    const close: Int = subject.indexOf('>', open);
+    if (close === -1) {
+      return `${out}${subject.substring(from, subject.length)}`;
+    }
+    out = `${out}${subject.substring(from, open)}`;
+    from = close + 1;
+    open = subject.indexOf('<', from);
+  }
+  return `${out}${subject.substring(from, subject.length)}`;
+}
+
+export function bingoSigned(value: Int): String {
+  if (value < 0) {
+    return `- ${stringOf(0 - value)}`;
+  }
+  return `+ ${stringOf(value)}`;
+}
+
+function bingoJoined(out: String): String {
+  if (out.length === 0) {
+    return '';
+  }
+  return out.substring(4, out.length);
+}
+
+function bingoMasteryText(kind: Int, tier: Int): String {
+  if (kind === -1) {
+    const passive = MasteryPassives.get(tier);
+    if (passive === null) {
+      return '';
+    }
+    return passive.description;
+  }
+  const row = CombatMasteries.at((kind - 3) * BINGO_MASTERY_TIERS + tier - 1);
+  if (row === null) {
+    return '';
+  }
+  return row.description;
+}
+
+export function bingoMasteryLines(kind: Int, gain: Int): [String, Int] {
+  let have: Int = 0;
+  let label: String = '';
+  if (kind === 3) {
+    have = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS);
+    label = 'Melee Mastery';
+  } else if (kind === 4) {
+    have = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS);
+    label = 'Ranged Mastery';
+  } else if (kind === 5) {
+    have = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS);
+    label = 'Magic Mastery';
+  } else {
+    have = bingoMasteryBest();
+    label = 'Passive Buff';
+  }
+  const held: Int = Math.min(have, BINGO_MASTERY_TIERS);
+  const capped: Int = Math.min(held + gain, BINGO_MASTERY_TIERS);
+  const shown: Int = capped - held;
+  let out: String = '<br>';
+  if (shown === 0) {
+    out = `${out}<br>${label}: ${stringOf(held)}/${stringOf(BINGO_MASTERY_TIERS)}`;
+  } else {
+    out = `${out}<br>${label}: ${BINGO_WHITE}+${stringOf(shown)}`;
+  }
+  let i: Int = 0;
+  while (i < BINGO_MASTERY_TIERS) {
+    let prefix: String = '';
+    if (i < held) {
+      prefix = '';
+    } else if (i < held + shown) {
+      prefix = `${BINGO_WHITE}(NEW) `;
+    } else {
+      prefix = `${BINGO_GREY}${BINGO_STRIKE}`;
+    }
+    const text: String = tagsRemove(replaceAll(bingoMasteryText(kind, i + 1), '<br>', ' '));
+    out = `${out}<br><br>${prefix}${text}`;
+    i = i + 1;
+  }
+  return [out, capped];
+}
+
+export function bingoMasteryBest(): Int {
+  const melee: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS);
+  const ranged: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS);
+  const magic: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS);
+  return Math.max(Math.max(melee, ranged), magic);
+}
+
+export function bingoItemStatLines(item: Item, showOther: Boolean): String {
+  const attackStab: Int = param(item, Params.PARAM_0);
+  const attackSlash: Int = param(item, Params.PARAM_1);
+  const attackCrush: Int = param(item, Params.PARAM_2);
+  const attackMagic: Int = param(item, Params.PARAM_3);
+  const attackRange: Int = param(item, Params.PARAM_4);
+  const defenceStab: Int = param(item, Params.PARAM_5);
+  const defenceSlash: Int = param(item, Params.PARAM_6);
+  const defenceCrush: Int = param(item, Params.PARAM_7);
+  const defenceMagic: Int = param(item, Params.PARAM_8);
+  const defenceRange: Int = param(item, Params.PARAM_9);
+  const meleeStrength: Int = param(item, Params.PARAM_10);
+  const rangeStrength: Int = param(item, Params.PARAM_189);
+  let magicStrength: Int = param(item, Params.PARAM_299);
+  if (magicStrength > 0) {
+    magicStrength = magicStrength / 10;
+  }
+  const prayer: Int = param(item, Params.PARAM_11);
+  const speed: Int = param(item, Params.PARAM_14);
+  const reach: Int = Math.max(1, param(item, Params.PARAM_13));
+
+  let out: String = '';
+  if (attackStab !== 0 || attackSlash !== 0 || attackCrush !== 0 || attackMagic !== 0 || attackRange !== 0) {
+    out = `${out}<br><br>Attack Bonuses`;
+    if (attackStab !== 0) {
+      out = `${out}<br>Stab: ${bingoSigned(attackStab)}`;
+    }
+    if (attackSlash !== 0) {
+      out = `${out}<br>Slash: ${bingoSigned(attackSlash)}`;
+    }
+    if (attackCrush !== 0) {
+      out = `${out}<br>Crush: ${bingoSigned(attackCrush)}`;
+    }
+    if (attackMagic !== 0) {
+      out = `${out}<br>Magic: ${bingoSigned(attackMagic)}`;
+    }
+    if (attackRange !== 0) {
+      out = `${out}<br>Range: ${bingoSigned(attackRange)}`;
+    }
+  }
+  if (defenceStab !== 0 || defenceSlash !== 0 || defenceCrush !== 0 || defenceMagic !== 0 || defenceRange !== 0) {
+    out = `${out}<br><br>Defence Bonuses`;
+    if (defenceStab !== 0) {
+      out = `${out}<br>Stab: ${bingoSigned(defenceStab)}`;
+    }
+    if (defenceSlash !== 0) {
+      out = `${out}<br>Slash: ${bingoSigned(defenceSlash)}`;
+    }
+    if (defenceCrush !== 0) {
+      out = `${out}<br>Crush: ${bingoSigned(defenceCrush)}`;
+    }
+    if (defenceMagic !== 0) {
+      out = `${out}<br>Magic: ${bingoSigned(defenceMagic)}`;
+    }
+    if (defenceRange !== 0) {
+      out = `${out}<br>Range: ${bingoSigned(defenceRange)}`;
+    }
+  }
+  if (meleeStrength !== 0 || rangeStrength !== 0 || magicStrength !== 0 || prayer !== 0 || showOther === true) {
+    out = `${out}<br><br>Other Stats`;
+    if (meleeStrength !== 0) {
+      out = `${out}<br>Melee Str: ${bingoSigned(meleeStrength)}`;
+    }
+    if (rangeStrength !== 0) {
+      out = `${out}<br>Range Str: ${bingoSigned(rangeStrength)}`;
+    }
+    if (magicStrength !== 0) {
+      out = `${out}<br>Magic Str: ${bingoSigned(magicStrength)}%`;
+    }
+    if (prayer !== 0) {
+      out = `${out}<br>Prayer: ${bingoSigned(prayer)}`;
+    }
+    if (showOther === true) {
+      out = `${out}<br>Attack Speed: ${stringOf(speed)} ticks (0.6s per)`;
+      out = `${out}<br>Attack Range: ${stringOf(reach)} ${textPlural(reach, 'tile', 'tiles')}`;
+    }
+  }
+  return out;
+}
+
+function bingoRewardQuestCount(reward: Int, owned: Boolean): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < BingoRewardQuestUnlocks.length) {
+    const held = BingoRewardQuestUnlocks.at(i);
+    if (held !== null) {
+      if (held.reward === reward) {
+        if (owned === true) {
+          count = count + 1;
+        } else if (questComplete(held.quest) === false) {
+          count = count + 1;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function bingoRewardDesc(reward: Int, owned: Boolean): String {
+  const row = BingoRewards.at(reward);
+  if (row === null) {
+    return '';
+  }
+  let out: String = '';
+  if (row.desc.length > 0) {
+    out = `${out}<br>${row.desc}`;
+  }
+  if (row.showDerivedDesc === false) {
+    return bingoJoined(out);
+  }
+
+  let melee: Int = 0;
+  let ranged: Int = 0;
+  let magic: Int = 0;
+  let i: Int = 0;
+  while (i < BingoRewardMasteryTiers.length) {
+    const tier = BingoRewardMasteryTiers.at(i);
+    if (tier !== null) {
+      if (tier.reward === reward) {
+        if (tier.kind === 3) {
+          melee = melee + 1;
+        } else if (tier.kind === 4) {
+          ranged = ranged + 1;
+        } else if (tier.kind === 5) {
+          magic = magic + 1;
+        }
+      }
+    }
+    i = i + 1;
+  }
+
+  let gain: Int = 1;
+  if (owned === true) {
+    gain = 0;
+  }
+  let cap: Int = 0;
+  if (melee > 0) {
+    const [text, reached] = bingoMasteryLines(3, gain * melee);
+    out = `${out}${text}`;
+    cap = Math.max(cap, reached);
+  }
+  if (ranged > 0) {
+    const [text, reached] = bingoMasteryLines(4, gain * ranged);
+    out = `${out}${text}`;
+    cap = Math.max(cap, reached);
+  }
+  if (magic > 0) {
+    const [text, reached] = bingoMasteryLines(5, gain * magic);
+    out = `${out}${text}`;
+    cap = Math.max(cap, reached);
+  }
+  if (cap > 0) {
+    const [text, reached] = bingoMasteryLines(-1, gain * Math.max(0, cap - bingoMasteryBest()));
+    out = `${out}${text}`;
+    cap = reached;
+  }
+  if (out.length !== 0) {
+    out = `${out}<br>`;
+  }
+
+  if (row.leagueRelic === true) {
+    out = `${out}<br>Effect: ${row.leagueRelicEffect}`;
+  }
+  if (row.xpBoostAllStat > 0) {
+    out = `${out}<br>XP: All Skills +${stringOf(row.xpBoostAllStat)}%`;
+  }
+
+  i = 0;
+  while (i < BingoRewardObjects.length) {
+    const object = BingoRewardObjects.at(i);
+    if (object !== null) {
+      if (object.reward === reward) {
+        if (object.count === 1) {
+          out = `${out}<br>Item: ${BINGO_WHITE}${itemName(object.item)}`;
+        } else {
+          out = `${out}<br>Item: ${stringOf(object.count)} x ${BINGO_WHITE}${itemName(object.item)}`;
+        }
+        let showOther: Boolean = false;
+        const blurb: String = paramText(object.item, Params.PARAM_2059);
+        if (blurb.length > 0) {
+          out = `${out}<br>`;
+          out = `${out}<br>${blurb}`;
+          const special: String = paramText(object.item, Params.PARAM_2060);
+          if (special.length > 0) {
+            out = `${out}<br>`;
+            out = `${out}<br>${BINGO_WHITE}Special Attack</col>: ${special}`;
+          }
+          if (param(object.item, Params.PARAM_2061) === false) {
+            showOther = true;
+          }
+        } else if (param(object.item, Params.LOADOUT_ITEMINFO) === 3) {
+          showOther = true;
+        } else if (param(object.item, Params.PARAM_13) !== 0) {
+          showOther = true;
+        } else if (param(object.item, Params.PARAM_14) !== 4) {
+          showOther = true;
+        }
+        out = `${out}${bingoItemStatLines(object.item, showOther)}`;
+        out = `${out}<br>`;
+      }
+    }
+    i = i + 1;
+  }
+
+  if (row.combatAchievement > 0) {
+    out = `${out}<br>Combat Achievements: up to ${CaTierNames.get(row.combatAchievement) ?? ''}`;
+  }
+  if (row.achievementDiary > 0) {
+    out = `${out}<br>Achievement Diaries: up to ${DiaryTierNames.get(row.achievementDiary) ?? ''}`;
+  }
+
+  const quests: Int = bingoRewardQuestCount(reward, owned);
+  if (owned === false) {
+    if (quests > 0) {
+      out = `${out}<br>${BINGO_WHITE}(NEW)`;
+    }
+  }
+  i = 0;
+  while (i < BingoRewardQuestUnlocks.length) {
+    const held = BingoRewardQuestUnlocks.at(i);
+    if (held !== null) {
+      if (held.reward === reward) {
+        if (owned === true) {
+          out = `${out}<br>${BINGO_WHITE}${held.name}`;
+        } else if (questComplete(held.quest) === false) {
+          out = `${out}<br>${BINGO_WHITE}${held.name}`;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return bingoJoined(out);
+}
+
+export function bingoIconNudge(slot: Int): [Int, Int] {
+  return [0, 0];
+}
+
+export function bingoTileRewardCount(grid: Int): Int {
+  if (bingoGridLayout(grid) === 5) {
+    return bingoTileCount(grid);
+  }
+  return 0;
+}
+
+export function bingoGridRewardTotal(grid: Int): Int {
+  const layout: Int = bingoGridLayout(grid);
+  if (layout === 5) {
+    return bingoRewardCount(grid) + bingoTileRewardCount(grid);
+  }
+  if (layout >= 1 && layout <= 4) {
+    return bingoRewardCount(grid);
+  }
+  return 0;
+}
+
+export function bingoGlobalRewardSlot(grid: Int, slot: Int): Int {
+  if (grid < 0 || grid >= bingoGridCount() || slot < 0 || slot >= bingoGridRewardTotal(grid)) {
+    return -1;
+  }
+  let total: Int = 0;
+  let i: Int = 0;
+  while (i < grid) {
+    total = total + bingoGridRewardTotal(i);
+    i = i + 1;
+  }
+  return total + slot;
+}
+
+export function bingoSlotBitAddress(slot: Int): [Int, Int, Int] {
+  const varp: Int = slot / 16;
+  const low: Int = (slot % 16) * 2;
+  return [varp, low, low + 1];
+}
+
+export function bingoRewardBox(columns: Int, slot: Int, w: Int, h: Int): [Int, Int, Int, Int, Int, Int] {
+  const gap: Int = 2;
+  let dx: Int = 0 - w;
+  let dy: Int = 0 - h;
+  let anchorX: Int = 0;
+  let anchorY: Int = 0;
+  if (slot < 0 || bingoRewardSlots(columns) <= slot) {
+    return [dx, dy, anchorX, anchorY, w, h];
+  }
+  const band: Int = slot / columns;
+  const within: Int = slot % columns;
+  if (band === 0) {
+    dx = gap;
+    dy = within * (h + gap) + gap;
+    anchorX = 0;
+    anchorY = 0;
+  } else if (band === 1) {
+    dx = (columns - 1 - within) * (w + gap);
+    dy = gap;
+    anchorX = 2;
+    anchorY = 2;
+  } else if (within === 0) {
+    dx = gap;
+    dy = gap;
+    anchorX = 0;
+    anchorY = 2;
+  } else if (within === 1) {
+    dx = gap;
+    dy = gap;
+    anchorX = 2;
+    anchorY = 2;
+  }
+  return [dx, dy, anchorX, anchorY, w, h];
+}
+
+export function bingoGridRewardBox(grid: Int, slot: Int, w: Int, h: Int): [Int, Int, Int, Int, Int, Int] {
+  const layout: Int = bingoGridLayout(grid);
+  if (layout === 1) {
+    return bingoRewardBox(3, slot, w, h);
+  }
+  if (layout === 2) {
+    return bingoRewardBox(4, slot, w, h);
+  }
+  if (layout === 3) {
+    return bingoRewardBox(5, slot, w, h);
+  }
+  if (layout === 4 || layout === 5) {
+    return bingoRewardBox(7, slot, w, h);
+  }
+  return [0 - w, 0 - h, 0, 0, w, h];
+}
+
+function bingoSquareLineLength(side: Int, slot: Int): Int {
+  if (side < 2 || slot < 0 || bingoRewardSlots(side) <= slot) {
+    return 0;
+  }
+  return side;
+}
+
+function bingoSquareLineTile(side: Int, slot: Int, n: Int): Int {
+  if (n < 0 || n >= bingoSquareLineLength(side, slot)) {
+    return -1;
+  }
+  const band: Int = slot / side;
+  const k: Int = slot % side;
+  if (band === 0) {
+    return k * side + n;
+  }
+  if (band === 1) {
+    return n * side + k;
+  }
+  if (k === 0) {
+    return (n + 1) * (side - 1);
+  }
+  return n * (side + 1);
+}
+
+export function bingoLineLength(grid: Int, slot: Int): Int {
+  const layout: Int = bingoGridLayout(grid);
+  if (layout === 1) {
+    return bingoSquareLineLength(3, slot);
+  }
+  if (layout === 2) {
+    return bingoSquareLineLength(4, slot);
+  }
+  if (layout === 3) {
+    return bingoSquareLineLength(5, slot);
+  }
+  if (layout === 4) {
+    return bingoSquareLineLength(7, slot);
+  }
+  if (layout === 5) {
+    const strip: Int = bingoRewardSlots(7);
+    if (slot < strip) {
+      return bingoSquareLineLength(7, slot);
+    }
+    if (slot < strip + bingoSquare(7)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+export function bingoLineTile(grid: Int, slot: Int, n: Int): Int {
+  const layout: Int = bingoGridLayout(grid);
+  if (layout === 1) {
+    return bingoSquareLineTile(3, slot, n);
+  }
+  if (layout === 2) {
+    return bingoSquareLineTile(4, slot, n);
+  }
+  if (layout === 3) {
+    return bingoSquareLineTile(5, slot, n);
+  }
+  if (layout === 4) {
+    return bingoSquareLineTile(7, slot, n);
+  }
+  if (layout === 5) {
+    const strip: Int = bingoRewardSlots(7);
+    if (slot < strip) {
+      return bingoSquareLineTile(7, slot, n);
+    }
+    if (slot < strip + bingoSquare(7)) {
+      if (n === 0) {
+        return slot - strip;
+      }
+    }
+  }
+  return -1;
+}
+
+export function bingoLineChallenge(grid: Int, slot: Int, n: Int): Int {
+  const tile: Int = bingoLineTile(grid, slot, n);
+  if (tile === -1) {
+    return -1;
+  }
+  const base: Int = bingoChallengeId(grid, 0);
+  if (base === -1) {
+    return -1;
+  }
+  return base + tile;
+}
+
+export function bingoLineComplete(grid: Int, slot: Int): Boolean {
+  const length: Int = bingoLineLength(grid, slot);
+  let found: Boolean = false;
+  let i: Int = 0;
+  while (i < length) {
+    const id: Int = bingoLineChallenge(grid, slot, i);
+    if (id !== -1) {
+      found = true;
+      if (!bingoChallengeComplete(id)) {
+        return false;
+      }
+    }
+    i = i + 1;
+  }
+  return found;
+}
+
+export function bingoBitRange(word: Int, from: Int, to: Int): Int {
+  let value: Int = 0;
+  let bit: Int = 1;
+  let i: Int = from;
+  while (i <= to) {
+    if (hasBit(word, i)) {
+      value = value + bit;
+    }
+    bit = bit * 2;
+    i = i + 1;
+  }
+  return value;
+}
+
+export function bingoRewardClaimWord(varp: Int, low: Int, high: Int): Int {
+  switch (varp) {
+    case 0:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_0), low, high);
+    case 1:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_1), low, high);
+    case 2:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_2), low, high);
+    case 3:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_3), low, high);
+    case 4:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_4), low, high);
+    case 5:
+      return bingoBitRange(useServerState(Varps.BINGO_REWARDS_PERM_5), low, high);
+  }
+  debugMessageAlias(`Undefined $varp index: ${stringOf(varp)}`);
+  return -1;
+}
+
+export function bingoSlotClaim(slot: Int): Int {
+  if (slot < 0) {
+    return -1;
+  }
+  const [varp, low, high] = bingoSlotBitAddress(slot);
+  return bingoRewardClaimWord(varp, low, high);
+}
+
+export function bingoRewardClaim(grid: Int, slot: Int): Int {
+  return bingoSlotClaim(bingoGlobalRewardSlot(grid, slot));
+}
+
+export function bingoXpBoostAddress(slot: Int): [Int, Int, Int] {
+  const width: Int = 10;
+  const perVarp: Int = 32 / width;
+  const low: Int = (slot % perVarp) * width;
+  return [slot / perVarp, low, low + width - 1];
+}
+
+export function bingoXpBoostWord(varp: Int, low: Int, high: Int): Int {
+  switch (varp) {
+    case 0:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_0), low, high);
+    case 1:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_1), low, high);
+    case 2:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_2), low, high);
+    case 3:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_3), low, high);
+    case 4:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_4), low, high);
+    case 5:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_5), low, high);
+    case 6:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_6), low, high);
+    case 7:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_7), low, high);
+    case 8:
+      return bingoBitRange(useServerState(Varps.EVENT_REWARDS_TEMP_8), low, high);
+  }
+  debugMessageAlias(`Undefined $varp index: ${stringOf(varp)}`);
+  return -1;
+}
+
+export function bingoXpBoostRaw(slot: Int): Int {
+  const [varp, low, high] = bingoXpBoostAddress(slot);
+  return bingoXpBoostWord(varp, low, high);
+}
+
+export function bingoXpBoost(slot: Int): Int {
+  const raw: Int = bingoXpBoostRaw(slot);
+  if (slot === 0) {
+    return raw + 400;
+  }
+  return raw;
+}
+
+export function bingoRewardSlotAt(grid: Int, slot: Int): [Int, Int] {
+  const index: Int = bingoGlobalRewardSlot(grid, slot);
+  if (index === -1) {
+    return [-1, 0];
+  }
+  if (BingoRewardSlots.at(index) === null) {
+    return [-1, 0];
+  }
+  return [index, bingoSlotRewardCount(index)];
+}
+
+function bingoSlotIconOverride(index: Int): Boolean {
+  const row = BingoRewardSlots.at(index);
+  if (row === null) {
+    return false;
+  }
+  if (row.displayGraphic !== -1) {
+    return true;
+  }
+  return row.displayObject !== -1;
+}
+
+export function bingoSlotIconCount(grid: Int, slot: Int): Int {
+  const [index, count] = bingoRewardSlotAt(grid, slot);
+  if (index === -1) {
+    return 0;
+  }
+  if (bingoSlotIconOverride(index)) {
+    return 1;
+  }
+  return count;
+}
+
+export function bingoSlotIcon(grid: Int, slot: Int, n: Int): [Sprite, Item] {
+  const [index, _count] = bingoRewardSlotAt(grid, slot);
+  if (index === -1) {
+    return [-1, -1];
+  }
+  if (bingoSlotIconOverride(index)) {
+    const row = BingoRewardSlots.at(index);
+    if (row === null) {
+      return [-1, -1];
+    }
+    if (n !== 0) {
+      return [-1, -1];
+    }
+    return [row.displayGraphic, row.displayObject];
+  }
+  const [sprite, item, _name] = bingoSlotRewardIcon(index, n);
+  return [sprite, item];
+}
+
+export function bingoSlotRewardName(grid: Int, slot: Int, n: Int): String {
+  const [index, _count] = bingoRewardSlotAt(grid, slot);
+  if (index === -1) {
+    return '';
+  }
+  const [_sprite, _item, name] = bingoSlotRewardIcon(index, n);
+  return name;
+}
+
+export function bingoSlotRewardNames(grid: Int, slot: Int): String {
+  const [index, count] = bingoRewardSlotAt(grid, slot);
+  if (index === -1) {
+    return '';
+  }
+  let out: String = '';
+  let i: Int = 0;
+  while (i < count) {
+    const [_sprite, _item, name] = bingoSlotRewardIcon(index, i);
+    out = `${out}<br>or<br>${name}`;
+    i = i + 1;
+  }
+  if (out.length === 0) {
+    return '';
+  }
+  return out.substring(10, out.length);
+}

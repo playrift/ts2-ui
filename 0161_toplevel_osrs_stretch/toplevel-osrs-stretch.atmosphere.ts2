@@ -1,0 +1,367 @@
+import { CS2, sessionState, useState } from 'ts2';
+
+import { rgbToHex } from '../0259_area_task/area-task.helpers';
+import { Sounds } from '../lib/game/sounds';
+import { freecamSpeed } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+
+export enum AtmosphereKind {
+  NONE = 0,
+  JAR_OF_DARKNESS = 1,
+  SARADOMINS_LIGHT = 2,
+  SOULBEARER_REPAIR = 3,
+  LITTLE_NIGHTMARE = 4,
+  ABYSSALSIRE_OVERSEER = 5,
+  DOLL = 6,
+  MOLE_SPLAT = 7,
+  WEDDING = 8,
+}
+
+export const atmosphereKind = sessionState(0);
+
+export const atmosphereStart = sessionState(-1);
+
+export function jarOfDarkness(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.JAR_OF_DARKNESS);
+  setStart(clientClock());
+  CS2.sound_effect(Sounds.DS_DRAIN, 1, 10);
+}
+
+export function jarTransparency(elapsed: Int): Int {
+  if (elapsed <= 17) {
+    return 255 - elapsed * 15;
+  }
+  if (elapsed <= 50) {
+    return 0;
+  }
+  if (elapsed <= 67) {
+    return (elapsed - 50) * 15;
+  }
+  return 255;
+}
+
+export function jarStep(start: Int): Int {
+  const elapsed: Int = clientClock() - start;
+  if (elapsed > 67) {
+    const [, setKind] = useState(atmosphereKind);
+    setKind(AtmosphereKind.NONE);
+  }
+  return jarTransparency(elapsed);
+}
+
+export function endAtmosphere(): void {
+  const [, setKind] = useState(atmosphereKind);
+  setKind(AtmosphereKind.NONE);
+}
+
+export enum SaradominsLight {
+  SPIN = 50,
+  END = 70,
+}
+
+export function saradominLightEffect(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.SARADOMINS_LIGHT);
+  setStart(clientClock());
+}
+
+export function saradominsLightFill(elapsed: Int): Int {
+  if (elapsed <= SaradominsLight.SPIN) {
+    return 255 - elapsed * 4;
+  }
+  if (elapsed <= SaradominsLight.END) {
+    return 55 + (elapsed - SaradominsLight.SPIN) * 10;
+  }
+  return 255;
+}
+
+export function saradominsLightYaw(elapsed: Int): Int {
+  return (48 + elapsed * 40) % 2048;
+}
+
+export function saradominsLightZoom(elapsed: Int): Int {
+  return 1050 - elapsed * 20;
+}
+
+export enum SoulbearerRepair {
+  SPIN = 50,
+  END = 75,
+}
+
+export function soulbearerRepair(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.SOULBEARER_REPAIR);
+  setStart(clientClock());
+}
+
+export function soulbearerRepairFill(elapsed: Int): Int {
+  if (elapsed <= SoulbearerRepair.SPIN) {
+    return 255 - elapsed * 5;
+  }
+  if (elapsed <= SoulbearerRepair.END) {
+    return 5 + (elapsed - SoulbearerRepair.SPIN) * 10;
+  }
+  return 255;
+}
+
+export enum LittleNightmare {
+  DARK = 80,
+  END = 110,
+  OFFSET = 30,
+}
+
+export function littleNightmare(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.LITTLE_NIGHTMARE);
+  setStart(clientClock());
+  CS2.sound_effect(Sounds.GODWARS_ARMADYL_AVATAR_ATTACK, 1, 85);
+}
+
+export function littleNightmareFill(elapsed: Int): Int {
+  if (elapsed <= LittleNightmare.DARK) {
+    return 255 - elapsed * 3;
+  }
+  if (elapsed <= LittleNightmare.END) {
+    return 55 + (elapsed - LittleNightmare.OFFSET) * 4;
+  }
+  return 255;
+}
+
+export function littleNightmareZoom(elapsed: Int): Int {
+  return 1050 - (elapsed - LittleNightmare.OFFSET) * 12;
+}
+
+export enum AbyssalsireOverseer {
+  SPIN = 60,
+  END = 90,
+}
+
+export function abyssalsireOverseer(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.ABYSSALSIRE_OVERSEER);
+  setStart(clientClock());
+}
+
+export function abyssalsireOverseerFill(elapsed: Int): Int {
+  if (elapsed <= AbyssalsireOverseer.SPIN) {
+    return 255 - elapsed * 4;
+  }
+  if (elapsed <= AbyssalsireOverseer.END) {
+    return 15 + (elapsed - AbyssalsireOverseer.SPIN) * 8;
+  }
+  return 255;
+}
+
+export function abyssalsireOverseerZoom(elapsed: Int): Int {
+  return 2000 - elapsed * 32;
+}
+
+export enum Doll {
+  FLASH = 180,
+  DIM = 210,
+  END = 270,
+  PHASE = 30,
+}
+
+export function doll(): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setKind(AtmosphereKind.DOLL);
+  setStart(clientClock());
+}
+
+export function dollAlternate(elapsed: Int): Boolean {
+  return elapsed % 50 < 25;
+}
+
+export function dollYaw(elapsed: Int): Int {
+  return (elapsed * 34) % 2048;
+}
+
+export function dollZoom(elapsed: Int): Int {
+  if (elapsed <= 30) {
+    return 1580 - elapsed * 50;
+  }
+  if (elapsed <= 60) {
+    return 80 - CS2.scale(elapsed - 30, Doll.PHASE, 20);
+  }
+  if (elapsed <= 90) {
+    return 60 + CS2.scale(elapsed - 60, Doll.PHASE, 20);
+  }
+  if (elapsed <= 120) {
+    return 80 - CS2.scale(elapsed - 90, Doll.PHASE, 20);
+  }
+  if (elapsed <= 150) {
+    return 60 + CS2.scale(elapsed - 120, Doll.PHASE, 20);
+  }
+  return 80 + (elapsed - 150) * 50;
+}
+
+export function dollFill(elapsed: Int): Int {
+  if (elapsed <= 30) {
+    return 255 - elapsed * 8;
+  }
+  if (elapsed <= 60) {
+    return 15 - (elapsed - 30) / 2;
+  }
+  if (elapsed <= Doll.DIM) {
+    return 0;
+  }
+  if (elapsed <= Doll.END) {
+    return CS2.scale(elapsed - Doll.DIM, 60, 255);
+  }
+  return 255;
+}
+
+export function dollColour(elapsed: Int): Int {
+  if (elapsed <= 30) {
+    return 0xffffff;
+  }
+  if (elapsed <= 60) {
+    const s: Int = elapsed - 30;
+    const fade: Int = 255 - CS2.scale(s, Doll.PHASE, 255);
+    return rgbToHex(255 - CS2.scale(s, Doll.PHASE, 127), fade, fade);
+  }
+  if (elapsed <= 90) {
+    return rgbToHex(128 - CS2.scale(elapsed - 60, Doll.PHASE, 128), 0, 0);
+  }
+  if (elapsed <= 120) {
+    const s: Int = elapsed - 90;
+    return rgbToHex(CS2.scale(s, Doll.PHASE, 128), s, 0);
+  }
+  if (elapsed <= 150) {
+    const s: Int = elapsed - 120;
+    return rgbToHex(128 - CS2.scale(s, Doll.PHASE, 128), 30 - s, 0);
+  }
+  if (elapsed <= Doll.FLASH) {
+    return rgbToHex(CS2.scale(elapsed - 150, Doll.PHASE, 96), 0, 0);
+  }
+  if (elapsed <= Doll.DIM) {
+    return rgbToHex(96 - CS2.scale(elapsed - Doll.FLASH, Doll.PHASE, 96), 0, 0);
+  }
+  return 0;
+}
+
+export const atmosphereModel = sessionState(-1);
+
+export const atmosphereUntil = sessionState(-1);
+
+export enum MoleSplat {
+  MIN_H = 334,
+  MAX_H = 1200,
+  PITCH = 462,
+}
+
+export function moleGoSplat(duration: Int, model: Model): void {
+  const [, setKind] = useState(atmosphereKind);
+  const [, setModel] = useState(atmosphereModel);
+  const [, setUntil] = useState(atmosphereUntil);
+  setModel(model as Int);
+  setUntil(clientClock() + duration);
+  setKind(AtmosphereKind.MOLE_SPLAT);
+}
+
+export function fossilSwampSplat(duration: Int): void {
+  moleGoSplat(duration, 33278);
+}
+
+export function moleSplatZoom(height: Int): Int {
+  const h: Int = Math.clamp(MoleSplat.MIN_H, MoleSplat.MAX_H, height);
+  return (
+    180 -
+    CS2.interpolate(0, CS2.invpow(h - MoleSplat.MIN_H, 2), 0, CS2.invpow(MoleSplat.MAX_H - MoleSplat.MIN_H, 2), 130)
+  );
+}
+
+export const spectatorHintUntil = sessionState(-1);
+
+export enum SpectatorHint {
+  DURATION = 400,
+  MIN_SPEED = 3,
+  MAX_SPEED = 12,
+}
+
+export function clampFreecamSpeed(): void {
+  const [speed, setSpeed] = useState(freecamSpeed);
+  if (speed < SpectatorHint.MIN_SPEED || speed > SpectatorHint.MAX_SPEED) {
+    setSpeed(SpectatorHint.MAX_SPEED);
+  }
+}
+
+export function arenaSpectatorInit(): void {
+  clampFreecamSpeed();
+  const [, setUntil] = useState(spectatorHintUntil);
+  setUntil(clientClock() + SpectatorHint.DURATION);
+}
+
+export function endSpectatorHint(): void {
+  const [, setUntil] = useState(spectatorHintUntil);
+  setUntil(-1);
+}
+
+export enum WeddingPhase {
+  FADE_IN = 0,
+  HUD = 1,
+  FADE_OUT = 2,
+}
+
+export enum Wedding {
+  FADE_IN = 90,
+  REVEAL = 30,
+  HOLD = 150,
+  HUD_END = 220,
+  FADE_OUT = 40,
+  TURN_DELAY = 20,
+  TURN = 170,
+}
+
+export const weddingPhase = sessionState(0);
+
+export const weddingPhaseStart = sessionState(-1);
+
+export function weddingEffect(): void {
+  endSpectatorHint();
+  const [, setPhase] = useState(weddingPhase);
+  const [, setPhaseStart] = useState(weddingPhaseStart);
+  const [, setKind] = useState(atmosphereKind);
+  const [, setStart] = useState(atmosphereStart);
+  setPhase(WeddingPhase.FADE_IN);
+  setPhaseStart(-1);
+  setKind(AtmosphereKind.WEDDING);
+  setStart(clientClock());
+}
+
+export function weddingFadeIn(elapsed: Int): Int {
+  return 255 - CS2.scale(elapsed, Wedding.FADE_IN, 255);
+}
+
+export function enterWeddingPhase(phase: Int): void {
+  const [, setPhase] = useState(weddingPhase);
+  const [, setPhaseStart] = useState(weddingPhaseStart);
+  setPhase(phase);
+  setPhaseStart(clientClock());
+}
+
+export function weddingCover(elapsed: Int): Int {
+  if (elapsed < Wedding.REVEAL) {
+    return CS2.scale(elapsed, Wedding.REVEAL, 255);
+  }
+  if (elapsed < Wedding.HOLD) {
+    return 255;
+  }
+  return 255 - CS2.scale(elapsed - Wedding.HOLD, Wedding.HUD_END - Wedding.HOLD, 255);
+}
+
+export function weddingFadeOut(elapsed: Int): Int {
+  return CS2.scale(elapsed, Wedding.FADE_OUT, 255);
+}
+
+export function weddingHeadYaw(from: Int, to: Int, elapsed: Int): Int {
+  return from + CS2.scale(Math.min(Wedding.TURN, elapsed - Wedding.TURN_DELAY), Wedding.TURN, to - from);
+}

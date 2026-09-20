@@ -1,0 +1,761 @@
+import { onMounted, onUpdated, predictServerState, useInterval, useRef, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { sailingSidepanelFacilitiesScrollpos } from '../lib/game/varcs';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ButtonSprites,
+  SidepanelColor,
+  SidepanelFont,
+  SidepanelVarbits,
+  facilitiesPaneRef,
+} from './sailing-sidepanel.constants';
+import { sidepanelTab } from './sailing-sidepanel.state';
+import {
+  SidepanelLayoutWidgets,
+  SidepanelLayouts,
+  SidepanelWidgetGraphics,
+  SidepanelWidgetStrings,
+  SidepanelWidgets,
+} from './sidepanel-boats.data';
+import { Message, SidepanelPage, sidepanelBlocked, sidepanelPageShown } from './sidepanel-content.component';
+import { boatCrewCapacity, crewCount } from './sidepanel-crew.helpers';
+import {
+  FacilitySlotKind,
+  SidepanelWidget,
+  boardedCombinedNavigation,
+  facilityAssignSprite,
+  facilityCrew,
+  facilitySlotLayout,
+  facilitySlotValue,
+  widgetAmmo,
+  widgetFlag,
+  widgetOpMask,
+  widgetState,
+  widgetToggle,
+} from './sidepanel-facilities.helpers';
+import { Pane, PaneScrollbar } from './sidepanel-scrollbar.component';
+
+export function FacilitiesBacking(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.FACILITIES);
+  const shipyard: Boolean = useServerState(SidepanelVarbits.SHIPYARD) === 1;
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {blocked ? (
+        <Message
+          text={
+            shipyard
+              ? 'Facilities are not available while customising your boat in the shipyard.'
+              : 'Facilities can only be viewed while on a boat.'
+          }
+        />
+      ) : (
+        <>
+          <rect x={0} y={0} w="fill" h="fill" fill color={FacilityColor.BACKING} />
+          <rect x="center" y="center" w="fill" h="fill" color={FacilityColor.BOX_OUTER} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={FacilityColor.BOX_INNER} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function FacilitiesRows(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.FACILITIES);
+  const [saved] = useState(sailingSidepanelFacilitiesScrollpos);
+  const blocked: Boolean = sidepanelBlocked();
+  const extent: Int = facilityExtent();
+  const scrolls: Boolean = !blocked && extent > PANE_H;
+  const paneExtent: Int = scrolls ? extent : 0;
+  const keep: Boolean = scrolls && saved === -1;
+  const offset: Int = scrolls ? Math.max(0, Math.min(extent - PANE_H, saved)) : 0;
+  const combined: Boolean = boardedCombinedNavigation();
+
+  onMounted(() => {
+    facilitiesPaneRef.scrollHeight = paneExtent;
+    if (!keep) {
+      facilitiesPaneRef.scrollY = offset;
+    }
+  });
+  onUpdated(() => {
+    facilitiesPaneRef.scrollHeight = paneExtent;
+    if (!keep) {
+      facilitiesPaneRef.scrollY = offset;
+    }
+  });
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && (
+        <>
+          {facilitySlotPresent(0) && <FacilityRow slot={0} combined={combined} />}
+          {facilitySlotPresent(1) && <FacilityRow slot={1} combined={combined} />}
+          {facilitySlotPresent(2) && <FacilityRow slot={2} combined={combined} />}
+          {facilitySlotPresent(3) && <FacilityRow slot={3} combined={combined} />}
+          {facilitySlotPresent(4) && <FacilityRow slot={4} combined={combined} />}
+          {facilitySlotPresent(5) && <FacilityRow slot={5} combined={combined} />}
+          {facilitySlotPresent(6) && <FacilityRow slot={6} combined={combined} />}
+          {facilitySlotPresent(7) && <FacilityRow slot={7} combined={combined} />}
+          {facilitySlotPresent(8) && <FacilityRow slot={8} combined={combined} />}
+          {facilitySlotPresent(9) && <FacilityRow slot={9} combined={combined} />}
+          {facilitySlotPresent(10) && <FacilityRow slot={10} combined={combined} />}
+          {facilitySlotPresent(11) && <FacilityRow slot={11} combined={combined} />}
+          {facilitySlotPresent(12) && <FacilityRow slot={12} combined={combined} />}
+          {facilitySlotPresent(13) && <FacilityRow slot={13} combined={combined} />}
+          {facilitySlotPresent(14) && <FacilityRow slot={14} combined={combined} />}
+          {facilitySlotPresent(15) && <FacilityRow slot={15} combined={combined} />}
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function FacilitiesDivider(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.FACILITIES);
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && (
+        <>
+          <rect x={0} y={0} w="fill" h="fill" fill color={FacilityColor.DIVIDER} />
+          <rect x={1} y={0} w={1} h="fill" fill color={FacilityColor.BOX_OUTER} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function FacilitiesScrollbar(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.FACILITIES);
+  const blocked: Boolean = sidepanelBlocked();
+  const extent: Int = facilityExtent();
+  const paneExtent: Int = !blocked && extent > PANE_H ? extent : 0;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && <PaneScrollbar which={Pane.FACILITIES} extent={paneExtent} height={PANE_H} />}
+    </layer>
+  );
+}
+
+const PANE_H = 168;
+const ROW_H = 34;
+const TOP = 2;
+const WIDGET_H = 30;
+const CLICK = 2266;
+const PRESS_CYCLES = 30;
+const SPIN_STEP = 650;
+
+const FacilityColor = {
+  BACKING: 0x595046,
+  BOX_OUTER: 0x0e0e0c,
+  BOX_INNER: 0x474745,
+  STRIPE: 0x4e453a,
+  DIVIDER: 0x474745,
+  ASSIGN_TEXT: 0xff981f,
+} as const;
+
+function slotKind(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return FacilitySlotKind.SAIL;
+    case 1:
+      return FacilitySlotKind.HELM;
+    case 2:
+      return FacilitySlotKind.HULL;
+  }
+  return FacilitySlotKind.HOTSPOT;
+}
+
+function slotHotspot(slot: Int): Int {
+  return slot >= 3 ? slot - 3 : -1;
+}
+
+function slotLayout(slot: Int): Int {
+  const kind: Int = slotKind(slot);
+  const hotspot: Int = slotHotspot(slot);
+  const value: Int = facilitySlotValue(kind, hotspot);
+  if (kind === FacilitySlotKind.HOTSPOT && value === 0) {
+    return -1;
+  }
+  return facilitySlotLayout(kind, hotspot, value);
+}
+
+export function facilitySlotPresent(slot: Int): Boolean {
+  return slotLayout(slot) >= 0;
+}
+
+function layoutLinked(layout: Int): Boolean {
+  if (layout < 0) {
+    return false;
+  }
+  const row = SidepanelLayouts.at(layout);
+  if (row === null) {
+    return false;
+  }
+  return row.linked >= 0;
+}
+
+export function facilityRowIndex(slot: Int): Int {
+  let rows: Int = 0;
+  let s: Int = 0;
+  while (s < slot) {
+    if (facilitySlotPresent(s)) {
+      rows = rows + 1;
+    }
+    s = s + 1;
+  }
+  return rows;
+}
+
+export function facilityRowStripe(slot: Int): Boolean {
+  let stripe: Boolean = false;
+  let s: Int = 0;
+  while (s < slot) {
+    const layout: Int = slotLayout(s);
+    if (layout >= 0 && !layoutLinked(layout)) {
+      stripe = !stripe;
+    }
+    s = s + 1;
+  }
+  return stripe;
+}
+
+export function facilityRowPending(slot: Int): Boolean {
+  let pending: Boolean = false;
+  let s: Int = 0;
+  while (s < slot) {
+    const layout: Int = slotLayout(s);
+    if (layout >= 0) {
+      pending = !pending && layoutLinked(layout);
+    }
+    s = s + 1;
+  }
+  return pending;
+}
+
+function facilityExtent(): Int {
+  return TOP + ROW_H * facilityRowIndex(16);
+}
+
+function layoutWidget(layout: Int, k: Int): Int {
+  if (layout < 0) {
+    return -1;
+  }
+  const row = SidepanelLayouts.at(layout);
+  if (row !== null) {
+    if (k < row.widgetCount) {
+      return SidepanelLayoutWidgets.at(row.widgetFirst + k) ?? -1;
+    }
+  }
+  return -1;
+}
+
+function widgetSprite(widget: Int, toggle: Int): Sprite {
+  const row = SidepanelWidgets.at(widget);
+  if (row === null) {
+    return -1;
+  }
+  if (toggle >= 0 && toggle < row.toggleGraphicCount) {
+    const g = SidepanelWidgetGraphics.at(row.toggleGraphicFirst + toggle);
+    if (g !== null) {
+      return g.sprite;
+    }
+  }
+  if (row.kind === 2) {
+    const g0 = SidepanelWidgetGraphics.at(row.toggleGraphicFirst);
+    return g0 === null ? -1 : g0.sprite;
+  }
+  return row.sprite;
+}
+
+function widgetSpriteSize(widget: Int, toggle: Int): Int {
+  const row = SidepanelWidgets.at(widget);
+  if (row === null) {
+    return 0;
+  }
+  if (toggle >= 0 && toggle < row.toggleGraphicCount) {
+    const g = SidepanelWidgetGraphics.at(row.toggleGraphicFirst + toggle);
+    if (g !== null) {
+      return g.size;
+    }
+  }
+  if (row.kind === 2) {
+    const g0 = SidepanelWidgetGraphics.at(row.toggleGraphicFirst);
+    return g0 === null ? 0 : g0.size;
+  }
+  return row.spriteSize;
+}
+
+function widgetCaption(widget: Int, toggle: Int): String {
+  const row = SidepanelWidgets.at(widget);
+  if (row === null) {
+    return '';
+  }
+  if (toggle >= 0 && toggle < row.toggleCaptionCount) {
+    return SidepanelWidgetStrings.at(row.toggleCaptionFirst + toggle) ?? '';
+  }
+  if (row.kind === 4) {
+    return SidepanelWidgetStrings.at(row.toggleCaptionFirst) ?? '';
+  }
+  return row.caption;
+}
+
+function widgetToggleOpText(widget: Int, toggle: Int): String {
+  const row = SidepanelWidgets.at(widget);
+  if (row === null) {
+    return '';
+  }
+  if (toggle >= 0 && toggle < row.toggleOptextCount) {
+    return SidepanelWidgetStrings.at(row.toggleOptextFirst + toggle) ?? '';
+  }
+  return row.optext;
+}
+
+function widgetAdvance(layout: Int, k: Int, hotspot: Int): Int {
+  const widget: Int = layoutWidget(layout, k);
+  const row = SidepanelWidgets.at(widget);
+  if (widget < 0 || row === null) {
+    return 0;
+  }
+  const toggle: Int = widgetToggle(layout, widget, hotspot);
+  switch (row.kind) {
+    case 0:
+    case 1:
+      return (row.long ? 106 : 30) + 8;
+    case 2:
+      return widgetSprite(widget, toggle) === -1 ? 0 : 38;
+    case 3:
+      return 38;
+    case 4:
+      return textWidth(widgetCaption(widget, toggle), 106, SidepanelFont.SMALL) + 8;
+  }
+  return 0;
+}
+
+function FacilityRow({ slot, combined }: { slot: Int; combined: Boolean }): Component {
+  const kind: Int = slotKind(slot);
+  const hotspot: Int = slotHotspot(slot);
+  const layout: Int = slotLayout(slot);
+  const y: Int = TOP + ROW_H * facilityRowIndex(slot);
+  const stripe: Boolean = facilityRowStripe(slot);
+  const pending: Boolean = facilityRowPending(slot);
+  const linked: Boolean = layoutLinked(layout);
+  const crewId: Int = facilityCrew(kind, hotspot, combined);
+  const crewAssigned: Boolean = crewId !== 0;
+  const x0: Int = 6;
+  const x1: Int = x0 + widgetAdvance(layout, 0, hotspot);
+  const x2: Int = x1 + widgetAdvance(layout, 1, hotspot);
+  const w0: Int = layoutWidget(layout, 0);
+  const w1: Int = layoutWidget(layout, 1);
+  const w2: Int = layoutWidget(layout, 2);
+
+  const layoutRow = SidepanelLayouts.at(layout);
+  const layoutAssignable: Boolean = layoutRow === null ? false : layoutRow.canBeAssigned;
+  const assignable: Boolean =
+    boatCrewCapacity() > 0 &&
+    crewCount() > 0 &&
+    useServerState(Varbits.SAILING_SIDEPANEL_PLAYER_ROLE) === 10 &&
+    layoutAssignable;
+  const assignSprite: Sprite = facilityAssignSprite(kind, hotspot, combined);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {stripe && <rect x={0} y={y} w="fill" h={linked ? ROW_H * 2 : ROW_H} fill color={FacilityColor.STRIPE} />}
+      {w0 >= 0 && (
+        <FacilityWidget layout={layout} widget={w0} hotspot={hotspot} x={x0} y={y + 2} crewAssigned={crewAssigned} />
+      )}
+      {w1 >= 0 && (
+        <FacilityWidget layout={layout} widget={w1} hotspot={hotspot} x={x1} y={y + 2} crewAssigned={crewAssigned} />
+      )}
+      {w2 >= 0 && (
+        <FacilityWidget layout={layout} widget={w2} hotspot={hotspot} x={x2} y={y + 2} crewAssigned={crewAssigned} />
+      )}
+      {pending && (
+        <SkinButton
+          x={128}
+          y={y - ROW_H / 2}
+          w={30}
+          caption=""
+          sprite={assignSprite}
+          size={18}
+          lit={!assignable}
+          dim={!assignable}
+          textColor={FacilityColor.ASSIGN_TEXT}
+          hoverColor={FacilityColor.ASSIGN_TEXT}
+          options1=""
+          assignSlot={assignable ? slot : -1}
+          spin={false}
+        />
+      )}
+      {!pending && !linked && (
+        <SkinButton
+          x={128}
+          y={y + 2}
+          w={30}
+          caption=""
+          sprite={assignSprite}
+          size={18}
+          lit={!assignable}
+          dim={!assignable}
+          textColor={FacilityColor.ASSIGN_TEXT}
+          hoverColor={FacilityColor.ASSIGN_TEXT}
+          options1=""
+          assignSlot={assignable ? slot : -1}
+          spin={false}
+        />
+      )}
+    </layer>
+  );
+}
+
+function widgetKind(widget: Int): Int {
+  const row = SidepanelWidgets.at(widget);
+  return row === null ? -1 : row.kind;
+}
+
+function widgetLong(widget: Int): Boolean {
+  const row = SidepanelWidgets.at(widget);
+  return row === null ? false : row.long;
+}
+
+function widgetOpText(widget: Int, op: Int): String {
+  const row = SidepanelWidgets.at(widget);
+  if (row === null) {
+    return '';
+  }
+  switch (op) {
+    case 2:
+      return row.op2;
+    case 3:
+      return row.op3;
+    case 4:
+      return row.op4;
+  }
+  return '';
+}
+
+function widgetObject(widget: Int): Int {
+  const row = SidepanelWidgets.at(widget);
+  return row === null ? -1 : row.obj;
+}
+
+function widgetText(widget: Int, toggle: Int, flag: Boolean): String {
+  if (flag && widget === SidepanelWidget.HULL_TEXT) {
+    const kits: Int = useServerState(Varbits.SAILING_SIDEPANEL_REPAIRKITS);
+    return kits >= 16383 ? 'Repairs:<br>Lots!' : `Repairs:<br>${groupDigits(kits, ',')} HP`;
+  }
+  return widgetCaption(widget, toggle);
+}
+
+function FacilityWidget({
+  layout,
+  widget,
+  hotspot,
+  x,
+  y,
+  crewAssigned,
+}: {
+  layout: Int;
+  widget: Int;
+  hotspot: Int;
+  x: Int;
+  y: Int;
+  crewAssigned: Boolean;
+}): Component {
+  const kind: Int = widgetKind(widget);
+  const state: Int = widgetState(layout, widget, hotspot, crewAssigned);
+  const toggle: Int = widgetToggle(layout, widget, hotspot);
+  const flag: Boolean = widgetFlag(layout, widget);
+  const sprite: Sprite = widgetSprite(widget, toggle);
+  const size: Int = widgetSpriteSize(widget, toggle);
+  const mask: Int = widgetOpMask(layout, widget, hotspot);
+  const live: Boolean = state !== 1;
+  const button: Boolean = kind === 0;
+  const ammo: Int = widgetAmmo(layout, widget, hotspot);
+  const item: Int = ammo !== -1 ? ammo : widgetObject(widget);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {kind === 0 || kind === 1 ? (
+        <SkinButton
+          x={x}
+          y={y}
+          w={widgetLong(widget) ? 106 : 30}
+          caption={widgetCaption(widget, toggle)}
+          sprite={sprite}
+          size={size}
+          lit={state !== 0}
+          dim={state === 1}
+          textColor={SidepanelColor.WHITE}
+          hoverColor={SidepanelColor.BUTTON_TEXT_DIM}
+          options1={live && button && (mask & 1) !== 0 ? widgetToggleOpText(widget, toggle) : ''}
+          options2={live && button && (mask & 2) !== 0 ? widgetOpText(widget, 2) : ''}
+          options3={live && button && (mask & 4) !== 0 ? widgetOpText(widget, 3) : ''}
+          options4={live && button && (mask & 8) !== 0 ? widgetOpText(widget, 4) : ''}
+          verb={live && kind === 1 ? widgetToggleOpText(widget, toggle) : ''}
+          assignSlot={-1}
+          spin={flag && widget === SidepanelWidget.WIND_BUTTON}
+        />
+      ) : kind === 2 && sprite !== -1 ? (
+        <sprite
+          x={x + (15 - size / 2)}
+          y={y + (15 - size / 2)}
+          w={size}
+          h={size}
+          sprite={sprite}
+          tiling
+          transparency={state === 1 ? 128 : 0}
+        />
+      ) : kind === 3 && toggle > 1 ? (
+        <sprite
+          x={x}
+          y={y}
+          w={36}
+          h={32}
+          item={item as ItemName}
+          itemCount={toggle}
+          itemCountMode="always"
+          outline={1}
+          transparency={state === 1 ? 128 : 0}
+        />
+      ) : kind === 3 ? (
+        <sprite
+          x={x}
+          y={y}
+          w={36}
+          h={32}
+          item={item as ItemName}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          transparency={state === 1 ? 128 : toggle === 0 ? 175 : 0}
+        />
+      ) : kind === 4 ? (
+        <text
+          x={x}
+          y={y + 10}
+          w={106}
+          h={11}
+          text={widgetText(widget, toggle, flag)}
+          font={SidepanelFont.SMALL}
+          color={state === 1 ? SidepanelColor.BUTTON_TEXT_DIM : SidepanelColor.WHITE}
+          shadow
+          align="left"
+          valign="middle"
+          lineHeight={15}
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function SkinButton({
+  x,
+  y,
+  w,
+  caption,
+  sprite,
+  size,
+  lit,
+  dim,
+  textColor,
+  hoverColor,
+  options1,
+  options2 = '',
+  options3 = '',
+  options4 = '',
+  verb = '',
+  assignSlot,
+  spin,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  caption: String;
+  sprite: Sprite;
+  size: Int;
+  lit: Boolean;
+  dim: Boolean;
+  textColor: Int;
+  hoverColor: Int;
+  options1: String;
+  options2?: String;
+  options3?: String;
+  options4?: String;
+  verb?: String;
+  assignSlot: Int;
+  spin: Boolean;
+}): Component {
+  const [hover, setHover] = useState(0);
+  const [pressed, setPressed] = useState(0);
+  const [pressedAt, setPressedAt] = useState(0);
+  const [angle, setAngle] = useState(0);
+  const pressHost = useRef();
+  const spinHost = useRef();
+  useInterval(() => {
+    if (clientClock() >= pressedAt + PRESS_CYCLES) {
+      setPressed(0);
+    }
+  }, pressHost);
+  useInterval(() => {
+    const next: Int = angle + SPIN_STEP;
+    setAngle(next > 65535 ? next - 65535 : next);
+  }, spinHost);
+
+  const showLit: Boolean = pressed === 1 || (lit && pressedAt === 0);
+  const hot: Boolean = !showLit && !dim && hover === 1;
+  const hasOp: Boolean =
+    options1.length > 0 ||
+    options2.length > 0 ||
+    options3.length > 0 ||
+    options4.length > 0 ||
+    verb.length > 0 ||
+    assignSlot >= 0;
+  const right: Int = x + w - 5;
+  const bottom: Int = y + WIDGET_H - 5;
+  const spanW: Int = w - 10;
+  const spanH: Int = WIDGET_H - 10;
+  let iconX: Int = x + (w / 2 - size / 2);
+  let textX: Int = x + 3;
+  let textW: Int = w - 6;
+  if (sprite !== -1 && caption.length > 0) {
+    iconX = x + 3;
+    textX = x + 30;
+    textW = w - textX;
+  }
+  const iconY: Int = y + (15 - size / 2);
+
+  return (
+    <>
+      <layer ref={pressHost} x={0} y={0} w={1} h={1} hide={pressed === 0} />
+      <layer ref={spinHost} x={0} y={0} w={1} h={1} hide={!spin} />
+      <sprite
+        x={x}
+        y={y}
+        w={w}
+        h={WIDGET_H}
+        sprite={showLit ? ButtonSprites.LIT_CENTRE : ButtonSprites.IDLE_CENTRE}
+        tiling
+      />
+      <sprite
+        x={x}
+        y={y}
+        w={5}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_NW : hot ? ButtonSprites.HOVER_NW : ButtonSprites.IDLE_NW}
+        tiling
+      />
+      <sprite
+        x={right}
+        y={y}
+        w={5}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_NE : hot ? ButtonSprites.HOVER_NE : ButtonSprites.IDLE_NE}
+        tiling
+      />
+      <sprite
+        x={x}
+        y={bottom}
+        w={5}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_SW : hot ? ButtonSprites.HOVER_SW : ButtonSprites.IDLE_SW}
+        tiling
+      />
+      <sprite
+        x={right}
+        y={bottom}
+        w={5}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_SE : hot ? ButtonSprites.HOVER_SE : ButtonSprites.IDLE_SE}
+        tiling
+      />
+      <sprite
+        x={x}
+        y={y + 5}
+        w={5}
+        h={spanH}
+        sprite={showLit ? ButtonSprites.LIT_W : hot ? ButtonSprites.HOVER_W : ButtonSprites.IDLE_W}
+        tiling
+      />
+      <sprite
+        x={x + 5}
+        y={y}
+        w={spanW}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_N : hot ? ButtonSprites.HOVER_N : ButtonSprites.IDLE_N}
+        tiling
+      />
+      <sprite
+        x={right}
+        y={y + 5}
+        w={5}
+        h={spanH}
+        sprite={showLit ? ButtonSprites.LIT_E : hot ? ButtonSprites.HOVER_E : ButtonSprites.IDLE_E}
+        tiling
+      />
+      <sprite
+        x={x + 5}
+        y={bottom}
+        w={spanW}
+        h={5}
+        sprite={showLit ? ButtonSprites.LIT_S : hot ? ButtonSprites.HOVER_S : ButtonSprites.IDLE_S}
+        tiling
+      />
+      <sprite
+        x={iconX}
+        y={iconY}
+        w={size}
+        h={size}
+        sprite={sprite}
+        transparency={dim ? 128 : 0}
+        angle2d={spin ? angle : 0}
+      />
+      <text
+        x={textX}
+        y={y + 3}
+        w={textW}
+        h={WIDGET_H - 6}
+        text={caption}
+        font={SidepanelFont.TITLE}
+        color={dim || hot ? hoverColor : textColor}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={20}
+      />
+      {!dim && hasOp && (
+        <rect
+          x={x}
+          y={y}
+          w={w}
+          h={WIDGET_H}
+          fill
+          color={0}
+          transparency={255}
+          options={assignSlot >= 0 ? ['Assign'] : [options1, options2, options3, options4]}
+          targetVerb={verb}
+          onOptionSelect={() => {
+            if (assignSlot >= 0) {
+              predictServerState(Varbits.SAILING_SIDEPANEL_CREW_ASSIGNATION, 1);
+              predictServerState(Varbits.SAILING_SIDEPANEL_CREW_ASSIGNATION_FACILITY_VIEWED, Math.min(assignSlot, 128));
+              playSound(CLICK);
+              return;
+            }
+            playSound(CLICK);
+            setHover(0);
+            setPressed(1);
+            setPressedAt(clientClock());
+          }}
+          onMouseEnter={showLit || onMobile() ? undefined : () => setHover(1)}
+          onMouseLeave={showLit ? undefined : () => setHover(0)}
+        />
+      )}
+    </>
+  );
+}

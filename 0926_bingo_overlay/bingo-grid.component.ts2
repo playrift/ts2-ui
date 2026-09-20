@@ -1,0 +1,828 @@
+import { useRef, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { Sprites } from '../lib/game/sprites';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { absoluteX, absoluteY } from '../lib/lib.overlay';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { bingoInfoMaximised, bingoLookupPhrase, bingoSelectedGrid, bingoSelectedRewardOption } from '../lib/game/varcs';
+import { CellBoxes } from '../0823_forestry_kit_main/cell-box.data';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { BingoButton } from './bingo-button.component';
+import { BingoButtonStyle, BingoColour, BingoLayout } from './bingo-overlay.constants';
+import {
+  bingoGridCount,
+  bingoRewardClaim,
+  bingoRewardDesc,
+  bingoRewardIcon,
+  bingoRewardSlotAt,
+  bingoSlotIcon,
+  bingoSlotIconCount,
+  bingoSlotReward,
+  bingoSlotRewardIcon,
+  bingoUnlockedGrids,
+} from './bingo-overlay.helpers';
+import {
+  BINGO_REWARD_OPTIONS,
+  bingoHideRewardTip,
+  bingoRewardChoice,
+  bingoRewardClaimable,
+  bingoRewardClaimState,
+  bingoRewardOptionTaken,
+  bingoRewardPopout,
+  bingoRewardPopoutFromCard,
+  bingoRewardPopoutTile,
+  bingoRewardSelecting,
+  bingoShowTip,
+  bingoTilePopout,
+} from './bingo-grid.state';
+
+const PREVIOUS_OP = 'Previous Grid';
+const NEXT_OP = 'Next Grid';
+
+const Strip = {
+  ICON: 19,
+  ICON_RIGHT: 32,
+  NAME_X: 32,
+  NAME_SHRINK: 64,
+  POINTS_RIGHT: 32,
+  POINTS_LOCKED_RIGHT: 55,
+  POINTS_SHRINK: 87,
+  ARROW_INSET: 4,
+  ARROW_W: 22,
+  ARROW_SHRINK: 8,
+} as const;
+
+const GREY = '<col=9f9f9f>';
+const WHITE = '<col=ffffff>';
+
+export function bingoLockTip(grid: Int, line: Int, needed: Int): String {
+  if (grid < line) {
+    return '';
+  }
+  if (grid === line) {
+    return `Unlocks at ${needed} points.`;
+  }
+  return `Unlock Grid ${line + 1} first at ${needed} points.`;
+}
+
+export function BingoGridSelection({ hidden, w }: { hidden: Boolean; w: Int }): Component {
+  const arrowH: Int = BingoLayout.GRID_SELECTION_H - Strip.ARROW_SHRINK;
+  const arrowRightX: Int = w - Strip.ARROW_W - Strip.ARROW_INSET;
+
+  const [grid] = useState(bingoSelectedGrid);
+  const [line, running, needed] = bingoUnlockedGrids();
+  const unlocked: Boolean = grid < line;
+  const lockTip: String = bingoLockTip(grid, line, needed);
+  const iconX: Int = w - Strip.ICON - Strip.ICON_RIGHT;
+  const iconY: Int = (BingoLayout.GRID_SELECTION_H - Strip.ICON) / 2;
+  let tint: String = GREY;
+  let points: String = `${GREY}Locked</col>`;
+  if (unlocked) {
+    tint = WHITE;
+    points = `Grid Points: ${WHITE}${running}</col>`;
+  }
+  const name: String = `Grid ${tint}${grid + 1}</col> of ${bingoGridCount()}`;
+
+  return (
+    <>
+      <sprite
+        x={{ right: Strip.ICON_RIGHT }}
+        y="center"
+        w={Strip.ICON}
+        h={Strip.ICON}
+        sprite={Sprites.WARNING_ICONS_0}
+        hide={unlocked || hidden}
+        onMouseRepeat={
+          lockTip.length === 0
+            ? null
+            : (event) => {
+                bingoShowTip(
+                  lockTip,
+                  absoluteX(event.component) + iconX,
+                  absoluteY(event.component) + iconY,
+                  Strip.ICON,
+                );
+              }
+        }
+        onMouseLeave={() => {
+          bingoHideRewardTip();
+        }}
+      />
+      <text
+        x={Strip.NAME_X}
+        y={0}
+        w={{ fill: Strip.NAME_SHRINK }}
+        h="fill"
+        font={Fonts.B12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="left"
+        valign="middle"
+        text={name}
+        hide={hidden}
+      />
+      <text
+        x={{ right: unlocked ? Strip.POINTS_RIGHT : Strip.POINTS_LOCKED_RIGHT }}
+        y={0}
+        w={{ fill: Strip.POINTS_SHRINK }}
+        h="fill"
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="right"
+        valign="middle"
+        text={points}
+        hide={hidden}
+      />
+      <BingoButton
+        x={Strip.ARROW_INSET}
+        y={Strip.ARROW_INSET}
+        w={Strip.ARROW_W}
+        h={arrowH}
+        hide={hidden}
+        style={BingoButtonStyle.SIMPLE}
+        toggled={0}
+        disabled={false}
+        op={PREVIOUS_OP}
+        selectTile={-1}
+        gridDelta={-1}
+        toggleRewards={false}
+        popoutInfo={false}
+        closePopout={false}
+        backToTile={-1}
+        chooseReward={-1}
+        claimReward={false}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip=""
+      >
+        <></>
+      </BingoButton>
+      <BingoButton
+        x={arrowRightX}
+        y={Strip.ARROW_INSET}
+        w={Strip.ARROW_W}
+        h={arrowH}
+        hide={hidden}
+        style={BingoButtonStyle.SIMPLE}
+        toggled={0}
+        disabled={false}
+        op={NEXT_OP}
+        selectTile={-1}
+        gridDelta={1}
+        toggleRewards={false}
+        popoutInfo={false}
+        closePopout={false}
+        backToTile={-1}
+        chooseReward={-1}
+        claimReward={false}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip=""
+      >
+        <></>
+      </BingoButton>
+    </>
+  );
+}
+
+const POPOUT_FILL = 0x726451;
+
+const Popout = {
+  CLOSE_W: 100,
+  CLOSE_H: 22,
+  CLOSE_INSET: 4,
+  DIM: 64,
+  CARD_W: 314,
+  CARD_H: 260,
+  CARD_BOTTOM: 30,
+} as const;
+
+const CLOSE_LABEL = 'Close';
+
+export function BingoPopoutChrome({
+  label,
+  hidden,
+  backToTile,
+  w,
+  h,
+}: {
+  label: String;
+  hidden: Boolean;
+  backToTile: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  let word: String = CLOSE_LABEL;
+  if (label.length > 0) {
+    word = label;
+  }
+  const closeX: Int = (w - Popout.CLOSE_W) / 2;
+  const closeY: Int = h - Popout.CLOSE_H - Popout.CLOSE_INSET;
+
+  return (
+    <>
+      {!hidden && (
+        <rect
+          x={0}
+          y={{ bottom: 0 }}
+          w="fill"
+          h="fill"
+          fill
+          color={BingoColour.BLACK}
+          transparency={Popout.DIM}
+          noClickThrough
+        />
+      )}
+      <BingoButton
+        x={closeX}
+        y={closeY}
+        w={Popout.CLOSE_W}
+        h={Popout.CLOSE_H}
+        hide={hidden}
+        style={BingoButtonStyle.STONE}
+        toggled={0}
+        disabled={false}
+        op={word}
+        selectTile={-1}
+        gridDelta={0}
+        toggleRewards={false}
+        popoutInfo={false}
+        closePopout={backToTile < 0}
+        backToTile={backToTile}
+        chooseReward={-1}
+        claimReward={false}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip=""
+      >
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          font={Fonts.P12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={word}
+        />
+      </BingoButton>
+    </>
+  );
+}
+
+export function BingoTilePopout({ w, h }: { w: Int; h: Int }): Component {
+  const [popout] = useState(bingoTilePopout);
+  const [maximised] = useState(bingoInfoMaximised);
+  const open: Boolean = popout === 1 && maximised !== 1;
+
+  const cardX: Int = (w - Popout.CARD_W) / 2;
+  const cardY: Int = (h - Popout.CARD_H - Popout.CARD_BOTTOM) / 2;
+
+  return (
+    <>
+      <BingoPopoutChrome label="" hidden={!open} backToTile={-1} w={w} h={h} />
+      {open && (
+        <>
+          <rect x={cardX + 1} y={cardY + 1} w={Popout.CARD_W - 2} h={Popout.CARD_H - 2} fill color={POPOUT_FILL} />
+          <StructBoxFrame x={cardX} y={cardY} w={Popout.CARD_W} h={Popout.CARD_H} style={CellBoxes.at(0)} />
+        </>
+      )}
+    </>
+  );
+}
+
+const Reward = {
+  GAP: 6,
+  CAPTION_H: 23,
+  ROWS: 3,
+  ICON_INSET: 8,
+  NAME_ICON_NUM: 2,
+  NAME_ICON_DEN: 3,
+  BAR_W: 16,
+  DESC_INSET: 2,
+  LINE_H: 12,
+  DESC_PAD: 5,
+  CLAIM_W: 100,
+  CLAIM_H: 22,
+  TAKEN_DIM: 200,
+} as const;
+
+const BACK_LABEL = 'Back';
+const CLAIM_OP = 'Claim';
+const REWARD_SELECT_OP = 'Select';
+const NO_REWARD_OP = '';
+const REWARD_GREY = 0x9f9f9f;
+const REWARD_WHITE = 0xffffff;
+
+function BingoRewardOption({
+  grid,
+  slot,
+  index,
+  n,
+  count,
+  choice,
+  selecting,
+  hidden,
+  x,
+  y,
+  w,
+  h,
+  icon,
+}: {
+  grid: Int;
+  slot: Int;
+  index: Int;
+  n: Int;
+  count: Int;
+  choice: Int;
+  selecting: Boolean;
+  hidden: Boolean;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  icon: Int;
+}): Component {
+  const [sprite, item, _name] = bingoSlotRewardIcon(index, n);
+
+  let taken: Boolean = false;
+  if (selecting) {
+    taken = bingoRewardOptionTaken(grid, index, n);
+  }
+
+  let toggled: Int = 0;
+  let disabled: Boolean = true;
+  let op: String = NO_REWARD_OP;
+  let pick: Int = -1;
+  if (!taken) {
+    if (choice !== n) {
+      disabled = false;
+      op = REWARD_SELECT_OP;
+      pick = n;
+    } else {
+      toggled = 1;
+    }
+  }
+
+  return (
+    <BingoButton
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      hide={hidden || n >= count}
+      style={BingoButtonStyle.STONE}
+      toggled={toggled}
+      disabled={disabled}
+      op={op}
+      selectTile={-1}
+      gridDelta={0}
+      toggleRewards={false}
+      popoutInfo={false}
+      closePopout={false}
+      backToTile={-1}
+      chooseReward={pick}
+      claimReward={false}
+      lit={false}
+      openRewardSlot={-1}
+      openRewardTile={-1}
+      openRewardFromCard={false}
+      tip=""
+    >
+      <sprite
+        x="center"
+        y="center"
+        w={icon}
+        h={icon}
+        sprite={sprite}
+        item={item}
+        itemCount={-1}
+        itemCountMode="never"
+        outline={item === -1 ? 0 : 1}
+        transparency={taken ? Reward.TAKEN_DIM : 0}
+      />
+    </BingoButton>
+  );
+}
+
+export function BingoRewardPopout({ w, h }: { w: Int; h: Int }): Component {
+  const [grid] = useState(bingoSelectedGrid);
+  const [slot] = useState(bingoRewardPopout);
+  const [tile] = useState(bingoRewardPopoutTile);
+  const [fromCard] = useState(bingoRewardPopoutFromCard);
+  const [maximised] = useState(bingoInfoMaximised);
+  const [rawChoice] = useState(bingoSelectedRewardOption);
+  const [phrase] = useState(bingoLookupPhrase);
+
+  const content = useRef();
+
+  const [index, held] = bingoRewardSlotAt(grid, slot);
+  const count: Int = Math.min(held, BINGO_REWARD_OPTIONS);
+  const open: Boolean = slot >= 0 && count > 0;
+
+  const back: Boolean = tile >= 0 && fromCard === 1 && maximised !== 1;
+  let label: String = '';
+  if (back) {
+    label = BACK_LABEL;
+  }
+
+  const [claimable, claimed] = bingoRewardClaimState(grid, slot);
+  const selecting: Boolean = bingoRewardSelecting(grid, slot);
+  const choice: Int = bingoRewardChoice(grid, slot, rawChoice);
+  const lower: Boolean = open && choice !== -1;
+
+  let captionColour: Int = REWARD_GREY;
+  let caption: String = 'You claimed the <col=ffffff>selected</col> reward.';
+  if (claimable) {
+    captionColour = BingoColour.ORANGE;
+    caption = 'Select a reward and claim it!';
+    if (count === 1) {
+      caption = 'Claim the reward!';
+    }
+  } else if (claimed === -1) {
+    captionColour = BingoColour.ORANGE;
+    if (count === 1) {
+      caption = 'Complete the linked tiles to claim the reward!';
+      if (tile >= 0) {
+        caption = 'Complete the tile to claim the reward!';
+      }
+    } else {
+      caption = 'Complete the linked tiles to select a reward!';
+      if (tile >= 0) {
+        caption = 'Complete the tile to select a reward!';
+      }
+    }
+  } else if (count === 1) {
+    caption = 'You claimed this reward.';
+  }
+
+  const cardW: Int = Math.min(Popout.CARD_W, w);
+  let cardX: Int = 0;
+  if (w - Popout.CARD_W > 0) {
+    cardX = (w - Popout.CARD_W) / 2;
+  }
+  const cardY: Int = (h - Popout.CARD_H - Popout.CARD_BOTTOM) / 2;
+
+  const captionY: Int = cardY + Reward.GAP;
+  const captionW: Int = cardW - 2 * Reward.GAP;
+  const rowsY: Int = captionY + Reward.CAPTION_H + Reward.GAP;
+  const rowH: Int = (cardY + Popout.CARD_H - rowsY - Reward.ROWS * Reward.GAP - Popout.CARD_BOTTOM) / Reward.ROWS;
+  let iconColW: Int = 0 - Reward.GAP;
+  if (count > 1) {
+    iconColW = rowH;
+  }
+  const rowIcon: Int = rowH - Reward.ICON_INSET;
+  const nameIcon: Int = (Reward.NAME_ICON_NUM * rowIcon) / Reward.NAME_ICON_DEN;
+
+  const stripInset: Int = (cardX + Reward.GAP) * 2 + iconColW + Reward.GAP;
+  const stripW: Int = w - stripInset;
+  const paneY: Int = rowsY + nameIcon + Reward.GAP;
+  const paneH: Int = cardY + Popout.CARD_H - paneY - Reward.GAP - Popout.CARD_BOTTOM;
+
+  const reward: Int = bingoSlotReward(index, choice);
+  const [nameSprite, nameItem, rewardName] = bingoSlotRewardIcon(index, choice);
+  const [altSprite, altItem, _altName] = bingoRewardIcon(reward, 1);
+
+  let bodyColour: Int = REWARD_GREY;
+  if (claimable) {
+    bodyColour = BingoColour.ORANGE;
+  } else if (claimed === choice) {
+    bodyColour = REWARD_WHITE;
+  }
+
+  const nameInnerW: Int = stripW - (nameIcon + Reward.GAP) * 2;
+  const nameX: Int = (stripW - textWidth(rewardName, nameInnerW, Fonts.P12_FULL) - (Reward.GAP + nameIcon) * 2) / 2;
+
+  const owned: Boolean = claimed === choice;
+  const desc: String = bingoRewardDesc(reward, owned);
+  const contentW: Int = stripW - Reward.BAR_W;
+  const descH: Int =
+    textLineCount(desc, contentW - Reward.DESC_INSET, Fonts.P12_FULL) * Reward.LINE_H + Reward.DESC_PAD;
+  const overflow: Boolean = paneH < descH;
+
+  let scrollTo: Int = 0;
+  if (phrase.length > 0) {
+    const at: Int = desc.indexOf(phrase, 0);
+    if (at > 0) {
+      scrollTo = textLineCount(desc.substring(0, at), contentW - Reward.DESC_INSET, Fonts.P12_FULL) * Reward.LINE_H;
+    }
+  }
+  let scrollY: Int = 0;
+  if (overflow) {
+    if (scrollTo > 0) {
+      scrollY = Math.min(scrollTo, descH - paneH);
+    }
+  }
+
+  let claimColour: Int = REWARD_GREY;
+  if (claimable) {
+    claimColour = BingoColour.ORANGE;
+  }
+  let claimToggled: Int = 0;
+  if (claimed === choice) {
+    claimToggled = 1;
+  }
+
+  return (
+    <>
+      <BingoPopoutChrome label={label} hidden={!open} backToTile={back ? tile : -1} w={w} h={h} />
+      {open && (
+        <>
+          <rect x={cardX + 1} y={cardY + 1} w={cardW - 2} h={Popout.CARD_H - 2} fill color={POPOUT_FILL} />
+          <StructBoxFrame x={cardX} y={cardY} w={cardW} h={Popout.CARD_H} style={CellBoxes.at(0)} />
+          <text
+            x={(w - captionW) / 2}
+            y={captionY}
+            w={captionW}
+            h={Reward.CAPTION_H}
+            font={Fonts.B12_FULL}
+            shadow
+            color={captionColour}
+            align="center"
+            valign="middle"
+            text={caption}
+          />
+        </>
+      )}
+      <BingoRewardOption
+        grid={grid}
+        slot={slot}
+        index={index}
+        n={0}
+        count={count}
+        choice={choice}
+        selecting={selecting}
+        hidden={!open || count <= 1}
+        x={cardX + Reward.GAP}
+        y={rowsY}
+        w={iconColW}
+        h={rowH}
+        icon={rowIcon}
+      />
+      <BingoRewardOption
+        grid={grid}
+        slot={slot}
+        index={index}
+        n={1}
+        count={count}
+        choice={choice}
+        selecting={selecting}
+        hidden={!open || count <= 1}
+        x={cardX + Reward.GAP}
+        y={rowsY + rowH + Reward.GAP}
+        w={iconColW}
+        h={rowH}
+        icon={rowIcon}
+      />
+      <BingoRewardOption
+        grid={grid}
+        slot={slot}
+        index={index}
+        n={2}
+        count={count}
+        choice={choice}
+        selecting={selecting}
+        hidden={!open || count <= 1}
+        x={cardX + Reward.GAP}
+        y={rowsY + 2 * (rowH + Reward.GAP)}
+        w={iconColW}
+        h={rowH}
+        icon={rowIcon}
+      />
+      {lower && (
+        <>
+          <layer x={{ right: cardX + Reward.GAP }} y={rowsY} w={{ fill: stripInset }} h={nameIcon}>
+            <text
+              x={nameIcon + Reward.GAP}
+              y={0}
+              w={{ fill: (nameIcon + Reward.GAP) * 2 }}
+              h="fill"
+              font={Fonts.P12_FULL}
+              shadow
+              color={bodyColour}
+              align="center"
+              valign="middle"
+              text={rewardName}
+            />
+            <sprite
+              x={nameX}
+              y="center"
+              w={nameIcon}
+              h={nameIcon}
+              sprite={nameSprite}
+              item={nameItem}
+              itemCount={-1}
+              itemCountMode="never"
+              outline={nameItem === -1 ? 0 : 1}
+            />
+            <sprite
+              x={{ right: nameX }}
+              y="center"
+              w={nameIcon}
+              h={nameIcon}
+              sprite={altSprite}
+              item={altItem}
+              itemCount={-1}
+              itemCountMode="never"
+              outline={altItem === -1 ? 0 : 1}
+            />
+          </layer>
+          <layer x={{ right: cardX + Reward.GAP }} y={paneY} w={stripW} h={paneH}>
+            <layer
+              ref={content}
+              x={0}
+              y={0}
+              w={{ fill: overflow ? Reward.BAR_W : 0 }}
+              h="fill"
+              scrollHeight={overflow ? descH : 0}
+              scrollY={scrollY}
+            >
+              <text
+                x={1}
+                y={0}
+                w={{ fill: Reward.DESC_INSET }}
+                h={descH}
+                font={Fonts.P12_FULL}
+                shadow
+                color={bodyColour}
+                align="center"
+                valign="top"
+                text={desc}
+              />
+            </layer>
+            <layer x={{ right: 0 }} y={0} w={Reward.BAR_W} h="fill" hide={!overflow}>
+              <ScrollbarVertical
+                content={content}
+                track={Sprites.SCROLLBAR_DRAGGER_V2_3}
+                capTopSprite={Sprites.SCROLLBAR_DRAGGER_V2_0}
+                thumbSprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+                capBottomSprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+                arrowUp={Sprites.SCROLLBAR_V2_0}
+                arrowDown={Sprites.SCROLLBAR_V2_1}
+                rebuilt
+              />
+            </layer>
+          </layer>
+        </>
+      )}
+      <BingoButton
+        x={(w - Reward.CLAIM_W) / 2}
+        y={cardY + Popout.CARD_H - Reward.CLAIM_H - Reward.GAP}
+        w={Reward.CLAIM_W}
+        h={Reward.CLAIM_H}
+        hide={!lower}
+        style={BingoButtonStyle.STONE}
+        toggled={claimable ? 0 : claimToggled}
+        disabled={!claimable}
+        op={claimable ? CLAIM_OP : NO_REWARD_OP}
+        selectTile={-1}
+        gridDelta={0}
+        toggleRewards={false}
+        popoutInfo={false}
+        closePopout={false}
+        backToTile={-1}
+        chooseReward={-1}
+        claimReward={claimable}
+        lit={false}
+        openRewardSlot={-1}
+        openRewardTile={-1}
+        openRewardFromCard={false}
+        tip=""
+      >
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          font={Fonts.P12_FULL}
+          shadow
+          color={claimColour}
+          align="center"
+          valign="middle"
+          text={CLAIM_OP}
+        />
+      </BingoButton>
+    </>
+  );
+}
+
+const REWARD_REVIEW_OP = 'Review';
+const REWARD_VIEW_OP = 'View';
+const ICON_SHADOW = 0x262626;
+const REWARD_ICON_INSET = 8;
+
+export function BingoRewardBox({
+  grid,
+  slot,
+  tile,
+  fromCard,
+  x,
+  y,
+  w,
+  h,
+}: {
+  grid: Int;
+  slot: Int;
+  tile: Int;
+  fromCard: Boolean;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  const [index, held] = bingoRewardSlotAt(grid, slot);
+  const count: Int = Math.min(held, BINGO_REWARD_OPTIONS);
+  const claim: Int = bingoRewardClaim(grid, slot);
+
+  const drawn: Boolean = slot >= 0 && count > 0 && claim >= 0;
+
+  const claimable: Boolean = bingoRewardClaimable(grid, slot);
+  let style: Int = BingoButtonStyle.REWARD_LOCKED;
+  let op: String = REWARD_VIEW_OP;
+  if (claim > 0) {
+    style = BingoButtonStyle.REWARD_CLAIMED;
+    op = REWARD_REVIEW_OP;
+  } else if (claimable) {
+    style = BingoButtonStyle.REWARD_CLAIMABLE;
+    op = REWARD_SELECT_OP;
+  }
+
+  const icon: Int = Math.min(w, h) - REWARD_ICON_INSET;
+  const icons: Int = bingoSlotIconCount(grid, slot);
+  const [sprite0, item0] = bingoSlotIcon(grid, slot, 0);
+  const [sprite1, item1] = bingoSlotIcon(grid, slot, 1);
+  const [sprite2, item2] = bingoSlotIcon(grid, slot, 2);
+
+  return (
+    <BingoButton
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      hide={!drawn}
+      style={style}
+      toggled={0}
+      disabled={false}
+      lit={claimable}
+      op={op}
+      selectTile={-1}
+      gridDelta={0}
+      toggleRewards={false}
+      popoutInfo={false}
+      closePopout={false}
+      backToTile={-1}
+      chooseReward={-1}
+      claimReward={false}
+      openRewardSlot={slot}
+      openRewardTile={tile}
+      openRewardFromCard={fromCard}
+      tip=""
+    >
+      {icons > 2 && (
+        <sprite
+          x="center"
+          y="center"
+          w={icon}
+          h={icon}
+          sprite={sprite2}
+          item={sprite2 === -1 ? item2 : -1}
+          itemCount={-1}
+          shadowColor={sprite2 === -1 && item2 !== -1 ? ICON_SHADOW : 0}
+        />
+      )}
+      {icons > 1 && (
+        <sprite
+          x="center"
+          y="center"
+          w={icon}
+          h={icon}
+          sprite={sprite1}
+          item={sprite1 === -1 ? item1 : -1}
+          itemCount={-1}
+          shadowColor={sprite1 === -1 && item1 !== -1 ? ICON_SHADOW : 0}
+        />
+      )}
+      {icons > 0 && (
+        <sprite
+          x="center"
+          y="center"
+          w={icon}
+          h={icon}
+          sprite={sprite0}
+          item={sprite0 === -1 ? item0 : -1}
+          itemCount={-1}
+          shadowColor={sprite0 === -1 && item0 !== -1 ? ICON_SHADOW : 0}
+        />
+      )}
+    </BingoButton>
+  );
+}

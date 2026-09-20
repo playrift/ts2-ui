@@ -1,0 +1,62 @@
+import { createRef, useInterval, useRef, useState, useUniverse } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { xpdropsFirstinit } from '../lib/game/varcs';
+import { containerLeft, XpDropsPanel } from './xp-drops-panel.component';
+import { XpDropsTooltip } from './xp-drops-tooltip.component';
+import { XpDropsLayout, XpDropsVars } from './xp-drops.constants';
+import { containerWidth } from './xp-drops.helpers';
+import { panelShown, tickPanelVisibility, xpDropsAnchor, xpDropsDodgeTop, xpDropsDropsInset } from './xp-drops.state';
+import { useServerState } from 'ts2';
+
+const tlidodger = createRef('xp_drops_tlidodger');
+const containerdodger = createRef('xp_drops_containerdodger');
+const statlistener = createRef('xp_drops_statlistener');
+
+export function XpDrops(): Component {
+  const container = useRef();
+  useInterval(() => {
+    if (firstInit <= 0) {
+      setFirstInit(clientClock());
+    }
+    tickPanelVisibility();
+  }, statlistener);
+
+  const [firstInit, setFirstInit] = useState(xpdropsFirstinit);
+  const position: Int = useServerState(XpDropsVars.POSITION);
+  const shown: Boolean = panelShown();
+  const universe = useUniverse();
+  const containerW: Int = containerWidth();
+  const containerX: Int = containerLeft(universe.width, containerW, position);
+
+  const dodgeAnchor: Int = xpDropsAnchor(position);
+  const dodgeTop: Int = xpDropsDodgeTop(dodgeAnchor);
+  const dropsInset: Int = xpDropsDropsInset();
+
+  return (
+    <>
+      <layer ref={tlidodger} x={0} y={dodgeTop} w={{ fill: dropsInset }} h={{ fill: dodgeTop }}>
+        <layer x="center" y={XpDropsLayout.drops.y} w="fill" h="39.862%" hide={shown ? false : true} />
+      </layer>
+
+      <layer ref={statlistener} x="center" y="center" w="fill" h="fill" />
+
+      <layer ref={containerdodger} x={0} y={dodgeTop} w="fill" h={{ fill: dodgeTop }}>
+        <layer
+          ref={container}
+          x={containerX}
+          y={0}
+          w={containerW}
+          h={XpDropsLayout.container.h}
+          hide={shown ? false : true}
+        >
+          <XpDropsPanel container={container} />
+        </layer>
+      </layer>
+
+      <layer w="fill" h="fill">
+        <XpDropsTooltip />
+      </layer>
+    </>
+  );
+}

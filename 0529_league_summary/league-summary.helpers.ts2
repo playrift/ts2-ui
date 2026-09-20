@@ -1,0 +1,248 @@
+import { CS2, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { groupDigits } from '../lib/lib.format';
+import { SkillByIndex, SkillNames } from '../lib/skills.data';
+import { LeagueRelicTiers, Relic } from '../lib/league-relics.data';
+import { equilibriumTotalXp, skillRestricted } from '../0320_stats/stats.helpers';
+import { regionName } from '../0656_league_side_panel/league-side-panel.helpers';
+import { RegionArt } from '../0512_trailblazer_areas/trailblazer-areas.data';
+
+import { SummaryColour, SummarySprites } from './league-summary.constants';
+import {
+  MasteryMagicIcons,
+  MasteryMeleeIcons,
+  MasteryPips,
+  MasteryRangedIcons,
+  RelicIcons,
+  RelicNames,
+  RelicReloaded,
+  SummaryThemes,
+} from './league-summary.data';
+
+export function summaryAccent(): Int {
+  const theme = SummaryThemes.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (theme === null) {
+    return SummaryColour.WHITE;
+  }
+  return theme.accent;
+}
+
+export function summaryValueColour(): Int {
+  const theme = SummaryThemes.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (theme === null) {
+    return SummaryColour.WHITE;
+  }
+  return theme.value;
+}
+
+export function compactCount(value: Int, thousandsFrom: Int, millionsFrom: Int, separator: String): String {
+  let whole: Int = 0;
+  let tenth: Int = 0;
+  let unit: String = '';
+  let compact: Int = 0;
+  if (value >= 1000000000) {
+    whole = value / 1000000000;
+    tenth = (value / 100000000) % 10;
+    unit = 'b';
+    compact = 1;
+  } else if (value >= Math.max(1000000, millionsFrom)) {
+    whole = value / 1000000;
+    tenth = (value / 100000) % 10;
+    unit = 'm';
+    compact = 1;
+  } else if (value >= Math.max(1000, thousandsFrom)) {
+    whole = value / 1000;
+    tenth = (value / 100) % 10;
+    unit = 'k';
+    compact = 1;
+  }
+  if (compact === 1) {
+    if (whole >= 100 || tenth === 0) {
+      return `${groupDigits(whole, separator)}${unit}`;
+    }
+    return `${groupDigits(whole, separator)}.${groupDigits(tenth, separator)}${unit}`;
+  }
+  return groupDigits(value, separator);
+}
+
+export function highestSkill(): Skill {
+  let index: Int = 1;
+  let skill: Skill = SkillByIndex.get(index) ?? -1;
+  let best: Skill = skill;
+  let bestXp: Int = CS2.skill_visible_xp(skill);
+  while (skill !== -1) {
+    if (best !== skill && !skillRestricted(skill)) {
+      const xp: Int = CS2.skill_visible_xp(skill);
+      if (xp > bestXp) {
+        bestXp = xp;
+        best = skill;
+      }
+    }
+    index = index + 1;
+    skill = SkillByIndex.get(index) ?? -1;
+  }
+  return best;
+}
+
+export function highestSkillName(): String {
+  return SkillNames.get(highestSkill()) ?? 'Skill';
+}
+
+export function ordinal(value: Int): String {
+  const hundreds: Int = value % 100;
+  if (hundreds === 11 || hundreds === 12 || hundreds === 13) {
+    return `${stringOf(value)}th`;
+  }
+  const tens: Int = value % 10;
+  if (tens === 1) {
+    return `${stringOf(value)}st`;
+  }
+  if (tens === 2) {
+    return `${stringOf(value)}nd`;
+  }
+  if (tens === 3) {
+    return `${stringOf(value)}rd`;
+  }
+  return `${stringOf(value)}th`;
+}
+
+function reloadedTier(): Int {
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_0) > 0) {
+    return 0;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_1) > 0) {
+    return 1;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_2) > 0) {
+    return 2;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_3) > 0) {
+    return 3;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_4) > 0) {
+    return 4;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_5) > 0) {
+    return 5;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_6) > 0) {
+    return 6;
+  }
+  if (useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_7) > 0) {
+    return 7;
+  }
+  return -1;
+}
+
+function otherSelection(tier: Int): Int {
+  switch (tier) {
+    case 0:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_0);
+    case 1:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_1);
+    case 2:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_2);
+    case 3:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_3);
+    case 4:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_4);
+    case 5:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_5);
+    case 6:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_6);
+    case 7:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_OTHER_7);
+  }
+  return 0;
+}
+
+function selectedRelic(tier: Int, selection: Int): Int {
+  if (selection <= 0) {
+    return -1;
+  }
+  const tiers = LeagueRelicTiers.get(useServerState(Varbits.LEAGUE_TYPE));
+  if (tiers === null) {
+    return -1;
+  }
+  const selections = tiers.get(tier);
+  if (selections === null) {
+    return -1;
+  }
+  return selections.get(selection) ?? -1;
+}
+
+function reloadedRelic(): Int {
+  const tier: Int = reloadedTier();
+  if (tier === -1) {
+    return -1;
+  }
+  return selectedRelic(tier, otherSelection(tier));
+}
+
+function shownRelic(tier: Int, selection: Int): Int {
+  const relic: Int = selectedRelic(tier, selection);
+  if (relic === -1) {
+    return -1;
+  }
+  if (RelicReloaded.get(relic) ?? false) {
+    const picked: Int = reloadedRelic();
+    if (picked !== -1) {
+      return picked;
+    }
+  }
+  return relic;
+}
+
+export function relicIcon(tier: Int, selection: Int): Sprite {
+  const relic: Int = shownRelic(tier, selection);
+  if (relic === -1) {
+    return SummarySprites.RELIC_OFF;
+  }
+  return RelicIcons.get(relic) ?? SummarySprites.RELIC_OFF;
+}
+
+export function relicTip(tier: Int, selection: Int): String {
+  const relic: Int = selectedRelic(tier, selection);
+  if (relic === -1) {
+    return '';
+  }
+  const shown: Int = shownRelic(tier, selection);
+  const name: String = RelicNames.get(shown) ?? '';
+  if (shown === Relic.EQUILIBRIUM || relic === Relic.EQUILIBRIUM) {
+    return `${name}<br>(Bonus XP gained: ${groupDigits(equilibriumTotalXp(), ',')})`;
+  }
+  return name;
+}
+
+export function areaIcon(region: Int): Sprite {
+  if (region === 0) {
+    return SummarySprites.AREA_OFF;
+  }
+  const art = RegionArt.get(region);
+  if (art === null) {
+    return SummarySprites.AREA_OFF;
+  }
+  return art.shieldHover;
+}
+
+export function areaTip(region: Int): String {
+  if (region === 0) {
+    return 'Not selected';
+  }
+  return regionName(region);
+}
+
+export function masteryIcon(style: Int, progress: Int): Sprite {
+  if (style === 0) {
+    return MasteryMeleeIcons.get(progress) ?? -1;
+  }
+  if (style === 1) {
+    return MasteryRangedIcons.get(progress) ?? -1;
+  }
+  return MasteryMagicIcons.get(progress) ?? -1;
+}
+
+export function masteryPip(progress: Int): Sprite {
+  return MasteryPips.get(progress) ?? -1;
+}

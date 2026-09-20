@@ -1,0 +1,93 @@
+import { useState } from 'ts2';
+
+import { clientClock, scaled } from '../lib/lib.engine';
+import { Fade, Wipe } from './prif-overlay.constants';
+import {
+  prifWipeBuilt,
+  prifWipeDirection,
+  prifWipeStartedAt,
+  prifWipeSteps,
+  prifWipeWash,
+  prifWipeZoom,
+} from './prif-overlay.state';
+
+export function prifOverlayFadeIn(): void {
+  const [built, setBuilt] = useState(prifWipeBuilt);
+  const [, setZoom] = useState(prifWipeZoom);
+  const [, setWash] = useState(prifWipeWash);
+  setBuilt(built + 1);
+  setZoom(Wipe.START_ZOOM);
+  setWash(Wipe.CLEAR);
+  prifOverlayBind(Fade.IN);
+}
+
+export function prifOverlayFadeOut(): void {
+  prifOverlayBind(Fade.OUT);
+}
+
+export function prifOverlayReset(): void {
+  const [, setBuilt] = useState(prifWipeBuilt);
+  const [, setStartedAt] = useState(prifWipeStartedAt);
+  setBuilt(0);
+  setStartedAt(-1);
+}
+
+function prifOverlayBind(direction: Int): void {
+  const [, setDirection] = useState(prifWipeDirection);
+  const [, setStartedAt] = useState(prifWipeStartedAt);
+  const [, setSteps] = useState(prifWipeSteps);
+  const now: Int = clientClock();
+  setDirection(direction);
+  setStartedAt(now);
+  setSteps(0);
+  prifOverlayCatchUp(direction, 1);
+}
+
+export function prifOverlayTick(): void {
+  const [startedAt, setStartedAt] = useState(prifWipeStartedAt);
+  if (startedAt < 0) {
+    return;
+  }
+  const [direction] = useState(prifWipeDirection);
+  const elapsed: Int = clientClock() - startedAt;
+
+  if (elapsed >= Wipe.CYCLES) {
+    const [built, setBuilt] = useState(prifWipeBuilt);
+    if (direction === Fade.OUT) {
+      setBuilt(0);
+    } else if (built > 0) {
+      const [, setWash] = useState(prifWipeWash);
+      setWash(Wipe.OPAQUE);
+    }
+    setStartedAt(-1);
+    return;
+  }
+
+  prifOverlayCatchUp(direction, elapsed + 1);
+}
+
+function prifOverlayCatchUp(direction: Int, due: Int): void {
+  const [steps, setSteps] = useState(prifWipeSteps);
+  const [built] = useState(prifWipeBuilt);
+  if (built === 0 || steps >= due) {
+    return;
+  }
+  const [zoom, setZoom] = useState(prifWipeZoom);
+  const [wash, setWash] = useState(prifWipeWash);
+  let z: Int = zoom;
+  let t: Int = wash;
+  let n: Int = steps;
+  while (n < due) {
+    if (direction === Fade.IN) {
+      z = Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, z));
+      t = t - Wipe.STEP;
+    } else {
+      z = Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(z, Wipe.MIN_ZOOM_OUT)));
+      t = t + Wipe.STEP;
+    }
+    n = n + 1;
+  }
+  setZoom(z);
+  setWash(t);
+  setSteps(n);
+}

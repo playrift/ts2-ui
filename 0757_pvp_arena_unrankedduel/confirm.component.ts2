@@ -1,0 +1,236 @@
+import { useInterval, useRef, useServerState, useState } from 'ts2';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import {
+  Copy,
+  Layout,
+  PRESS_CYCLES,
+  PROGRESS_AGREED,
+  UnrankedColor,
+  UnrankedFonts,
+  UnrankedSounds,
+  UnrankedVarbits,
+} from './pvp-arena-unrankedduel.constants';
+
+export function UnrankedBuildConfirm(): Component {
+  const progress: Int = useServerState(UnrankedVarbits.PROGRESS);
+  const accepted: Int = useServerState(UnrankedVarbits.I_ACCEPT_BUILD);
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const skin: Int = hovered;
+  const until: Int = pressedUntil;
+  const host = useRef();
+
+  useInterval(
+    until !== 0
+      ? () => {
+          if (clientClock() < until) {
+            return;
+          }
+          setPressedUntil(0);
+          setHovered(0);
+        }
+      : undefined,
+    host,
+  );
+
+  let hint: String = Copy.BUILD_READY;
+  if (progress >= PROGRESS_AGREED) {
+    hint = Copy.BUILD_AGREED;
+  } else if (accepted === 1) {
+    hint = Copy.BUILD_WAIT;
+  }
+
+  return (
+    <>
+      <text
+        x={{ right: Layout.buildHint.right }}
+        y={{ bottom: Layout.buildHint.bottom }}
+        w={Layout.buildHint.w}
+        h={Layout.buildHint.h}
+        text={hint}
+        font={UnrankedFonts.BODY}
+        color={UnrankedColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      {progress >= PROGRESS_AGREED ? (
+        <layer
+          x={{ right: Layout.buildConfirm.right }}
+          y={{ bottom: Layout.buildConfirm.bottom }}
+          w={Layout.buildConfirm.w}
+          h={Layout.buildConfirm.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_DASHES} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : accepted === 1 ? (
+        <layer
+          x={{ right: Layout.buildConfirm.right }}
+          y={{ bottom: Layout.buildConfirm.bottom }}
+          w={Layout.buildConfirm.w}
+          h={Layout.buildConfirm.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_CONFIRMED} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : until !== 0 ? (
+        <layer
+          ref={host}
+          x={{ right: Layout.buildConfirm.right }}
+          y={{ bottom: Layout.buildConfirm.bottom }}
+          w={Layout.buildConfirm.w}
+          h={Layout.buildConfirm.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_CONFIRMED} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : (
+        <layer
+          x={{ right: Layout.buildConfirm.right }}
+          y={{ bottom: Layout.buildConfirm.bottom }}
+          w={Layout.buildConfirm.w}
+          h={Layout.buildConfirm.h}
+          options={[Copy.OP_CONFIRM]}
+          onMouseRepeat={() => {
+            if (!onMobile()) {
+              setHovered(1);
+            }
+          }}
+          onMouseLeave={() => setHovered(0)}
+          onOptionSelect={(event) => {
+            if (event.option !== 1) {
+              return;
+            }
+            playSound(UnrankedSounds.SELECT);
+            setPressedUntil(clientClock() + PRESS_CYCLES);
+          }}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_CONFIRM} font={UnrankedFonts.BODY} pressed={skin} flags={0} />
+        </layer>
+      )}
+    </>
+  );
+}
+
+export function UnrankedLoadoutConfirm(): Component {
+  const accepted: Int = useServerState(UnrankedVarbits.I_ACCEPT_LOADOUT);
+  const [confirmHovered, setConfirmHovered] = useState(0);
+  const [copyHovered, setCopyHovered] = useState(0);
+  const [greyUntil, setGreyUntil] = useState(0);
+  const confirmSkin: Int = confirmHovered;
+  const copySkin: Int = copyHovered;
+  const until: Int = greyUntil;
+  const confirmHost = useRef();
+
+  useInterval(
+    until !== 0
+      ? () => {
+          if (clientClock() < until) {
+            return;
+          }
+          setGreyUntil(0);
+          setCopyHovered(0);
+        }
+      : undefined,
+    confirmHost,
+  );
+
+  return (
+    <>
+      <text
+        x="right"
+        y={Layout.loadoutHint.y}
+        w={{ fill: Layout.loadoutHint.inset }}
+        h={{ fill: Layout.loadoutHint.drop }}
+        text={accepted === 1 ? Copy.LOADOUT_WAIT : Copy.LOADOUT_READY}
+        font={UnrankedFonts.BODY}
+        color={UnrankedColor.HINT}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={Layout.loadoutHint.lineHeight}
+      />
+      <text
+        x="right"
+        y={{ bottom: Layout.loadoutSpare.bottom }}
+        w={{ fill: Layout.loadoutSpare.inset }}
+        h={Layout.loadoutSpare.h}
+        text=""
+        font={UnrankedFonts.BODY}
+        color={UnrankedColor.HINT}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      {accepted === 1 ? (
+        <layer
+          x={{ right: Layout.loadoutConfirm.right }}
+          y={{ bottom: Layout.loadoutConfirm.bottom }}
+          w={{ fill: Layout.loadoutConfirm.inset }}
+          h={Layout.loadoutConfirm.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_CONFIRMED} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : (
+        <layer
+          ref={confirmHost}
+          x={{ right: Layout.loadoutConfirm.right }}
+          y={{ bottom: Layout.loadoutConfirm.bottom }}
+          w={{ fill: Layout.loadoutConfirm.inset }}
+          h={Layout.loadoutConfirm.h}
+          options={[Copy.OP_CONFIRM]}
+          onMouseRepeat={() => {
+            if (!onMobile()) {
+              setConfirmHovered(1);
+            }
+          }}
+          onMouseLeave={() => setConfirmHovered(0)}
+          onOptionSelect={(event) => {
+            if (event.option !== 1) {
+              return;
+            }
+            playSound(UnrankedSounds.SELECT);
+            setGreyUntil(clientClock() + PRESS_CYCLES);
+          }}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_CONFIRM} font={UnrankedFonts.BODY} pressed={confirmSkin} flags={0} />
+        </layer>
+      )}
+      {accepted === 1 ? (
+        <layer
+          x={{ right: Layout.loadoutCopy.right }}
+          y={{ bottom: Layout.loadoutCopy.bottom }}
+          w={{ fill: Layout.loadoutCopy.inset }}
+          h={Layout.loadoutCopy.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_COPY_GREY} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : until !== 0 ? (
+        <layer
+          x={{ right: Layout.loadoutCopy.right }}
+          y={{ bottom: Layout.loadoutCopy.bottom }}
+          w={{ fill: Layout.loadoutCopy.inset }}
+          h={Layout.loadoutCopy.h}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_COPY_GREY} font={UnrankedFonts.BODY} pressed={1} flags={0} />
+        </layer>
+      ) : (
+        <layer
+          x={{ right: Layout.loadoutCopy.right }}
+          y={{ bottom: Layout.loadoutCopy.bottom }}
+          w={{ fill: Layout.loadoutCopy.inset }}
+          h={Layout.loadoutCopy.h}
+          options={[Copy.OP_COPY]}
+          onMouseRepeat={() => {
+            if (!onMobile()) {
+              setCopyHovered(1);
+            }
+          }}
+          onMouseLeave={() => setCopyHovered(0)}
+        >
+          <StoneButtonDraw label={Copy.BUTTON_COPY} font={UnrankedFonts.BODY} pressed={copySkin} flags={0} />
+        </layer>
+      )}
+    </>
+  );
+}

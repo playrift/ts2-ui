@@ -1,0 +1,52 @@
+import { useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, TooltipChrome } from '../lib/tooltip.component';
+
+import { FragmentSlotThresholds, RelicTierThresholds } from './league-relics.data';
+import { barTop } from './league-relics.helpers';
+import { relicBarTip, relicBarTipFragment } from './league-relics.state';
+
+export function BarTooltip({ windowX, windowY, barWidth }: { windowX: Int; windowY: Int; barWidth: Int }): Component {
+  const [pin] = useState(relicBarTip);
+  if (pin < 0) {
+    return null;
+  }
+  const [fragment] = useState(relicBarTipFragment);
+  const host = useUniverse();
+  const threshold: Int = fragment === 1 ? (FragmentSlotThresholds.at(pin) ?? 0) : (RelicTierThresholds.at(pin) ?? 0);
+  const noun: String = fragment === 1 ? 'Fragment Slot' : 'Relic';
+  const text: String =
+    threshold === 1
+      ? `${noun} unlocked at ${stringOf(threshold)} point.`
+      : `${noun} unlocked at ${stringOf(threshold)} points.`;
+  const measure: Int = Math.min(512, host.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+  const span: Int = barWidth - 4;
+  const at: Int = markerAt(threshold, barTop(), span, barWidth);
+  const left: Int = windowX + 9 + at - 4;
+  const top: Int = windowY + 35 + 4 + 1;
+  const below: Int = top + 31 + TooltipBox.nudge;
+  return (
+    <layer
+      x={Math.min(left + TooltipBox.nudge, host.width - boxW)}
+      y={below > host.height - boxH ? top - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+    >
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}
+
+function markerAt(threshold: Int, top: Int, span: Int, width: Int): Int {
+  const at: Int = top > 0 ? (threshold * span) / top : 0;
+  if (at <= 2) {
+    return 0;
+  }
+  if (at >= span) {
+    return width;
+  }
+  return at + 2;
+}

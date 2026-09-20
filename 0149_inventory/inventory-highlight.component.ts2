@@ -1,0 +1,235 @@
+import { CS2, useDerived, useInventory, useState } from 'ts2';
+
+import { equipmentSideRef } from '../0085_equipment_side/equipment-side.constants';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { InventoryInventories, InventoryLayout } from './inventory.constants';
+import {
+  highlightDuration0,
+  highlightDuration1,
+  highlightDuration2,
+  highlightDuration3,
+  highlightDuration4,
+  highlightSince0,
+  highlightSince1,
+  highlightSince2,
+  highlightSince3,
+  highlightSince4,
+  highlightStyle0,
+  highlightStyle1,
+  highlightStyle2,
+  highlightStyle3,
+  highlightStyle4,
+  highlightExpired,
+  pulseTransparency,
+  trackedItem,
+} from './inventory-highlight.state';
+import { HighlightBorders } from './highlight-borders.data';
+import { HighlightPulses } from './highlight-pulses.data';
+
+const DEFAULT_COLOUR = 0x00ffff;
+const DEFAULT_GROW = 2;
+
+function under(component: ComponentId, ancestor: ComponentId): Boolean {
+  let parent: ComponentId = CS2.if_parent_layer_get(component);
+  while (parent !== -1) {
+    if (parent === ancestor) {
+      return true;
+    }
+    parent = CS2.if_parent_layer_get(parent);
+  }
+  return false;
+}
+
+function hiddenAbove(component: ComponentId): Boolean {
+  let parent: ComponentId = CS2.if_parent_layer_get(component);
+  while (parent !== -1) {
+    if (CS2.if_hide_get(parent)) {
+      return true;
+    }
+    parent = CS2.if_parent_layer_get(parent);
+  }
+  return false;
+}
+
+export function equipmentSideShown(side: ComponentId): Int {
+  if (under(side, gameframeSlot(GameframeSlot.SIDE_MODAL)) && !hiddenAbove(side)) {
+    return 1;
+  }
+  return 0;
+}
+
+export function equipmentSideTakes(): Int {
+  return equipmentSideShown(equipmentSideRef);
+}
+
+function trackedSlot(item: Item): Int {
+  let n: Int = 0;
+  while (n < 5) {
+    if (trackedItem(n) === item) {
+      return n;
+    }
+    n = n + 1;
+  }
+  return -1;
+}
+
+export function InventoryHighlights({ forEquipmentSide }: { forEquipmentSide: Int }): Component {
+  const carried = useInventory(InventoryInventories.CARRIED);
+  const sideTakes: Int = useDerived(() => equipmentSideTakes());
+  return (
+    <layer w="fill" h="fill">
+      {carried.map((item, slot) =>
+        sideTakes === forEquipmentSide && item !== -1 && trackedSlot(item) !== -1 ? (
+          <HighlightBorder slot={slot} tracked={trackedSlot(item)} forEquipmentSide={forEquipmentSide} />
+        ) : null,
+      )}
+    </layer>
+  );
+}
+
+function HighlightBorder({
+  slot,
+  tracked,
+  forEquipmentSide,
+}: {
+  slot: Int;
+  tracked: Int;
+  forEquipmentSide: Int;
+}): Component {
+  const style: Int = trackedStyleOf(tracked);
+  const duration: Int = trackedDurationOf(tracked);
+  const since: Int = trackedSinceOf(tracked);
+  const gone: Int = useDerived(() => highlightExpired(since, duration));
+  if (gone === 1) {
+    return null;
+  }
+  const slotX: Int =
+    forEquipmentSide === 1
+      ? (slot % 4) * 42
+      : InventoryLayout.ORIGIN_X + (slot % InventoryLayout.COLUMNS) * InventoryLayout.COLUMN_PITCH;
+  const slotY: Int =
+    forEquipmentSide === 1
+      ? (slot / 4) * 36
+      : InventoryLayout.ORIGIN_Y + (slot / InventoryLayout.COLUMNS) * InventoryLayout.ROW_PITCH;
+  const border = HighlightBorders.at(style);
+  if (border === null) {
+    return (
+      <rect
+        x={slotX - 1}
+        y={slotY - 1}
+        w={InventoryLayout.SLOT_W + DEFAULT_GROW}
+        h={InventoryLayout.SLOT_H + DEFAULT_GROW}
+        color={DEFAULT_COLOUR}
+        transparency={0}
+      />
+    );
+  }
+  const width: Int = Math.max(1, border.width);
+  const grow: Int = width * 2 + border.padding * 2;
+  return (
+    <layer
+      x={slotX - grow / 2}
+      y={slotY - grow / 2}
+      w={InventoryLayout.SLOT_W + grow}
+      h={InventoryLayout.SLOT_H + grow}
+    >
+      <BorderRing inset={0} colour={border.colour} fx={border.fx} />
+      {width > 1 ? <BorderRing inset={2} colour={border.colour} fx={border.fx} /> : null}
+    </layer>
+  );
+}
+
+function BorderRing({ inset, colour, fx }: { inset: Int; colour: Int; fx: Int }): Component {
+  const pulse = HighlightPulses.at(fx);
+  if (pulse === null) {
+    return (
+      <rect
+        x={{ center: 0 }}
+        y={{ center: 0 }}
+        w={{ fill: inset }}
+        h={{ fill: inset }}
+        color={colour}
+        transparency={0}
+      />
+    );
+  }
+  const a: Int = pulse.transparencyRangeSlot0;
+  const b: Int = pulse.transparencyRangeSlot1;
+  const step: Int = pulse.stepDuration;
+  return (
+    <rect
+      x={{ center: 0 }}
+      y={{ center: 0 }}
+      w={{ fill: inset }}
+      h={{ fill: inset }}
+      color={colour}
+      transparency={0}
+      onTimer={(event) => {
+        event.self.transparency = pulseTransparency(a, b, step);
+      }}
+    />
+  );
+}
+
+function trackedStyleOf(n: Int): Int {
+  const [s0] = useState(highlightStyle0);
+  const [s1] = useState(highlightStyle1);
+  const [s2] = useState(highlightStyle2);
+  const [s3] = useState(highlightStyle3);
+  const [s4] = useState(highlightStyle4);
+  if (n === 0) {
+    return s0;
+  }
+  if (n === 1) {
+    return s1;
+  }
+  if (n === 2) {
+    return s2;
+  }
+  if (n === 3) {
+    return s3;
+  }
+  return s4;
+}
+
+function trackedDurationOf(n: Int): Int {
+  const [d0] = useState(highlightDuration0);
+  const [d1] = useState(highlightDuration1);
+  const [d2] = useState(highlightDuration2);
+  const [d3] = useState(highlightDuration3);
+  const [d4] = useState(highlightDuration4);
+  if (n === 0) {
+    return d0;
+  }
+  if (n === 1) {
+    return d1;
+  }
+  if (n === 2) {
+    return d2;
+  }
+  if (n === 3) {
+    return d3;
+  }
+  return d4;
+}
+
+function trackedSinceOf(n: Int): Int {
+  const [t0] = useState(highlightSince0);
+  const [t1] = useState(highlightSince1);
+  const [t2] = useState(highlightSince2);
+  const [t3] = useState(highlightSince3);
+  const [t4] = useState(highlightSince4);
+  if (n === 0) {
+    return t0;
+  }
+  if (n === 1) {
+    return t1;
+  }
+  if (n === 2) {
+    return t2;
+  }
+  if (n === 3) {
+    return t3;
+  }
+  return t4;
+}

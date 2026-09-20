@@ -1,0 +1,78 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { displaynameInput, displaynameInputLast, displaynameInputListening } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { KEYBOARD_STRING, keyboardHide, keyboardShowString } from '../0162_chatbox/meslayer';
+import { DisplaynameStatus, DisplaynameVarbits, NAME_LIMIT } from './tutorial-displayname.constants';
+
+export function tutorialDisplaynameAllowInputEntrypoint(listening: Boolean): void {
+  tutorialDisplaynameAllowInput(listening, true);
+}
+
+export function tutorialDisplaynameAllowInput(listening: Boolean, redraw: Boolean): void {
+  const [, setListening] = useState(displaynameInputListening);
+  const [input] = useState(displaynameInput);
+  setListening(listening ? 1 : 0);
+  rememberLookUpFace();
+  if (!onMobile()) {
+    return;
+  }
+  if (listening) {
+    keyboardShowString(KEYBOARD_STRING, NAME_LIMIT, input);
+  } else {
+    keyboardHide();
+  }
+}
+
+export function submitName(): void {
+  tutorialDisplaynameAllowInput(false, false);
+  const [input] = useState(displaynameInput);
+  const [last, setLast] = useState(displaynameInputLast);
+  if (CS2.compare(input, last) !== 0) {
+    CS2.stringdialog_resume(input);
+  }
+  setLast(input);
+}
+
+export function tutorialDisplaynamePushName(name: String): void {
+  tutorialDisplaynameAllowInput(false, false);
+  const [, setInput] = useState(displaynameInput);
+  const [, setLast] = useState(displaynameInputLast);
+  setInput(name);
+  setLast(name);
+}
+
+export function inputUnchanged(): Int {
+  const [input] = useState(displaynameInput);
+  const [last] = useState(displaynameInputLast);
+  return CS2.compare(input, last) === 0 ? 1 : 0;
+}
+
+export function lookUpFaceDrawn(listening: Int, status: Int, same: Int): Int {
+  if (listening === 1) {
+    return 2;
+  }
+  if (status === DisplaynameStatus.READY) {
+    return same === 1 ? 3 : 1;
+  }
+  if (status === DisplaynameStatus.LOOKING_UP) {
+    return 4;
+  }
+  if (status === DisplaynameStatus.AVAILABLE) {
+    return same === 1 ? 0 : 1;
+  }
+  return 0;
+}
+
+export const lookUpFace = sessionState(0);
+
+export function rememberLookUpFace(): void {
+  const [listening] = useState(displaynameInputListening);
+  const status: Int = useServerState(DisplaynameVarbits.STATUS);
+  const face: Int = lookUpFaceDrawn(listening, status, inputUnchanged());
+  if (face === 0) {
+    return;
+  }
+  const [, setFace] = useState(lookUpFace);
+  setFace(face);
+}

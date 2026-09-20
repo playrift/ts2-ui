@@ -1,41 +1,27 @@
-import { CS2, predictServerState, useServerState, useState } from 'ts2';
+import { predictServerState, useServerState, useState } from 'ts2';
 
 import { minmax } from '../0811_lockpicking/lockpicking.state';
 import { Fonts } from '../lib/game/fonts';
 import { Varbits } from '../lib/game/varbits';
 import { Varps } from '../lib/game/varps';
 import { hpbarFadeStatus, hpbarHudLastNpc, hpbarSliding } from '../lib/game/varcs';
+import { clientClock, npcName, scaled, textLineCount } from '../lib/lib.engine';
 import { groupDigits } from '../lib/lib.format';
 import { onMobile } from '../lib/lib.helpers';
-import { Anchor, overlayInit, overlayLayout } from '../lib/lib.overlay';
+import { Anchor, overlayInit, overlayRelayout } from '../lib/lib.overlay';
+import { BRUTUS_AT, FADE_STEP, FadeStatus, HpBarDodge, HpBarNpc, MAX_INT, Panel, Slide } from './hpbar-hud.constants';
 import {
-  BRUTUS_AT,
-  contentSideRef,
-  creatureNameRef,
-  dodgerRef,
-  FADE_STEP,
-  FadeStatus,
-  healthBarBackRef,
-  healthBarRemainingRef,
-  healthBarSlidingRef,
-  HpBarDodge,
-  hpBarMark1Ref,
-  hpBarMark2Ref,
-  HpBarNpc,
-  hpBarTextRef,
-  hpRef,
-  innerBorderRef,
-  lowerThresholdRef,
-  MAX_INT,
-  nameAreaRef,
-  nameBackingRef,
-  outerBorderRef,
-  Panel,
-  SizeMode,
-  Slide,
-  universeRef,
-  upperThresholdRef,
-} from './hpbar-hud.constants';
+  hpbarBarWidth,
+  hpbarCaption,
+  hpbarFadeLevel,
+  hpbarOpen,
+  hpbarRemainingPx,
+  hpbarRemainingTarget,
+  hpbarSlideDeadline,
+  hpbarSlideTarget,
+  hpbarSlidingPx,
+  hpbarSnap,
+} from './hpbar-hud.state';
 
 export function addCapped(value: Int, offset: Int, cap: Int): Int {
   if (cap - offset <= value) {
@@ -61,152 +47,201 @@ export function npcDisplayName(npc: Npc, caption: String): String {
   return caption;
 }
 
-export function hpHudUpdateBar(bar: ComponentId, target: Int, deadline: Int): void {
-  if (deadline !== Slide.NO_DEADLINE && CS2.clientclock() < deadline) {
-    return;
+export function npcCaption(npcId: Int): String {
+  if (npcId === -1) {
+    return '';
   }
-  const [, setSliding] = useState(hpbarSliding);
-  const width: Int = CS2.if_width_get(bar);
-  if (width === target) {
-    CS2.if_size_set(target, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-    CS2.if_on_timer_set(null, bar);
-    setSliding(0);
-    return;
+  const npc: Npc = npcId as Npc;
+  const caption: String = npcDisplayName(npc, npc.caption!);
+  if (caption.length === 0) {
+    return npcName(npc);
   }
-  setSliding(1);
-  if (width < target) {
-    CS2.if_size_set(width + 1, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-  } else if (width > target) {
-    CS2.if_size_set(width - 1, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-  }
+  return caption;
 }
 
-export function hpHudUpdate(
-  hp: ComponentId,
-  barText: ComponentId,
-  back: ComponentId,
-  sliding: ComponentId,
-  remaining: ComponentId,
-  nameArea: ComponentId,
-  creatureName: ComponentId,
-  lower: ComponentId,
-  upper: ComponentId,
-  mark1: ComponentId,
-  mark2: ComponentId,
-  force: Int,
-): void {
-  if (CS2.if_hide_get(hp)) {
-    return;
+export function fitCaption(caption: String, width: Int): String {
+  let fitted: String = caption;
+  while (textLineCount(fitted, width, Fonts.P11_FULL) > 1) {
+    fitted = `${fitted.slice(0, fitted.length - 4)}...`;
   }
+  return fitted;
+}
 
-  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
-  const npc: Npc = npcId as Npc;
-  let caption: String = '';
-  if (npcId !== -1) {
-    caption = npc.caption!;
-    caption = npcDisplayName(npc, caption);
-    if (CS2.compare(caption, '') === 0) {
-      caption = CS2.npc_name(npc);
+export function plateHasName(caption: String): Boolean {
+  if (caption.length === 0) {
+    return false;
+  }
+  if (useServerState(Varbits.HPBAR_HUD_BOSS_NAME_DISABLED) === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function plateWidth(stage: Int): Int {
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
+    if (useServerState(Varbits.HPBAR_HUD_BOSS_COMPACT_ENABLED) === 1) {
+      return minmax(Panel.COMPACT_MIN, Panel.COMPACT_MAX, scaled(1, Panel.COMPACT_SHARE, stage));
     }
-  } else {
-    caption = CS2.if_text_get(creatureName);
+    return minmax(Panel.WIDE_MIN, Panel.WIDE_MAX, scaled(1, Panel.WIDE_SHARE, stage));
   }
+  return Panel.NARROW;
+}
 
-  const barWidth: Int = CS2.if_width_get(back);
-  if (CS2.compare(caption, '') === 0 || useServerState(Varbits.HPBAR_HUD_BOSS_NAME_DISABLED) === 1) {
-    CS2.if_hide_set(true, nameArea);
-    CS2.if_size_set(CS2.if_width_get(hp), Panel.WITHOUT_NAME, SizeMode.ABS, SizeMode.ABS, hp);
-  } else {
-    while (CS2.paraheight(caption, barWidth - 4, Fonts.P11_FULL) > 1) {
-      caption = CS2.append(CS2.substring(caption, 0, CS2.string_length(caption) - 4), '...');
-    }
-    CS2.if_hide_set(false, nameArea);
-    CS2.if_size_set(CS2.if_width_get(hp), Panel.WITH_NAME, SizeMode.ABS, SizeMode.ABS, hp);
-    CS2.if_text_set(caption, creatureName);
+export function plateCentred(): Boolean {
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
+    return true;
   }
+  return false;
+}
 
-  const health: Int = useServerState(Varbits.HPBAR_HUD_HP);
-  let label: String = `${health} / ${useServerState(Varbits.HPBAR_HUD_BASEHP)}`;
-  const base: Int = Math.max(useServerState(Varbits.HPBAR_HUD_BASEHP), 1);
-  predictServerState(Varbits.HPBAR_HUD_BASEHP, base);
-  if (useServerState(Varbits.HPBAR_HUD_BOSS_PERCENTAGE_ENABLED) === 1 || npc.percentage! === 1) {
-    let percent: Int = minmax(1, 99, CS2.scale(health, base, 100));
-    if (health <= 0) {
-      percent = 0;
-    } else if (health >= base) {
-      percent = 100;
-    }
-    label = `${percent}%`;
-  }
-  CS2.if_text_set(label, barText);
-
-  let filled: Int = CS2.scale(health, base, barWidth);
-  const ceiling: Int = base + 1;
-
-  const lowerAt: Int = useServerState(Varbits.HPBAR_HUD_LOWER_THRESHOLD);
-  if (lowerAt > 0 && lowerAt <= ceiling) {
-    CS2.if_hide_set(false, lower);
-    CS2.if_position_set(CS2.scale(lowerAt - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, lower);
-  } else {
-    CS2.if_hide_set(true, lower);
-  }
-
-  const upperAt: Int = useServerState(Varbits.HPBAR_HUD_UPPER_THRESHOLD);
-  if (upperAt > 0 && upperAt <= ceiling) {
-    CS2.if_hide_set(false, upper);
-    CS2.if_position_set(barWidth - CS2.scale(upperAt - 1, base, barWidth), 0, Anchor.RIGHT, Anchor.CENTRE, upper);
-  } else {
-    CS2.if_hide_set(true, upper);
-  }
-
-  const markOne: Int = useServerState(Varbits.HPBAR_HUD_HP_1);
-  if (markOne > 0 && markOne <= ceiling) {
-    CS2.if_hide_set(false, mark1);
-    CS2.if_position_set(CS2.scale(markOne - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, mark1);
-  } else {
-    CS2.if_hide_set(true, mark1);
-  }
-
-  const markTwo: Int = useServerState(Varbits.HPBAR_HUD_HP_2);
-  if (markTwo > 0 && markTwo <= ceiling) {
-    CS2.if_hide_set(false, mark2);
-    CS2.if_position_set(CS2.scale(markTwo - 1, base, barWidth), 0, Anchor.LEFT, Anchor.CENTRE, mark2);
-  } else {
-    CS2.if_hide_set(true, mark2);
-  }
-
+export function filledPx(health: Int, base: Int, barWidth: Int): Int {
+  let filled: Int = scaled(health, base, barWidth);
   if (filled === 0 && health > 0) {
     filled = 1;
   }
-  if (filled === CS2.if_width_get(back) && health < base) {
+  if (filled === barWidth && health < base) {
     filled = filled - 1;
   }
-  if (npc.seedOnePixel! === true && CS2.if_width_get(remaining) === 0 && filled > 0) {
-    CS2.if_size_set(1, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
-    CS2.if_size_set(1, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
+  return filled;
+}
+
+export function healthLabel(npcId: Int, health: Int, base: Int): String {
+  let percentage: Boolean = false;
+  if (useServerState(Varbits.HPBAR_HUD_BOSS_PERCENTAGE_ENABLED) === 1) {
+    percentage = true;
+  } else if (npcId !== -1 && (npcId as Npc).percentage! === 1) {
+    percentage = true;
   }
-  if (force === 1 || CS2.if_width_get(remaining) === 0) {
-    CS2.if_size_set(filled, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
-    CS2.if_size_set(filled, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
-    CS2.if_on_timer_set(null, sliding);
+  if (!percentage) {
+    return `${health} / ${useServerState(Varbits.HPBAR_HUD_BASEHP)}`;
+  }
+  let percent: Int = minmax(1, 99, scaled(health, base, 100));
+  if (health <= 0) {
+    percent = 0;
+  } else if (health >= base) {
+    percent = 100;
+  }
+  return `${percent}%`;
+}
+
+export function markX(mark: Int, base: Int, barWidth: Int): Int {
+  return scaled(mark - 1, base, barWidth);
+}
+
+export function markShown(mark: Int, base: Int): Boolean {
+  if (mark > 0 && mark <= base + 1) {
+    return true;
+  }
+  return false;
+}
+
+export function fadeStep(): void {
+  const [direction, setDirection] = useState(hpbarFadeStatus);
+  const [level, setLevel] = useState(hpbarFadeLevel);
+  if (direction === FadeStatus.IN) {
+    const next: Int = Math.max(0, level - FADE_STEP);
+    setLevel(next);
+    if (next <= 0) {
+      setDirection(FadeStatus.IDLE);
+    }
+  } else if (direction === FadeStatus.OUT) {
+    const next: Int = Math.min(255, level + FADE_STEP);
+    setLevel(next);
+    if (next >= 255) {
+      setDirection(FadeStatus.IDLE);
+    }
+  }
+}
+
+export function updateBars(barWidth: Int): void {
+  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
+  const health: Int = useServerState(Varbits.HPBAR_HUD_HP);
+  const base: Int = Math.max(useServerState(Varbits.HPBAR_HUD_BASEHP), 1);
+  predictServerState(Varbits.HPBAR_HUD_BASEHP, base);
+  const target: Int = filledPx(health, base, barWidth);
+
+  const [remaining, setRemaining] = useState(hpbarRemainingPx);
+  const [sliding, setSliding] = useState(hpbarSlidingPx);
+  const [, setSlideTarget] = useState(hpbarSlideTarget);
+  const [, setDeadline] = useState(hpbarSlideDeadline);
+  const [snap, setSnap] = useState(hpbarSnap);
+  const [measured, setMeasured] = useState(hpbarBarWidth);
+  const [walking] = useState(hpbarSliding);
+  const [, setRemainingTarget] = useState(hpbarRemainingTarget);
+
+  if (npcId !== -1) {
+    const [, setCaption] = useState(hpbarCaption);
+    setCaption(npcCaption(npcId));
+  }
+
+  let remainingNow: Int = remaining;
+  let slidingNow: Int = sliding;
+  if (npcId !== -1 && (npcId as Npc).seedOnePixel! === true && remainingNow === 0 && target > 0) {
+    remainingNow = 1;
+    slidingNow = 1;
+  }
+
+  if (snap === 1 || measured !== barWidth || remainingNow === 0) {
+    setRemaining(target);
+    setSliding(target);
+    setSlideTarget(target);
+    setDeadline(Slide.NO_DEADLINE);
+    setRemainingTarget(-1);
+    setSnap(0);
+    setMeasured(barWidth);
     return;
   }
 
-  const wasFilled: Int = CS2.if_width_get(remaining);
-  if (filled < wasFilled) {
-    CS2.if_size_set(filled, CS2.if_height_get(remaining), SizeMode.ABS, SizeMode.ABS, remaining);
-    if (CS2.if_width_get(sliding) < wasFilled) {
-      CS2.if_size_set(wasFilled, CS2.if_height_get(sliding), SizeMode.ABS, SizeMode.ABS, sliding);
+  if (target < remainingNow) {
+    const wasFilled: Int = remainingNow;
+    remainingNow = target;
+    if (slidingNow < wasFilled) {
+      slidingNow = wasFilled;
     }
-    CS2.if_on_timer_set(null, remaining);
-    const [slidingNow] = useState(hpbarSliding);
-    if (slidingNow === 0) {
-      CS2.if_on_timer_set(() => hpHudUpdateBar(sliding, filled, CS2.clientclock() + Slide.DELAY_CYCLES), sliding);
+    setSlideTarget(target);
+    if (walking === 0) {
+      setDeadline(clientClock() + Slide.DELAY_CYCLES);
     } else {
-      CS2.if_on_timer_set(() => hpHudUpdateBar(sliding, filled, CS2.clientclock()), sliding);
+      setDeadline(clientClock());
     }
+    setRemainingTarget(-1);
   } else {
-    CS2.if_on_timer_set(() => hpHudUpdateBar(remaining, filled, Slide.NO_DEADLINE), remaining);
+    setRemainingTarget(target);
+  }
+  setRemaining(remainingNow);
+  setSliding(slidingNow);
+}
+
+export function walkBars(): void {
+  const [remaining, setRemaining] = useState(hpbarRemainingPx);
+  const [sliding, setSliding] = useState(hpbarSlidingPx);
+  const [slideTarget] = useState(hpbarSlideTarget);
+  const [deadline, setDeadline] = useState(hpbarSlideDeadline);
+  const [, setWalking] = useState(hpbarSliding);
+  const [remainingTarget, setRemainingTarget] = useState(hpbarRemainingTarget);
+
+  if (deadline !== Slide.NO_DEADLINE && clientClock() >= deadline) {
+    if (sliding === slideTarget) {
+      setDeadline(Slide.NO_DEADLINE);
+      setWalking(0);
+    } else {
+      setWalking(1);
+      if (sliding < slideTarget) {
+        setSliding(sliding + 1);
+      } else {
+        setSliding(sliding - 1);
+      }
+    }
+  }
+  if (remainingTarget === -1) {
+    return;
+  }
+  if (remaining === remainingTarget) {
+    setWalking(0);
+    setRemainingTarget(-1);
+  } else if (remaining < remainingTarget) {
+    setWalking(1);
+    setRemaining(remaining + 1);
   }
 }
 
@@ -222,272 +257,60 @@ export function hpDodgerInit(dodger: ComponentId, content: ComponentId): void {
 
 export function hpDodgerRelayout(dodger: ComponentId, content: ComponentId): void {
   if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
-    overlayLayout(dodger, content, HpBarDodge.BOSS, Anchor.CENTRE, Anchor.TOP, 0);
+    overlayRelayout(dodger, content, HpBarDodge.BOSS, Anchor.CENTRE, Anchor.TOP, 0);
   } else if (useServerState(Varbits.HPBAR_HUD_BOSS) === 0 && !onMobile()) {
-    overlayLayout(dodger, content, HpBarDodge.STANDARD, Anchor.LEFT, Anchor.TOP, 1);
+    overlayRelayout(dodger, content, HpBarDodge.STANDARD, Anchor.LEFT, Anchor.TOP, 1);
   } else {
-    overlayLayout(dodger, content, HpBarDodge.MOBILE, Anchor.LEFT, Anchor.TOP, 1);
+    overlayRelayout(dodger, content, HpBarDodge.MOBILE, Anchor.LEFT, Anchor.TOP, 1);
   }
 }
 
-export function hpHudPos(
-  universe: ComponentId,
-  hp: ComponentId,
-  nameArea: ComponentId,
-  creatureName: ComponentId,
-  barText: ComponentId,
-  back: ComponentId,
-  sliding: ComponentId,
-  remaining: ComponentId,
-  lower: ComponentId,
-  upper: ComponentId,
-  mark1: ComponentId,
-  mark2: ComponentId,
-  dodger: ComponentId,
-  contentSide: ComponentId,
-): void {
-  const stage: Int = CS2.if_width_get(universe);
-  const height: Int = CS2.if_height_get(hp);
-  let width: Int = Panel.NARROW;
-  let anchor: Int = Anchor.LEFT;
-
-  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 1 && !onMobile()) {
-    if (useServerState(Varbits.HPBAR_HUD_BOSS_COMPACT_ENABLED) === 1) {
-      width = minmax(Panel.COMPACT_MIN, Panel.COMPACT_MAX, CS2.scale(1, Panel.COMPACT_SHARE, stage));
-    } else {
-      width = minmax(Panel.WIDE_MIN, Panel.WIDE_MAX, CS2.scale(1, Panel.WIDE_SHARE, stage));
-    }
-    anchor = Anchor.CENTRE;
+function restingLevel(npcId: Int): Int {
+  if (npcId !== -1 && (npcId as Npc).noFade! === 1) {
+    return 0;
   }
-
-  let resized: Int = 0;
-  if (CS2.if_width_get(hp) !== width) {
-    CS2.if_size_set(width, height, SizeMode.ABS, SizeMode.ABS, hp);
-    resized = 1;
+  if (useServerState(Varbits.HPBAR_HUD_BOSS) === 0) {
+    return 0;
   }
-
-  hpDodgerInit(dodger, hp);
-
-  CS2.if_position_set(0, 0, anchor, Anchor.TOP, hp);
-  CS2.if_position_set(0, 0, Anchor.CENTRE, Anchor.TOP, nameArea);
-  CS2.if_position_set(0, 0, Anchor.LEFT, Anchor.TOP, contentSide);
-
-  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, resized);
+  return 255;
 }
 
-export function hpBarReset(
-  universe: ComponentId,
-  barText: ComponentId,
-  back: ComponentId,
-  sliding: ComponentId,
-  remaining: ComponentId,
-  creatureName: ComponentId,
-  outerBorder: ComponentId,
-  nameBacking: ComponentId,
-  innerBorder: ComponentId,
-  lower: ComponentId,
-  upper: ComponentId,
-  mark1: ComponentId,
-  mark2: ComponentId,
-  transparency: Int,
-): void {
-  CS2.if_transparency_set(transparency, outerBorder);
-  CS2.if_transparency_set(transparency, nameBacking);
-  CS2.if_transparency_set(transparency, innerBorder);
-  CS2.if_transparency_set(transparency, back);
-  CS2.if_transparency_set(transparency, sliding);
-  CS2.if_transparency_set(transparency, remaining);
-  CS2.if_transparency_set(transparency, lower);
-  CS2.if_transparency_set(transparency, upper);
-  CS2.if_transparency_set(transparency, mark1);
-  CS2.if_transparency_set(transparency, mark2);
-  CS2.if_transparency_set(transparency, creatureName);
-  CS2.if_transparency_set(transparency, barText);
-  CS2.if_on_timer_set(null, universe);
-  CS2.if_on_timer_set(null, outerBorder);
-  CS2.if_on_timer_set(null, sliding);
-  CS2.if_on_timer_set(null, remaining);
-}
-
-export function hpHudFadeIn(
-  hp: ComponentId,
-  nameArea: ComponentId,
-  outerBorder: ComponentId,
-  nameBacking: ComponentId,
-  creatureName: ComponentId,
-  innerBorder: ComponentId,
-  back: ComponentId,
-  sliding: ComponentId,
-  remaining: ComponentId,
-  barText: ComponentId,
-  lower: ComponentId,
-  upper: ComponentId,
-  mark1: ComponentId,
-  mark2: ComponentId,
-  transparency: Int,
-): void {
-  const [fade, setFade] = useState(hpbarFadeStatus);
-  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
-  let level: Int = transparency;
-  if ((npcId !== -1 && (npcId as Npc).noFade! === 1) || useServerState(Varbits.HPBAR_HUD_BOSS) === 0) {
-    level = 0;
-  } else if (fade === FadeStatus.REARM) {
-    level = CS2.if_trans_get(outerBorder);
-  } else if (level !== CS2.if_trans_get(outerBorder)) {
-    return;
-  }
-
-  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
-  level = Math.max(0, level - FADE_STEP);
-  setFade(FadeStatus.RUNNING);
-  CS2.if_transparency_set(level, outerBorder);
-  CS2.if_transparency_set(level, nameBacking);
-  CS2.if_transparency_set(level, innerBorder);
-  CS2.if_transparency_set(level, back);
-  CS2.if_transparency_set(level, sliding);
-  CS2.if_transparency_set(level, remaining);
-  CS2.if_transparency_set(level, lower);
-  CS2.if_transparency_set(level, upper);
-  CS2.if_transparency_set(level, mark1);
-  CS2.if_transparency_set(level, mark2);
-  CS2.if_transparency_set(level, creatureName);
-  CS2.if_transparency_set(level, barText);
-  if (level <= 0) {
-    CS2.if_on_timer_set(null, outerBorder);
-    setFade(FadeStatus.IDLE);
-    return;
-  }
-  CS2.if_on_timer_set(
-    () =>
-      hpHudFadeIn(
-        hp,
-        nameArea,
-        outerBorder,
-        nameBacking,
-        creatureName,
-        innerBorder,
-        back,
-        sliding,
-        remaining,
-        barText,
-        lower,
-        upper,
-        mark1,
-        mark2,
-        level,
-      ),
-    outerBorder,
-  );
-}
-
-export function hpHudOpen(
-  universe: ComponentId = universeRef,
-  dodger: ComponentId = dodgerRef,
-  hp: ComponentId = hpRef,
-  nameArea: ComponentId = nameAreaRef,
-  barText: ComponentId = hpBarTextRef,
-  back: ComponentId = healthBarBackRef,
-  sliding: ComponentId = healthBarSlidingRef,
-  remaining: ComponentId = healthBarRemainingRef,
-  creatureName: ComponentId = creatureNameRef,
-  outerBorder: ComponentId = outerBorderRef,
-  nameBacking: ComponentId = nameBackingRef,
-  innerBorder: ComponentId = innerBorderRef,
-  lower: ComponentId = lowerThresholdRef,
-  upper: ComponentId = upperThresholdRef,
-  mark1: ComponentId = hpBarMark1Ref,
-  mark2: ComponentId = hpBarMark2Ref,
-  contentSide: ComponentId = contentSideRef,
-): void {
+export function hpHudOpen(): void {
   const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
   const [lastNpc, setLastNpc] = useState(hpbarHudLastNpc);
-  let changed: Int = 0;
-  if (lastNpc !== npcId) {
-    changed = 1;
-  }
-  setLastNpc(npcId);
+  const [open, setOpen] = useState(hpbarOpen);
+  const [direction, setDirection] = useState(hpbarFadeStatus);
+  const [, setLevel] = useState(hpbarFadeLevel);
+  const [, setSnap] = useState(hpbarSnap);
+  const rest: Int = restingLevel(npcId);
 
-  let transparency: Int = 255;
-  if ((npcId !== -1 && (npcId as Npc).noFade! === 1) || useServerState(Varbits.HPBAR_HUD_BOSS) === 0) {
-    transparency = 0;
-  }
-
-  const [fade] = useState(hpbarFadeStatus);
-  if (!CS2.if_hide_get(hp)) {
-    if (fade === FadeStatus.REARM) {
-      hpHudFadeIn(
-        hp,
-        nameArea,
-        outerBorder,
-        nameBacking,
-        creatureName,
-        innerBorder,
-        back,
-        sliding,
-        remaining,
-        barText,
-        lower,
-        upper,
-        mark1,
-        mark2,
-        transparency,
-      );
+  if (open === 1) {
+    if (direction === FadeStatus.OUT) {
+      if (rest === 0) {
+        setLevel(0);
+      }
+      setDirection(FadeStatus.IN);
+      fadeStep();
+      setSnap(1);
     }
-    if (changed === 1) {
-      hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+    if (lastNpc !== npcId) {
+      setSnap(1);
     }
+    setLastNpc(npcId);
     return;
   }
 
-  CS2.if_hide_set(false, hp);
-  hpBarReset(
-    universe,
-    barText,
-    back,
-    sliding,
-    remaining,
-    creatureName,
-    outerBorder,
-    nameBacking,
-    innerBorder,
-    lower,
-    upper,
-    mark1,
-    mark2,
-    transparency,
-  );
-  hpHudFadeIn(
-    hp,
-    nameArea,
-    outerBorder,
-    nameBacking,
-    creatureName,
-    innerBorder,
-    back,
-    sliding,
-    remaining,
-    barText,
-    lower,
-    upper,
-    mark1,
-    mark2,
-    transparency,
-  );
-  hpHudPos(
-    universe,
-    hp,
-    nameArea,
-    creatureName,
-    barText,
-    back,
-    sliding,
-    remaining,
-    lower,
-    upper,
-    mark1,
-    mark2,
-    dodger,
-    contentSide,
-  );
-  hpHudUpdate(hp, barText, back, sliding, remaining, nameArea, creatureName, lower, upper, mark1, mark2, 1);
+  setLastNpc(npcId);
+  setOpen(1);
+  setLevel(rest);
+  setDirection(FadeStatus.IN);
+  fadeStep();
+  fadeStep();
+  setSnap(1);
+}
+
+export function hpHudFadeOut(): void {
+  const [, setDirection] = useState(hpbarFadeStatus);
+  setDirection(FadeStatus.OUT);
+  fadeStep();
 }

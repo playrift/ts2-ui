@@ -1,0 +1,149 @@
+import { useInventory, useServerState } from 'ts2';
+
+import { defaultQuantityLabel } from '../0012_bankmain/bankmain.helpers';
+import { flashFor } from '../lib/lib.components';
+import {
+  BagGrid,
+  BanksideColor,
+  BanksideFonts,
+  BanksideInventories,
+  BanksideVarbits,
+  Grid,
+  Wash,
+} from './bankside.constants';
+import { orangeName } from './bankside.helpers';
+
+function BagSlot({
+  item,
+  count,
+  slot,
+  depositDefault,
+  depositOne,
+  depositRequested,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  depositDefault: String;
+  depositOne: String;
+  depositRequested: String;
+}): Component {
+  return (
+    <sprite
+      x={(slot % Grid.COLUMNS) * BagGrid.STRIDE_X}
+      y={(slot / Grid.COLUMNS) * BagGrid.STRIDE_Y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={count}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={Wash.CLEAR}
+      options={[
+        depositDefault,
+        depositOne,
+        'Deposit-5',
+        'Deposit-10',
+        depositRequested,
+        'Deposit-X',
+        'Deposit-All',
+        '',
+        '',
+        'Examine',
+      ]}
+      optionSubject={orangeName(item)}
+      onOptionSelect={(event) => flashFor(event.self, Wash.BAG_FLASH, Wash.CLEAR)}
+    />
+  );
+}
+
+function BagEmpty(): Component {
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text="The bag is empty."
+      font={BanksideFonts.BODY}
+      color={BanksideColor.LABEL}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+export function LootingBagView(): Component {
+  const bag = useInventory(BanksideInventories.LOOTING_BAG);
+  const quantityType: Int = useServerState(BanksideVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(BanksideVarbits.REQUESTED_QUANTITY);
+  const depositDefault: String = `Deposit-${defaultQuantityLabel(quantityType, requested)}`;
+  const depositOne: String = quantityType !== 0 ? 'Deposit-1' : '';
+  const depositRequested: String = requested > 0 ? `Deposit-${requested}` : '';
+
+  let held: Int = 0;
+  let slot: Int = bag.size;
+  while (slot > 0) {
+    slot = slot - 1;
+    if (bag[slot] !== -1) {
+      held = held + 1;
+    }
+  }
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {bag.map(
+        (item, i) =>
+          item !== -1 && (
+            <BagSlot
+              item={item}
+              count={bag.count(i)}
+              slot={i}
+              depositDefault={depositDefault}
+              depositOne={depositOne}
+              depositRequested={depositRequested}
+            />
+          ),
+      )}
+      {held <= 0 && <BagEmpty />}
+    </layer>
+  );
+}
+
+export function SecondInventoryView(): Component {
+  const bag = useInventory(BanksideInventories.LEAGUE_SECONDINV);
+  const quantityType: Int = useServerState(BanksideVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(BanksideVarbits.REQUESTED_QUANTITY);
+  const depositDefault: String = `Deposit-${defaultQuantityLabel(quantityType, requested)}`;
+  const depositOne: String = quantityType !== 0 ? 'Deposit-1' : '';
+  const depositRequested: String = requested > 0 ? `Deposit-${requested}` : '';
+
+  let held: Int = 0;
+  let slot: Int = bag.size;
+  while (slot > 0) {
+    slot = slot - 1;
+    if (bag[slot] !== -1) {
+      held = held + 1;
+    }
+  }
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {bag.map(
+        (item, i) =>
+          item !== -1 && (
+            <BagSlot
+              item={item}
+              count={bag.count(i)}
+              slot={i}
+              depositDefault={depositDefault}
+              depositOne={depositOne}
+              depositRequested={depositRequested}
+            />
+          ),
+      )}
+      {held <= 0 && <BagEmpty />}
+    </layer>
+  );
+}

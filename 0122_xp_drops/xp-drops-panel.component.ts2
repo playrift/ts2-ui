@@ -1,0 +1,278 @@
+import { useRef, useServerState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { SkillIcons } from '../lib/skills.data';
+import { xpdropsDataGet } from '../0137_xpdrops_setup/xpdrops-setup.state';
+import { XpDropRowBySkill } from './xp-drops.data';
+import {
+  barState,
+  containerWidth,
+  counterSkill,
+  dimTag,
+  dropFont,
+  grouped,
+  levelOf,
+  percentText,
+  progressSkill,
+  skillName,
+  totalXpString,
+  xpAtLevel,
+  xpTotal,
+  xpVisible,
+} from './xp-drops.helpers';
+import { hideXpDropsTip, showXpDropsTip, toggleXpDropsTip } from './xp-drops.state';
+import {
+  XpDropsColor,
+  XpDropsFont,
+  XpDropsLayout,
+  XpDropsSprite,
+  XpDropsVars,
+  XpDropsWash,
+} from './xp-drops.constants';
+
+export function XpDropsPanel({ container }: { container: Ref }): Component {
+  const counterRow = useRef();
+  const progressRow = useRef();
+
+  const font: Font = dropFont();
+  const trackW: Int = containerWidth() - XpDropsLayout.progressRow.trackW;
+
+  const counter: Int = counterSkill();
+  let counterOn: Boolean = false;
+  let counterIcon: Sprite = -1;
+  let counterText: String = '';
+
+  if (counter >= 0) {
+    counterOn = true;
+    counterIcon = SkillIcons.get(counter as Skill) ?? -1;
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(counter as Skill) ?? 0);
+    const xp: Int = xpVisible(counter);
+    if (end === -1) {
+      const delta: Int = xp - start;
+      if (delta >= 0) {
+        counterText = `+${grouped(delta)}`;
+      } else {
+        counterText = 'N/A';
+      }
+    } else {
+      counterText = grouped(xp);
+    }
+  } else if (counter === -2) {
+    counterOn = false;
+  } else {
+    counterOn = true;
+    counterIcon = XpDropsSprite.TOTAL_XP;
+    const [high, low] = xpTotal();
+    const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+    if (useServerState(XpDropsVars.TOTAL_END) === -1) {
+      const units: Int = low % 1000;
+      const thousands: Int = high * 1000000 + low / 1000;
+      if (thousands > totalStart) {
+        counterText = `+${grouped(thousands - totalStart)},${padded(units)}`;
+      } else if (thousands === totalStart && units >= 0) {
+        counterText = `+${stringOf(units)}`;
+      } else {
+        counterText = 'N/A';
+      }
+    } else {
+      counterText = totalXpString(high, low);
+    }
+  }
+
+  const progress: Int = progressSkill();
+  let progressOn: Boolean = false;
+  let barW: Int = 0;
+  let barColor: Int = XpDropsColor.BAR_UNSET;
+
+  if (progress >= 0) {
+    progressOn = true;
+    const xp: Int = xpVisible(progress);
+    const [start, end] = xpdropsDataGet(XpDropRowBySkill.get(progress as Skill) ?? 0);
+    if (end !== -1 && end > start) {
+      const [w, colour, perMille] = barState(start, xp, end, 1, trackW);
+      barW = w;
+      barColor = colour;
+    } else {
+      const base: Int = levelOf(progress);
+      let target: Int = base + 1;
+      if (target > 99) {
+        target = 99;
+      }
+      const next: Int = xpAtLevel(target);
+      const [w, colour, perMille] = barState(xpAtLevel(base), xp, next, 0, trackW);
+      barW = w;
+      barColor = colour;
+    }
+  } else if (progress === -2) {
+    progressOn = true;
+    const [high, low] = xpTotal();
+    const totalStart: Int = useServerState(XpDropsVars.TOTAL_START);
+    const totalEnd: Int = useServerState(XpDropsVars.TOTAL_END);
+    if (totalEnd !== -1 && totalEnd > totalStart) {
+      if (high < 2 && totalEnd <= MAX_INT / 1000) {
+        const [w, colour, perMille] = barState(totalStart * 1000, high * 1000000000 + low, totalEnd * 1000, 1, trackW);
+        barW = w;
+        barColor = colour;
+      } else {
+        const [w, colour, perMille] = barState(totalStart, high * 1000000 + low / 1000, totalEnd, 1, trackW);
+        barW = w;
+        barColor = colour;
+      }
+    } else {
+      barW = trackW;
+      barColor = XpDropsColor.BAR_UNSET;
+    }
+  }
+
+  let counterY: Int = XpDropsLayout.stack.bothCounterY;
+  let counterH: Int = XpDropsLayout.counterRow.h;
+  let progressY: Int = XpDropsLayout.stack.bothProgressY;
+  if (!counterOn && progressOn) {
+    counterY = XpDropsLayout.stack.progressOnlyCounterY;
+    counterH = XpDropsLayout.counterRow.slim;
+    progressY = XpDropsLayout.stack.progressOnlyProgressY;
+  }
+  const rowShown: Boolean = counterOn || progressOn;
+
+  return (
+    <>
+      <layer
+        ref={counterRow}
+        x="center"
+        y={counterY}
+        w="fill"
+        h={counterH}
+        hide={rowShown ? false : true}
+        noClickThrough={onMobile() && counterOn}
+        onMouseRepeat={() => {
+          if (!onMobile()) {
+            showXpDropsTip(0, counterRow, 0, 0, counterH);
+          }
+        }}
+        onMouseLeave={() => hideXpDropsTip()}
+        onClick={() => {
+          if (onMobile()) {
+            toggleXpDropsTip(0, counterRow, 0, 0, counterH, container);
+          }
+        }}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          sprite={XpDropsSprite.GROUND}
+          tiling
+          transparency={XpDropsWash.GROUND}
+        />
+        <rect x="center" y="center" w="fill" h="fill" color={XpDropsColor.EDGE} />
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: XpDropsLayout.progressRow.innerW }}
+          h={{ fill: XpDropsLayout.progressRow.innerW }}
+          color={XpDropsColor.INNER}
+        />
+        <sprite
+          x={XpDropsLayout.counterRow.iconX}
+          y="center"
+          w={XpDropsLayout.counterRow.iconSize}
+          h={XpDropsLayout.counterRow.iconSize}
+          sprite={counterIcon}
+        />
+        <text
+          x={0}
+          y="center"
+          w={{ fill: XpDropsLayout.counterRow.textInset }}
+          h="fill"
+          text={counterText}
+          font={font}
+          color={XpDropsColor.COUNTER}
+          align="right"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      <layer
+        ref={progressRow}
+        x="center"
+        y={progressY}
+        w="fill"
+        h={XpDropsLayout.progressRow.h}
+        hide={progressOn ? false : true}
+        noClickThrough={onMobile() && progressOn}
+        onMouseRepeat={() => {
+          if (!onMobile()) {
+            showXpDropsTip(1, progressRow, 0, 0, XpDropsLayout.progressRow.h);
+          }
+        }}
+        onMouseLeave={() => hideXpDropsTip()}
+        onClick={() => {
+          if (onMobile()) {
+            toggleXpDropsTip(1, progressRow, 0, 0, XpDropsLayout.progressRow.h, container);
+          }
+        }}
+      >
+        <rect x="center" y="center" w="fill" h="fill" color={XpDropsColor.EDGE} />
+        <rect
+          x="center"
+          y="top"
+          w={{ fill: XpDropsLayout.progressRow.innerW }}
+          h={{ fill: XpDropsLayout.progressRow.innerH }}
+          color={XpDropsColor.INNER}
+        />
+        <rect
+          x="center"
+          y="top"
+          w={{ fill: XpDropsLayout.progressRow.fillW }}
+          h={{ fill: XpDropsLayout.progressRow.fillH }}
+          fill
+        />
+        <layer
+          x="center"
+          y={XpDropsLayout.progressRow.trackY}
+          w={{ fill: XpDropsLayout.progressRow.trackW }}
+          h={{ fill: XpDropsLayout.progressRow.trackH }}
+        >
+          <rect x="left" y="center" w={barW} h="fill" fill color={barColor} />
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+export function containerLeft(screenW: Int, containerW: Int, position: Int): Int {
+  if (onMobile()) {
+    return screenW - containerW - XpDropsLayout.container.edge;
+  }
+  if (position === 2) {
+    return XpDropsLayout.container.edge;
+  }
+  if (position === 0) {
+    return screenW - containerW - XpDropsLayout.container.edge;
+  }
+  return (screenW - containerW) / 2;
+}
+
+const MAX_INT = 2147483647;
+
+function padded(units: Int): String {
+  if (units > 99) {
+    return stringOf(units);
+  }
+  if (units > 9) {
+    return `0${stringOf(units)}`;
+  }
+  if (units >= 0) {
+    return `00${stringOf(units)}`;
+  }
+  return stringOf(units);
+}
+
+function trackedFrom(totalStart: Int): String {
+  if (totalStart > 0) {
+    return `${grouped(totalStart)},000`;
+  }
+  return '0';
+}

@@ -1,0 +1,1278 @@
+import { CS2, useInventory, useServerState, useSkillBase, useState } from 'ts2';
+
+import { totalLevel } from '../0712_account_summary_sidepanel/account-summary-sidepanel.helpers';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import {
+  buffAkkhaBurnEnd,
+  buffAkkhaDarknessEnd,
+  buffAkkhaFreezeEnd,
+  buffAntifireStart,
+  buffAntipoisonStart,
+  buffApmekensSightEnd,
+  buffBarExitCaveDebuffStart,
+  buffBleedEnd,
+  buffCannonDecayStart,
+  buffChargeStart,
+  buffCorruptionStart,
+  buffDeadmanOverloadPotionStart,
+  buffDeathChargeActiveStart,
+  buffDeathChargeCooldownStart,
+  buffDesertDamageStart,
+  buffDoomOn,
+  buffDragonfireShieldStart,
+  buffDragonfireWardStart,
+  buffGoadingPotionStart,
+  buffGwdAltarStart,
+  buffImbuedHeartStart,
+  buffLeagueGuardianActiveDuration,
+  buffLeagueGuardianActiveStart,
+  buffLeagueUndyingRetributionDuration,
+  buffLeagueUndyingRetributionStart,
+  buffMagicImbueStart,
+  buffMarkOfDarknessDuration,
+  buffMarkOfDarknessStart,
+  buffMidraidlootStatsStart,
+  buffOverloadStart,
+  buffPlayerFrozenTime,
+  buffPlayerNexPrison,
+  buffPlayerNexSacrifice,
+  buffPlayerNexVirus,
+  buffPmoonOn,
+  buffPoisonDamageTimerStart,
+  buffPrayerEnhanceStart,
+  buffPrayerRegenerationStart,
+  buffRatBossFoodPileStart,
+  buffResurrectionActiveDuration,
+  buffResurrectionActiveStart,
+  buffResurrectionCooldownStart,
+  buffSailingTrimTimerStart,
+  buffSailingWindsTimerStart,
+  buffShadowVeilActiveStart,
+  buffShadowVeilCooldownStart,
+  buffSireStunStart,
+  buffSotdSpecialStart,
+  buffStaminaPotionStart,
+  buffStarOn,
+  buffStatrenewalStart,
+  buffSuperAntifireStart,
+  buffSurgePotionStart,
+  buffToaMidraidlootEnergyEnd,
+  buffToaMidraidlootHealingEnd,
+  buffToaMidraidlootPrayerEnd,
+  buffVengeanceCastStart,
+  buffWardOfArceuusActiveStart,
+  buffWardOfArceuusCooldownStart,
+  buffWyvernShieldEnd,
+  buffZebakBleedEnd,
+} from '../lib/game/varcs';
+import { Varps } from '../lib/game/varps';
+import {
+  bestWoodcuttingAxe,
+  escapeCrystalArmed,
+  fragmentSetTier,
+  loadoutFilled,
+  masteriesShown,
+  relicChosen,
+  resurrectionDuration,
+  waterCharges,
+} from './buff-bar.checks';
+import { cyclesLeftSince, minutesLeftSince, scaledCount, ticksLeftSince, ticksUntil } from './buff-bar.format';
+import { Buffs } from './buffs.data';
+
+export declare const ValueSkills: {
+  readonly MAGIC: SkillRef<6>;
+};
+
+export function buffValue(slot: Int): Int {
+  const row = Buffs.at(slot);
+  if (row === null) {
+    return 0;
+  }
+  if (slot === 0) {
+    const [cell_buffSireStunStart] = useState(buffSireStunStart);
+    if (cell_buffSireStunStart > 0) {
+      return cyclesLeftSince(cell_buffSireStunStart, 45 * 30 + 150);
+    }
+  }
+  if (slot === 1) {
+    const [cell_buffPlayerFrozenTime] = useState(buffPlayerFrozenTime);
+    if (cell_buffPlayerFrozenTime > 0) {
+      return ticksUntil(cell_buffPlayerFrozenTime);
+    }
+  }
+  if (slot === 2) {
+    const [cell_buffSotdSpecialStart] = useState(buffSotdSpecialStart);
+    if (cell_buffSotdSpecialStart > 0) {
+      return ticksLeftSince(cell_buffSotdSpecialStart, row.perUnit);
+    }
+  }
+  if (slot === 4) {
+    const [cell_buffImbuedHeartStart] = useState(buffImbuedHeartStart);
+    if (cell_buffImbuedHeartStart > 0) {
+      return scaledCount(cell_buffImbuedHeartStart, useServerState(Varbits.IMBUED_HEART_TIMER), row.perUnit);
+    }
+  }
+  if (slot === 126) {
+    const [cell_buffSurgePotionStart] = useState(buffSurgePotionStart);
+    if (cell_buffSurgePotionStart > 0) {
+      return scaledCount(cell_buffSurgePotionStart, useServerState(Varbits.SURGE_POTION_TIMER), row.perUnit);
+    }
+  }
+  if (slot === 5) {
+    const [cell_buffDragonfireShieldStart] = useState(buffDragonfireShieldStart);
+    if (cell_buffDragonfireShieldStart > 0) {
+      return scaledCount(cell_buffDragonfireShieldStart, useServerState(Varbits.DRAGONFIRE_SHIELD_RECHARGE), 8);
+    }
+  }
+  if (slot === 6) {
+    const [cell_buffStaminaPotionStart] = useState(buffStaminaPotionStart);
+    if (useServerState(Varbits.STAMINA_ACTIVE) === 1) {
+      return scaledCount(cell_buffStaminaPotionStart, useServerState(Varbits.STAMINA_DURATION), 10);
+    }
+  }
+  if (slot === 63) {
+    const [cell_buffPrayerEnhanceStart] = useState(buffPrayerEnhanceStart);
+    if (
+      useServerState(Varbits.RAIDS_PRAYER_ENHANCE_TIER) === 1 &&
+      useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER) > 0
+    ) {
+      return scaledCount(
+        cell_buffPrayerEnhanceStart,
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER),
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_RATE),
+      );
+    }
+  }
+  if (slot === 7) {
+    const [cell_buffPrayerEnhanceStart] = useState(buffPrayerEnhanceStart);
+    if (
+      useServerState(Varbits.RAIDS_PRAYER_ENHANCE_TIER) === 2 &&
+      useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER) > 0
+    ) {
+      return scaledCount(
+        cell_buffPrayerEnhanceStart,
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER),
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_RATE),
+      );
+    }
+  }
+  if (slot === 64) {
+    const [cell_buffPrayerEnhanceStart] = useState(buffPrayerEnhanceStart);
+    if (
+      useServerState(Varbits.RAIDS_PRAYER_ENHANCE_TIER) === 3 &&
+      useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER) > 0
+    ) {
+      return scaledCount(
+        cell_buffPrayerEnhanceStart,
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_TIMER),
+        useServerState(Varbits.RAIDS_PRAYERENHANCE_RATE),
+      );
+    }
+  }
+  if (slot === 61) {
+    const [cell_buffOverloadStart] = useState(buffOverloadStart);
+    if (useServerState(Varbits.RAIDS_OVERLOAD_TIER) === 1 && cell_buffOverloadStart > 0) {
+      return scaledCount(cell_buffOverloadStart, useServerState(Varbits.RAIDS_OVERLOAD_TIMER), 25);
+    }
+  }
+  if (slot === 8) {
+    const [cell_buffOverloadStart] = useState(buffOverloadStart);
+    if (useServerState(Varbits.RAIDS_OVERLOAD_TIER) === 2 && cell_buffOverloadStart > 0) {
+      return scaledCount(cell_buffOverloadStart, useServerState(Varbits.RAIDS_OVERLOAD_TIMER), 25);
+    }
+  }
+  if (slot === 62) {
+    const [cell_buffOverloadStart] = useState(buffOverloadStart);
+    if (useServerState(Varbits.RAIDS_OVERLOAD_TIER) === 3 && cell_buffOverloadStart > 0) {
+      return scaledCount(cell_buffOverloadStart, useServerState(Varbits.RAIDS_OVERLOAD_TIMER), 25);
+    }
+  }
+  if (slot === 14) {
+    const [cell_buffOverloadStart] = useState(buffOverloadStart);
+    if (cell_buffOverloadStart > 0) {
+      return scaledCount(cell_buffOverloadStart, useServerState(Varbits.NZONE_OVERLOAD_POTION_EFFECTS), 25);
+    }
+  }
+  if (slot === 9) {
+    const [cell_buffAntifireStart] = useState(buffAntifireStart);
+    if (cell_buffAntifireStart > 0) {
+      return scaledCount(cell_buffAntifireStart, useServerState(Varbits.ANTIFIRE_POTION), row.perUnit);
+    }
+  }
+  if (slot === 15) {
+    const [cell_buffSuperAntifireStart] = useState(buffSuperAntifireStart);
+    if (cell_buffSuperAntifireStart > 0) {
+      return scaledCount(cell_buffSuperAntifireStart, useServerState(Varbits.SUPER_ANTIFIRE_POTION), row.perUnit);
+    }
+  }
+  if (slot === 10) {
+    const [cell_buffAntipoisonStart] = useState(buffAntipoisonStart);
+    if (useServerState(Varps.POISON) >= -38 && useServerState(Varps.POISON) < 0) {
+      return scaledCount(cell_buffAntipoisonStart, useServerState(Varps.POISON) * -1, row.perUnit);
+    }
+  }
+  if (slot === 27) {
+    const [cell_buffAntipoisonStart] = useState(buffAntipoisonStart);
+    if (useServerState(Varps.POISON) < -38) {
+      return scaledCount(cell_buffAntipoisonStart, (useServerState(Varps.POISON) + 38) * -1, row.perUnit);
+    }
+  }
+  if (slot === 11) {
+    const [cell_buffChargeStart] = useState(buffChargeStart);
+    if (cell_buffChargeStart > 0) {
+      return scaledCount(cell_buffChargeStart, useServerState(Varps.MAGEARENA_CHARGE), 2);
+    }
+  }
+  if (slot === 12) {
+    const [cell_buffMagicImbueStart] = useState(buffMagicImbueStart);
+    if (cell_buffMagicImbueStart > 0) {
+      return scaledCount(cell_buffMagicImbueStart, useServerState(Varbits.MAGIC_IMBUE_ACTIVE), row.perUnit);
+    }
+  }
+  if (slot === 13) {
+    const [cell_buffGwdAltarStart] = useState(buffGwdAltarStart);
+    if (cell_buffGwdAltarStart > 0) {
+      return scaledCount(cell_buffGwdAltarStart, useServerState(Varbits.GODWARS_ALTAR_DELAY), 100);
+    }
+  }
+  if (slot === 110) {
+    const [cell_buffRatBossFoodPileStart] = useState(buffRatBossFoodPileStart);
+    if (cell_buffRatBossFoodPileStart > 0) {
+      return scaledCount(
+        cell_buffRatBossFoodPileStart,
+        useServerState(Varbits.RAT_BOSS_FOOD_PILE_PLAYER_EAT_DELAY),
+        100,
+      );
+    }
+  }
+  if (slot === 16) {
+    if (useServerState(Varps.AIDE_TELE_TIMER) > 0) {
+      return minutesLeftSince(useServerState(Varps.AIDE_TELE_TIMER), 30);
+    }
+  }
+  if (slot === 100) {
+    const local1: Int = Math.max(0, 6 - 1 * (totalLevel() / 300));
+    if (useServerState(Varps.LEAGUE_LAST_RECALL_COOLDOWN) > 0 && local1 > 0) {
+      return minutesLeftSince(useServerState(Varps.LEAGUE_LAST_RECALL_COOLDOWN), local1);
+    }
+  }
+  if (slot === 109) {
+    const [cell_buffLeagueUndyingRetributionDuration] = useState(buffLeagueUndyingRetributionDuration);
+    const [cell_buffLeagueUndyingRetributionStart] = useState(buffLeagueUndyingRetributionStart);
+    if (cell_buffLeagueUndyingRetributionStart > 0) {
+      return ticksLeftSince(cell_buffLeagueUndyingRetributionStart, cell_buffLeagueUndyingRetributionDuration - 3);
+    }
+  }
+  if (slot === 17) {
+    if (useServerState(Varps.SLUG2_REGIONUID) > 0) {
+      return minutesLeftSince(useServerState(Varps.SLUG2_REGIONUID), 20);
+    }
+  }
+  if (slot === 18) {
+    if (useServerState(Varbits.TELEBLOCK_CYCLES) > 0) {
+      return useServerState(Varbits.TELEBLOCK_CYCLES) - 100;
+    }
+  }
+  if (slot === 19) {
+    if (useServerState(Varbits.DIVINECOMBAT_POTION_TIME) === 0) {
+      return useServerState(Varbits.DIVINEATTACK_POTION_TIME);
+    }
+  }
+  if (slot === 20) {
+    if (useServerState(Varbits.DIVINECOMBAT_POTION_TIME) === 0) {
+      return useServerState(Varbits.DIVINESTRENGTH_POTION_TIME);
+    }
+  }
+  if (slot === 21) {
+    if (
+      useServerState(Varbits.DIVINECOMBAT_POTION_TIME) === 0 &&
+      useServerState(Varbits.DIVINEBASTION_POTION_TIME) === 0 &&
+      useServerState(Varbits.DIVINEBATTLEMAGE_POTION_TIME) === 0 &&
+      useServerState(Varbits.MOONLIGHT_POTION_TIME) === 0
+    ) {
+      return useServerState(Varbits.DIVINEDEFENCE_POTION_TIME);
+    }
+  }
+  if (slot === 115) {
+    if (useServerState(Varbits.MOONLIGHT_POTION_TIME) > 0) {
+      return useServerState(Varbits.MOONLIGHT_POTION_TIME);
+    }
+  }
+  if (slot === 22) {
+    if (useServerState(Varbits.DIVINEBATTLEMAGE_POTION_TIME) === 0) {
+      return useServerState(Varbits.DIVINEMAGIC_POTION_TIME);
+    }
+  }
+  if (slot === 23) {
+    if (useServerState(Varbits.DIVINEBASTION_POTION_TIME) === 0) {
+      return useServerState(Varbits.DIVINERANGE_POTION_TIME);
+    }
+  }
+  if (slot === 24) {
+    if (useServerState(Varbits.DIVINEBASTION_POTION_TIME) > 0) {
+      return useServerState(Varbits.DIVINEBASTION_POTION_TIME);
+    }
+  }
+  if (slot === 25) {
+    if (useServerState(Varbits.DIVINEBATTLEMAGE_POTION_TIME) > 0) {
+      return useServerState(Varbits.DIVINEBATTLEMAGE_POTION_TIME);
+    }
+  }
+  if (slot === 26) {
+    if (useServerState(Varbits.DIVINECOMBAT_POTION_TIME) > 0) {
+      return useServerState(Varbits.DIVINECOMBAT_POTION_TIME);
+    }
+  }
+  if (slot === 28) {
+    if (useServerState(Varbits.VENGEANCE_REBOUND) > 0) {
+      return useServerState(Varbits.VENGEANCE_REBOUND);
+    }
+  }
+  if (slot === 3) {
+    const [cell_buffVengeanceCastStart] = useState(buffVengeanceCastStart);
+    if (cell_buffVengeanceCastStart > 0) {
+      return scaledCount(cell_buffVengeanceCastStart, useServerState(Varbits.VENGEANCE_TIMELIMIT), 50);
+    }
+  }
+  if (slot === 29) {
+    if (useServerState(Varbits.ARCEUUS_CORRUPTION) === 1) {
+      return 1;
+    }
+  }
+  if (slot === 60) {
+    if (useServerState(Varbits.ARCEUUS_CORRUPTION) === 2) {
+      return 1;
+    }
+  }
+  if (slot === 30) {
+    const [cell_buffCorruptionStart] = useState(buffCorruptionStart);
+    if (cell_buffCorruptionStart > 0) {
+      return scaledCount(cell_buffCorruptionStart, useServerState(Varbits.ARCEUUS_CORRUPTION_COOLDOWN), 50);
+    }
+  }
+  if (slot === 31) {
+    const [cell_buffMarkOfDarknessDuration] = useState(buffMarkOfDarknessDuration);
+    const [cell_buffMarkOfDarknessStart] = useState(buffMarkOfDarknessStart);
+    if (cell_buffMarkOfDarknessStart > 0) {
+      return ticksLeftSince(cell_buffMarkOfDarknessStart, cell_buffMarkOfDarknessDuration);
+    }
+  }
+  if (slot === 33) {
+    const [cell_buffShadowVeilActiveStart] = useState(buffShadowVeilActiveStart);
+    if (cell_buffShadowVeilActiveStart > 0) {
+      return ticksLeftSince(cell_buffShadowVeilActiveStart, useSkillBase(ValueSkills.MAGIC));
+    }
+  }
+  if (slot === 32) {
+    const [cell_buffShadowVeilCooldownStart] = useState(buffShadowVeilCooldownStart);
+    if (cell_buffShadowVeilCooldownStart > 0) {
+      return scaledCount(cell_buffShadowVeilCooldownStart, useServerState(Varbits.ARCEUUS_SHADOW_VEIL_COOLDOWN), 50);
+    }
+  }
+  if (slot === 35) {
+    const [cell_buffDeathChargeActiveStart] = useState(buffDeathChargeActiveStart);
+    if (cell_buffDeathChargeActiveStart > 0) {
+      return scaledCount(cell_buffDeathChargeActiveStart, useServerState(Varbits.ARCEUUS_DEATH_CHARGE_ACTIVE), 100);
+    }
+  }
+  if (slot === 34) {
+    const [cell_buffDeathChargeCooldownStart] = useState(buffDeathChargeCooldownStart);
+    if (cell_buffDeathChargeCooldownStart > 0) {
+      return scaledCount(cell_buffDeathChargeCooldownStart, useServerState(Varbits.ARCEUUS_DEATH_CHARGE_COOLDOWN), 100);
+    }
+  }
+  if (slot === 37) {
+    const [cell_buffWardOfArceuusActiveStart] = useState(buffWardOfArceuusActiveStart);
+    if (cell_buffWardOfArceuusActiveStart > 0) {
+      return ticksLeftSince(cell_buffWardOfArceuusActiveStart, useSkillBase(ValueSkills.MAGIC));
+    }
+  }
+  if (slot === 36) {
+    const [cell_buffWardOfArceuusCooldownStart] = useState(buffWardOfArceuusCooldownStart);
+    if (cell_buffWardOfArceuusCooldownStart > 0) {
+      return scaledCount(cell_buffWardOfArceuusCooldownStart, useServerState(Varbits.ARCEUUS_WARD_COOLDOWN), 50);
+    }
+  }
+  if (slot === 39) {
+    const [cell_buffResurrectionActiveDuration] = useState(buffResurrectionActiveDuration);
+    const [cell_buffResurrectionActiveStart] = useState(buffResurrectionActiveStart);
+    if (cell_buffResurrectionActiveStart > 0) {
+      return ticksLeftSince(cell_buffResurrectionActiveStart, cell_buffResurrectionActiveDuration - 3);
+    }
+  }
+  if (slot === 99) {
+    const [cell_buffLeagueGuardianActiveDuration] = useState(buffLeagueGuardianActiveDuration);
+    const [cell_buffLeagueGuardianActiveStart] = useState(buffLeagueGuardianActiveStart);
+    if (cell_buffLeagueGuardianActiveStart > 0) {
+      return ticksLeftSince(cell_buffLeagueGuardianActiveStart, cell_buffLeagueGuardianActiveDuration - 3);
+    }
+  }
+  if (slot === 38) {
+    const [cell_buffResurrectionCooldownStart] = useState(buffResurrectionCooldownStart);
+    if (cell_buffResurrectionCooldownStart > 0) {
+      return scaledCount(cell_buffResurrectionCooldownStart, useServerState(Varbits.ARCEUUS_RESURRECTION_COOLDOWN), 17);
+    }
+  }
+  if (slot === 41) {
+    if (useServerState(Varps.BUFF_BAR_WEAPON) !== -1) {
+      return useServerState(Varps.BUFF_BAR_AMMO_AMOUNT);
+    }
+  }
+  if (slot === 40) {
+    if (useServerState(Varps.BUFF_BAR_WEAPON) === -1) {
+      return useServerState(Varps.BUFF_BAR_AMMO_AMOUNT);
+    }
+  }
+  if (slot === 42) {
+    const [cell_buffPoisonDamageTimerStart] = useState(buffPoisonDamageTimerStart);
+    if (useServerState(Varps.POISON) > 0 && useServerState(Varps.POISON) < 1000000) {
+      return ticksLeftSince(cell_buffPoisonDamageTimerStart, row.perUnit);
+    }
+  }
+  if (slot === 43) {
+    const [cell_buffPoisonDamageTimerStart] = useState(buffPoisonDamageTimerStart);
+    if (useServerState(Varps.POISON) >= 1000000) {
+      return ticksLeftSince(cell_buffPoisonDamageTimerStart, row.perUnit);
+    }
+  }
+  if (slot === 120) {
+    if (useServerState(Varbits.PLAYER_OWN_BURN_DAMAGE_TOTAL) > 0) {
+      return useServerState(Varbits.PLAYER_OWN_BURN_DAMAGE_TOTAL);
+    }
+  }
+  if (slot === 44) {
+    const [cell_buffDesertDamageStart] = useState(buffDesertDamageStart);
+    if (cell_buffDesertDamageStart > 0) {
+      return scaledCount(cell_buffDesertDamageStart, 1, useServerState(Varbits.BUFF_BAR_DESERT_HEAT_TIMER_ITERATION));
+    }
+  }
+  if (slot === 45) {
+    const [cell_buffPlayerNexPrison] = useState(buffPlayerNexPrison);
+    if (cell_buffPlayerNexPrison > 0) {
+      return ticksUntil(cell_buffPlayerNexPrison);
+    }
+  }
+  if (slot === 46) {
+    const [cell_buffPlayerNexSacrifice] = useState(buffPlayerNexSacrifice);
+    if (cell_buffPlayerNexSacrifice > 0) {
+      return ticksUntil(cell_buffPlayerNexSacrifice);
+    }
+  }
+  if (slot === 47) {
+    const [cell_buffPlayerNexVirus] = useState(buffPlayerNexVirus);
+    if (cell_buffPlayerNexVirus > 0) {
+      return ticksUntil(cell_buffPlayerNexVirus);
+    }
+  }
+  if (slot === 56) {
+    if (
+      useServerState(Varps.DROPCANNON) === 4 &&
+      CS2.map_world() % 128 === useServerState(Varbits.MCANNON_WORLD) &&
+      useServerState(Varbits.MCANNON_LAST_BALLTYPE) === 0 &&
+      useServerState(Varbits.MCANNON_DECAYED) === 0
+    ) {
+      return useServerState(Varps.ROCKTHROWER);
+    }
+  }
+  if (slot === 57) {
+    if (
+      useServerState(Varps.DROPCANNON) === 4 &&
+      CS2.map_world() % 128 === useServerState(Varbits.MCANNON_WORLD) &&
+      useServerState(Varbits.MCANNON_LAST_BALLTYPE) === 1 &&
+      useServerState(Varbits.MCANNON_DECAYED) === 0
+    ) {
+      return useServerState(Varps.ROCKTHROWER);
+    }
+  }
+  if (slot === 48) {
+    if (useServerState(Varps.REVENANT_REWARD_TIMED_BUFF_END) > 0) {
+      return useServerState(Varps.REVENANT_REWARD_TIMED_BUFF_END) - useServerState(Varps.DATE_MINUTES);
+    }
+  }
+  if (slot === 83) {
+    const [cell_buffStatrenewalStart] = useState(buffStatrenewalStart);
+    if (useServerState(Varbits.STATRENEWAL_POTION_TIMER) > 0) {
+      return scaledCount(cell_buffStatrenewalStart, useServerState(Varbits.STATRENEWAL_POTION_TIMER), 25);
+    }
+  }
+  if (slot === 121) {
+    const [cell_buffPrayerRegenerationStart] = useState(buffPrayerRegenerationStart);
+    if (useServerState(Varbits.PRAYER_REGENERATION_POTION_TIMER) > 0) {
+      return scaledCount(
+        cell_buffPrayerRegenerationStart,
+        useServerState(Varbits.PRAYER_REGENERATION_POTION_TIMER),
+        12,
+      );
+    }
+  }
+  if (slot === 49) {
+    if (loadoutFilled(0) === true) {
+      return 1;
+    }
+  }
+  if (slot === 50) {
+    if (loadoutFilled(1) === true) {
+      return 1;
+    }
+  }
+  if (slot === 51) {
+    if (loadoutFilled(2) === true) {
+      return 1;
+    }
+  }
+  if (slot === 52) {
+    if (loadoutFilled(3) === true) {
+      return 1;
+    }
+  }
+  if (slot === 53) {
+    if (loadoutFilled(4) === true) {
+      return 1;
+    }
+  }
+  if (slot === 54) {
+    if (loadoutFilled(5) === true) {
+      return 1;
+    }
+  }
+  if (slot === 55) {
+    if (loadoutFilled(6) === true) {
+      return 1;
+    }
+  }
+  if (slot === 101) {
+    if (relicChosen(0) === true) {
+      return 1;
+    }
+  }
+  if (slot === 102) {
+    if (relicChosen(1) === true) {
+      return 1;
+    }
+  }
+  if (slot === 103) {
+    if (relicChosen(2) === true) {
+      return 1;
+    }
+  }
+  if (slot === 104) {
+    if (relicChosen(3) === true) {
+      return 1;
+    }
+  }
+  if (slot === 105) {
+    if (relicChosen(4) === true) {
+      return 1;
+    }
+  }
+  if (slot === 106) {
+    if (relicChosen(5) === true) {
+      return 1;
+    }
+  }
+  if (slot === 107) {
+    if (relicChosen(6) === true) {
+      return 1;
+    }
+  }
+  if (slot === 108) {
+    if (relicChosen(7) === true) {
+      return 1;
+    }
+  }
+  if (slot === 123) {
+    if (masteriesShown() === true && useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 124) {
+    if (masteriesShown() === true && useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 125) {
+    if (masteriesShown() === true && useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 65) {
+    if (fragmentSetTier(14) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 66) {
+    if (fragmentSetTier(5) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 67) {
+    if (fragmentSetTier(3) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 68) {
+    if (fragmentSetTier(8) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 69) {
+    if (fragmentSetTier(6) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 70) {
+    if (fragmentSetTier(1) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 71) {
+    if (fragmentSetTier(10) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 72) {
+    if (fragmentSetTier(15) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 73) {
+    if (fragmentSetTier(2) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 74) {
+    if (fragmentSetTier(4) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 75) {
+    if (fragmentSetTier(9) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 76) {
+    if (fragmentSetTier(12) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 77) {
+    if (fragmentSetTier(7) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 78) {
+    if (fragmentSetTier(11) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 79) {
+    if (fragmentSetTier(13) > 0) {
+      return 1;
+    }
+  }
+  if (slot === 80) {
+    const [cell_buffDesertDamageStart] = useState(buffDesertDamageStart);
+    if (cell_buffDesertDamageStart > 0) {
+      return waterCharges();
+    }
+  }
+  if (slot === 81) {
+    const [cell_buffCannonDecayStart] = useState(buffCannonDecayStart);
+    if (
+      cell_buffCannonDecayStart > 0 &&
+      useServerState(Varps.DROPCANNON) === 4 &&
+      CS2.map_world() % 128 === useServerState(Varbits.MCANNON_WORLD) &&
+      useServerState(Varbits.MCANNON_DECAYED) === 0
+    ) {
+      return ticksLeftSince(cell_buffCannonDecayStart, row.perUnit);
+    }
+  }
+  if (slot === 82) {
+    const [cell_buffCannonDecayStart] = useState(buffCannonDecayStart);
+    if (
+      cell_buffCannonDecayStart > 0 &&
+      useServerState(Varps.DROPCANNON) === 4 &&
+      CS2.map_world() % 128 === useServerState(Varbits.MCANNON_WORLD) &&
+      useServerState(Varbits.MCANNON_DECAYED) === 1
+    ) {
+      return ticksLeftSince(cell_buffCannonDecayStart, row.perUnit);
+    }
+  }
+  if (slot === 84) {
+    const [cell_buffApmekensSightEnd] = useState(buffApmekensSightEnd);
+    if (cell_buffApmekensSightEnd > 0) {
+      return ticksUntil(cell_buffApmekensSightEnd);
+    }
+  }
+  if (slot === 85) {
+    const [cell_buffAkkhaBurnEnd] = useState(buffAkkhaBurnEnd);
+    if (cell_buffAkkhaBurnEnd > 0) {
+      return ticksUntil(cell_buffAkkhaBurnEnd);
+    }
+  }
+  if (slot === 86) {
+    const [cell_buffAkkhaDarknessEnd] = useState(buffAkkhaDarknessEnd);
+    if (cell_buffAkkhaDarknessEnd > 0) {
+      return ticksUntil(cell_buffAkkhaDarknessEnd);
+    }
+  }
+  if (slot === 87) {
+    const [cell_buffAkkhaFreezeEnd] = useState(buffAkkhaFreezeEnd);
+    if (cell_buffAkkhaFreezeEnd > 0) {
+      return ticksUntil(cell_buffAkkhaFreezeEnd);
+    }
+  }
+  if (slot === 88) {
+    const [cell_buffZebakBleedEnd] = useState(buffZebakBleedEnd);
+    if (cell_buffZebakBleedEnd > 0) {
+      return ticksUntil(cell_buffZebakBleedEnd);
+    }
+  }
+  if (slot === 89) {
+    const [cell_buffToaMidraidlootHealingEnd] = useState(buffToaMidraidlootHealingEnd);
+    if (cell_buffToaMidraidlootHealingEnd > 0) {
+      return ticksUntil(cell_buffToaMidraidlootHealingEnd);
+    }
+  }
+  if (slot === 90) {
+    const [cell_buffToaMidraidlootPrayerEnd] = useState(buffToaMidraidlootPrayerEnd);
+    if (cell_buffToaMidraidlootPrayerEnd > 0) {
+      return ticksUntil(cell_buffToaMidraidlootPrayerEnd);
+    }
+  }
+  if (slot === 91) {
+    const [cell_buffToaMidraidlootEnergyEnd] = useState(buffToaMidraidlootEnergyEnd);
+    if (cell_buffToaMidraidlootEnergyEnd > 0) {
+      return ticksUntil(cell_buffToaMidraidlootEnergyEnd);
+    }
+  }
+  if (slot === 92) {
+    const [cell_buffMidraidlootStatsStart] = useState(buffMidraidlootStatsStart);
+    if (useServerState(Varbits.TOA_MIDRAIDLOOT_STATS_TIMER) > 0) {
+      return scaledCount(cell_buffMidraidlootStatsStart, useServerState(Varbits.TOA_MIDRAIDLOOT_STATS_TIMER), 25);
+    }
+  }
+  if (slot === 93) {
+    const [cell_buffBarExitCaveDebuffStart] = useState(buffBarExitCaveDebuffStart);
+    if (cell_buffBarExitCaveDebuffStart > 0) {
+      if (useServerState(Varbits.WBR_DECAY_STATE) < 5) {
+        return ticksLeftSince(cell_buffBarExitCaveDebuffStart, 10 * (5 - useServerState(Varbits.WBR_DECAY_STATE)));
+      }
+      return ticksLeftSince(cell_buffBarExitCaveDebuffStart, 10);
+    }
+  }
+  if (slot === 94) {
+    const [cell_buffBleedEnd] = useState(buffBleedEnd);
+    if (cell_buffBleedEnd > 0) {
+      return ticksUntil(cell_buffBleedEnd);
+    }
+  }
+  if (slot === 95) {
+    return escapeCrystalArmed();
+  }
+  if (slot === 98) {
+    const [cell_buffStarOn] = useState(buffStarOn);
+    if (cell_buffStarOn > 0) {
+      return useServerState(Varbits.STAR_BONUS_DUST);
+    }
+  }
+  if (slot === 113) {
+    const [cell_buffDoomOn] = useState(buffDoomOn);
+    if (cell_buffDoomOn > 0) {
+      return useServerState(Varbits.COLOSSEUM_DOOM_STACKS_CLIENT);
+    }
+  }
+  if (slot === 114) {
+    const [cell_buffPmoonOn] = useState(buffPmoonOn);
+    if (cell_buffPmoonOn > 0) {
+      return useServerState(Varbits.PMOON_BOSS_CONDITION);
+    }
+  }
+  if (slot === 96) {
+    if (
+      useServerState(Varps.GROUP_GATHERING_ACTIVE_BUFF) === 96 &&
+      useServerState(Varbits.GROUP_GATHERING_BUFF_VALUE) > 0
+    ) {
+      return useServerState(Varbits.GROUP_GATHERING_BUFF_VALUE);
+    }
+    return 0;
+  }
+  if (slot === 97) {
+    if (useServerState(Varbits.BUFF_WOODCUTTING_LEPRECHAUN_RAINBOWS_SETTING) === 0 && bestWoodcuttingAxe() === -1) {
+      return 0;
+    }
+    if (useServerState(Varbits.GATHERING_EVENT_WOODCUTTING_LEPRECHAUN_TOTAL_RAINBOWS) >= 5) {
+      return useServerState(Varbits.GATHERING_EVENT_WOODCUTTING_LEPRECHAUN_TOTAL_RAINBOWS) / 5;
+    }
+    return 0;
+  }
+  if (slot === 111) {
+    const [cell_buffDragonfireWardStart] = useState(buffDragonfireWardStart);
+    if (cell_buffDragonfireWardStart > 0) {
+      return scaledCount(cell_buffDragonfireWardStart, useServerState(Varbits.DRAGONFIRE_WARD_RECHARGE), 8);
+    }
+  }
+  if (slot === 112) {
+    const [cell_buffWyvernShieldEnd] = useState(buffWyvernShieldEnd);
+    if (cell_buffWyvernShieldEnd > 0) {
+      return ticksUntil(cell_buffWyvernShieldEnd);
+    }
+  }
+  if (slot === 116) {
+    return useServerState(Varbits.WGS_STONE_OF_JAS_BOOST);
+  }
+  if (slot === 117) {
+    if (useServerState(Varbits.WGS_SMOULDERING_HEART_TIMER) > 0) {
+      return scaledCount(
+        useServerState(Varps.WGS_SMOULDERING_HEART_BUFF_START),
+        useServerState(Varbits.WGS_SMOULDERING_HEART_TIMER),
+        row.perUnit,
+      );
+    }
+  }
+  if (slot === 118) {
+    if (useServerState(Varbits.WGS_SMOULDERING_GLAND_TIMER) > 0) {
+      return scaledCount(
+        useServerState(Varps.WGS_SMOULDERING_GLAND_BUFF_START),
+        useServerState(Varbits.WGS_SMOULDERING_GLAND_TIMER),
+        row.perUnit,
+      );
+    }
+  }
+  if (slot === 119) {
+    const [cell_buffDeadmanOverloadPotionStart] = useState(buffDeadmanOverloadPotionStart);
+    if (cell_buffDeadmanOverloadPotionStart > 0) {
+      return scaledCount(
+        cell_buffDeadmanOverloadPotionStart,
+        useServerState(Varbits.DEADMAN_OVERLOAD_POTION_EFFECTS),
+        25,
+      );
+    }
+  }
+  if (slot === 122) {
+    const [cell_buffGoadingPotionStart] = useState(buffGoadingPotionStart);
+    if (useServerState(Varbits.GOADING_POTION_TIMER) > 0) {
+      return scaledCount(cell_buffGoadingPotionStart, useServerState(Varbits.GOADING_POTION_TIMER), 6);
+    }
+  }
+  if (slot === 127) {
+    const carried = useInventory(Inventories.INV);
+    if (carried.total(31052 as Item) > 0) {
+      return useServerState(Varbits.BOWSTRING_SPOOL_CHARGES);
+    }
+  }
+  if (slot === 128) {
+    if (useServerState(Varbits.DOM_MISSED_ORBS) > 0) {
+      return useServerState(Varbits.DOM_MISSED_ORBS);
+    }
+  }
+  if (slot === 129) {
+    if (useServerState(Varbits.ENT_TOTEMS_BUFFS_VISIBLE) > 0) {
+      return useServerState(Varbits.ENT_TOTEMS_TRAIL_XP_BUFF_ACTIONS);
+    }
+  }
+  if (slot === 130) {
+    const [cell_buffSailingWindsTimerStart] = useState(buffSailingWindsTimerStart);
+    if (
+      useServerState(Varbits.SAILING_BOAT_TIME_TILL_TRIM) > 0 &&
+      useServerState(Varbits.SAILING_BOAT_WINDS_TIMER_PAUSED) === 0 &&
+      useServerState(Varbits.SAILING_BOAT_SPEEDBOOST_DURATION) === 0
+    ) {
+      return ticksLeftSince(cell_buffSailingWindsTimerStart, row.perUnit);
+    }
+  }
+  if (slot === 131) {
+    const [cell_buffSailingTrimTimerStart] = useState(buffSailingTrimTimerStart);
+    if (useServerState(Varbits.SAILING_BOAT_TIME_TRIM_WINDOW) > 0) {
+      return ticksLeftSince(cell_buffSailingTrimTimerStart, row.perUnit);
+    }
+  }
+  if (slot === 132) {
+    const [cell_buffSailingWindsTimerStart] = useState(buffSailingWindsTimerStart);
+    if (useServerState(Varbits.SAILING_BOAT_SPEEDBOOST_DURATION) > 0) {
+      return ticksLeftSince(cell_buffSailingWindsTimerStart, row.perUnit);
+    }
+  }
+  if (slot === 133) {
+    return useServerState(Varbits.VARBIT_20321);
+  }
+  if (slot === 134) {
+    return useServerState(Varbits.VARBIT_20322);
+  }
+  if (slot === 135) {
+    if (useServerState(Varbits.VARBIT_20337) > 0) {
+      return 25;
+    }
+  }
+  if (slot === 136) {
+    if (useServerState(Varps.VARP_5528) > 0) {
+      return ticksUntil(useServerState(Varps.VARP_5528));
+    }
+  }
+  return row.offValue;
+}
+
+export function buffHidden(slot: Int): Int {
+  if (slot === 0) {
+    return useServerState(Varbits.BUFF_SIRE_STUN_DURATION_DISABLED);
+  }
+  if (slot === 1) {
+    return useServerState(Varbits.BUFF_FREEZE_DURATION_DISABLED);
+  }
+  if (slot === 2) {
+    return useServerState(Varbits.BUFF_SOTD_DURATION_DISABLED);
+  }
+  if (slot === 3) {
+    return useServerState(Varbits.BUFF_VENGEANCE_COOLDOWN_DISABLED);
+  }
+  if (slot === 4) {
+    return useServerState(Varbits.BUFF_IMBUED_HEART_COOLDOWN_DISABLED);
+  }
+  if (slot === 126) {
+    return useServerState(Varbits.BUFF_SURGE_POTION_COOLDOWN_DISABLED);
+  }
+  if (slot === 5) {
+    return useServerState(Varbits.BUFF_DRAGONFIRE_SHIELD_COOLDOWN_DISABLED);
+  }
+  if (slot === 6) {
+    return useServerState(Varbits.BUFF_STAMINA_DURATION_DISABLED);
+  }
+  if (slot === 7) {
+    return useServerState(Varbits.BUFF_PRAYER_ENHANCE_DURATION_DISABLED);
+  }
+  if (slot === 63) {
+    return useServerState(Varbits.BUFF_PRAYER_ENHANCE_DURATION_DISABLED);
+  }
+  if (slot === 64) {
+    return useServerState(Varbits.BUFF_PRAYER_ENHANCE_DURATION_DISABLED);
+  }
+  if (slot === 8) {
+    return useServerState(Varbits.BUFF_OVERLOAD_DURATION_DISABLED);
+  }
+  if (slot === 61) {
+    return useServerState(Varbits.BUFF_OVERLOAD_DURATION_DISABLED);
+  }
+  if (slot === 62) {
+    return useServerState(Varbits.BUFF_OVERLOAD_DURATION_DISABLED);
+  }
+  if (slot === 14) {
+    return useServerState(Varbits.BUFF_OVERLOAD_DURATION_DISABLED);
+  }
+  if (slot === 9) {
+    return useServerState(Varbits.BUFF_ANTIFIRE_DURATION_DISABLED);
+  }
+  if (slot === 58) {
+    return useServerState(Varbits.BUFF_ANTIFIRE_DURATION_DISABLED);
+  }
+  if (slot === 15) {
+    return useServerState(Varbits.BUFF_ANTIFIRE_DURATION_DISABLED);
+  }
+  if (slot === 59) {
+    return useServerState(Varbits.BUFF_ANTIFIRE_DURATION_DISABLED);
+  }
+  if (slot === 10) {
+    return useServerState(Varbits.BUFF_ANTIPOISON_DURATION_DISABLED);
+  }
+  if (slot === 27) {
+    return useServerState(Varbits.BUFF_ANTIPOISON_DURATION_DISABLED);
+  }
+  if (slot === 42) {
+    return useServerState(Varbits.BUFF_POISON_DAMAGE_DISABLED);
+  }
+  if (slot === 43) {
+    return useServerState(Varbits.BUFF_POISON_DAMAGE_DISABLED);
+  }
+  if (slot === 11) {
+    return useServerState(Varbits.BUFF_CHARGE_SPELL_DISABLED);
+  }
+  if (slot === 12) {
+    return useServerState(Varbits.BUFF_MAGIC_IMBUE_DURATION_DISABLED);
+  }
+  if (slot === 13) {
+    return useServerState(Varbits.BUFF_GODWARS_ALTAR_DISABLED);
+  }
+  if (slot === 16) {
+    return useServerState(Varbits.BUFF_HOME_TELEPORT_DISABLED);
+  }
+  if (slot === 17) {
+    return useServerState(Varbits.BUFF_MINIGAME_TELEPORT_DISABLED);
+  }
+  if (slot === 18) {
+    return useServerState(Varbits.BUFF_TELEBLOCK_DISABLED);
+  }
+  if (slot === 19) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 20) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 21) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 22) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 23) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 24) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 25) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 26) {
+    return useServerState(Varbits.BUFF_DIVINE_POTION_DURATION_DISABLED);
+  }
+  if (slot === 28) {
+    return useServerState(Varbits.BUFF_VENGEANCE_ACTIVE_DISABLED);
+  }
+  if (slot === 29) {
+    return useServerState(Varbits.BUFF_CORRUPTION_DISABLED);
+  }
+  if (slot === 60) {
+    return useServerState(Varbits.BUFF_CORRUPTION_DISABLED);
+  }
+  if (slot === 30) {
+    return useServerState(Varbits.BUFF_CORRUPTION_DISABLED);
+  }
+  if (slot === 31) {
+    return useServerState(Varbits.BUFF_MARK_OF_DARKNESS_DISABLED);
+  }
+  if (slot === 32) {
+    return useServerState(Varbits.BUFF_SHADOW_VEIL_DISABLED);
+  }
+  if (slot === 33) {
+    return useServerState(Varbits.BUFF_SHADOW_VEIL_DISABLED);
+  }
+  if (slot === 34) {
+    return useServerState(Varbits.BUFF_DEATH_CHARGE_DISABLED);
+  }
+  if (slot === 35) {
+    return useServerState(Varbits.BUFF_DEATH_CHARGE_DISABLED);
+  }
+  if (slot === 36) {
+    return useServerState(Varbits.BUFF_WARD_OF_ARCEUUS_DISABLED);
+  }
+  if (slot === 37) {
+    return useServerState(Varbits.BUFF_WARD_OF_ARCEUUS_DISABLED);
+  }
+  if (slot === 39) {
+    return useServerState(Varbits.BUFF_RESURRECTION_DISABLED);
+  }
+  if (slot === 38) {
+    return useServerState(Varbits.BUFF_RESURRECTION_DISABLED);
+  }
+  if (slot === 40) {
+    return useServerState(Varbits.BUFF_AMMO_DISABLED);
+  }
+  if (slot === 41) {
+    return useServerState(Varbits.BUFF_AMMO_DISABLED);
+  }
+  if (slot === 44) {
+    return useServerState(Varbits.BUFF_DESERT_DAMAGE_DISABLED);
+  }
+  if (slot === 48) {
+    return useServerState(Varbits.BUFF_REVENANT_REWARD_DISABLED);
+  }
+  if (slot === 56) {
+    return useServerState(Varbits.BUFF_CANNON_AMMO_DISABLED);
+  }
+  if (slot === 57) {
+    return useServerState(Varbits.BUFF_CANNON_AMMO_DISABLED);
+  }
+  if (slot === 49) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 50) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 51) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 52) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 53) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 54) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 55) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 101) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 102) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 103) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 104) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 105) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 106) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 107) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 108) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 65) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 66) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 67) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 68) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 69) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 70) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 71) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 72) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 73) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 74) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 75) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 76) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 77) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 78) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 79) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 100) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 99) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 109) {
+    return useServerState(Varbits.BUFF_LEAGUE_RELICS_HIDDEN);
+  }
+  if (slot === 123) {
+    return useServerState(Varbits.BUFF_LEAGUE_MASTERIES_HIDDEN);
+  }
+  if (slot === 124) {
+    return useServerState(Varbits.BUFF_LEAGUE_MASTERIES_HIDDEN);
+  }
+  if (slot === 125) {
+    return useServerState(Varbits.BUFF_LEAGUE_MASTERIES_HIDDEN);
+  }
+  if (slot === 133 || slot === 134 || slot === 135) {
+    return useServerState(Varbits.BUFF_LEAGUE_MASTERIES_HIDDEN);
+  }
+  if (slot === 80) {
+    return useServerState(Varbits.BUFF_WATER_CHARGES_DISABLED);
+  }
+  if (slot === 81 || slot === 82) {
+    return useServerState(Varbits.BUFF_CANNON_DECAY_DISABLED);
+  }
+  if (slot === 83) {
+    return useServerState(Varbits.BUFF_STATRENEWAL_DURATION_DISABLED);
+  }
+  if (slot === 121) {
+    return useServerState(Varbits.BUFF_PRAYER_REGENERATION_POTION_DURATION_DISABLED);
+  }
+  if (slot === 84) {
+    return useServerState(Varbits.BUFF_APMEKENS_SIGHT_DISABLED);
+  }
+  if (slot === 85) {
+    return useServerState(Varbits.BUFF_AKKHA_BURN_DURATION_DISABLED);
+  }
+  if (slot === 86) {
+    return useServerState(Varbits.BUFF_AKKHA_DARKNESS_DURATION_DISABLED);
+  }
+  if (slot === 87) {
+    return useServerState(Varbits.BUFF_AKKHA_FREEZE_DURATION_DISABLED);
+  }
+  if (slot === 88) {
+    return useServerState(Varbits.BUFF_ZEBAK_BLEED_DURATION_DISABLED);
+  }
+  if (slot === 89) {
+    return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_HEALING_DURATION_DISABLED);
+  }
+  if (slot === 90) {
+    return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_PRAYER_DURATION_DISABLED);
+  }
+  if (slot === 91) {
+    return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_ENERGY_DURATION_DISABLED);
+  }
+  if (slot === 92) {
+    return useServerState(Varbits.BUFF_TOA_MIDRAIDLOOT_STATS_DURATION_DISABLED);
+  }
+  if (slot === 93) {
+    return useServerState(Varbits.BUFF_WBR_EXIT_CAVE);
+  }
+  if (slot === 94) {
+    return useServerState(Varbits.BUFF_ZEBAK_BLEED_DURATION_DISABLED);
+  }
+  if (slot === 96) {
+    return useServerState(Varbits.BUFF_GROUP_GATHERING_WOODCUTTING_DISABLED);
+  }
+  if (slot === 97) {
+    if (useServerState(Varbits.BUFF_WOODCUTTING_LEPRECHAUN_RAINBOWS_SETTING) === 2) {
+      return 1;
+    }
+    return 0;
+  }
+  if (slot === 111) {
+    return useServerState(Varbits.BUFF_DRAGONFIRE_SHIELD_COOLDOWN_DISABLED);
+  }
+  if (slot === 112) {
+    return useServerState(Varbits.BUFF_DRAGONFIRE_SHIELD_COOLDOWN_DISABLED);
+  }
+  if (slot === 110) {
+    return useServerState(Varbits.BUFF_SCURRIUS_FOOD_PILE);
+  }
+  if (slot === 119) {
+    return useServerState(Varbits.BUFF_DEADMAN_OVERLOAD_POTION);
+  }
+  if (slot === 122) {
+    return useServerState(Varbits.BUFF_GOADING_POTION_DURATION_DISABLED);
+  }
+  if (slot === 127) {
+    return useServerState(Varbits.BUFF_BOWSTRING_SPOOL_DISABLED);
+  }
+  if (slot === 129) {
+    return useServerState(Varbits.BUFF_ENT_TOTEMS_BONUS_XP_DISABLED);
+  }
+  if (slot === 130 || slot === 131 || slot === 132) {
+    if (useServerState(Varbits.SAILING_PLAYER_IS_ON_PLAYER_BOAT) === 1) {
+      return 0;
+    }
+    return 1;
+  }
+  return 0;
+}

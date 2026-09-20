@@ -1,0 +1,881 @@
+import {
+  CS2,
+  intArray,
+  onMounted,
+  onUpdated,
+  useInterval,
+  useOnResize,
+  useRef,
+  useServerState,
+  useState,
+  useUniverse,
+  useWatch,
+} from 'ts2';
+
+import { CrmLoadingIcon } from '../0284_membership_benefits_prompt/crm-loading-icon.component';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { CellBoxes } from '../0823_forestry_kit_main/cell-box.data';
+import { BoxStyle, BoxStyles } from '../0718_giants_foundry_mould/box-styles.data';
+import {
+  responsiveCurrentBreakpoint,
+  sailingBoatCustomisationScrollPos,
+  sailingBoatCustomisationTab,
+} from '../lib/game/varcs';
+import { errorMessage } from '../lib/lib.debug';
+import { textLineCount } from '../lib/lib.engine';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { onMobile, trackScroll } from '../lib/lib.helpers';
+import { ScrollbarVertical, thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { FacilityRow, rowHeight } from './facility-row.component';
+import {
+  CustomisationColors,
+  CustomisationFonts,
+  CustomisationInventories,
+  CustomisationSkills,
+  CustomisationSprites,
+  CustomisationVarbits,
+  CustomisationVarps,
+  Layout,
+} from './sailing-customisation.constants';
+import { CustomisationTabs } from './sailing-customisation.data';
+import {
+  breakpointOf,
+  builtOption,
+  detailFont,
+  hotspotMatch,
+  listCount,
+  listed,
+  panelHeight,
+  panelWidth,
+  partCount,
+  partOption,
+  shownTab,
+  sortKey,
+  tabCountOfType,
+  tabHeight,
+  tabIndexOf,
+  tabListCount,
+  tabOptionCount,
+  trimReplaces,
+} from './sailing-customisation.helpers';
+import {
+  buildPending,
+  closePopup,
+  heldBreakpoint,
+  heldListTab,
+  heldResized,
+  measureBreakpoint,
+  panelBuilt,
+  panelResized,
+  popupBarShown,
+  popupBoxH,
+  popupBoxW,
+  popupOpen,
+  popupScrollH,
+  popupTextCell,
+  popupTitleCell,
+  selectTab,
+  toggleDetail,
+  transmitRebuild,
+} from './sailing-customisation.state';
+
+export function SailingCustomisation(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+  const level: Int = breakpointOf(stage.width, stage.height);
+  useInterval(() => measureBreakpoint(level));
+  useWatch([CustomisationSkills.SAILING, CustomisationSkills.CONSTRUCTION], () => transmitRebuild());
+  useWatch(CustomisationInventories.INV, () => transmitRebuild());
+
+  const [built] = useState(panelBuilt);
+  const [resized] = useState(panelResized);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const [pending] = useState(buildPending);
+  const [popup] = useState(popupOpen);
+  const [scroll] = useState(sailingBoatCustomisationScrollPos);
+  const pane = useRef();
+  const boat: Int = useServerState(CustomisationVarps.BOAT);
+
+  const boxW: Int = resized === 1 ? panelWidth(breakpoint) : Layout.BOX_W;
+  const boxH: Int = resized === 1 ? panelHeight(breakpoint) : Layout.BOX_H;
+  const mainW: Int = resized === 1 ? boxW - Layout.RESIZED_INSET_W : boxW;
+  const mainH: Int = resized === 1 ? boxH - Layout.RESIZED_INSET_H : boxH - Layout.MAIN_INSET_H;
+  const contentW: Int = mainW - Layout.CONTENT_INSET_W;
+  const contentH: Int = mainH - 2 * Layout.EDGE;
+  const paneW: Int = contentW - Layout.PANE_INSET_W;
+  const paneH: Int = contentH - Layout.PANE_INSET_H;
+  const drawn: Boolean = built === 1 && boat !== -1;
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const shown: Int = drawn ? shownTab(type, boat) : -1;
+  const empty: Boolean = drawn && tabListCount(type, shown, boat) <= 0;
+  const [heldTab] = useState(heldListTab);
+  const [heldRes] = useState(heldResized);
+  const [heldBp] = useState(heldBreakpoint);
+  const holding: Boolean = empty && heldTab !== -1;
+  const heldBoxW: Int = heldRes === 1 ? panelWidth(heldBp) : Layout.BOX_W;
+  const heldBoxH: Int = heldRes === 1 ? panelHeight(heldBp) : Layout.BOX_H;
+  const heldMainW: Int = heldRes === 1 ? heldBoxW - Layout.RESIZED_INSET_W : heldBoxW;
+  const heldMainH: Int = heldRes === 1 ? heldBoxH - Layout.RESIZED_INSET_H : heldBoxH - Layout.MAIN_INSET_H;
+  const heldContentH: Int = heldMainH - 2 * Layout.EDGE;
+  const heldPaneW: Int = heldMainW - Layout.CONTENT_INSET_W - Layout.PANE_INSET_W;
+  const heldPaneH: Int = heldContentH - Layout.PANE_INSET_H;
+  const heldExtent: Int = holding ? listExtent(heldTab, boat, heldPaneW, heldPaneH, heldBp) : 0;
+  const heldThumb: Int = thumbHeightOf(heldContentH - 16, heldPaneH, heldExtent > 0 ? heldExtent : heldPaneH, false);
+  const extent: Int = holding ? heldExtent : drawn && !empty ? listExtent(shown, boat, paneW, paneH, breakpoint) : 0;
+
+  return (
+    <>
+      <layer x="center" y="center" w={boxW} h={boxH}>
+        <layer w="fill" h="fill" hide={built === 0}>
+          <SteelBorder title="Boat Customisation" titleColor={CustomisationColors.ORANGE} flags={0} />
+        </layer>
+
+        <DetailToggle bound={drawn} />
+
+        <layer
+          x={resized === 1 ? 'center' : 0}
+          y={Layout.MAIN_Y}
+          w={{ fill: resized === 1 ? Layout.RESIZED_INSET_W : 0 }}
+          h={{ fill: resized === 1 ? Layout.RESIZED_INSET_H : Layout.MAIN_INSET_H }}
+        >
+          <layer
+            x={Layout.CONTENT_X}
+            y={Layout.EDGE}
+            w={{ fill: Layout.CONTENT_INSET_W }}
+            h={{ fill: 2 * Layout.EDGE }}
+          >
+            <layer w="fill" h="fill">
+              <Backdrop shown={built === 1} w={contentW} h={contentH} />
+            </layer>
+            <layer
+              ref={pane}
+              x={Layout.PANE_XY}
+              y={Layout.PANE_XY}
+              w={{ fill: Layout.PANE_INSET_W }}
+              h={{ fill: Layout.PANE_INSET_H }}
+              scrollHeight={extent}
+              scrollY={scroll}
+            >
+              <FacilityList shown={drawn} boat={boat} paneW={paneW} paneH={paneH} breakpoint={breakpoint} />
+            </layer>
+            <layer x={8} y={8} w={{ fill: 31 }} h={{ fill: 16 }}>
+              {built === 1 && (
+                <rect x="center" y="center" w="fill" h="fill" color={CustomisationColors.THINBOX_OUTER} />
+              )}
+              {built === 1 && (
+                <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={CustomisationColors.THINBOX_INNER} />
+              )}
+            </layer>
+            <layer x={{ right: 7 }} y={{ bottom: 8 }} w={16} h={{ fill: 16 }} hide={!drawn}>
+              {holding ? (
+                <HeldScrollbar content={pane} thumbHeight={heldThumb} />
+              ) : (
+                !empty && (
+                  <ScrollbarVertical
+                    content={pane}
+                    track={CustomisationSprites.SCROLL_TRACK}
+                    capTopSprite={CustomisationSprites.SCROLL_CAP_TOP}
+                    thumbSprite={CustomisationSprites.SCROLL_THUMB}
+                    capBottomSprite={CustomisationSprites.SCROLL_CAP_BOTTOM}
+                    arrowUp={CustomisationSprites.SCROLL_UP}
+                    arrowDown={CustomisationSprites.SCROLL_DOWN}
+                  />
+                )
+              )}
+            </layer>
+          </layer>
+          <layer x={Layout.EDGE} y={Layout.EDGE} w={Layout.TABS_W} h={{ fill: 2 * Layout.EDGE }}>
+            <TabList shown={drawn} boat={boat} breakpoint={breakpoint} height={contentH} />
+          </layer>
+        </layer>
+
+        <layer w="fill" h="fill" hide={pending === 0} noClickThrough>
+          <rect w="fill" h="fill" fill color={0x000000} transparency={128} />
+          <CrmLoadingIcon />
+        </layer>
+
+        <layer w="fill" h="fill" hide={popup === 0}>
+          <Popup />
+        </layer>
+      </layer>
+
+      <layer x={0} y={0} w={1} h={1} />
+    </>
+  );
+}
+
+function DetailToggle({ bound }: { bound: Boolean }): Component {
+  const brief: Int = useServerState(CustomisationVarbits.HIDE_MORE_DETAIL);
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const ticked: Boolean = bound && brief === 0;
+  return (
+    <layer
+      x={10}
+      y={5}
+      w={132}
+      h={25}
+      options={bound ? ['Toggle'] : undefined}
+      optionSubject="<col=ff981f>Detailed descriptions</col>"
+      onOptionSelect={() => toggleDetail()}
+      onMouseRepeat={() => {
+        if (bound && !mobile) {
+          setHovered(1);
+        }
+      }}
+      onMouseLeave={() => {
+        if (bound && !mobile) {
+          setHovered(0);
+        }
+      }}
+    >
+      <sprite
+        x={0}
+        y="center"
+        w={18}
+        h={18}
+        sprite={ticked ? CustomisationSprites.TOGGLE_ON : CustomisationSprites.TOGGLE_OFF}
+      />
+      <text
+        x={22}
+        y={0}
+        w="fill"
+        h="fill"
+        text="Detailed descriptions"
+        font={CustomisationFonts.SMALL}
+        valign="middle"
+        shadow
+        color={hovered === 1 ? CustomisationColors.WHITE : CustomisationColors.ORANGE}
+      />
+    </layer>
+  );
+}
+
+function Backdrop({ shown, w, h }: { shown: Boolean; w: Int; h: Int }): Component {
+  const style = CellBoxes.at(0);
+  return shown ? (
+    <>
+      <rect x={1} y={1} w={w - 2} h={h - 2} fill color={CustomisationColors.BED} />
+      {style !== null && <StructBoxFrame x={0} y={0} w={w} h={h} style={style} />}
+    </>
+  ) : null;
+}
+
+const TAB_IDS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+function publishTab(tab: Int): void {
+  const [, setTab] = useState(sailingBoatCustomisationTab);
+  setTab(tab);
+}
+
+function TabList({
+  shown,
+  boat,
+  breakpoint,
+  height,
+}: {
+  shown: Boolean;
+  boat: Int;
+  breakpoint: Int;
+  height: Int;
+}): Component {
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const tab: Int = shownTab(type, boat);
+  onMounted(() => publishTab(tab));
+  onUpdated(() => publishTab(tab));
+  const count: Int = tabCountOfType(type);
+  const positions = intArray(8);
+  let drawn: Int = 0;
+  let id: Int = 0;
+  while (id < count) {
+    positions[id] = -1;
+    if (tabOptionCount(type, id, boat) > 0) {
+      positions[id] = drawn;
+      drawn = drawn + 1;
+    }
+    id = id + 1;
+  }
+  if (drawn === 0) {
+    errorMessage(`Boat had no facility options. dbrow [${boat}]`);
+  }
+  const tabH: Int = tabHeight(breakpoint);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {TAB_IDS.map((tabId) => (
+        <TabButton
+          shown={tabId < count && positions[tabId] !== -1}
+          type={type}
+          tabId={tabId}
+          top={positions[tabId] * (tabH + 1)}
+          height={tabH}
+          active={tab === tabId}
+          containerH={height}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function TabButton({
+  shown,
+  type,
+  tabId,
+  top,
+  height,
+  active,
+  containerH,
+}: {
+  shown: Boolean;
+  type: Int;
+  tabId: Int;
+  top: Int;
+  height: Int;
+  active: Boolean;
+  containerH: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const tabIndex: Int = tabIndexOf(type, tabId);
+  const tab = tabIndex === -1 ? null : CustomisationTabs.at(tabIndex);
+  const name: String = tab === null ? '' : tab.tabName;
+  const icon: Sprite = tab === null ? -1 : tab.tabIcon;
+  let style: Int = BoxStyle.INACTIVE;
+  if (active) {
+    style = BoxStyle.ACTIVE;
+  } else if (hovered === 1) {
+    style = BoxStyle.HOVER;
+  }
+  const skin = BoxStyles.at(style);
+  const fill: Sprite = skin === null ? -1 : skin.fill;
+  const edgeTop: Sprite = skin === null ? -1 : skin.edgeTop;
+  const edgeBottom: Sprite = skin === null ? -1 : skin.edgeBottom;
+  const edgeLeft: Sprite = skin === null ? -1 : skin.edgeLeft;
+  const cornerTl: Sprite = skin === null ? -1 : skin.cornerTl;
+  const cornerBl: Sprite = skin === null ? -1 : skin.cornerBl;
+  const fillInset: Int = active ? 4 : 7;
+  const topInset: Int = top === 0 && active ? 4 : 7;
+  const bottomInset: Int = top + height === containerH && active ? 4 : 7;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <rect
+        x={1}
+        y={top + 1}
+        w={{ fill: 3 }}
+        h={height - 2}
+        fill
+        color={CustomisationColors.BED}
+        options={['View']}
+        optionSubject={`<col=ff981f>${name} options</col>`}
+        onOptionSelect={() => selectTab(tabId)}
+        onMouseEnter={() => {
+          if (!active && !mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (!active && !mobile) {
+            setHovered(0);
+          }
+        }}
+      />
+      <sprite x={4} y={top + 2} w={{ fill: fillInset }} h={height - 4} sprite={fill} tiling />
+      <sprite x={4} y={top} w={{ fill: topInset }} h={4} sprite={edgeTop} tiling />
+      <sprite x={4} y={top + height - 4} w={{ fill: bottomInset }} h={4} sprite={edgeBottom} tiling />
+      <sprite x={0} y={top + 4} w={4} h={height - 8} sprite={edgeLeft} tiling />
+      <sprite x={0} y={top} w={4} h={4} sprite={cornerTl} tiling />
+      <sprite x={0} y={top + height - 4} w={4} h={4} sprite={cornerBl} tiling />
+      <sprite x={6} y={top + height / 2 - 8} w={16} h={16} sprite={icon} />
+      <text
+        x={29}
+        y={top}
+        w={{ fill: 35 }}
+        h={height}
+        text={name}
+        font={CustomisationFonts.BODY}
+        align="left"
+        valign="middle"
+        shadow
+        color={CustomisationColors.ORANGE}
+      />
+    </layer>
+  );
+}
+
+const ROW_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+] as const;
+
+const SHADE_SLOTS = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+  61, 62, 63, 64, 65, 66, 67,
+] as const;
+
+function listOption(type: Int, tabIndex: Int, facilityType: Int, boat: Int, index: Int): Int {
+  if (type === 0) {
+    return partOption(boat, facilityType, 0, index);
+  }
+  if (type === 1) {
+    return hotspotMatch(tabIndex, boat, index);
+  }
+  return -1;
+}
+
+function headerTextH(desc: String, paneW: Int, breakpoint: Int): Int {
+  return Math.max(textLineCount(desc, paneW - 35, detailFont(breakpoint)) * 15 + 2, 16);
+}
+
+function listExtent(tab: Int, boat: Int, paneW: Int, paneH: Int, breakpoint: Int): Int {
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const brief: Int = useServerState(CustomisationVarbits.HIDE_MORE_DETAIL);
+  const tabIndex: Int = tabIndexOf(type, tab);
+  const row = tabIndex === -1 ? null : CustomisationTabs.at(tabIndex);
+  const facilityType: Int = row === null ? -1 : row.facilityType;
+  let y: Int = 0;
+  if (row !== null) {
+    if (row.tabIcon !== -1 && row.facilityDesc.length > 0) {
+      y = headerTextH(row.facilityDesc, paneW, breakpoint) + 10;
+    }
+  }
+  const count: Int = listCount(type, tabIndex, facilityType, boat);
+  let index: Int = 0;
+  while (index < count) {
+    const option: Int = listOption(type, tabIndex, facilityType, boat, index);
+    if (option !== -1 && listed(option)) {
+      y = y + rowHeight(option, breakpoint, brief, boat);
+    }
+    index = index + 1;
+  }
+  if (y > paneH) {
+    return y;
+  }
+  return 0;
+}
+
+function FacilityList({
+  shown,
+  boat,
+  paneW,
+  paneH,
+  breakpoint,
+}: {
+  shown: Boolean;
+  boat: Int;
+  paneW: Int;
+  paneH: Int;
+  breakpoint: Int;
+}): Component {
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const hotspot: Int = useServerState(CustomisationVarbits.HOTSPOT_ID);
+  const slot: Int = useServerState(CustomisationVarbits.BOAT_SLOT);
+  const brief: Int = useServerState(CustomisationVarbits.HIDE_MORE_DETAIL);
+  const tab: Int = shownTab(type, boat);
+  const tabIndex: Int = tabIndexOf(type, tab);
+  const tabRow = tabIndex === -1 ? null : CustomisationTabs.at(tabIndex);
+  const facilityType: Int = tabRow === null ? -1 : tabRow.facilityType;
+  const icon: Sprite = tabRow === null ? -1 : tabRow.tabIcon;
+  const desc: String = tabRow === null ? '' : tabRow.facilityDesc;
+  const mainH: Int = paneH - 1;
+
+  const shadeY = intArray(68);
+  const shadeH = intArray(68);
+  const shadeAlpha = intArray(68);
+  let shades: Int = 0;
+  let next: Int = 0;
+  let y: Int = 0;
+  let headerH: Int = 0;
+  let headerText: Int = 0;
+  const header: Boolean = icon !== -1 && desc.length > 0;
+  if (header) {
+    headerText = headerTextH(desc, paneW, breakpoint);
+    headerH = headerText + 10;
+    shadeY[0] = 0;
+    shadeH[0] = headerH;
+    shadeAlpha[0] = 250;
+    shadeY[1] = 0;
+    shadeH[1] = headerH + 1;
+    shadeAlpha[1] = -1;
+    shades = 2;
+    y = headerH;
+  }
+
+  const built: Int = builtOption(slot, boat, facilityType, hotspot);
+  const count: Int = listCount(type, tabIndex, facilityType, boat);
+  const order = intArray(32);
+  const rowOption = intArray(32);
+  const rowTop = intArray(32);
+  let rows: Int = 0;
+  let highlightY: Int = -1;
+  let highlightH: Int = 0;
+  if (count <= 0) {
+    errorMessage('Amount of facilities to draw was 0.');
+  } else {
+    let index: Int = 0;
+    while (index < count && index < 32) {
+      order[index] = listOption(type, tabIndex, facilityType, boat, index);
+      index = index + 1;
+    }
+    let sorted: Int = 1;
+    while (sorted < count && sorted < 32) {
+      const moving: Int = order[sorted];
+      let at: Int = sorted;
+      while (at > 0 && CS2.compare(keyOf(order[at - 1], built), keyOf(moving, built)) > 0) {
+        order[at] = order[at - 1];
+        at = at - 1;
+      }
+      order[at] = moving;
+      sorted = sorted + 1;
+    }
+    index = 0;
+    while (index < count && index < 32) {
+      const option: Int = order[index];
+      if (option !== -1 && listed(option)) {
+        const height: Int = rowHeight(option, breakpoint, brief, boat);
+        rowOption[rows] = option;
+        rowTop[rows] = y;
+        shadeY[next] = y;
+        shadeH[next] = height;
+        shadeAlpha[next] = rows % 2 === 1 ? 220 : 195;
+        next = next + 1;
+        if (built === option || trimReplaces(option, built)) {
+          highlightY = y;
+          highlightH = height + 1;
+        } else {
+          shadeY[next] = y;
+          shadeH[next] = height + 1;
+          shadeAlpha[next] = -1;
+          next = next + 1;
+        }
+        if (next > shades) {
+          shades = next;
+        }
+        y = y + height;
+        rows = rows + 1;
+      }
+      index = index + 1;
+    }
+    if (y < mainH) {
+      shadeY[next] = y;
+      shadeH[next] = mainH - y;
+      shadeAlpha[next] = rows % 2 === 1 ? 220 : 195;
+      shadeY[next + 1] = y;
+      shadeH[next + 1] = mainH - y + 1;
+      shadeAlpha[next + 1] = -1;
+      if (next + 2 > shades) {
+        shades = next + 2;
+      }
+    }
+  }
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <layer w="fill" h="fill">
+        {SHADE_SLOTS.map(
+          (s) =>
+            s < shades && (
+              <rect
+                x={0}
+                y={shadeY[s]}
+                w="fill"
+                h={shadeH[s]}
+                fill={shadeAlpha[s] !== -1}
+                color={shadeAlpha[s] === -1 ? CustomisationColors.ROW_OUTLINE : 0x000000}
+                transparency={shadeAlpha[s] === -1 ? 0 : shadeAlpha[s]}
+              />
+            ),
+        )}
+      </layer>
+      <layer x={0} y={1} w="fill" h={{ fill: 1 }}>
+        {header && <sprite x={5} y={(headerH - 16) / 2} w={16} h={16} sprite={icon} />}
+        {header && (
+          <text
+            x={{ right: 5 }}
+            y={5}
+            w={paneW - 35}
+            h={headerText}
+            text={desc}
+            font={detailFont(breakpoint)}
+            align="left"
+            valign="middle"
+            lineHeight={15}
+            shadow
+            color={CustomisationColors.WHITE}
+          />
+        )}
+        {ROW_SLOTS.map((r) => (
+          <FacilityRow
+            shown={r < rows}
+            option={rowOption[r]}
+            top={rowTop[r]}
+            built={built}
+            paneW={paneW}
+            breakpoint={breakpoint}
+            brief={brief}
+            boat={boat}
+          />
+        ))}
+      </layer>
+      <layer x={1} y={0} w={{ fill: 2 }} h="fill">
+        {highlightY !== -1 && (
+          <rect x={0} y={highlightY} w="fill" h={highlightH} color={CustomisationColors.ORANGE} transparency={70} />
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+function keyOf(option: Int, built: Int): String {
+  if (option === -1) {
+    return '';
+  }
+  return sortKey(option, built);
+}
+
+function Popup(): Component {
+  const [boxW] = useState(popupBoxW);
+  const [boxH] = useState(popupBoxH);
+  const [scrollH] = useState(popupScrollH);
+  const [bar] = useState(popupBarShown);
+  const text = useRef();
+  return (
+    <>
+      <layer w="fill" h="fill" noClickThrough options={['Close']} onOptionSelect={() => closePopup()}>
+        <rect w="fill" h="fill" fill color={0x000000} transparency={128} />
+      </layer>
+      <layer x="center" y="center" w={boxW} h={boxH}>
+        <layer w="fill" h="fill" noClickThrough>
+          <PopupTitle />
+        </layer>
+        <layer x={8} y={38} w={{ fill: 16 }} h={{ fill: 76 }}>
+          <sprite x={0} y={0} w="fill" h="fill" sprite={CustomisationSprites.BACKING_DARK} />
+          <rect x="center" y="center" w="fill" h="fill" color={CustomisationColors.THINBOX_OUTER} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={CustomisationColors.THINBOX_INNER} />
+        </layer>
+        <layer ref={text} x={8} y={40} w={{ fill: 16 }} h={{ fill: 80 }} scrollHeight={scrollH} scrollY={0}>
+          <PopupText />
+        </layer>
+        <layer x={{ right: 10 }} y={40} w={16} h={{ fill: 80 }} hide={bar === 0}>
+          <ScrollbarVertical
+            content={text}
+            track={CustomisationSprites.SCROLL_TRACK}
+            capTopSprite={CustomisationSprites.SCROLL_CAP_TOP}
+            thumbSprite={CustomisationSprites.SCROLL_THUMB}
+            capBottomSprite={CustomisationSprites.SCROLL_CAP_BOTTOM}
+            arrowUp={CustomisationSprites.SCROLL_UP}
+            arrowDown={CustomisationSprites.SCROLL_DOWN}
+          />
+        </layer>
+        <layer x="center" y={{ bottom: 8 }} w={98} h={26} options={['Close']} onOptionSelect={() => closePopup()}>
+          <CloseButton />
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+function PopupTitle(): Component {
+  const [title] = useState(popupTitleCell);
+  return <SteelBorder title={title} titleColor={CustomisationColors.ORANGE} flags={1} />;
+}
+
+function PopupText(): Component {
+  const [message] = useState(popupTextCell);
+  return (
+    <text
+      x={10}
+      y={10}
+      w={{ fill: 20 }}
+      h={{ fill: 20 }}
+      text={message}
+      font={CustomisationFonts.BODY}
+      align="left"
+      valign="top"
+      lineHeight={16}
+      shadow
+      color={CustomisationColors.WHITE}
+    />
+  );
+}
+
+function CloseButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const r: Int = 98 - 9;
+  const b: Int = 26 - 9;
+  const pressed: Boolean = hovered === 1;
+  return (
+    <>
+      <sprite
+        x={0}
+        y={0}
+        w={98}
+        h={26}
+        sprite={pressed ? CustomisationSprites.BACKING_DARK : CustomisationSprites.BACKING}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={0}
+        w={9}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_0 : CustomisationSprites.RAISED_0}
+        tiling
+      />
+      <sprite
+        x={r}
+        y={0}
+        w={9}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_1 : CustomisationSprites.RAISED_1}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={b}
+        w={9}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_2 : CustomisationSprites.RAISED_2}
+        tiling
+      />
+      <sprite
+        x={r}
+        y={b}
+        w={9}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_3 : CustomisationSprites.RAISED_3}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={9}
+        w={9}
+        h={26 - 18}
+        sprite={pressed ? CustomisationSprites.PRESSED_4 : CustomisationSprites.RAISED_4}
+        tiling
+      />
+      <sprite
+        x={9}
+        y={0}
+        w={98 - 18}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_5 : CustomisationSprites.RAISED_5}
+        tiling
+      />
+      <sprite
+        x={r}
+        y={9}
+        w={9}
+        h={26 - 18}
+        sprite={pressed ? CustomisationSprites.PRESSED_6 : CustomisationSprites.RAISED_6}
+        tiling
+      />
+      <sprite
+        x={9}
+        y={b}
+        w={98 - 18}
+        h={9}
+        sprite={pressed ? CustomisationSprites.PRESSED_7 : CustomisationSprites.RAISED_7}
+        tiling
+      />
+      <text
+        x={3}
+        y={3}
+        w={98 - 6}
+        h={26 - 6}
+        text="<col=ff981f>Close"
+        font={CustomisationFonts.BODY}
+        shadow
+        color={hovered === 1 && !mobile ? CustomisationColors.CLOSE_HOVER : CustomisationColors.WHITE}
+        align="center"
+        valign="middle"
+        lineHeight={20}
+        onMouseEnter={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
+      />
+    </>
+  );
+}
+
+function HeldScrollbar({ content, thumbHeight }: { content: Ref; thumbHeight: Int }): Component {
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+  content.onScrollWheel = (event) => {
+    content.scrollY = content.scrollY + event.mouseY * WHEEL;
+    trackScroll(gutter, thumb, capTop, capBottom, content);
+  };
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={CustomisationSprites.SCROLL_TRACK}
+        noClickThrough
+        onScrollWheel={(event) => {
+          content.scrollY = content.scrollY + event.mouseY * WHEEL;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = content.scrollHeight - content.height;
+          content.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={ARROW}
+        w="fill"
+        h={thumbHeight}
+        sprite={CustomisationSprites.SCROLL_THUMB}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = content.scrollHeight - content.height;
+          content.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={CustomisationSprites.SCROLL_CAP_TOP} />
+      <sprite
+        ref={capBottom}
+        y={thumb.y + thumb.height - CAP}
+        w="fill"
+        h={CAP}
+        sprite={CustomisationSprites.SCROLL_CAP_BOTTOM}
+      />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={CustomisationSprites.SCROLL_UP}
+        noClickThrough
+        onHold={() => {
+          content.scrollY = content.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={CustomisationSprites.SCROLL_DOWN}
+        noClickThrough
+        onHold={() => {
+          content.scrollY = content.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, content);
+        }}
+      />
+    </layer>
+  );
+}

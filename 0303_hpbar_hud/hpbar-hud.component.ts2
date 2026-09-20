@@ -1,241 +1,269 @@
-import { useInterval } from 'ts2';
+import { onMounted, onUpdated, useInterval, useOnResize, useServerState, useState, useUniverse, useWatch } from 'ts2';
 
-import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { hpbarFadeStatus } from '../lib/game/varcs';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
 import {
+  FadeStatus,
   HpBarColor,
   HpBarDodge,
   HpBarFont,
   HpBarSprite,
   Layout,
-  REST_TRANSPARENCY,
+  Panel,
   contentSideRef,
-  creatureNameRef,
   dodgerRef,
   dodgerSideRef,
-  healthBarBackRef,
-  healthBarRemainingRef,
-  healthBarSlidingRef,
-  hpBarMark1Ref,
-  hpBarMark2Ref,
-  hpBarRef,
-  hpBarTextRef,
   hpRef,
-  innerBorderRef,
-  lowerThresholdRef,
-  nameAreaRef,
-  nameBackingRef,
-  outerBorderRef,
   universeRef,
-  upperThresholdRef,
 } from './hpbar-hud.constants';
-import { hpDodgerRelayout, hpHudPos, hpHudUpdate } from './hpbar-hud.helpers';
+import {
+  fadeStep,
+  filledPx,
+  fitCaption,
+  healthLabel,
+  hpDodgerInit,
+  hpDodgerRelayout,
+  markShown,
+  markX,
+  npcCaption,
+  plateCentred,
+  plateHasName,
+  plateWidth,
+  updateBars,
+  walkBars,
+} from './hpbar-hud.helpers';
+import {
+  hpbarBarWidth,
+  hpbarCaption,
+  hpbarFadeLevel,
+  hpbarOpen,
+  hpbarPlateHeight,
+  hpbarPlateShown,
+  hpbarRemainingPx,
+  hpbarSlidingPx,
+  hpbarSnap,
+} from './hpbar-hud.state';
 
 export function HpBarHud(): Component {
-  useInterval(
-    () =>
-      hpHudPos(
-        universeRef,
-        hpRef,
-        nameAreaRef,
-        creatureNameRef,
-        hpBarTextRef,
-        healthBarBackRef,
-        healthBarSlidingRef,
-        healthBarRemainingRef,
-        lowerThresholdRef,
-        upperThresholdRef,
-        hpBarMark1Ref,
-        hpBarMark2Ref,
-        dodgerRef,
-        contentSideRef,
-      ),
-    universeRef,
-  );
-  useInterval(
-    () => overlayRelayout(dodgerSideRef, contentSideRef, HpBarDodge.SIDE, Anchor.LEFT, Anchor.TOP, 1),
-    dodgerSideRef,
-  );
   useInterval(() => hpDodgerRelayout(dodgerRef, hpRef), dodgerRef);
-  useInterval(
-    () =>
-      hpHudUpdate(
-        hpRef,
-        hpBarTextRef,
-        healthBarBackRef,
-        healthBarSlidingRef,
-        healthBarRemainingRef,
-        nameAreaRef,
-        creatureNameRef,
-        lowerThresholdRef,
-        upperThresholdRef,
-        hpBarMark1Ref,
-        hpBarMark2Ref,
-        0,
-      ),
-    hpBarTextRef,
-  );
 
   return (
     <layer ref={universeRef} x="center" y="center" w="fill" h="fill">
+      <HpLayout />
+
       <layer x="center" y="center" w="fill" h="fill" />
 
-      <layer ref={dodgerSideRef} x="center" y="center" w="fill" h="fill">
+      <layer
+        ref={dodgerSideRef}
+        onLoad={() => overlayInit(dodgerSideRef, contentSideRef, HpBarDodge.SIDE, Anchor.LEFT, Anchor.TOP, 1)}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+      >
         <layer ref={contentSideRef} x={0} y={0} w={Layout.SIDE_W} h={Layout.SIDE_H} />
       </layer>
 
       <layer ref={dodgerRef} x="center" y="center" w="fill" h="fill">
-        <layer ref={hpRef} x="center" y={Layout.PLATE_Y} w={Layout.PLATE_W} h={Layout.PLATE_H} hide>
-          <rect
-            ref={outerBorderRef}
-            x="center"
-            y={Layout.BORDER_Y}
-            w={{ fill: Layout.BORDER_INSET }}
-            h={{ fill: Layout.BORDER_INSET }}
-            color={HpBarColor.OUTLINE}
-            transparency={REST_TRANSPARENCY}
-          />
-
-          <sprite
-            ref={nameBackingRef}
-            x="center"
-            y="center"
-            w={{ fill: Layout.BACKING_INSET }}
-            h={{ fill: Layout.BACKING_INSET }}
-            sprite={HpBarSprite.BACKING}
-            tiling
-            transparency={REST_TRANSPARENCY}
-          />
-
-          <layer ref={nameAreaRef} x="center" y={0} w="fill" h={Layout.NAME_H}>
-            <text
-              ref={creatureNameRef}
-              x="center"
-              y={{ center: Layout.NAME_Y }}
-              w={{ fill: Layout.NAME_INSET }}
-              h="fill"
-              font={HpBarFont.LABEL}
-              text="-"
-              align="center"
-              valign="middle"
-              shadow
-              color={HpBarColor.NAME}
-            />
-          </layer>
-
-          <layer
-            ref={hpBarRef}
-            x="center"
-            y={{ bottom: Layout.BAR_BOTTOM }}
-            w={{ fill: Layout.BAR_INSET }}
-            h={Layout.BAR_H}
-          >
-            <rect
-              ref={innerBorderRef}
-              x="center"
-              y="center"
-              w={{ fill: Layout.BORDER_INSET }}
-              h={{ fill: Layout.BORDER_INSET }}
-              color={HpBarColor.OUTLINE}
-              transparency={REST_TRANSPARENCY}
-            />
-
-            <layer x="center" y="center" w={{ fill: Layout.FILL_INSET }} h={{ fill: Layout.FILL_INSET }}>
-              <rect
-                ref={healthBarBackRef}
-                x="center"
-                y="center"
-                w="fill"
-                h="fill"
-                color={HpBarColor.EMPTY}
-                fill
-                transparency={REST_TRANSPARENCY}
-              />
-
-              <rect
-                ref={healthBarSlidingRef}
-                x={0}
-                y="center"
-                w="fill"
-                h="fill"
-                color={HpBarColor.SLIDE}
-                fill
-                transparency={REST_TRANSPARENCY}
-              />
-
-              <rect
-                ref={healthBarRemainingRef}
-                x={0}
-                y="center"
-                w="fill"
-                h="fill"
-                color={HpBarColor.REMAINING}
-                fill
-                transparency={REST_TRANSPARENCY}
-              />
-            </layer>
-
-            <rect
-              ref={hpBarMark1Ref}
-              x={Layout.MARK_X}
-              y="center"
-              w={Layout.MARK_W}
-              h={{ fill: Layout.MARK_INSET }}
-              color={HpBarColor.OUTLINE}
-              fill
-              hide
-              transparency={REST_TRANSPARENCY}
-            />
-
-            <rect
-              ref={hpBarMark2Ref}
-              x={Layout.MARK_X}
-              y="center"
-              w={Layout.MARK_W}
-              h={{ fill: Layout.MARK_INSET }}
-              color={HpBarColor.OUTLINE}
-              fill
-              hide
-              transparency={REST_TRANSPARENCY}
-            />
-
-            <sprite
-              ref={lowerThresholdRef}
-              x={0}
-              y="center"
-              w={Layout.PIP_W}
-              h={{ fill: Layout.PIP_INSET }}
-              sprite={HpBarSprite.BRACKET_LOWER}
-              hide
-              transparency={REST_TRANSPARENCY}
-            />
-
-            <sprite
-              ref={upperThresholdRef}
-              x="right"
-              y="center"
-              w={Layout.PIP_W}
-              h={{ fill: Layout.PIP_INSET }}
-              sprite={HpBarSprite.BRACKET_UPPER}
-              hide
-              transparency={REST_TRANSPARENCY}
-            />
-
-            <text
-              ref={hpBarTextRef}
-              x="center"
-              y={{ center: Layout.TEXT_Y }}
-              w="fill"
-              h="fill"
-              font={HpBarFont.LABEL}
-              text="- / -"
-              align="center"
-              valign="middle"
-              shadow
-              color={HpBarColor.LABEL}
-            />
-          </layer>
+        <layer static ref={hpRef} x="center" y={Layout.PLATE_Y} w={Layout.PLATE_W} h={Layout.PLATE_H} hide>
+          <HpPlate />
         </layer>
       </layer>
     </layer>
+  );
+}
+
+function HpLayout(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+
+  const [open] = useState(hpbarOpen);
+  let hidden: Boolean = true;
+  if (open === 1) {
+    hidden = false;
+  }
+  const width: Int = plateWidth(stage.width);
+  const centred: Boolean = plateCentred();
+  let height: Int = Panel.WITH_NAME;
+  if (!plateHasName(npcCaption(useServerState(Varps.HPBAR_HUD_NPC)))) {
+    height = Panel.WITHOUT_NAME;
+  }
+
+  onMounted(() => placePlate(hidden, centred, width, height));
+  onUpdated(() => placePlate(hidden, centred, width, height));
+
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placePlate(hidden: Boolean, centred: Boolean, width: Int, height: Int): void {
+  hpRef.props = { hide: hidden, x: centred ? 'center' : 0, y: 0, w: width, h: height };
+  const [, setShown] = useState(hpbarPlateShown);
+  const [, setHeight] = useState(hpbarPlateHeight);
+  setShown(hidden ? 0 : 1);
+  setHeight(height);
+  hpDodgerInit(dodgerRef, hpRef);
+}
+
+function HpPlate(): Component {
+  const plate = useUniverse();
+  useOnResize(plate);
+  const barWidth: Int = plate.width - Layout.BAR_INSET - Layout.FILL_INSET;
+
+  const npcId: Int = useServerState(Varps.HPBAR_HUD_NPC);
+  const health: Int = useServerState(Varbits.HPBAR_HUD_HP);
+  const base: Int = Math.max(useServerState(Varbits.HPBAR_HUD_BASEHP), 1);
+  const lowerAt: Int = useServerState(Varbits.HPBAR_HUD_LOWER_THRESHOLD);
+  const upperAt: Int = useServerState(Varbits.HPBAR_HUD_UPPER_THRESHOLD);
+  const markOne: Int = useServerState(Varbits.HPBAR_HUD_HP_1);
+  const markTwo: Int = useServerState(Varbits.HPBAR_HUD_HP_2);
+
+  const [fade] = useState(hpbarFadeLevel);
+  const [remaining] = useState(hpbarRemainingPx);
+  const [sliding] = useState(hpbarSlidingPx);
+  const [snap] = useState(hpbarSnap);
+  const [measured] = useState(hpbarBarWidth);
+  const [lastCaption] = useState(hpbarCaption);
+
+  let caption: String = lastCaption;
+  if (npcId !== -1) {
+    caption = npcCaption(npcId);
+  }
+  const hasName: Boolean = plateHasName(caption);
+  const label: String = healthLabel(npcId, health, base);
+
+  const target: Int = filledPx(health, base, barWidth);
+  let remainingW: Int = remaining;
+  let slidingW: Int = sliding;
+  if (snap === 1 || measured !== barWidth || remaining === 0) {
+    remainingW = target;
+    slidingW = target;
+  }
+
+  useWatch([Varps.HPBAR_HUD_INFO, Varps.HPBAR_HUD_NPC], () => updateBars(barWidth));
+  useInterval(() => {
+    const [direction] = useState(hpbarFadeStatus);
+    if (direction === FadeStatus.IN) {
+      const [, setSnap] = useState(hpbarSnap);
+      setSnap(1);
+    }
+    fadeStep();
+    walkBars();
+    updateBars(barWidth);
+  });
+
+  return (
+    <>
+      <rect
+        x="center"
+        y={Layout.BORDER_Y}
+        w={{ fill: Layout.BORDER_INSET }}
+        h={{ fill: Layout.BORDER_INSET }}
+        color={HpBarColor.OUTLINE}
+        transparency={fade}
+      />
+
+      <sprite
+        x="center"
+        y="center"
+        w={{ fill: Layout.BACKING_INSET }}
+        h={{ fill: Layout.BACKING_INSET }}
+        sprite={HpBarSprite.BACKING}
+        tiling
+        transparency={fade}
+      />
+
+      <layer x="center" y={0} w="fill" h={Layout.NAME_H} hide={!hasName}>
+        <text
+          x="center"
+          y={{ center: Layout.NAME_Y }}
+          w={{ fill: Layout.NAME_INSET }}
+          h="fill"
+          font={HpBarFont.LABEL}
+          text={fitCaption(caption, barWidth - 4)}
+          align="center"
+          valign="middle"
+          shadow
+          color={HpBarColor.NAME}
+          transparency={fade}
+        />
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.BAR_BOTTOM }} w={{ fill: Layout.BAR_INSET }} h={Layout.BAR_H}>
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: Layout.BORDER_INSET }}
+          h={{ fill: Layout.BORDER_INSET }}
+          color={HpBarColor.OUTLINE}
+          transparency={fade}
+        />
+
+        <layer x="center" y="center" w={{ fill: Layout.FILL_INSET }} h={{ fill: Layout.FILL_INSET }}>
+          <rect x="center" y="center" w="fill" h="fill" color={HpBarColor.EMPTY} fill transparency={fade} />
+
+          <rect x={0} y="center" w={slidingW} h="fill" color={HpBarColor.SLIDE} fill transparency={fade} />
+
+          <rect x={0} y="center" w={remainingW} h="fill" color={HpBarColor.REMAINING} fill transparency={fade} />
+        </layer>
+
+        <rect
+          x={markX(markOne, base, barWidth)}
+          y="center"
+          w={Layout.MARK_W}
+          h={{ fill: Layout.MARK_INSET }}
+          color={HpBarColor.OUTLINE}
+          fill
+          transparency={fade}
+          hide={!markShown(markOne, base)}
+        />
+
+        <rect
+          x={markX(markTwo, base, barWidth)}
+          y="center"
+          w={Layout.MARK_W}
+          h={{ fill: Layout.MARK_INSET }}
+          color={HpBarColor.OUTLINE}
+          fill
+          transparency={fade}
+          hide={!markShown(markTwo, base)}
+        />
+
+        <sprite
+          x={markX(lowerAt, base, barWidth)}
+          y="center"
+          w={Layout.PIP_W}
+          h={{ fill: Layout.PIP_INSET }}
+          sprite={HpBarSprite.BRACKET_LOWER}
+          transparency={fade}
+          hide={!markShown(lowerAt, base)}
+        />
+
+        <sprite
+          x={{ right: barWidth - markX(upperAt, base, barWidth) }}
+          y="center"
+          w={Layout.PIP_W}
+          h={{ fill: Layout.PIP_INSET }}
+          sprite={HpBarSprite.BRACKET_UPPER}
+          transparency={fade}
+          hide={!markShown(upperAt, base)}
+        />
+
+        <text
+          x="center"
+          y={{ center: Layout.TEXT_Y }}
+          w="fill"
+          h="fill"
+          font={HpBarFont.LABEL}
+          text={label}
+          align="center"
+          valign="middle"
+          shadow
+          color={HpBarColor.LABEL}
+          transparency={fade}
+        />
+      </layer>
+    </>
   );
 }

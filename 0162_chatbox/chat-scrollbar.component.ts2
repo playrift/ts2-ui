@@ -1,0 +1,135 @@
+import { useOnResize, useRef, useState, useUniverse } from 'ts2';
+
+import { CS2 } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { OpaqueBar, TransparentBar, TransparentBarAlpha, line0Ref } from './chatbox.constants';
+import {
+  SCROLLBAR_SEE_THROUGH,
+  SCROLLBAR_SEE_THROUGH_MOBILE,
+  chatPaneExtent,
+  chatScrollbarStyle,
+} from './chatbox.state';
+
+export function ChatScrollbar(): Component {
+  const bar = useUniverse();
+  useOnResize(bar);
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const [style] = useState(chatScrollbarStyle);
+  let pieceAlpha: Int = 0;
+  let arrowAlpha: Int = 0;
+  let seeThrough: Boolean = false;
+  if (style === SCROLLBAR_SEE_THROUGH) {
+    seeThrough = true;
+    pieceAlpha = TransparentBarAlpha.PIECES;
+    arrowAlpha = TransparentBarAlpha.ARROWS;
+  } else if (style === SCROLLBAR_SEE_THROUGH_MOBILE) {
+    seeThrough = true;
+    pieceAlpha = TransparentBarAlpha.PIECES_MOBILE;
+    arrowAlpha = TransparentBarAlpha.ARROWS_MOBILE;
+  }
+  const trackSprite: Sprite = seeThrough ? TransparentBar.TRACK : OpaqueBar.TRACK;
+  const thumbSprite: Sprite = seeThrough ? TransparentBar.THUMB : OpaqueBar.THUMB;
+  const capTopSprite: Sprite = seeThrough ? TransparentBar.CAP_TOP : OpaqueBar.CAP_TOP;
+  const capBottomSprite: Sprite = seeThrough ? TransparentBar.CAP_BOTTOM : OpaqueBar.CAP_BOTTOM;
+  const upSprite: Sprite = seeThrough ? TransparentBar.ARROW_UP : OpaqueBar.ARROW_UP;
+  const downSprite: Sprite = seeThrough ? TransparentBar.ARROW_DOWN : OpaqueBar.ARROW_DOWN;
+
+  const [publishedExtent] = useState(chatPaneExtent);
+  const scrollExtent: Int = publishedExtent > 0 ? publishedExtent : line0Ref.scrollHeight;
+  const extent: Int = scrollExtent > 0 ? scrollExtent : line0Ref.height;
+
+  line0Ref.onScrollWheel = (event) => {
+    line0Ref.scrollY = line0Ref.scrollY + event.mouseY * WHEEL;
+    trackScroll(gutter, thumb, capTop, capBottom, line0Ref);
+  };
+
+  return (
+    <>
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={trackSprite}
+        transparency={pieceAlpha}
+        noClickThrough
+        onScrollWheel={(event) => {
+          line0Ref.scrollY = line0Ref.scrollY + event.mouseY * WHEEL;
+          trackScroll(gutter, thumb, capTop, capBottom, line0Ref);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = line0Ref.scrollHeight - line0Ref.height;
+          line0Ref.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, line0Ref);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, line0Ref.height, extent, false)) * line0Ref.scrollY) /
+            Math.max(1, line0Ref.scrollHeight - line0Ref.height)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, line0Ref.height, extent, false)}
+        sprite={thumbSprite}
+        transparency={pieceAlpha}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = line0Ref.scrollHeight - line0Ref.height;
+          line0Ref.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={capTopSprite} transparency={pieceAlpha} />
+      <sprite
+        ref={capBottom}
+        y={thumb.y + thumb.height - CAP}
+        w="fill"
+        h={CAP}
+        sprite={capBottomSprite}
+        transparency={pieceAlpha}
+      />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={upSprite}
+        transparency={arrowAlpha}
+        noClickThrough
+        onHold={() => {
+          line0Ref.scrollY = line0Ref.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, line0Ref);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={downSprite}
+        transparency={arrowAlpha}
+        noClickThrough
+        onHold={() => {
+          line0Ref.scrollY = line0Ref.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, line0Ref);
+        }}
+      />
+    </>
+  );
+}

@@ -1,0 +1,126 @@
+import { intArray, useRef } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Cell, Ink, Panel, SlayerBar, SlayerFonts } from './slayer-rewards.constants';
+import { SlayerUnlockRow, SlayerUnlocks, UnlockList as UnlockSlice } from './slayer-rewards.data';
+import {
+  unlockCaption,
+  unlockCellHeight,
+  unlockCellTop,
+  unlockExtent,
+  unlockOption,
+  unlockRadio,
+} from './slayer-rewards.helpers';
+
+export function UnlockList({ from, count, inset }: { from: Int; count: Int; inset: Int }): Component {
+  const contents = useRef();
+  const extent: Int = unlockExtent(from, count);
+  const cells = intArray(UnlockSlice.MAX_COUNT);
+
+  return (
+    <>
+      <layer
+        ref={contents}
+        x={0}
+        y="center"
+        w={{ fill: Panel.BAR_W }}
+        h={{ fill: inset }}
+        scrollHeight={extent > Panel.CONTENTS_H - inset ? extent : 0}
+      >
+        {cells.map((_, index) => index < count && <UnlockCell from={from} index={index} count={count} />)}
+      </layer>
+
+      <layer x="right" y="center" w={Panel.BAR_W} h={{ fill: inset }}>
+        <ScrollbarVertical
+          content={contents}
+          track={SlayerBar.TRACK}
+          capTopSprite={SlayerBar.CAP_TOP}
+          thumbSprite={SlayerBar.THUMB}
+          capBottomSprite={SlayerBar.CAP_BOTTOM}
+          arrowUp={SlayerBar.ARROW_UP}
+          arrowDown={SlayerBar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function UnlockCell({ from, index, count }: { from: Int; index: Int; count: Int }): Component {
+  const row: SlayerUnlockRow | null = SlayerUnlocks.at(from + index);
+  const name: String = row === null ? '' : row.name;
+  const icon: Item = row === null ? -1 : row.icon;
+  const bit: Int = row === null ? -1 : row.bit;
+
+  const x: Int = index % 2 === 1 ? Cell.RIGHT_X : 0;
+  const y: Int = unlockCellTop(from, index, count);
+  const height: Int = unlockCellHeight(from, index, count);
+  const textHeight: Int = height - Cell.HEAD_PAD - Cell.HEAD_H;
+  const option: String = unlockOption(from + index);
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        w={Cell.W}
+        h={height}
+        color={Ink.WHITE}
+        fill
+        transparency={Cell.PLATE_REST}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        options={[option]}
+        onMouseEnter={(event) => {
+          event.self.transparency = Cell.PLATE_HOVER;
+        }}
+        onMouseLeave={(event) => {
+          event.self.transparency = Cell.PLATE_REST;
+        }}
+      />
+      <rect x={x} y={y} w={Cell.W} h={height} color={Ink.BORDER_OUTER} />
+      <rect x={x + 1} y={y + 1} w={Cell.W - 2} h={height - 2} color={Ink.BORDER_INNER} />
+      <sprite
+        x={x + Cell.ICON_X}
+        y={y + Cell.ICON_Y}
+        w={Cell.ICON_W}
+        h={Cell.ICON_H}
+        item={icon}
+        itemCount={Cell.ICON_COUNT}
+        itemCountMode="never"
+        outline={Cell.ICON_OUTLINE}
+        shadowColor={Cell.ICON_SHADOW}
+      />
+      <sprite
+        x={x + Cell.RADIO_X}
+        y={y + Cell.RADIO_Y}
+        w={Cell.RADIO_W}
+        h={Cell.RADIO_H}
+        sprite={unlockRadio(bit)}
+        tiling
+      />
+      <text
+        x={x + Cell.NAME_X}
+        y={y + Cell.NAME_Y}
+        w={Cell.W - Cell.NAME_W_INSET}
+        h={Cell.NAME_H}
+        text={name}
+        font={SlayerFonts.NAME}
+        color={Ink.AMBER}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={x + Cell.TEXT_X}
+        y={y + Cell.TEXT_Y}
+        w={Cell.TEXT_W}
+        h={textHeight}
+        text={unlockCaption(from + index)}
+        font={SlayerFonts.SMALL}
+        color={Ink.AMBER}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}

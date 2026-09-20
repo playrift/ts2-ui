@@ -1,0 +1,187 @@
+import { CS2, predictServerState, sessionState, useServerState, useState } from 'ts2';
+
+import {
+  responsiveCurrentBreakpoint,
+  sailingBoatCustomisationLastHotspotId,
+  sailingBoatCustomisationLastType,
+  sailingBoatCustomisationScrollPos,
+  sailingBoatCustomisationTab,
+} from '../lib/game/varcs';
+import { chatMessage, playSound, textLineCount } from '../lib/lib.engine';
+import { tooltipHide } from '../lib/tooltip.component';
+import {
+  CustomisationFonts,
+  CustomisationSounds,
+  CustomisationVarbits,
+  CustomisationVarps,
+} from './sailing-customisation.constants';
+import { shownTab, tabListCount } from './sailing-customisation.helpers';
+import { INTRO_CARGO_HOLD } from './sailing-customisation.data';
+
+export const panelBuilt = sessionState(0);
+export const popupOpen = sessionState(0);
+export const popupTitleCell = sessionState('');
+export const popupTextCell = sessionState('');
+export const popupBoxW = sessionState(267);
+export const popupBoxH = sessionState(126);
+export const popupScrollH = sessionState(0);
+export const popupBarShown = sessionState(0);
+export const buildPending = sessionState(0);
+export const lastBreakpoint = sessionState(-1);
+export const panelResized = sessionState(0);
+export const heldListTab = sessionState(-1);
+export const heldResized = sessionState(0);
+export const heldBreakpoint = sessionState(0);
+
+export function sailingCustomisationOpen(): void {
+  const [lastType, setLastType] = useState(sailingBoatCustomisationLastType);
+  const [lastHotspot, setLastHotspot] = useState(sailingBoatCustomisationLastHotspotId);
+  const [, setTab] = useState(sailingBoatCustomisationTab);
+  const [, setScroll] = useState(sailingBoatCustomisationScrollPos);
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const hotspot: Int = useServerState(CustomisationVarbits.HOTSPOT_ID);
+  if (lastType !== type || lastHotspot !== hotspot) {
+    setTab(0);
+    setScroll(0);
+    setLastType(type);
+    setLastHotspot(hotspot);
+  }
+  const [, setBoxW] = useState(popupBoxW);
+  const [, setBoxH] = useState(popupBoxH);
+  const [, setScrollH] = useState(popupScrollH);
+  const [, setBar] = useState(popupBarShown);
+  const [, setLast] = useState(lastBreakpoint);
+  const [, setResized] = useState(panelResized);
+  setBoxW(267);
+  setBoxH(126);
+  setScrollH(0);
+  setBar(0);
+  setLast(-1);
+  setResized(0);
+  hideOverlays();
+  const [, setHeld] = useState(heldListTab);
+  setHeld(-1);
+  const [, setBuilt] = useState(panelBuilt);
+  setBuilt(1);
+}
+
+export function transmitRebuild(): void {
+  const [, setResized] = useState(panelResized);
+  setResized(1);
+  hideOverlays();
+}
+
+export function hideOverlays(): void {
+  const [, setPopup] = useState(popupOpen);
+  const [, setPending] = useState(buildPending);
+  setPopup(0);
+  setPending(0);
+}
+
+export function measureBreakpoint(level: Int): void {
+  const [last, setLast] = useState(lastBreakpoint);
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const [, setResized] = useState(panelResized);
+  setBreakpoint(level);
+  if (last !== level) {
+    setLast(level);
+    setResized(1);
+    hideOverlays();
+  }
+}
+
+export function selectTab(tab: Int): void {
+  const [, setTab] = useState(sailingBoatCustomisationTab);
+  const [, setScroll] = useState(sailingBoatCustomisationScrollPos);
+  const [held, setHeld] = useState(heldListTab);
+  const [, setHeldResized] = useState(heldResized);
+  const [, setHeldBreakpoint] = useState(heldBreakpoint);
+  const [resized] = useState(panelResized);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const type: Int = useServerState(CustomisationVarbits.TYPE);
+  const boat: Int = useServerState(CustomisationVarps.BOAT);
+  const left: Int = shownTab(type, boat);
+  if (tabListCount(type, tab, boat) > 0) {
+    setHeld(-1);
+  } else if (held === -1 && tabListCount(type, left, boat) > 0) {
+    setHeld(left);
+    setHeldResized(resized);
+    setHeldBreakpoint(breakpoint);
+  }
+  playSound(CustomisationSounds.SELECT);
+  setTab(tab);
+  setScroll(0);
+  hideOverlays();
+}
+
+export function toggleDetail(): void {
+  playSound(CustomisationSounds.SELECT);
+  predictServerState(CustomisationVarbits.HIDE_MORE_DETAIL, 1 - useServerState(CustomisationVarbits.HIDE_MORE_DETAIL));
+  hideOverlays();
+}
+
+export function openPopup(title: String, text: String): void {
+  const [boxW, setBoxW] = useState(popupBoxW);
+  const [boxH, setBoxH] = useState(popupBoxH);
+  const [, setScrollH] = useState(popupScrollH);
+  const [, setBar] = useState(popupBarShown);
+  const [, setTitle] = useState(popupTitleCell);
+  const [, setText] = useState(popupTextCell);
+  const [, setOpen] = useState(popupOpen);
+  tooltipHide();
+  const textH: Int = textLineCount(text, boxW - 16, CustomisationFonts.BODY) * 16;
+  let boxInner: Int = 130;
+  if (textH > 50) {
+    boxInner = Math.min(265, 130 + Math.min(150, textH - 50));
+  }
+  setBar(0);
+  if (textH >= boxH - 80) {
+    setScrollH(textH + 16);
+    setBar(1);
+  }
+  setBoxW(290);
+  setBoxH(boxInner + 20);
+  setTitle(title);
+  setText(text);
+  setOpen(1);
+}
+
+export function closePopup(): void {
+  const [, setOpen] = useState(popupOpen);
+  setOpen(0);
+  playSound(CustomisationSounds.SELECT);
+}
+
+export function refuseBuild(title: String, text: String): void {
+  playSound(CustomisationSounds.REFUSE);
+  openPopup(title, text);
+}
+
+export function checkMaterials(name: String, list: String, chat: String, option: Int): void {
+  const intro: Boolean = useServerState(CustomisationVarbits.SAILING_INTRO) === 28 && option === INTRO_CARGO_HOLD;
+  if (useServerState(CustomisationVarbits.MATERIAL_MESSAGES) === 1) {
+    if (intro) {
+      chatMessage(`Jim will provide the materials needed to build a ${CS2.lowercase(name)}.`);
+    } else {
+      chatMessage(`${name} materials: ${chat}</col>.`);
+    }
+  }
+  playSound(CustomisationSounds.SELECT);
+  if (intro) {
+    openPopup(name, `Jim will provide the materials needed to build a ${CS2.lowercase(name)}.`);
+  } else {
+    openPopup(name, `Materials needed: <br><br>${list}`);
+  }
+}
+
+export function startBuild(): void {
+  const [, setPending] = useState(buildPending);
+  const [, setScroll] = useState(sailingBoatCustomisationScrollPos);
+  playSound(CustomisationSounds.SELECT);
+  setPending(1);
+  setScroll(0);
+}
+
+export function tooltipMessage(text: String): void {
+  chatMessage(`${text}.`);
+}

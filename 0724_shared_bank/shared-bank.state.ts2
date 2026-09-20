@@ -1,0 +1,121 @@
+import { predictServerState, stopTimer, useServerState, useState } from 'ts2';
+
+import { meslayerinput, meslayermode } from '../lib/game/varcs';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { closeInterface, graphicSwapper, onMobile, opsound } from '../lib/lib.helpers';
+import { Sounds } from '../lib/lib.constants';
+import { Sprites } from '../lib/game/sprites';
+import { bankmainSearching } from '../0012_bankmain/bankmain.helpers';
+import { closeOnEscape } from '../0877_wgs_rune_door/close-on-escape';
+import { meslayerClose } from '../0162_chatbox/meslayer';
+import { BankVarbits, DEPOSIT_FLASH_CYCLES, ESCAPE_KEY, Layout } from './shared-bank.constants';
+import { closeRef } from './shared-bank.refs';
+import { meslayerMode11 } from './meslayer-mode11';
+
+export function depositFlash(target: ComponentId, lit: Sprite, rest: Sprite, option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  target.sprite = lit;
+  playSound(Sounds.CLICK);
+  const restoreAt: Int = clientClock() + DEPOSIT_FLASH_CYCLES;
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.sprite = rest;
+    stopTimer(target);
+  };
+}
+
+export function swapInsertOp(option: Int, value: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  if (useServerState(BankVarbits.INSERT_MODE) !== value) {
+    predictServerState(BankVarbits.INSERT_MODE, value);
+    playSound(Sounds.CLICK);
+  }
+}
+
+export function itemNoteOp(option: Int, value: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  if (useServerState(BankVarbits.WITHDRAW_NOTES) !== value) {
+    predictServerState(BankVarbits.WITHDRAW_NOTES, value);
+    playSound(Sounds.CLICK);
+  }
+}
+
+export function quantityOp(option: Int, value: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  if (useServerState(BankVarbits.QUANTITY_TYPE) !== value) {
+    playSound(Sounds.CLICK);
+  }
+  predictServerState(BankVarbits.QUANTITY_TYPE, value);
+}
+
+export function sharedBankSearchToggle(option: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  if (bankmainSearching()) {
+    meslayerClose(true, true, true);
+    return;
+  }
+  meslayerMode11();
+}
+
+export function sharedBankSearchReset(): void {
+  if (bankmainSearching()) {
+    meslayerClose(true, true, true);
+    return;
+  }
+  const [mode] = useState(meslayermode);
+  if (mode <= 0) {
+    const [, setInput] = useState(meslayerinput);
+    setInput('');
+  }
+}
+
+export function sharedBankCloseButton(button: ComponentId): void {
+  if (onMobile()) {
+    const mobileSprite: Sprite = Sprites.STEELBORDER_CLOSE_BUTTON_0;
+    button.props = {
+      x: { right: Layout.CLOSE_MOBILE_INSET },
+      y: Layout.CLOSE_MOBILE_INSET,
+      w: Layout.CLOSE_MOBILE,
+      h: Layout.CLOSE_MOBILE,
+      sprite: mobileSprite,
+    };
+    button.onMouseLeave = () => graphicSwapper(button, mobileSprite);
+  } else {
+    const rest: Sprite = Sprites.CLOSE_BUTTONS_0;
+    button.props = {
+      x: { right: Layout.CLOSE_RIGHT },
+      y: Layout.CLOSE_Y,
+      w: Layout.CLOSE_W,
+      h: Layout.CLOSE_H,
+      sprite: rest,
+    };
+    button.onMouseLeave = () => graphicSwapper(button, rest);
+    const hover: Sprite = Sprites.CLOSE_BUTTONS_1;
+    button.onMouseEnter = () => graphicSwapper(button, hover);
+  }
+  if (useServerState(BankVarbits.HAS_EDITED) === 1) {
+    if (useServerState(BankVarbits.ESC_TO_CLOSE) === 1) {
+      closeRef.options = [{ label: 'Save and Close', hotkey: ESCAPE_KEY }];
+    } else {
+      button.options = ['Save and Close'];
+    }
+    button.onOptionSelect = (event) => opsound(event.option, 2);
+    button.onKey = null;
+  } else {
+    button.options = ['Close'];
+    button.onOptionSelect = () => closeInterface();
+    button.onKey = (event) => closeOnEscape(event.keyCode);
+  }
+}

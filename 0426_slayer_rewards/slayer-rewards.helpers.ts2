@@ -1,0 +1,185 @@
+import { CS2, useServerState } from 'ts2';
+
+import { textLineCount } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { Relic } from '../lib/league-relics.data';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { leaguesWorld } from '../0134_settings/settings.helpers';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { sailingRestricted } from '../0240_xpreward/xpreward.helpers';
+import { Cell, SlayerFonts, SlayerSprites, SlayerVars, Toggle } from './slayer-rewards.constants';
+import { SlayerUnlockRow, SlayerUnlocks } from './slayer-rewards.data';
+
+export function unlockOwned(bit: Int): Boolean {
+  if (bit < 32) {
+    return CS2.testbit(useServerState(SlayerVars.UNLOCKS), bit);
+  }
+  return CS2.testbit(useServerState(SlayerVars.UNLOCKS_HIGH), bit - 32);
+}
+
+export function unlockRow(index: Int): SlayerUnlockRow | null {
+  return SlayerUnlocks.at(index);
+}
+
+export function unlockDescription(index: Int): String {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  let text: String = row === null ? '' : row.description;
+  if (useServerState(SlayerVars.MM2_SLAYER_MASTER) === 1) {
+    text = stringFindAndReplace(text, 'Nieve', 'Steve');
+  }
+  if (useServerState(SlayerVars.WGS_HERO_PART_1_VIS) !== 0) {
+    text = stringFindAndReplace(text, 'Duradel', 'Kuradal');
+  }
+  return text;
+}
+
+export function unlocksAreFree(): Boolean {
+  if (leagueRelicActive(Relic.CULLING_SPREE) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function leagueBlocks(): Boolean {
+  if (!leaguesWorld()) {
+    return false;
+  }
+  return false;
+}
+
+export function unlockUnavailable(index: Int): Boolean {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  if ((row === null ? 0 : row.restrictedBy) === 1 && sailingRestricted()) {
+    return true;
+  }
+  return leagueBlocks();
+}
+
+export function unlockUnavailableText(index: Int): String {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  if ((row === null ? 0 : row.restrictedBy) === 1 && sailingRestricted()) {
+    return 'Slayer tasks and creatures related to Sailing are currently unavailable on this world.';
+  }
+  return '';
+}
+
+export function pointsLine(): String {
+  return `Reward points: ${groupDigits(useServerState(SlayerVars.POINTS), ',')}`;
+}
+
+export function unlockCaption(index: Int): String {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  const description: String = unlockDescription(index);
+  if (unlocksAreFree()) {
+    return `${description} <col=06600c>(0 points)</col>`;
+  }
+  if (unlockUnavailable(index)) {
+    return `${description} <col=bbbbbb>(Unavailable)</col>`;
+  }
+  return `${description} <col=ff0000>(${stringOf(row === null ? 0 : row.cost)} points)</col>`;
+}
+
+export function unlockNeighbourCaption(index: Int): String {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  return `${unlockDescription(index)} <col=ff0000>(${stringOf(row === null ? 0 : row.cost)} points)</col>`;
+}
+
+export function unlockOwnHeight(index: Int): Int {
+  return textLineCount(unlockCaption(index), Cell.TEXT_W, SlayerFonts.SMALL) * Cell.LINE_H + Cell.LINE_PAD;
+}
+
+export function unlockNeighbourHeight(index: Int): Int {
+  return textLineCount(unlockNeighbourCaption(index), Cell.TEXT_W, SlayerFonts.SMALL) * Cell.LINE_H + Cell.LINE_PAD;
+}
+
+export function unlockTextHeight(from: Int, index: Int, count: Int): Int {
+  const own: Int = unlockOwnHeight(from + index);
+  if (index % 2 === 1) {
+    const left: Int = unlockNeighbourHeight(from + index - 1);
+    if (left > own) {
+      return left;
+    }
+    return own;
+  }
+  if (index + 1 < count) {
+    const right: Int = unlockNeighbourHeight(from + index + 1);
+    if (right > own) {
+      return right;
+    }
+    return own;
+  }
+  if (index >= 2) {
+    const carried: Int = unlockNeighbourHeight(from + index - 2);
+    if (carried > own) {
+      return carried;
+    }
+  }
+  return own;
+}
+
+export function unlockCellHeight(from: Int, index: Int, count: Int): Int {
+  return unlockTextHeight(from, index, count) + Cell.HEAD_PAD + Cell.HEAD_H;
+}
+
+export function unlockCellTop(from: Int, index: Int, count: Int): Int {
+  let top: Int = 0;
+  let at: Int = 0;
+  while (at + 2 <= index) {
+    top = top + unlockCellHeight(from, at, count) + Cell.ROW_GAP;
+    at = at + 2;
+  }
+  return top;
+}
+
+export function unlockExtent(from: Int, count: Int): Int {
+  if (count <= 0) {
+    return 0;
+  }
+  const last: Int = count - 1;
+  return unlockCellTop(from, last, count) + unlockCellHeight(from, last, count);
+}
+
+export function unlockRadio(bit: Int): Sprite {
+  if (!unlockOwned(bit)) {
+    return SlayerSprites.RADIO_OFF;
+  }
+  if (bit === Toggle.SUPERIOR_MOBS) {
+    return useServerState(SlayerVars.TOGGLEOFF_SUPERIOR_MOBS) === 1
+      ? SlayerSprites.RADIO_DISABLED
+      : SlayerSprites.RADIO_ON;
+  }
+  if (bit === Toggle.FOSSIL_WYVERN_BLOCK) {
+    return useServerState(SlayerVars.TOGGLEOFF_FOSSIL_WYVERN) === 1
+      ? SlayerSprites.RADIO_DISABLED
+      : SlayerSprites.RADIO_ON;
+  }
+  if (bit === Toggle.LONGER_REVENANTS) {
+    return useServerState(SlayerVars.TOGGLEOFF_LONGER_REVENANTS) === 1
+      ? SlayerSprites.RADIO_DISABLED
+      : SlayerSprites.RADIO_ON;
+  }
+  return SlayerSprites.RADIO_ON;
+}
+
+export function unlockOption(index: Int): String {
+  const row: SlayerUnlockRow | null = unlockRow(index);
+  const bit: Int = row === null ? -1 : row.bit;
+  if (!unlockOwned(bit)) {
+    return 'Unlock';
+  }
+  if (bit === Toggle.SUPERIOR_MOBS) {
+    return useServerState(SlayerVars.TOGGLEOFF_SUPERIOR_MOBS) === 1 ? 'Enable' : 'Disable';
+  }
+  if (bit === Toggle.FOSSIL_WYVERN_BLOCK) {
+    return useServerState(SlayerVars.TOGGLEOFF_FOSSIL_WYVERN) === 1 ? 'Enable' : 'Disable';
+  }
+  if (bit === Toggle.LONGER_REVENANTS) {
+    return useServerState(SlayerVars.TOGGLEOFF_LONGER_REVENANTS) === 1 ? 'Enable' : 'Disable';
+  }
+  if (row !== null) {
+    if (row.refundable) {
+      return 'Disable';
+    }
+  }
+  return '';
+}

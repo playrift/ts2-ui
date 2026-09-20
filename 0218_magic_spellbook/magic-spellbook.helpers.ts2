@@ -1,0 +1,783 @@
+import { param, useInventory, useServerState, useSkill, useSkillBase } from 'ts2';
+
+import { deadmanWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { questName } from '../0782_questjournal_overview/questjournal-overview.helpers';
+import { Params } from '../lib/game/params';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { LeagueToggle } from '../lib/league-toggles.data';
+import { Relic } from '../lib/league-relics.data';
+import { hasBit, membersWorld, scaled } from '../lib/lib.engine';
+import { leagueRelicActive, leagueToggleOn, MagicSkills, spellbookHasRunes } from '../lib/lib.magic';
+import { Quest, questComplete } from '../lib/lib.quests';
+import {
+  Layout,
+  SpellbookInventories,
+  SpellbookSprites,
+  SpellbookVarbits,
+  SpellbookVarps,
+  SpellFade,
+} from './magic-spellbook.constants';
+import { ContactNames, DiaryNames, SpellsByItem } from './magic-spellbook.data';
+import type { SpellRow } from './magic-spellbook.data';
+
+export const enum SpellbookItem {
+  SUBLIST_SWITCH = 24610,
+  TELEPORT_TO_TARGET = 17152,
+  BONES_TO_PEACHES = 6884,
+  EXPLORERS_RING_1 = 13125,
+  EXPLORERS_RING_2 = 13126,
+  EXPLORERS_RING_3 = 13127,
+  EXPLORERS_RING_4 = 13128,
+}
+
+export const enum SpellState {
+  LIT = 0,
+  UNLIT = 1,
+  LEVEL = 2,
+  LOCK_EVENT = 3,
+  LOCK_MEMBERS = 4,
+  LOCK_QUEST = 5,
+  LOCK_DIARY = 6,
+}
+
+export const enum GridKind {
+  TABLE = 0,
+  FIXED = 1,
+  FLEX = 2,
+}
+
+export function spellRowOf(spell: Item): SpellRow | null {
+  return SpellsByItem.get(spell);
+}
+
+export function targetWorld(): Boolean {
+  if (hasBit(useServerState(Varps.MAP_FLAGS_CACHED), 5)) {
+    return true;
+  }
+  return false;
+}
+
+export function activeSpellBook(): Int {
+  const book: Int = useServerState(SpellbookVarbits.SPELLBOOK);
+  if (book < 0 || book > 3) {
+    return -1;
+  }
+  if (book === 0 && useServerState(SpellbookVarbits.SUBLIST) === 1) {
+    return 4;
+  }
+  return book;
+}
+
+export function wornWeapon(): Item {
+  const worn = useInventory(SpellbookInventories.WORN);
+  const weapon: Item = worn[3];
+  return weapon;
+}
+
+export function wornShield(): Item {
+  const worn = useInventory(SpellbookInventories.WORN);
+  const shield: Item = worn[5];
+  return shield;
+}
+
+export function spellMembersOk(spell: Item): Boolean {
+  if (param(spell, Params.PARAM_1228) === true) {
+    if (useServerState(Varbits.BR_INGAME) === 1) {
+      return true;
+    }
+  }
+  if (spell.spellMembersonly! === true) {
+    if (membersWorld() === false) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function spellQuestOk(spell: Item): Boolean {
+  const quest = param(spell, Params.PARAM_1189);
+  if ((quest as Int) === -1) {
+    return true;
+  }
+  if (param(spell, Params.PARAM_1228) === true && useServerState(Varbits.BR_INGAME) === 1) {
+    return true;
+  }
+  if (leagueRelicActive(Relic.GRIMOIRE) === 1) {
+    return true;
+  }
+  if (questComplete(quest as Quest) === false) {
+    return false;
+  }
+  return true;
+}
+
+export function diaryRewardGot(tier: Int): Int {
+  switch (tier) {
+    case 1:
+      return useServerState(Varbits.ATJUN_EASY_REWARD);
+    case 2:
+      return useServerState(Varbits.ATJUN_HARD_REWARD);
+    case 3:
+      return useServerState(Varbits.ATJUN_HARD_REWARD);
+    case 4:
+      return useServerState(Varbits.KARAMJA_ELITE_REWARD);
+    case 5:
+      return useServerState(Varbits.ARDOUGNE_EASY_REWARD);
+    case 6:
+      return useServerState(Varbits.ARDOUGNE_MEDIUM_REWARD);
+    case 7:
+      return useServerState(Varbits.ARDOUGNE_HARD_REWARD);
+    case 8:
+      return useServerState(Varbits.ARDOUGNE_ELITE_REWARD);
+    case 9:
+      return useServerState(Varbits.FALADOR_EASY_REWARD);
+    case 10:
+      return useServerState(Varbits.FALADOR_MEDIUM_REWARD);
+    case 11:
+      return useServerState(Varbits.FALADOR_HARD_REWARD);
+    case 12:
+      return useServerState(Varbits.FALADOR_ELITE_REWARD);
+    case 13:
+      return useServerState(Varbits.FREMENNIK_EASY_REWARD);
+    case 14:
+      return useServerState(Varbits.FREMENNIK_MEDIUM_REWARD);
+    case 15:
+      return useServerState(Varbits.FREMENNIK_HARD_REWARD);
+    case 16:
+      return useServerState(Varbits.FREMENNIK_ELITE_REWARD);
+    case 17:
+      return useServerState(Varbits.KANDARIN_EASY_REWARD);
+    case 18:
+      return useServerState(Varbits.KANDARIN_MEDIUM_REWARD);
+    case 19:
+      return useServerState(Varbits.KANDARIN_HARD_REWARD);
+    case 20:
+      return useServerState(Varbits.KANDARIN_ELITE_REWARD);
+    case 21:
+      return useServerState(Varbits.DESERT_EASY_REWARD);
+    case 22:
+      return useServerState(Varbits.DESERT_MEDIUM_REWARD);
+    case 23:
+      return useServerState(Varbits.DESERT_HARD_REWARD);
+    case 24:
+      return useServerState(Varbits.DESERT_ELITE_REWARD);
+    case 25:
+      return useServerState(Varbits.LUMBRIDGE_EASY_REWARD);
+    case 26:
+      return useServerState(Varbits.LUMBRIDGE_MEDIUM_REWARD);
+    case 27:
+      return useServerState(Varbits.LUMBRIDGE_HARD_REWARD);
+    case 28:
+      return useServerState(Varbits.LUMBRIDGE_ELITE_REWARD);
+    case 29:
+      return useServerState(Varbits.MORYTANIA_EASY_REWARD);
+    case 30:
+      return useServerState(Varbits.MORYTANIA_MEDIUM_REWARD);
+    case 31:
+      return useServerState(Varbits.MORYTANIA_HARD_REWARD);
+    case 32:
+      return useServerState(Varbits.MORYTANIA_ELITE_REWARD);
+    case 33:
+      return useServerState(Varbits.VARROCK_EASY_REWARD);
+    case 34:
+      return useServerState(Varbits.VARROCK_MEDIUM_REWARD);
+    case 35:
+      return useServerState(Varbits.VARROCK_HARD_REWARD);
+    case 36:
+      return useServerState(Varbits.VARROCK_ELITE_REWARD);
+    case 37:
+      return useServerState(Varbits.WILDERNESS_EASY_REWARD);
+    case 38:
+      return useServerState(Varbits.WILDERNESS_MEDIUM_REWARD);
+    case 39:
+      return useServerState(Varbits.WILDERNESS_HARD_REWARD);
+    case 40:
+      return useServerState(Varbits.WILDERNESS_ELITE_REWARD);
+    case 41:
+      return useServerState(Varbits.WESTERN_EASY_REWARD);
+    case 42:
+      return useServerState(Varbits.WESTERN_MEDIUM_REWARD);
+    case 43:
+      return useServerState(Varbits.WESTERN_HARD_REWARD);
+    case 44:
+      return useServerState(Varbits.WESTERN_ELITE_REWARD);
+    case 45:
+      return useServerState(Varbits.KOUREND_EASY_REWARD);
+    case 46:
+      return useServerState(Varbits.KOUREND_MEDIUM_REWARD);
+    case 47:
+      return useServerState(Varbits.KOUREND_HARD_REWARD);
+    case 48:
+      return useServerState(Varbits.KOUREND_ELITE_REWARD);
+  }
+  return 0;
+}
+
+export function spellDiaryOk(spell: Item): Boolean {
+  if (leagueRelicActive(Relic.GRIMOIRE) === 1) {
+    return true;
+  }
+  const tier: Int = param(spell, Params.PARAM_1190);
+  if (tier !== 0) {
+    if (diaryRewardGot(tier) === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function spellEventOk(spell: Item): Boolean {
+  if (leagueRelicActive(Relic.GRIMOIRE) === 1) {
+    return true;
+  }
+  if (param(spell, Params.PARAM_1416) === true) {
+    if (spell === SpellbookItem.TELEPORT_TO_TARGET) {
+      if (useServerState(Varbits.BOUNTY_TARGET_TELEPORT) === 0 || useServerState(Varbits.BOUNTY_TELEPORT_QUOTA) >= 5) {
+        return false;
+      }
+    }
+    if (spell === SpellbookItem.BONES_TO_PEACHES) {
+      if (useServerState(Varbits.MAGICTRAINING_BONESPEACHES) === 0) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+export function spellRelicLit(spell: Item): Int {
+  return 0;
+}
+
+export function spellUnlocked(spell: Item): Boolean {
+  if (spellRelicLit(spell) === 1) {
+    return true;
+  }
+  if (spellMembersOk(spell) === false) {
+    return false;
+  }
+  if (spellQuestOk(spell) === false) {
+    return false;
+  }
+  if (spellDiaryOk(spell) === false) {
+    return false;
+  }
+  if (spellEventOk(spell) === false) {
+    return false;
+  }
+  if (spell === SpellbookItem.TELEPORT_TO_TARGET) {
+    if (useServerState(Varbits.BH_IN_BH) === 0 || targetWorld() === false) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function spellLockText(spell: Item): String {
+  if (spellMembersOk(spell) === false) {
+    return 'Members Only';
+  }
+  if (spellQuestOk(spell) === false) {
+    const quest = param(spell, Params.PARAM_1189);
+    return `Requires ${questName(quest as Quest)}`;
+  }
+  if (spellDiaryOk(spell) === false) {
+    const tier: Int = param(spell, Params.PARAM_1190);
+    return `Requires the ${DiaryNames.get(tier) ?? 'Achievement'} diary`;
+  }
+  return '';
+}
+
+export function spellHasLockText(spell: Item): Boolean {
+  if (spellMembersOk(spell) === false || spellQuestOk(spell) === false || spellDiaryOk(spell) === false) {
+    return true;
+  }
+  return false;
+}
+
+function magicBase(): Int {
+  return useSkillBase(MagicSkills.MAGIC);
+}
+
+export function spellPassesFilter(spell: Item): Boolean {
+  const type: Int = spell.spellType!;
+  if (type === 0) {
+    if (useServerState(SpellbookVarbits.BLOCK_COMBAT) === 1) {
+      return false;
+    }
+  } else if (type === 1) {
+    if (useServerState(SpellbookVarbits.BLOCK_UTILITY) === 1) {
+      return false;
+    }
+  } else if (type === 2) {
+    if (useServerState(SpellbookVarbits.BLOCK_TELEPORT) === 1) {
+      return false;
+    }
+  }
+  if (useServerState(SpellbookVarbits.BLOCK_LACK_LEVEL) === 1) {
+    const level: Int = spell.spellLevelreq!;
+    if (magicBase() < level && useSkill(MagicSkills.MAGIC) < level) {
+      return false;
+    }
+  }
+  if (useServerState(SpellbookVarbits.BLOCK_LACK_RUNES) === 1) {
+    if (spellbookHasRunes(spell, wornWeapon(), wornShield()) === false) {
+      return false;
+    }
+  }
+  if (useServerState(SpellbookVarbits.BLOCK_LOCKED) === 1) {
+    if (spellUnlocked(spell) === false) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function spellShown(row: SpellRow, book: Int, unfiltered: Boolean): Boolean {
+  if (row.book !== book) {
+    return false;
+  }
+  if (unfiltered) {
+    return true;
+  }
+  return spellPassesFilter(row.spell);
+}
+
+function explorersRingHeld(): Boolean {
+  const inv = useInventory(SpellbookInventories.INV);
+  const worn = useInventory(SpellbookInventories.WORN);
+  if (
+    inv.total(SpellbookItem.EXPLORERS_RING_1) > 0 ||
+    inv.total(SpellbookItem.EXPLORERS_RING_2) > 0 ||
+    inv.total(SpellbookItem.EXPLORERS_RING_3) > 0 ||
+    worn.total(SpellbookItem.EXPLORERS_RING_1) > 0 ||
+    worn.total(SpellbookItem.EXPLORERS_RING_2) > 0 ||
+    worn.total(SpellbookItem.EXPLORERS_RING_3) > 0 ||
+    inv.total(SpellbookItem.EXPLORERS_RING_4) > 0 ||
+    worn.total(SpellbookItem.EXPLORERS_RING_4) > 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function freeAlchemy(slot: Int): Boolean {
+  if (membersWorld() === false || useServerState(Varbits.LUMBRIDGE_FREE_ALCHS) >= 30) {
+    return false;
+  }
+  if (slot === 24) {
+    return explorersRingHeld();
+  }
+  if (slot === 47) {
+    const inv = useInventory(SpellbookInventories.INV);
+    const worn = useInventory(SpellbookInventories.WORN);
+    if (inv.total(SpellbookItem.EXPLORERS_RING_4) > 0 || worn.total(SpellbookItem.EXPLORERS_RING_4) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function spellState(row: SpellRow): Int {
+  const spell: Item = row.spell;
+  if (spellRelicLit(spell) === 1) {
+    return SpellState.LIT;
+  }
+  if (useSkill(MagicSkills.MAGIC) < spell.spellLevelreq!) {
+    return SpellState.LEVEL;
+  }
+  if (freeAlchemy(row.slot)) {
+    return SpellState.LIT;
+  }
+  if (spellbookHasRunes(spell, wornWeapon(), wornShield()) === false) {
+    return SpellState.UNLIT;
+  }
+  if (spellEventOk(spell) === false) {
+    return SpellState.LOCK_EVENT;
+  }
+  if (spellMembersOk(spell) === false) {
+    return SpellState.LOCK_MEMBERS;
+  }
+  if (spellQuestOk(spell) === false) {
+    return SpellState.LOCK_QUEST;
+  }
+  if (spellDiaryOk(spell) === false) {
+    return SpellState.LOCK_DIARY;
+  }
+  return SpellState.LIT;
+}
+
+function cooldownFade(on: Boolean): Int {
+  if (on) {
+    return SpellFade.COOLDOWN;
+  }
+  return SpellFade.LIT;
+}
+
+export function spellFade(row: SpellRow, state: Int): Int {
+  if (state === SpellState.LEVEL) {
+    return SpellFade.LIT;
+  }
+  const slot: Int = row.slot;
+  if (slot === 6 || slot === 108 || slot === 109 || slot === 153 || slot === 5) {
+    return cooldownFade(useServerState(SpellbookVarps.DATE_MINUTES) - useServerState(SpellbookVarps.HOME_TELE_AT) < 30);
+  }
+  if (slot === 7 || slot === 8 || slot === 9 || slot === 10) {
+    return cooldownFade(
+      useServerState(SpellbookVarps.DATE_MINUTES) - useServerState(SpellbookVarps.MINIGAME_TELE_AT) < 20,
+    );
+  }
+  if (slot === 147 || slot === 146) {
+    return cooldownFade(useServerState(Varbits.VENGEANCE_TIMELIMIT) === 1);
+  }
+  if (slot === 148) {
+    return cooldownFade(useServerState(Varbits.HEAL_GROUP_TIMELIMIT) === 1);
+  }
+  if (slot === 133) {
+    return cooldownFade(useServerState(Varbits.MAGIC_IMBUE_ACTIVE) > 0);
+  }
+  if (slot === 180 || slot === 181) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_CORRUPTION_COOLDOWN) === 1);
+  }
+  if (slot === 187) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_DARK_LURE_COOLDOWN) === 1);
+  }
+  if (slot === 188) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_DEATH_CHARGE_COOLDOWN) === 1);
+  }
+  if (slot >= 189 && slot <= 197) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_RESURRECTION_COOLDOWN) === 1);
+  }
+  if (slot === 185) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_SHADOW_VEIL_COOLDOWN) === 1);
+  }
+  if (slot === 186) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_VILE_VIGOUR_COOLDOWN) === 1);
+  }
+  if (slot === 179) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_WARD_COOLDOWN) === 1);
+  }
+  if (slot === 182 || slot === 183) {
+    return cooldownFade(useServerState(Varbits.ARCEUUS_OFFERING_COOLDOWN) === 1);
+  }
+  return SpellFade.LIT;
+}
+
+export function spellLit(state: Int): Int {
+  if (state === SpellState.LIT) {
+    return 1;
+  }
+  return 0;
+}
+
+export function spellLockSprite(state: Int, size: Int): Sprite {
+  const large: Boolean = size >= Layout.ICON_LARGE;
+  if (state === SpellState.LOCK_EVENT) {
+    return large ? SpellbookSprites.LOCK_EVENT_2X : SpellbookSprites.LOCK_EVENT;
+  }
+  if (state === SpellState.LOCK_MEMBERS) {
+    return large ? SpellbookSprites.LOCK_MEMBERS_2X : SpellbookSprites.LOCK_MEMBERS;
+  }
+  if (state === SpellState.LOCK_QUEST) {
+    return large ? SpellbookSprites.LOCK_QUEST_2X : SpellbookSprites.LOCK_QUEST;
+  }
+  if (state === SpellState.LOCK_DIARY) {
+    return large ? SpellbookSprites.LOCK_DIARY_2X : SpellbookSprites.LOCK_DIARY;
+  }
+  return -1;
+}
+
+function castSlot(toggle: Boolean, op: Int): String {
+  if (op === 1) {
+    return toggle ? '' : 'Cast';
+  }
+  return toggle ? 'Cast' : '';
+}
+
+function warningOp(on: Int): String {
+  if (on === 1) {
+    return 'Disable warning';
+  }
+  return 'Enable warning';
+}
+
+function contactOp(): String {
+  const last: Int = useServerState(Varbits.LUNAR_CONTACT_LASTID);
+  if (last === 10 && useServerState(Varbits.MM2_SLAYER_MASTER) === 1) {
+    return 'Steve';
+  }
+  if (last === 6 && useServerState(Varbits.WGS_HERO_PART_1_VIS) !== 0) {
+    return 'Aya';
+  }
+  if (last === 7 && useServerState(Varbits.WGS_HERO_PART_1_VIS) === 1) {
+    return 'Achtryn';
+  }
+  if (last === 11 && useServerState(Varbits.WGS_HERO_PART_1_VIS) !== 0) {
+    return 'Kuradal';
+  }
+  return ContactNames.get(last) ?? '';
+}
+
+export function spellOp(row: SpellRow, n: Int): String {
+  const slot: Int = row.slot;
+  if (slot === 6 || slot === 108 || slot === 109 || slot === 153) {
+    if (n === 10) {
+      return 'Animation';
+    }
+  }
+  if (slot === 26 && (n === 1 || n === 3)) {
+    return castSlot(useServerState(Varbits.VARROCK_GE_TELEPORT) === 1 && membersWorld(), n);
+  }
+  if (slot === 37 && (n === 1 || n === 3)) {
+    return castSlot(useServerState(Varbits.SEERS_CAMELOT_TELEPORT) === 1 && membersWorld(), n);
+  }
+  if (slot === 34) {
+    if (n === 1 || n === 3) {
+      return castSlot(useServerState(Varbits.POH_TELE_TOGGLE) === 1, n);
+    }
+    if (n === 4) {
+      return isGroupIronman(useServerState(Varbits.IRONMAN)) ? 'Group: Choose' : '';
+    }
+    if (n === 5) {
+      return isGroupIronman(useServerState(Varbits.IRONMAN)) ? 'Group: Previous' : '';
+    }
+  }
+  if (slot === 50 && (n === 1 || n === 3)) {
+    return castSlot(useServerState(Varbits.YANILLE_TELEPORT_LOCATION) === 1 && membersWorld(), n);
+  }
+  if (slot === 113) {
+    if (n === 2) {
+      return contactOp();
+    }
+    if (n === 3) {
+      if (useServerState(Varbits.LUNAR_CONTACT_LASTID) === 21 && useServerState(Varbits.CON_CONTRACT_DISCUSSED) === 1) {
+        return 'Last-tier contract';
+      }
+      return '';
+    }
+    if (n === 9) {
+      return 'Animation';
+    }
+  }
+  if (n === 10) {
+    if (slot === 76) {
+      return warningOp(useServerState(Varbits.BOUNTY_TELEPORT_WARNING));
+    }
+    if (slot === 104) {
+      return warningOp(useServerState(Varbits.DAREEYAK_TELEPORT_WARNING));
+    }
+    if (slot === 105) {
+      return warningOp(useServerState(Varbits.CARRALLAGAR_TELEPORT_WARNING));
+    }
+    if (slot === 106) {
+      return warningOp(useServerState(Varbits.ANNAKARL_TELEPORT_WARNING));
+    }
+    if (slot === 107) {
+      return warningOp(useServerState(Varbits.GHORROCK_TELEPORT_WARNING));
+    }
+  }
+  switch (n) {
+    case 1:
+      return row.op1;
+    case 2:
+      return row.op2;
+    case 3:
+      return row.op3;
+    case 4:
+      return row.op4;
+    case 5:
+      return row.op5;
+    case 6:
+      return row.op6;
+    case 7:
+      return row.op7;
+    case 8:
+      return row.op8;
+    case 9:
+      return row.op9;
+  }
+  return row.op10;
+}
+
+export function spellOpSubject(spell: Item): String {
+  if (spell === SpellbookItem.SUBLIST_SWITCH) {
+    return '';
+  }
+  return `<col=00ff00>${spell.spellName!}</col>`;
+}
+
+export function spellSublistTarget(spell: Item): Int {
+  if (spell === SpellbookItem.SUBLIST_SWITCH) {
+    return 0;
+  }
+  const sub: Int = param(spell, Params.PARAM_1883);
+  if (sub !== 0) {
+    return sub;
+  }
+  return -1;
+}
+
+export function gridKind(mobile: Boolean): Int {
+  if (!mobile && useServerState(SpellbookVarbits.HIDE_FILTER_BUTTON) === 1) {
+    return GridKind.TABLE;
+  }
+  if (useServerState(SpellbookVarbits.BLOCK_RESIZING) === 1) {
+    return GridKind.FIXED;
+  }
+  if (!mobile && deadmanWorld() === 0) {
+    if (useServerState(SpellbookVarbits.PVP_AREA) === 1 || useServerState(SpellbookVarbits.PVP_ADJACENT_AREA) === 1) {
+      return GridKind.FIXED;
+    }
+  }
+  return GridKind.FLEX;
+}
+
+export function gridAreaW(kind: Int): Int {
+  if (kind === GridKind.TABLE) {
+    return Layout.ROOT_W;
+  }
+  return Layout.ROOT_W - Layout.GRID_INSET_W;
+}
+
+export function gridAreaH(kind: Int): Int {
+  if (kind === GridKind.TABLE) {
+    return Layout.ROOT_H;
+  }
+  return Layout.GRID_AREA_H;
+}
+
+function max(a: Int, b: Int): Int {
+  if (a > b) {
+    return a;
+  }
+  return b;
+}
+
+function min(a: Int, b: Int): Int {
+  if (a < b) {
+    return a;
+  }
+  return b;
+}
+
+export function gridIcon(kind: Int, shown: Int): Int {
+  if (kind === GridKind.FLEX && shown <= 20) {
+    return Layout.ICON_LARGE;
+  }
+  return Layout.ICON;
+}
+
+export function gridCols(kind: Int, shown: Int, book: Int): Int {
+  if (kind === GridKind.TABLE) {
+    if (book === 1) {
+      return 4;
+    }
+    if (book === 2 || book === 3) {
+      return 6;
+    }
+    return 7;
+  }
+  if (kind === GridKind.FIXED && shown <= 28) {
+    return 4;
+  }
+  if (kind === GridKind.FLEX && shown <= 15) {
+    return 3;
+  }
+  if (kind === GridKind.FLEX && shown <= 20) {
+    return 4;
+  }
+  return max(4, min(7, (shown + 8) / 9));
+}
+
+export function gridColGap(kind: Int, shown: Int, book: Int): Int {
+  if (kind === GridKind.TABLE) {
+    if (book === 1) {
+      return 20;
+    }
+    if (book === 2) {
+      return 6;
+    }
+    if (book === 3) {
+      return 9;
+    }
+    return 0;
+  }
+  const icon: Int = gridIcon(kind, shown);
+  const cols: Int = gridCols(kind, shown, book);
+  let cap: Int = Layout.ICON;
+  if (kind === GridKind.FLEX) {
+    cap = scaled(5, 7, icon);
+  }
+  return max(0, min(cap, (gridAreaW(kind) - icon * cols) / (cols - 1)));
+}
+
+export function gridRows(kind: Int, shown: Int, book: Int): Int {
+  if (kind === GridKind.TABLE) {
+    if (book === 1) {
+      return 7;
+    }
+    if (book === 2 || book === 3) {
+      return 8;
+    }
+    return 10;
+  }
+  const cols: Int = gridCols(kind, shown, book);
+  return max(1, (shown + (cols - 1)) / cols);
+}
+
+export function gridRowGap(kind: Int, shown: Int, book: Int): Int {
+  if (kind === GridKind.TABLE) {
+    if (book === 1) {
+      return 4;
+    }
+    if (book === 2) {
+      return 5;
+    }
+    if (book === 3) {
+      return 7;
+    }
+    return 0;
+  }
+  const rows: Int = gridRows(kind, shown, book);
+  if (rows < 2) {
+    return 0;
+  }
+  const icon: Int = gridIcon(kind, shown);
+  return max(0, min(gridColGap(kind, shown, book), (gridAreaH(kind) - icon * rows) / (rows - 1)));
+}
+
+export function gridHeight(kind: Int, shown: Int, book: Int): Int {
+  const rows: Int = gridRows(kind, shown, book);
+  const drawn: Int = rows * gridIcon(kind, shown) + (rows - 1) * gridRowGap(kind, shown, book);
+  if (kind === GridKind.FIXED) {
+    return max(drawn, gridAreaH(kind) - 30);
+  }
+  return drawn;
+}
+
+export function gridWidth(kind: Int, shown: Int, book: Int): Int {
+  const cols: Int = gridCols(kind, shown, book);
+  return cols * gridIcon(kind, shown) + (cols - 1) * gridColGap(kind, shown, book);
+}
+
+export function tableX(book: Int): Int {
+  if (book === 1) {
+    return 2;
+  }
+  if (book === 0 || book > 3) {
+    return 1;
+  }
+  return 0;
+}
+
+export function tableY(book: Int): Int {
+  if (book === 1 || book === 2) {
+    return 8;
+  }
+  if (book === 3) {
+    return 0;
+  }
+  return 15;
+}

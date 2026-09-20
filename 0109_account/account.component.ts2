@@ -1,0 +1,533 @@
+import { useInterval, useServerState, useState } from 'ts2';
+
+import { opsound } from '../lib/lib.helpers';
+import { clientClock } from '../lib/lib.engine';
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { tobHudNameFlasher } from '../0773_toa_lobby/toa-lobby.helpers';
+import { AccountColor, AccountFonts, AccountTab, AccountVars, ButtonArt, Layout, TabArt } from './account.constants';
+import { LEAGUE_LINK_COUNT, UsefulLinks } from './account-links.data';
+import {
+  bondsIcon,
+  bondsLabel,
+  dimmedFlash,
+  emailUnlinked,
+  flashDue,
+  hoverBound,
+  inboxCollapsed,
+  inboxText,
+  inboxY,
+  linkCentred,
+  linkShown,
+  linkSlot,
+  linkSubject,
+  linkY,
+  membershipActive,
+  membershipCollapsed,
+  membershipText,
+  nameText,
+  nameY,
+  NO_TAB,
+  openTab,
+  pollText,
+  selectTab,
+  stateOf,
+  TabState,
+} from './account.helpers';
+import { bondsHidden } from '../0589_displayname/displayname.helpers';
+import { leaguesEnabled } from '../0735_league_3_fragments/league-3-fragments.helpers';
+
+export function Account(): Component {
+  return (
+    <>
+      <TabRail />
+      <layer x="center" y="bottom" w={Layout.content.w} h={{ fill: Layout.content.inset }}>
+        <AccountPane />
+        <CommunityPane />
+        <LinksPane />
+      </layer>
+    </>
+  );
+}
+
+function TabRail(): Component {
+  const tab: Int = openTab();
+  const transparent: Boolean = useServerState(AccountVars.TRANSPARENT) !== 0;
+  const [hovered, setHovered] = useState(-1);
+  const hover: Boolean = hoverBound();
+
+  return (
+    <layer x="center" w={Layout.rail.w} h={Layout.rail.h}>
+      <layer
+        x={Layout.tab.edge}
+        y="center"
+        w={Layout.tab.w}
+        h="fill"
+        options={['Account']}
+        onOptionSelect={() => selectTab(AccountTab.ACCOUNT)}
+        onMouseRepeat={hover ? () => setHovered(AccountTab.ACCOUNT) : undefined}
+        onMouseLeave={hover ? () => setHovered(NO_TAB) : undefined}
+      >
+        <TabPlates state={stateOf(tab, hovered, AccountTab.ACCOUNT)} transparent={transparent} />
+        <sprite
+          x="center"
+          y={{ bottom: Layout.tabIcon.bottom }}
+          w={Layout.tabIcon.w}
+          h={Layout.tabIcon.h}
+          sprite={TabArt.ICON_ACCOUNT}
+        />
+      </layer>
+      <layer
+        x="center"
+        y="center"
+        w={Layout.tab.w}
+        h="fill"
+        options={['Community']}
+        onOptionSelect={() => selectTab(AccountTab.COMMUNITY)}
+        onMouseRepeat={hover ? () => setHovered(AccountTab.COMMUNITY) : undefined}
+        onMouseLeave={hover ? () => setHovered(NO_TAB) : undefined}
+      >
+        <TabPlates state={stateOf(tab, hovered, AccountTab.COMMUNITY)} transparent={transparent} />
+        <sprite
+          x="center"
+          y={{ bottom: Layout.tabIcon.bottom }}
+          w={Layout.tabIcon.w}
+          h={Layout.tabIcon.h}
+          sprite={TabArt.ICON_COMMUNITY}
+        />
+      </layer>
+      <layer
+        x={{ right: Layout.tab.edge }}
+        w={Layout.tab.w}
+        h="fill"
+        options={['Useful Links']}
+        onOptionSelect={() => selectTab(AccountTab.LINKS)}
+        onMouseRepeat={hover ? () => setHovered(AccountTab.LINKS) : undefined}
+        onMouseLeave={hover ? () => setHovered(NO_TAB) : undefined}
+      >
+        <TabPlates state={stateOf(tab, hovered, AccountTab.LINKS)} transparent={transparent} />
+        <sprite
+          x="center"
+          y={{ bottom: Layout.tabIcon.bottom }}
+          w={Layout.tabIcon.w}
+          h={Layout.tabIcon.h}
+          sprite={TabArt.ICON_LINKS}
+        />
+      </layer>
+      <RailUnderline tab={tab} transparent={transparent} />
+    </layer>
+  );
+}
+
+function TabPlates({ state, transparent }: { state: Int; transparent: Boolean }): Component {
+  const selected: Boolean = state === TabState.SELECTED;
+  const hovered: Boolean = state === TabState.HOVERED;
+  const plateEnd: Sprite = transparent
+    ? selected
+      ? TabArt.T_SELECTED_END
+      : hovered
+        ? TabArt.T_HOVER_END
+        : TabArt.T_REST_END
+    : selected
+      ? TabArt.SELECTED_END
+      : TabArt.REST_END;
+  const plateMid: Sprite = transparent
+    ? selected
+      ? TabArt.T_SELECTED_MID
+      : hovered
+        ? TabArt.T_HOVER_MID
+        : TabArt.T_REST_MID
+    : selected
+      ? TabArt.SELECTED_MID
+      : TabArt.REST_MID;
+  const sheenEnd: Sprite = !transparent && hovered ? TabArt.HOVER_END : TabArt.SHEEN_END;
+  const sheenMid: Sprite = !transparent && hovered ? TabArt.HOVER_MID : TabArt.SHEEN_MID;
+  const sheenAlpha: Int = transparent ? 0 : TabArt.SHEEN_TRANSPARENCY;
+  const sheen: Boolean = transparent || !selected;
+
+  return (
+    <>
+      <sprite
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={sheenEnd}
+        transparency={sheenAlpha}
+        hide={!sheen}
+      />
+      <sprite y={{ bottom: Layout.tabPlate.bottom }} w={Layout.tabPlate.w} h={Layout.tabPlate.h} sprite={plateEnd} />
+      <sprite
+        x="center"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={sheenMid}
+        transparency={sheenAlpha}
+        hide={!sheen}
+      />
+      <sprite
+        x="center"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={plateMid}
+      />
+      <sprite
+        x="right"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={sheenEnd}
+        transparency={sheenAlpha}
+        hide={!sheen}
+        hflip
+      />
+      <sprite
+        x="right"
+        y={{ bottom: Layout.tabPlate.bottom }}
+        w={Layout.tabPlate.w}
+        h={Layout.tabPlate.h}
+        sprite={plateEnd}
+        hflip
+      />
+    </>
+  );
+}
+
+function RailUnderline({ tab, transparent }: { tab: Int; transparent: Boolean }): Component {
+  const tabX: Int = tab === AccountTab.COMMUNITY ? 65 : tab === AccountTab.LINKS ? 128 : Layout.tab.edge;
+  const color: Int = transparent ? AccountColor.RAIL_LINE_TRANSPARENT : AccountColor.RAIL_LINE;
+  return (
+    <layer y={{ bottom: 1 }} w="fill" h={1}>
+      <line w={tabX * 2} h={1} color={color} />
+      <line x={tabX + Layout.tab.w} w={Layout.railLineRun} h={1} color={color} />
+    </layer>
+  );
+}
+
+function ButtonFace({ icon, label }: { icon: Sprite; label: String }): Component {
+  return (
+    <>
+      <sprite x="center" y="center" w={Layout.plate.w} h={Layout.plate.h} sprite={ButtonArt.PLATE} />
+      <sprite x={Layout.icon.inset} y="center" w={Layout.icon.w} h={Layout.icon.h} sprite={icon} />
+      <sprite x={{ right: Layout.icon.inset }} y="center" w={Layout.icon.w} h={Layout.icon.h} sprite={icon} />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={AccountFonts.BUTTON}
+        color={AccountColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        text={label}
+        hover={{ color: AccountColor.LABEL_HOVER }}
+      />
+    </>
+  );
+}
+
+function Heading({ text }: { text: String }): Component {
+  return (
+    <text
+      x="center"
+      y={Layout.heading.y}
+      w="fill"
+      h={Layout.heading.h}
+      font={AccountFonts.HEADING}
+      color={AccountColor.HEADING}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.heading.lineHeight}
+      shadow
+      text={text}
+    />
+  );
+}
+
+function Title({ text }: { text: String }): Component {
+  return (
+    <text
+      x="center"
+      y={Layout.title.y}
+      w="fill"
+      h={Layout.title.h}
+      font={AccountFonts.TITLE}
+      color={AccountColor.HEADING}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.title.lineHeight}
+      shadow
+      text={text}
+    />
+  );
+}
+
+function AccountPane(): Component {
+  const shown: Boolean = openTab() === AccountTab.ACCOUNT;
+  const member: Boolean = membershipActive();
+  const membershipShort: Boolean = membershipCollapsed();
+  const inboxShort: Boolean = inboxCollapsed();
+  const unlinked: Boolean = emailUnlinked();
+  const named: Boolean = useServerState(AccountVars.HAS_NAME) === 1;
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={!shown}>
+      <Title text="Account" />
+      <layer
+        y={Layout.membership.y}
+        w={Layout.box.w}
+        h={membershipShort ? Layout.membership.collapsedH : Layout.membership.h}
+      >
+        <Heading text={membershipText()} />
+        <layer
+          x="center"
+          y={Layout.button.top}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={[member ? 'Open Store' : 'Upgrade Now']}
+        >
+          <ButtonFace
+            icon={member ? ButtonArt.STORE : ButtonArt.UPGRADE}
+            label={member ? 'Open Store' : 'Upgrade Now'}
+          />
+        </layer>
+        <layer
+          x="center"
+          y={{ bottom: Layout.button.bottom }}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={['Bond Pouch']}
+          hide={membershipShort}
+        >
+          <ButtonFace icon={bondsIcon()} label={bondsLabel()} />
+        </layer>
+      </layer>
+      <layer y={inboxY()} w={Layout.box.w} h={inboxShort ? Layout.inbox.collapsedH : Layout.inbox.h}>
+        <Heading text={inboxText()} />
+        <layer
+          x="center"
+          y={{ bottom: Layout.button.bottom }}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={['View Inbox']}
+          hide={inboxShort}
+        >
+          <ButtonFace
+            icon={unlinked ? ButtonArt.LINK_EMAIL : ButtonArt.INBOX}
+            label={unlinked ? 'Link Email' : 'View Inbox'}
+          />
+        </layer>
+      </layer>
+      <layer y={nameY()} w={Layout.box.w} h={Layout.name.h}>
+        <Heading text={nameText()} />
+        <layer
+          x="center"
+          y={{ bottom: Layout.button.bottom }}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={[named ? 'Name Changer' : 'Set Name']}
+        >
+          <ButtonFace icon={ButtonArt.NAME} label={named ? 'Name Changer' : 'Set Name'} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function CommunityPane(): Component {
+  const shown: Boolean = openTab() === AccountTab.COMMUNITY;
+  const running: Boolean = useServerState(AccountVars.POLL_RUNNING) === 1;
+  const vote: Boolean = running && useServerState(AccountVars.POLL_SHOULD_VOTE) === 1;
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={!shown}>
+      <Title text="Community" />
+      <layer y={Layout.poll.y} w={Layout.box.w} h={Layout.poll.h}>
+        <Heading text={pollText(running)} />
+        <layer x="center" y={Layout.pollTrigger.y} w={1} h={1} options={['Vote Now']} />
+        <layer
+          x="center"
+          y={Layout.button.top}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          noClickThrough
+          options={[running ? (vote ? 'Vote Now' : 'View Poll') : '']}
+        >
+          <sprite x="center" y="center" w={Layout.plate.w} h={Layout.plate.h} sprite={ButtonArt.PLATE} />
+          <sprite x={Layout.icon.inset} y="center" w={Layout.icon.w} h={Layout.icon.h} sprite={ButtonArt.POLL} />
+          <sprite
+            x={{ right: Layout.icon.inset }}
+            y="center"
+            w={Layout.icon.w}
+            h={Layout.icon.h}
+            sprite={ButtonArt.POLL}
+          />
+          <PollLabel running={running} vote={vote} />
+          <sprite
+            x="center"
+            y="center"
+            w={Layout.plate.w}
+            h={Layout.plate.h}
+            sprite={ButtonArt.PLATE}
+            transparency={100}
+            hide={running}
+          />
+        </layer>
+        <layer
+          x="center"
+          y={{ bottom: Layout.button.bottom }}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={['View History']}
+        >
+          <ButtonFace icon={ButtonArt.HISTORY} label="View History" />
+        </layer>
+      </layer>
+      <layer y={Layout.latest.y} w={Layout.box.w} h={Layout.latest.h} hide={bondsHidden()}>
+        <Heading text="Latest Update" />
+        <layer x="center" y={Layout.button.top} w={Layout.button.w} h={Layout.button.h} options={['View Newspost']}>
+          <ButtonFace icon={ButtonArt.NEWS} label="View Newspost" />
+        </layer>
+        <layer
+          x="center"
+          y={{ bottom: Layout.button.bottom }}
+          w={Layout.button.w}
+          h={Layout.button.h}
+          options={['View Archive']}
+        >
+          <ButtonFace icon={ButtonArt.ARCHIVE} label="View Archive" />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function PollLabel({ running, vote }: { running: Boolean; vote: Boolean }): Component {
+  const [colour, setColour] = useState(-1);
+  const [deadline, setDeadline] = useState(0);
+  const [hovered, setHovered] = useState(0);
+
+  const drawn: Int = !running
+    ? AccountColor.LABEL
+    : vote
+      ? colour === -1
+        ? tobHudNameFlasher()
+        : colour
+      : hovered === 1
+        ? AccountColor.LABEL_HOVER
+        : AccountColor.LABEL;
+
+  useInterval(
+    vote
+      ? () => {
+          if (flashDue(deadline)) {
+            setColour(tobHudNameFlasher());
+          }
+        }
+      : undefined,
+  );
+
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      font={AccountFonts.BUTTON}
+      color={drawn}
+      align="center"
+      valign="middle"
+      shadow
+      text={vote ? 'Vote Now' : 'View Poll'}
+      onMouseRepeat={
+        running
+          ? () => {
+              if (vote) {
+                setColour(dimmedFlash());
+                setDeadline(clientClock() + 2);
+              } else {
+                setHovered(1);
+              }
+            }
+          : undefined
+      }
+      onMouseLeave={
+        running
+          ? () => {
+              if (vote) {
+                setColour(tobHudNameFlasher());
+                setDeadline(0);
+              } else {
+                setHovered(0);
+              }
+            }
+          : undefined
+      }
+    />
+  );
+}
+
+function LinksPane(): Component {
+  const shown: Boolean = openTab() === AccountTab.LINKS;
+  const count: Int = leaguesEnabled() ? LEAGUE_LINK_COUNT : UsefulLinks.length;
+  const any: Boolean = linkSlot(count) > 0;
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={!shown}>
+      <Title text="Useful Links" />
+      <layer x="center" y={Layout.links.y} w={{ fill: Layout.links.inset }} h={{ fill: Layout.links.y }}>
+        {UsefulLinks.map(
+          (link, index) =>
+            index < count && linkShown(index) && <LinkButton label={link.label} slot={linkSlot(index)} />,
+        )}
+        {!any && (
+          <layer w="fill" h={Layout.noLinks.h}>
+            <text
+              x="center"
+              y="center"
+              w={{ fill: Layout.noLinks.inset }}
+              h="fill"
+              font={AccountFonts.BUTTON}
+              color={AccountColor.LABEL}
+              align="center"
+              valign="middle"
+              lineHeight={Layout.noLinks.lineHeight}
+              shadow
+              text="There are currently no useful links available."
+            />
+          </layer>
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+function LinkButton({ label, slot }: { label: String; slot: Int }): Component {
+  return (
+    <layer
+      x={linkCentred(slot) ? 'center' : slot % 2 === 0 ? Layout.link.edge : { right: Layout.link.edge }}
+      y={linkY(slot)}
+      w={Layout.link.w}
+      h={Layout.link.h}
+      options={['Open']}
+      optionSubject={linkSubject(label)}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+    >
+      <ButtonBackground />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={AccountFonts.BUTTON}
+        color={AccountColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        text={label}
+        hover={{ color: AccountColor.LABEL_HOVER }}
+      />
+    </layer>
+  );
+}

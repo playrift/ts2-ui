@@ -1,0 +1,105 @@
+import { CS2, stopTimer } from 'ts2';
+import { chatMessage, clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Sounds } from '../lib/game/sounds';
+import { meslayerMode6 } from '../0162_chatbox/meslayer';
+import {
+  Copy,
+  HOVER_LINGER_CYCLES,
+  PRESS_CYCLES,
+  RowOp,
+  RowWash,
+  SWITCH_WORLD_CYCLES,
+} from './gim-sidepanel.constants';
+
+export function clanMembersHover(target: ComponentId, entering: Int, restore: Int): void {
+  if (entering === 1) {
+    target.transparency = RowWash.HOVER;
+    const restoreAt: Int = clientClock() + HOVER_LINGER_CYCLES;
+    target.onTimer = () => {
+      if (clientClock() < restoreAt) {
+        return;
+      }
+      target.transparency = restore;
+      stopTimer(target);
+    };
+    return;
+  }
+  target.transparency = restore;
+  stopTimer(target);
+}
+
+function armReset(target: ComponentId, name: String, world: Int, resume: Int, cycles: Int): void {
+  const restoreAt: Int = clientClock() + cycles;
+  target.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    target.transparency = RowWash.HOVER;
+    const fadeAt: Int = clientClock() + HOVER_LINGER_CYCLES;
+    target.onTimer = () => {
+      if (clientClock() < fadeAt) {
+        return;
+      }
+      target.transparency = RowWash.REST;
+      stopTimer(target);
+    };
+    target.onMouseRepeat = () => {
+      if (!onMobile()) {
+        clanMembersHover(target, 1, RowWash.REST);
+      }
+    };
+    target.onMouseLeave = () => clanMembersHover(target, 0, RowWash.REST);
+    target.onOptionSelect = (event) => gimSidepanelOp(event.option, target, name, world);
+    if (resume === 1) {
+      if (world !== -1) {
+        CS2.countdialog_resume(stringOf(world));
+      } else {
+        CS2.countdialog_resume('0');
+      }
+    }
+  };
+}
+
+export function gimSidepanelOp(option: Int, target: ComponentId, name: String, world: Int): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  target.transparency = RowWash.PRESSED;
+  target.onMouseRepeat = null;
+  target.onMouseLeave = null;
+  target.onOptionSelect = null;
+
+  if (option === RowOp.MESSAGE) {
+    armReset(target, name, world, 0, PRESS_CYCLES);
+    if (world !== -1) {
+      if (CS2.friend_test(name)) {
+        meslayerMode6(name);
+      }
+    } else {
+      chatMessage(Copy.NOT_ONLINE);
+    }
+    return;
+  }
+  if (option === RowOp.FRIEND) {
+    armReset(target, name, world, 0, PRESS_CYCLES);
+    if (CS2.friend_test(name)) {
+      CS2.friend_del(name);
+    } else {
+      CS2.friend_add(name);
+    }
+    return;
+  }
+  if (option === RowOp.IGNORE) {
+    armReset(target, name, world, 0, PRESS_CYCLES);
+    if (CS2.ignore_test(name)) {
+      CS2.ignore_del(name);
+    } else {
+      CS2.ignore_add(name);
+    }
+    return;
+  }
+  if (option === RowOp.SWITCH_WORLD) {
+    armReset(target, name, world, 1, SWITCH_WORLD_CYCLES);
+    return;
+  }
+  armReset(target, name, world, 0, PRESS_CYCLES);
+}

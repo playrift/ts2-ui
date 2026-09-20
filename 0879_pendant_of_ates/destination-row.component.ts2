@@ -1,0 +1,114 @@
+import { CS2, resumePauseButton, useDerived, useState } from 'ts2';
+
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import {
+  Layout,
+  MarkerCamera,
+  NO_CHAR,
+  PLEASE_WAIT,
+  PendantColor,
+  PendantFonts,
+  PendantGate,
+  PendantModel,
+  TELEPORT_OP,
+} from './pendant-of-ates.constants';
+import { PendantOfAtesTeleport, PendantOfAtesTeleports } from './pendant-of-ates.data';
+import { pendantFound, selectRefused } from './pendant-of-ates.helpers';
+
+export function DestinationRow({ id, x, y, w }: { id: Int; x: Int; y: Int; w: Int }): Component {
+  const row: PendantOfAtesTeleport | null = PendantOfAtesTeleports.at(id - 1);
+  const rowName: String = row === null ? '' : row.name;
+  const found: Int = useDerived(() => pendantFound(id));
+  const [hovered, setHovered] = useState(0);
+  const [waiting, setWaiting] = useState(0);
+
+  const name: String = found === 1 ? rowName : '?????';
+  const live: Boolean = found === 1 && waiting === 0;
+  const hot: Boolean = hovered === 1 || waiting === 1;
+  const marker: Model =
+    found === 0 ? PendantModel.MARKER_LOCKED : hovered === 1 ? PendantModel.MARKER_HOT : PendantModel.MARKER;
+  const hotkey: String = CS2.tostring(id);
+
+  return (
+    <layer
+      x={x}
+      y={{ bottom: y }}
+      w={w}
+      h={Layout.DESTINATION_H}
+      noClickThrough
+      options={live ? [TELEPORT_OP] : undefined}
+      optionSubject={live ? `<col=ff9040>${name}</col>` : ''}
+      onOptionSelect={
+        live
+          ? (event) => {
+              if (selectRefused(id)) {
+                return;
+              }
+              setWaiting(1);
+              resumePauseButton(event.self);
+            }
+          : undefined
+      }
+      onMouseEnter={
+        live
+          ? () => {
+              setHovered(1);
+            }
+          : undefined
+      }
+      onMouseLeave={
+        live
+          ? () => {
+              setHovered(0);
+            }
+          : undefined
+      }
+      onKey={
+        live
+          ? (event) => {
+              if (dialogueMayAdvance(PendantGate.PENDANT_OF_ATES, PendantGate.NO_SUB) === false) {
+                return;
+              }
+              if (event.keyChar === NO_CHAR) {
+                return;
+              }
+              if (CS2.string_indexof_char(hotkey, event.keyChar) === -1) {
+                return;
+              }
+              if (selectRefused(id)) {
+                return;
+              }
+              setWaiting(1);
+              resumePauseButton(event.self);
+            }
+          : null
+      }
+    >
+      {found === 1 && (
+        <text
+          x="center"
+          y={{ bottom: 0 }}
+          w={{ fill: Layout.CAPTION_W_INSET }}
+          h={Layout.CAPTION_H}
+          text={waiting === 1 ? PLEASE_WAIT : `${hotkey}: ${name}`}
+          font={PendantFonts.LABEL}
+          color={hot ? PendantColor.HOT : PendantColor.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+      <model
+        x="center"
+        y="top"
+        w={Layout.MARKER}
+        h={Layout.MARKER}
+        model={marker}
+        offsetX={MarkerCamera.OFFSET_X}
+        pitch={MarkerCamera.PITCH}
+        zoom={MarkerCamera.ZOOM}
+        orthogonal
+      />
+    </layer>
+  );
+}

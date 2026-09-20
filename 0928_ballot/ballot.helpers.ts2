@@ -1,0 +1,146 @@
+import { CS2 } from 'ts2';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { BallotFont, BallotRowGap, BallotRowLayout } from './ballot.constants';
+
+export function ballotNameSeed(): Int {
+  const name: String = CS2.lowercase(CS2.chat_playername());
+  const alphabet: String = '0123456789abcdefghijklmnopqrstuvwxyz _-';
+  let seed: Int = 17;
+  let at: Int = 0;
+  const upto: Int = Math.min(CS2.string_length(name), 5);
+
+  while (at < upto) {
+    seed = seed * 40 + CS2.string_indexof_string(alphabet, CS2.substring(name, at, at + 1), 0);
+    at = at + 1;
+  }
+  return seed;
+}
+
+export function ballotHeadingHeight(title: String, paneWidth: Int): Int {
+  const inner: Int = paneWidth - BallotRowLayout.HEADING_INSET * 2;
+  const lines: Int = Math.max(1, textLineCount(title, inner, BallotFont.TITLE));
+  return lines * BallotRowLayout.LINE_H + BallotRowLayout.HEADING_INSET * 2;
+}
+
+export function ballotLinkRowHeight(label: String, paneWidth: Int): Int {
+  const gutter: Int = BallotRowLayout.LINK_ICON_GUTTER * 2 + BallotRowLayout.LINK_ICON + BallotRowLayout.LINK_ICON_GAP;
+  const inner: Int = paneWidth - gutter;
+  const lines: Int = Math.max(1, textLineCount(label, inner, BallotFont.BODY));
+  return BallotRowLayout.BUTTON_ROW_H + (lines - 1) * BallotRowLayout.BUTTON_ROW_LINE_H;
+}
+
+export function ballotLinkRowWidth(label: String, paneWidth: Int): Int {
+  const gutter: Int = BallotRowLayout.LINK_ICON_GUTTER * 2 + BallotRowLayout.LINK_ICON + BallotRowLayout.LINK_ICON_GAP;
+  return textWidth(label, paneWidth - gutter, BallotFont.BODY) + gutter;
+}
+
+export function ballotQuestionLabelWidth(index: Int): Int {
+  return textWidth(ballotQuestionLabel(index), 100, BallotFont.TITLE);
+}
+
+export function ballotQuestionLabel(index: Int): String {
+  return `Question ${index + 1}: `;
+}
+
+export function ballotAnswerRowHeight(
+  label: String,
+  paneWidth: Int,
+  chosen: Boolean,
+  markWidth: Int,
+  markHeight: Int,
+): Int {
+  let inner: Int = paneWidth;
+  let floor: Int = 0;
+  if (chosen) {
+    inner = paneWidth - markWidth - BallotRowLayout.ANSWER_MARK_GAP;
+    floor = markHeight;
+  }
+  const lines: Int = textLineCount(label, inner, BallotFont.BODY);
+  return Math.max(lines * BallotRowLayout.LINE_H, floor);
+}
+
+export function ballotImageRowGap(imageHeight: Int): Int {
+  return imageHeight > 0 ? BallotRowGap.IMAGE : 0;
+}
+
+export function ballotQuestionTextHeight(index: Int, text: String, wide: Boolean, paneWidth: Int): Int {
+  if (wide) {
+    const half: Int = ballotQuestionColumnWidth(paneWidth);
+    const lines: Int = 1 + textLineCount(text, half, BallotFont.BODY);
+    return lines * BallotRowLayout.LINE_H + BallotRowLayout.QUESTION_PAD;
+  }
+  const inner: Int = paneWidth - ballotQuestionLabelWidth(index);
+  const lines: Int = textLineCount(text, inner, BallotFont.BODY);
+  return lines * BallotRowLayout.LINE_H + BallotRowLayout.QUESTION_PAD;
+}
+
+export function ballotQuestionColumnWidth(paneWidth: Int): Int {
+  return (paneWidth - BallotRowLayout.QUESTION_COLUMN_GAP) / 2;
+}
+
+export function ballotQuestionMarkerHeight(
+  index: Int,
+  text: String,
+  wide: Boolean,
+  marked: Boolean,
+  markerText: String,
+  paneWidth: Int,
+): Int {
+  if (!marked) {
+    return 0;
+  }
+  const column: Int = wide ? ballotQuestionColumnWidth(paneWidth) : paneWidth - ballotQuestionLabelWidth(index);
+  const inner: Int = column - BallotRowLayout.VOTE_MARK_INSET * 2;
+  const lines: Int = textLineCount(markerText, inner, BallotFont.BODY);
+  return lines * BallotRowLayout.LINE_H + BallotRowLayout.VOTE_MARK_INSET * 2 + BallotRowLayout.QUESTION_PAD;
+}
+
+export function ballotQuestionAnswersTop(
+  index: Int,
+  text: String,
+  wide: Boolean,
+  marked: Boolean,
+  markerText: String,
+  paneWidth: Int,
+): Int {
+  return (
+    ballotQuestionTextHeight(index, text, wide, paneWidth) +
+    ballotQuestionMarkerHeight(index, text, wide, marked, markerText, paneWidth)
+  );
+}
+
+export function ballotQuestionRowHeight(
+  index: Int,
+  text: String,
+  wide: Boolean,
+  marked: Boolean,
+  markerText: String,
+  hasAnswers: Boolean,
+  answersHeight: Int,
+  paneWidth: Int,
+): Int {
+  const textHeight: Int = ballotQuestionTextHeight(index, text, wide, paneWidth);
+  const markerHeight: Int = ballotQuestionMarkerHeight(index, text, wide, marked, markerText, paneWidth);
+  const answers: Int = hasAnswers ? answersHeight : wide ? -1 : 0;
+
+  if (wide) {
+    return Math.max(textHeight, markerHeight + answers);
+  }
+  return textHeight + markerHeight + answers;
+}
+
+export function ballotScrollToRow(rowTop: Int, rowHeight: Int, viewportHeight: Int, contentHeight: Int): Int {
+  let target: Int =
+    rowHeight >= viewportHeight - BallotRowLayout.SCROLL_TALL_SLACK
+      ? rowTop - BallotRowLayout.SCROLL_TALL_TOP
+      : rowTop - (viewportHeight - rowHeight) / 2;
+
+  const limit: Int = contentHeight - viewportHeight;
+  if (target > limit) {
+    target = limit;
+  }
+  if (target < 0) {
+    target = 0;
+  }
+  return target;
+}

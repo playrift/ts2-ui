@@ -1,0 +1,138 @@
+import { useServerState } from 'ts2';
+
+import { inLeagueTutorial, leagueWorld } from '../0654_league_info/league-info.helpers';
+import { areaRegion, nextAreaTier, regionName } from '../0656_league_side_panel/league-side-panel.helpers';
+
+import { AreaTiers, LeagueThemes, RegionArt } from './trailblazer-areas.data';
+import { AreaColor, AreaSelection, AreaVarbits } from './trailblazer-areas.constants';
+
+export function leagueTheme() {
+  return LeagueThemes.get(useServerState(AreaVarbits.LEAGUE));
+}
+
+export function accent(): Int {
+  const theme = leagueTheme();
+  return theme === null ? AreaColor.TEXT : theme.accent;
+}
+
+function areaSelectionLive(): Boolean {
+  if (!leagueWorld()) {
+    return false;
+  }
+  const theme = LeagueThemes.get(6);
+  return theme === null ? false : theme.areasEnabled;
+}
+
+export function regionHidden(region: Int): Boolean {
+  if (region !== 1) {
+    return false;
+  }
+  if (useServerState(AreaVarbits.LEAGUE) !== 6) {
+    return false;
+  }
+  return areaSelectionLive();
+}
+
+function selection(slot: Int): Int {
+  if (slot === 0) return useServerState(AreaSelection.SLOT_0);
+  if (slot === 1) return useServerState(AreaSelection.SLOT_1);
+  if (slot === 2) return useServerState(AreaSelection.SLOT_2);
+  if (slot === 3) return useServerState(AreaSelection.SLOT_3);
+  if (slot === 4) return useServerState(AreaSelection.SLOT_4);
+  return useServerState(AreaSelection.SLOT_5);
+}
+
+export function areaSelected(region: Int): Boolean {
+  if (region === 0) {
+    return true;
+  }
+  let want: Int = region;
+  if (region === 10) {
+    want = 20;
+  }
+  if (region === 9) {
+    want = 20;
+  }
+  if (selection(0) === want) return true;
+  if (selection(1) === want) return true;
+  if (selection(2) === want) return true;
+  if (selection(3) === want) return true;
+  if (selection(4) === want) return true;
+  if (selection(5) === want) return true;
+  return false;
+}
+
+export function areaPickWaiting(): Boolean {
+  if (leagueTheme() === null) {
+    return false;
+  }
+  const tasks: Int = useServerState(AreaVarbits.TASKS);
+  let tier: Int = 0;
+  while (tier < AreaTiers.length) {
+    const threshold: Int = AreaTiers.at(tier) ?? 0;
+    if (tasks < threshold) {
+      return false;
+    }
+    if (selection(tier) === 0) {
+      return true;
+    }
+    tier = tier + 1;
+  }
+  return false;
+}
+
+export function pendingRegion(): Int {
+  if (!areaPickWaiting()) {
+    return -1;
+  }
+  if (selection(0) === 0) return areaRegion(0);
+  if (selection(1) === 0) return areaRegion(1);
+  if (selection(2) === 0) return areaRegion(2);
+  if (selection(3) === 0) return areaRegion(3);
+  if (selection(4) === 0) return areaRegion(4);
+  return -1;
+}
+
+export function hasEchoes(): Boolean {
+  if (!leagueWorld()) {
+    return false;
+  }
+  const theme = leagueTheme();
+  return theme === null ? false : theme.hasEchoes;
+}
+
+export function areasUnlocked(): Int {
+  if (selection(4) > 0) return 5;
+  if (selection(3) > 0) return 4;
+  if (selection(2) > 0) return 3;
+  if (selection(1) > 0) return 2;
+  return 1;
+}
+
+export function headerMessage(): String {
+  const unlocked: Int = areasUnlocked();
+  if (unlocked === 5) {
+    return 'You have unlocked 5/5 areas!';
+  }
+  const tier: Int = nextAreaTier();
+  if (tier === -1) {
+    return '';
+  }
+  const threshold: Int = AreaTiers.at(tier) ?? 0;
+  if (threshold - useServerState(AreaVarbits.TASKS) > 0) {
+    return `You have unlocked ${stringOf(unlocked)}/5 areas.`;
+  }
+  const region: Int = areaRegion(tier);
+  if (region === -1) {
+    return 'You have a new area available for selection!';
+  }
+  return `You can now unlock ${regionName(region)}!`;
+}
+
+export function regionArt(region: Int) {
+  return RegionArt.get(region);
+}
+
+export function inTutorial(): Boolean {
+  return inLeagueTutorial();
+}

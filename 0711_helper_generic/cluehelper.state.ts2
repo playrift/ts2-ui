@@ -1,0 +1,418 @@
+import { CS2, sessionState, useInventory, useServerState, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { Quest, questComplete } from '../lib/lib.quests';
+import { SkillNames } from '../lib/skills.data';
+import { ClueStashLocBits } from './clue-enums.data';
+import { leaguesEnabled } from '../0735_league_3_fragments/league-3-fragments.helpers';
+import {
+  Clue,
+  ClueKind,
+  ClueTargetId,
+  ClueTargetKind,
+  ClueTargets,
+  ClueTargetsOf,
+  Clues,
+  RequirementKind,
+  Requirements,
+} from './clues.data';
+
+export const clueHelperClue = sessionState(-1);
+
+export const HELPER_ACTIVE_CLUE = 4;
+
+export const clueSpadeRowIndex = sessionState(-1);
+
+export const clueHotColdStored = sessionState(0);
+
+export const CLUE_HOTCOLD_BITS_PER_SLOT = 31;
+export const CLUE_HOTCOLD_MASK_SLOTS = 5;
+export const clueHotColdMask0 = sessionState(0);
+export const clueHotColdMask1 = sessionState(0);
+export const clueHotColdMask2 = sessionState(0);
+export const clueHotColdMask3 = sessionState(0);
+export const clueHotColdMask4 = sessionState(0);
+
+export function clueHotColdPossible(n: Int): Boolean {
+  const slot: Int = n / CLUE_HOTCOLD_BITS_PER_SLOT;
+  const bit: Int = n % CLUE_HOTCOLD_BITS_PER_SLOT;
+  const [m0] = useState(clueHotColdMask0);
+  const [m1] = useState(clueHotColdMask1);
+  const [m2] = useState(clueHotColdMask2);
+  const [m3] = useState(clueHotColdMask3);
+  const [m4] = useState(clueHotColdMask4);
+  let mask: Int = 0;
+  if (slot === 0) {
+    mask = m0;
+  } else if (slot === 1) {
+    mask = m1;
+  } else if (slot === 2) {
+    mask = m2;
+  } else if (slot === 3) {
+    mask = m3;
+  } else if (slot === 4) {
+    mask = m4;
+  } else {
+    return false;
+  }
+  return (mask / Math.pow(2, bit)) % 2 === 0;
+}
+
+export function clueHotColdEliminate(n: Int): void {
+  if (!clueHotColdPossible(n)) {
+    return;
+  }
+  const slot: Int = n / CLUE_HOTCOLD_BITS_PER_SLOT;
+  const step: Int = Math.pow(2, n % CLUE_HOTCOLD_BITS_PER_SLOT);
+  const [m0, setM0] = useState(clueHotColdMask0);
+  const [m1, setM1] = useState(clueHotColdMask1);
+  const [m2, setM2] = useState(clueHotColdMask2);
+  const [m3, setM3] = useState(clueHotColdMask3);
+  const [m4, setM4] = useState(clueHotColdMask4);
+  if (slot === 0) {
+    setM0(m0 + step);
+  } else if (slot === 1) {
+    setM1(m1 + step);
+  } else if (slot === 2) {
+    setM2(m2 + step);
+  } else if (slot === 3) {
+    setM3(m3 + step);
+  } else if (slot === 4) {
+    setM4(m4 + step);
+  }
+}
+
+export function clueHotColdListInit(): void {
+  clueHotColdMaskClear();
+  const [, setStored] = useState(clueHotColdStored);
+  setStored(1);
+}
+
+export function clueHotColdMaskClear(): void {
+  const [, setM0] = useState(clueHotColdMask0);
+  const [, setM1] = useState(clueHotColdMask1);
+  const [, setM2] = useState(clueHotColdMask2);
+  const [, setM3] = useState(clueHotColdMask3);
+  const [, setM4] = useState(clueHotColdMask4);
+  setM0(0);
+  setM1(0);
+  setM2(0);
+  setM3(0);
+  setM4(0);
+}
+
+export function clueColourBinary(text: String, held: Int): String {
+  if (held === 0) {
+    return `<col=ff0000>${text}</col>`;
+  }
+  return `<col=7f7f7f><str=9f9f9f>${text}</col></str>`;
+}
+
+export function clueColourTernary(text: String, state: Int): String {
+  if (state === 1) {
+    return `<col=7f7f7f><str=9f9f9f>${text}</col></str>`;
+  }
+  if (state === 2) {
+    return `<col=ff7000>${text}</col>`;
+  }
+  return `<col=ff0000>${text}</col>`;
+}
+
+export function clueStashBuilt(loc: WorldObject): Int {
+  const at: Coord | null = ClueStashLocBits.get(loc);
+  if (at === null) {
+    return 0;
+  }
+  const tier: Int = CS2.coordx(at);
+  const bit: Int = CS2.coordy(at);
+  let held: Int = 0;
+  if (tier === 1) {
+    held = useServerState(Varps.HH_CONSTRUCTED_EASY);
+  } else if (tier === 2) {
+    held = useServerState(Varps.HH_CONSTRUCTED_MEDIUM);
+  } else if (tier === 3) {
+    held = useServerState(Varps.HH_CONSTRUCTED_HARD);
+  } else if (tier === 4) {
+    held = useServerState(Varps.HH_CONSTRUCTED_ELITE);
+  } else if (tier === 5) {
+    held = useServerState(Varps.HH_CONSTRUCTED_MASTER);
+  } else if (tier === 6) {
+    held = useServerState(Varps.HH_CONSTRUCTED_BEGINNER);
+  } else {
+    return 0;
+  }
+  return (held / Math.pow(2, bit)) % 2;
+}
+
+export function clueHotColdBand(was: Int, now: Int, difficulty: Int): Int {
+  let floor: Int = 5;
+  if (difficulty === 0) {
+    floor = 4;
+  }
+  if (was >= 500) {
+    if (now >= 500) {
+      return 1;
+    }
+  } else if (was >= 200) {
+    if (now >= 200 && now < 500) {
+      return 1;
+    }
+  } else if (was >= 150) {
+    if (now >= 150 && now < 200) {
+      return 1;
+    }
+  } else if (was >= 100) {
+    if (now >= 100 && now < 150) {
+      return 1;
+    }
+  } else if (was >= 70) {
+    if (now >= 70 && now < 100) {
+      return 1;
+    }
+  } else if (was >= 30) {
+    if (now >= 30 && now < 70) {
+      return 1;
+    }
+  } else if (was >= floor) {
+    if (now >= floor && now < 30) {
+      return 1;
+    }
+  } else if (now < floor) {
+    return 1;
+  }
+  return 0;
+}
+
+export function clueTargetVariant(target: Int): Int {
+  switch (target) {
+    case ClueTargetId.COORD_1_25_83_40_54: {
+      if (useServerState(Varbits.DS2_FREM) >= 45) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueTargetId.NPC_ELUNED_LLETYA: {
+      if (useServerState(Varbits.SOTE) >= 192) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueTargetId.NPC_VIGGORA_1: {
+      switch (useServerState(Varbits.SECRET_GHOST_RANDOMISER)) {
+        case 1:
+          return 0;
+        case 2:
+          return 1;
+        case 3:
+          return 2;
+        default:
+          return 0;
+      }
+    }
+    case ClueTargetId.NPC_JARDRIC_CAMP: {
+      if (useServerState(Varbits.DS2) >= 60) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueTargetId.NPC_RADIMUS_ERKLE_HUT: {
+      if (useServerState(Varps.LEGENDSQUEST) > 49) {
+        return 1;
+      }
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}
+
+export function clueChallengeVariant(clue: Int): Int {
+  switch (clue) {
+    case Clue.ANAGRAM_MEDIUM_FATHER_AERECK: {
+      if (useServerState(Varbits.HW17_JARVIS_DEAD) === 1) {
+        return 1;
+      }
+      return 0;
+    }
+    case Clue.ANAGRAM_MEDIUM_ZOO_KEEPER: {
+      if (questComplete(Quest.EAGLES_PEAK) === true) {
+        return 1;
+      }
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}
+
+export function clueDifficulty(clue: Int): Int {
+  const row = Clues.at(clue);
+  if (row === null) {
+    return 0;
+  }
+  return row.difficulty;
+}
+
+export function clueTarget(clue: Int): Int {
+  const row = Clues.at(clue);
+  if (row === null) {
+    return -1;
+  }
+  const first: Int = row.target ?? -1;
+  if (first === -1) {
+    return -1;
+  }
+  if (row.kind === ClueKind.CRYPTIC && leagueSix() === true) {
+    const league: Int = row.leagueTarget ?? -1;
+    if (league !== -1) {
+      return league;
+    }
+  }
+  return clueTargetTuple(clue, first, clueTargetVariant(first));
+}
+
+export function clueTargetTuple(clue: Int, first: Int, n: Int): Int {
+  if (n === 0) {
+    return first;
+  }
+  let found: Int = -1;
+  let seen: Int = 0;
+  let i: Int = 0;
+  while (i < ClueTargetsOf.length) {
+    const extra = ClueTargetsOf.at(i);
+    if (extra !== null) {
+      if (extra.row === clue) {
+        seen = seen + 1;
+        if (seen === n) {
+          found = extra.target;
+          i = ClueTargetsOf.length;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  if (found === -1) {
+    return first;
+  }
+  return found;
+}
+
+export function leagueSix(): Boolean {
+  if (leaguesEnabled() === false) {
+    return false;
+  }
+  return useServerState(Varbits.LEAGUE_TYPE) === 6;
+}
+
+export function clueTargetDescription(target: Int): String {
+  const row = ClueTargets.at(target);
+  if (row === null) {
+    return 'null';
+  }
+  return row.description;
+}
+
+export function clueTargetDescriptionShort(target: Int): String {
+  const row = ClueTargets.at(target);
+  if (row !== null) {
+    if (row.kind === ClueTargetKind.COORD) {
+      const short: String = row.descriptionShort ?? '';
+      if (CS2.string_length(short) !== 0) {
+        return short;
+      }
+    }
+  }
+  return clueTargetDescription(target);
+}
+
+export function clueRequirementDescription(requirement: Int): String {
+  const row = Requirements.at(requirement);
+  if (row === null) {
+    return 'null';
+  }
+  if (row.kind === RequirementKind.STAT) {
+    const stat: Skill = (row.stat ?? 0) as Skill;
+    return `${SkillNames.get(stat) ?? 'Skill'} ${CS2.tostring(row.level ?? 0)}`;
+  }
+  return row.description ?? 'null';
+}
+
+export function clueIsDig(clue: Int, target: Int): Int {
+  const row = Clues.at(clue);
+  if (row === null) {
+    return 0;
+  }
+  switch (row.kind) {
+    case ClueKind.FAIRYRING:
+      return 1;
+    case ClueKind.COORDINATE:
+      return 1;
+    case ClueKind.HOTCOLD:
+      return 1;
+    case ClueKind.CRYPTIC: {
+      if (clueTargetIsCoord(target)) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueKind.MAP: {
+      if (clueTargetIsCoord(target)) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueKind.ANAGRAM: {
+      if (clue === Clue.ANAGRAM_SOTE_3) {
+        return 1;
+      }
+      return 0;
+    }
+    case ClueKind.CIPHER: {
+      if (clueTargetIsCoord(target)) {
+        return 1;
+      }
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}
+
+function clueTargetIsCoord(target: Int): Boolean {
+  const row = ClueTargets.at(target);
+  if (row === null) {
+    return false;
+  }
+  return row.kind === ClueTargetKind.COORD;
+}
+
+export function clueTargetCoord(target: Int): Coord | null {
+  const row = ClueTargets.at(target);
+  if (row === null) {
+    return null;
+  }
+  switch (row.kind) {
+    case ClueTargetKind.NPC:
+      return row.coord ?? null;
+    case ClueTargetKind.LOC:
+      return row.coord ?? null;
+    case ClueTargetKind.COORD:
+      return row.coord ?? null;
+    case ClueTargetKind.KILL:
+      return row.coord ?? null;
+    case ClueTargetKind.KEY: {
+      const key: Item | null = row.key ?? null;
+      const inv: Container = useInventory(Inventories.INV);
+      if (key !== null) {
+        if (inv.total(key) > 0) {
+          return row.locCoord ?? null;
+        }
+      }
+      return row.keyCoord ?? null;
+    }
+    default:
+      return null;
+  }
+}

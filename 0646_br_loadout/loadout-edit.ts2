@@ -1,0 +1,152 @@
+import { CS2 } from 'ts2';
+import { Grid, LoadoutSounds, WORN_SLOTS, Zone } from './br-loadout.constants';
+import {
+  itemOf,
+  loadoutInv,
+  loadoutWorn,
+  setLoadoutInv,
+  setLoadoutWorn,
+  slotInfo,
+  stackCap,
+} from './br-loadout.helpers';
+
+export function addItem(tab: Int, from: Int, key: Int): void {
+  if (itemOf(tab, key) === -1) {
+    return;
+  }
+  let step: Int = 0;
+  while (step < Grid.SLOTS) {
+    const slot: Int = (from + step) % Grid.SLOTS;
+    if (itemOf(tab, loadoutInv(tab, slot)) === -1) {
+      CS2.sound_effect(LoadoutSounds.CLICK, 1, 0);
+      setLoadoutInv(tab, slot, key);
+      return;
+    }
+    step = step + 1;
+  }
+}
+
+export function insertFromList(tab: Int, key: Int, zone: Int): void {
+  const dragged: Item = itemOf(tab, key);
+  if (dragged === -1) {
+    return;
+  }
+  if (zone === Zone.NONE || zone === Zone.BIN) {
+    return;
+  }
+  if (zone === Zone.INVENTORY) {
+    addItem(tab, 0, key);
+    return;
+  }
+  if (slotInfo(dragged) !== zone) {
+    return;
+  }
+  CS2.sound_effect(LoadoutSounds.CLICK, 1, 0);
+  setLoadoutWorn(tab, zone, key);
+}
+
+export function rearrange(tab: Int, fromWorn: Int, fromInv: Int, zone: Int): void {
+  const sourceKey: Int = fromInv >= 0 ? loadoutInv(tab, fromInv) : loadoutWorn(tab, fromWorn);
+  const dragged: Item = itemOf(tab, sourceKey);
+  if (dragged === -1) {
+    return;
+  }
+  if (zone === Zone.NONE) {
+    return;
+  }
+
+  if (zone === Zone.BIN) {
+    CS2.sound_effect(LoadoutSounds.CLICK, 1, 0);
+    if (fromInv >= 0) {
+      setLoadoutInv(tab, fromInv, 0);
+    } else {
+      setLoadoutWorn(tab, fromWorn, 0);
+    }
+    return;
+  }
+
+  if (zone === Zone.INVENTORY) {
+    if (fromInv >= 0) {
+      setLoadoutInv(tab, fromInv, 0);
+    } else {
+      setLoadoutWorn(tab, fromWorn, 0);
+    }
+    addItem(tab, 0, sourceKey);
+    return;
+  }
+
+  if (slotInfo(dragged) !== zone) {
+    return;
+  }
+  const targetKey: Int = loadoutWorn(tab, zone);
+  const displaced: Item = itemOf(tab, targetKey);
+  if (displaced !== -1 && fromInv < 0 && slotInfo(displaced) !== fromWorn) {
+    return;
+  }
+  CS2.sound_effect(LoadoutSounds.CLICK, 1, 0);
+  setLoadoutWorn(tab, zone, sourceKey);
+  if (fromInv >= 0) {
+    setLoadoutInv(tab, fromInv, targetKey);
+  } else {
+    setLoadoutWorn(tab, fromWorn, targetKey);
+  }
+}
+
+export function wornOverCap(tab: Int, slot: Int): Int {
+  const key: Int = loadoutWorn(tab, slot);
+  const held: Item = itemOf(tab, key);
+  if (held === -1) {
+    return 0;
+  }
+  let ahead: Int = 0;
+  let s: Int = WORN_SLOTS - 1;
+  while (s > slot) {
+    if (loadoutWorn(tab, s) === key) {
+      ahead = ahead + 1;
+    }
+    s = s - 1;
+  }
+  return ahead >= stackCap(held) ? 1 : 0;
+}
+
+export function invOverCap(tab: Int, slot: Int): Int {
+  const key: Int = loadoutInv(tab, slot);
+  const held: Item = itemOf(tab, key);
+  if (held === -1) {
+    return 0;
+  }
+  let ahead: Int = 0;
+  let s: Int = 0;
+  while (s < WORN_SLOTS) {
+    if (loadoutWorn(tab, s) === key) {
+      ahead = ahead + 1;
+    }
+    s = s + 1;
+  }
+  s = 0;
+  while (s < slot) {
+    if (loadoutInv(tab, s) === key) {
+      ahead = ahead + 1;
+    }
+    s = s + 1;
+  }
+  return ahead >= stackCap(held) ? 1 : 0;
+}
+
+export function anyOverCap(tab: Int): Int {
+  let s: Int = 0;
+  while (s < WORN_SLOTS) {
+    if (wornOverCap(tab, s) === 1) {
+      return 1;
+    }
+    s = s + 1;
+  }
+  s = 0;
+  while (s < Grid.SLOTS) {
+    if (invOverCap(tab, s) === 1) {
+      return 1;
+    }
+    s = s + 1;
+  }
+  return 0;
+}

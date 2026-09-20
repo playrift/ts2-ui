@@ -1,0 +1,242 @@
+import { CS2, intArray, onMounted, resumePauseButton, useRef, useState } from 'ts2';
+
+import { ShortcutLower, ShortcutUpper } from '../0590_poh_jewellery_box/poh-jewellery-box.data';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { clientClock, scaled, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Layout, MenuAsset, MenuBar, MenuColour, MenuRows } from './menu.constants';
+import { MenuMode, menuCall, menuMode, menuOptions, menuTitle } from './menu.state';
+
+export function Menu(): Component {
+  const [call, setCall] = useState(menuCall);
+  const [options] = useState(menuOptions);
+  const [mode] = useState(menuMode);
+  const mobile: Boolean = onMobile();
+  const pane = useRef();
+
+  onMounted(() => {
+    setCall(0);
+  });
+
+  const starts = intArray(MenuRows.MAX);
+  const ends = intArray(MenuRows.MAX);
+  const tops = intArray(MenuRows.MAX);
+  const heights = intArray(MenuRows.MAX);
+  let count: Int = 0;
+  let extent: Int = 0;
+  if (call > 0) {
+    let from: Int = 0;
+    let cut: Int = options.indexOf('|', 0);
+    while (cut !== -1 && count < MenuRows.MAX - 1) {
+      starts[count] = from;
+      ends[count] = cut;
+      count = count + 1;
+      from = cut + 1;
+      cut = options.indexOf('|', from);
+    }
+    starts[count] = from;
+    ends[count] = options.length;
+    count = count + 1;
+
+    let at: Int = 0;
+    while (at < count) {
+      let rowH: Int =
+        textLineCount(options.substring(starts[at], ends[at]), Layout.PANE_W, MenuAsset.ROW_FONT) * Layout.LINE_H +
+        Layout.ROW_PAD;
+      if (mobile) {
+        rowH = scaled(4, 3, rowH);
+      }
+      tops[at] = extent;
+      heights[at] = rowH;
+      extent = extent + rowH;
+      at = at + 1;
+    }
+  }
+
+  return (
+    <>
+      <layer x={0} y={0} w={Layout.SLOT_W} h={Layout.SLOT_H}>
+        <layer x={0} y={0} w={1} h={1}>
+          {call > 0 && <>{heights.map((rowH, i) => i < count && <rect x="center" y="center" w="fill" h="fill" />)}</>}
+        </layer>
+        {call > 0 && (
+          <model
+            x="center"
+            y="center"
+            w={Layout.SLOT_W}
+            h={Layout.SLOT_H}
+            model={MenuAsset.PARCHMENT_MODEL}
+            offsetX={Layout.MODEL_X2D}
+            offsetY={Layout.MODEL_Y2D}
+            pitch={Layout.MODEL_PITCH}
+            yaw={Layout.MODEL_YAW}
+            roll={Layout.MODEL_ROLL}
+            zoom={Layout.MODEL_ZOOM}
+          />
+        )}
+        {call > 0 && <MenuTitle />}
+      </layer>
+
+      {call > 0 && (
+        <layer ref={pane} x={Layout.PANE_X} y={Layout.PANE_Y} w={Layout.PANE_W} h={Layout.PANE_H} scrollHeight={extent}>
+          {heights.map(
+            (rowH, i) =>
+              i < count && (
+                <MenuRow
+                  top={tops[i]}
+                  rowH={rowH}
+                  label={rowLabel(options.substring(starts[i], ends[i]), i + 1, mode)}
+                  listens={rowListens(i + 1, mode)}
+                  upper={rowUpper(i + 1, mode)}
+                  lower={rowLower(i + 1, mode)}
+                />
+              ),
+          )}
+        </layer>
+      )}
+
+      <layer x={Layout.BAR_X} y={Layout.PANE_Y} w={Layout.BAR_W} h={Layout.PANE_H}>
+        {call > 0 && extent > Layout.PANE_H && (
+          <ScrollbarVertical
+            content={pane}
+            track={MenuBar.TRACK}
+            capTopSprite={MenuBar.CAP_TOP}
+            thumbSprite={MenuBar.THUMB}
+            capBottomSprite={MenuBar.CAP_BOTTOM}
+            arrowUp={MenuBar.UP}
+            arrowDown={MenuBar.DOWN}
+          />
+        )}
+      </layer>
+    </>
+  );
+}
+
+function MenuRow({
+  top,
+  rowH,
+  label,
+  listens,
+  upper,
+  lower,
+}: {
+  top: Int;
+  rowH: Int;
+  label: String;
+  listens: Boolean;
+  upper: String;
+  lower: String;
+}): Component {
+  const [armedAt, setArmedAt] = useState(0);
+  return (
+    <text
+      x="center"
+      y={top}
+      w="fill"
+      h={rowH}
+      text={label}
+      font={MenuAsset.ROW_FONT}
+      color={MenuColour.INK}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.LINE_H}
+      onMouseEnter={(event) => {
+        event.self.color = MenuColour.INK_HOVER;
+      }}
+      onMouseLeave={(event) => {
+        event.self.color = MenuColour.INK;
+      }}
+      onKey={
+        listens
+          ? (event) => {
+              if (!rowKeyMatches(event.keyChar, upper, lower)) {
+                return;
+              }
+              let due: Boolean = false;
+              if (armedAt !== 0 && clientClock() >= armedAt) {
+                due = true;
+              }
+              answerRow(event.self);
+              if (due) {
+                answerRow(event.self);
+              }
+              setArmedAt(clientClock() + Layout.KEY_REARM);
+            }
+          : null
+      }
+    />
+  );
+}
+
+function MenuTitle(): Component {
+  const [title] = useState(menuTitle);
+  return (
+    <text
+      x={{ center: Layout.TITLE_X }}
+      y={Layout.PANE_TOP}
+      w={Layout.TITLE_W}
+      h={Layout.TITLE_H}
+      text={title}
+      font={MenuAsset.TITLE_FONT}
+      color={MenuColour.INK}
+      align="center"
+      valign="top"
+    />
+  );
+}
+
+function rowListens(shown: Int, mode: Int): Boolean {
+  if (mode === MenuMode.INDEXED) {
+    return true;
+  }
+  return mode === MenuMode.KEYS && shown < Layout.SHORTCUT_LIMIT;
+}
+
+function rowUpper(shown: Int, mode: Int): String {
+  if (mode !== MenuMode.KEYS) {
+    return '';
+  }
+  if (shown < Layout.DIGIT_LIMIT) {
+    return stringOf(shown);
+  }
+  return ShortcutUpper.get(shown - Layout.LETTER_BASE) ?? '';
+}
+
+function rowLower(shown: Int, mode: Int): String {
+  if (mode !== MenuMode.KEYS || shown < Layout.DIGIT_LIMIT) {
+    return '';
+  }
+  return ShortcutLower.get(shown - Layout.LETTER_BASE) ?? '';
+}
+
+function rowLabel(piece: String, shown: Int, mode: Int): String {
+  if (mode === MenuMode.INDEXED) {
+    return `<col=735a28>${stringOf(shown)}</col>: ${piece}`;
+  }
+  if (rowListens(shown, mode)) {
+    return `<col=735a28>${rowUpper(shown, mode)}</col>: ${piece}`;
+  }
+  return piece;
+}
+
+function rowKeyMatches(keyChar: Char, upper: String, lower: String): Boolean {
+  if (dialogueMayAdvance(-1, CHATBOX) === false) {
+    return false;
+  }
+  if (keyChar === -1) {
+    return false;
+  }
+  if (CS2.string_indexof_char(upper, keyChar) === -1 && CS2.string_indexof_char(lower, keyChar) === -1) {
+    return false;
+  }
+  return true;
+}
+
+function answerRow(row: ComponentId): void {
+  resumePauseButton(row);
+  row.text = 'Please wait...';
+  row.color = MenuColour.INK;
+}
+
+const CHATBOX = 162;

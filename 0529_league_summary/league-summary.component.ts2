@@ -1,0 +1,753 @@
+import { CS2, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { TooltipBox, TooltipChrome } from '../lib/tooltip.component';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { totalLevel, totalXpText } from '../0712_account_summary_sidepanel/account-summary-sidepanel.helpers';
+import { currentRank } from '../0656_league_side_panel/league-side-panel.helpers';
+import { RankSprites } from '../0656_league_side_panel/leagues.data';
+import { infoSelectSound } from '../0656_league_side_panel/league-side-panel.state';
+
+import {
+  STATS_PANE,
+  SUMMARY_MODEL,
+  SummaryColour,
+  SummaryFade,
+  SummaryFonts,
+  SummaryLayout,
+  SummaryScrollbar,
+  SummarySprites,
+  SummaryText,
+} from './league-summary.constants';
+import { RankNames } from './league-summary.data';
+import {
+  areaIcon,
+  areaTip,
+  compactCount,
+  highestSkillName,
+  masteryIcon,
+  masteryPip,
+  ordinal,
+  relicIcon,
+  relicTip,
+  summaryAccent,
+  summaryValueColour,
+} from './league-summary.helpers';
+import {
+  summaryMasteriesShown,
+  summaryTip,
+  summaryTipHide,
+  summaryTipMessage,
+  summaryTipShow,
+} from './league-summary.state';
+
+export function LeagueSummary(): Component {
+  return (
+    <>
+      <layer x={6} y={5} w={500} h={324}>
+        <layer x={0} y="top" w="fill" h="fill">
+          <SummaryBorder />
+        </layer>
+
+        <layer x={230} y={33} w={145} h={290}>
+          <layer x="center" y={{ bottom: 207 }} w={{ fill: 8 }} h={{ fill: 211 }}>
+            <layer x={0} y={0} w="fill" h="fill" onLoad={(event) => thinboxLight(event.component)} />
+            <layer x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }}>
+              <AreasBox />
+            </layer>
+          </layer>
+          <layer x="center" y={{ bottom: 91 }} w={{ fill: 8 }} h={{ fill: 177 }}>
+            <layer x={0} y={0} w="fill" h="fill" onLoad={(event) => thinboxLight(event.component)} />
+            <layer x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }}>
+              <RelicsBox />
+            </layer>
+          </layer>
+          <layer x="center" y={{ bottom: 7 }} w={{ fill: 8 }} h={{ fill: 209 }}>
+            <layer x={0} y={0} w="fill" h="fill" onLoad={(event) => thinboxLight(event.component)} />
+            <layer x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }}>
+              <PactsBox />
+            </layer>
+          </layer>
+        </layer>
+
+        <layer x={371} y={34} w={129} h={290}>
+          <layer x={{ center: -2 }} y={{ bottom: 8 }} w={119} h={81}>
+            <layer x={0} y={0} w="fill" h="fill" onLoad={(event) => thinboxLight(event.component)} />
+            <layer x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }}>
+              <TotalsBox />
+            </layer>
+          </layer>
+          <layer x={{ center: -2 }} y={{ bottom: 92 }} w={119} h={195}>
+            <layer x={0} y={0} w="fill" h="fill" onLoad={(event) => thinboxLight(event.component)} />
+            <layer x="center" y="center" w={{ fill: 4 }} h={{ fill: 4 }}>
+              <NameBox />
+            </layer>
+            <model
+              ref={SUMMARY_MODEL}
+              x={{ center: 5 }}
+              y={{ center: 75 }}
+              w={136}
+              h={168}
+              contentType={328}
+              zoom={920}
+            />
+          </layer>
+        </layer>
+
+        <layer x={7} y={37} w={226} h={279}>
+          <layer x={0} y={0} w={{ fill: 18 }} h="fill" onLoad={(event) => thinboxLight(event.component)} />
+          <layer
+            ref={STATS_PANE}
+            x={{ center: -9 }}
+            y="center"
+            w={{ fill: 22 }}
+            h={{ fill: 4 }}
+            onLoad={(event) => sizeStatsPane(event.component)}
+          >
+            <StatsList />
+          </layer>
+          <layer x={{ right: 2 }} y={0} w={16} h="fill">
+            <ScrollbarVertical
+              content={STATS_PANE}
+              track={SummaryScrollbar.TRACK}
+              capTopSprite={SummaryScrollbar.CAP_TOP}
+              thumbSprite={SummaryScrollbar.THUMB}
+              capBottomSprite={SummaryScrollbar.CAP_BOTTOM}
+              arrowUp={SummaryScrollbar.ARROW_UP}
+              arrowDown={SummaryScrollbar.ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+      </layer>
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <SummaryTooltip />
+      </layer>
+    </>
+  );
+}
+
+function SummaryBorder(): Component {
+  return <SteelBorder title={SummaryText.TITLE} titleColor={summaryAccent()} flags={0} />;
+}
+
+function thinboxLight(box: ComponentId): void {
+  CS2.cc_create(box, 3, 0, false);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_fill_set(false);
+  CS2.cc_colour_set(SummaryColour.THINBOX_OUTER);
+  CS2.cc_create(box, 3, 1, false);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_size_set(2, 2, 1, 1);
+  CS2.cc_fill_set(false);
+  CS2.cc_colour_set(SummaryColour.THINBOX_INNER);
+}
+
+function SectionHeader({ title }: { title: String }): Component {
+  return (
+    <>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h={SummaryLayout.HEADER_H}
+        color={SummaryColour.BLACK}
+        transparency={SummaryFade.LIGHT}
+        fill
+      />
+      <rect
+        x={0}
+        y={SummaryLayout.HEADER_H}
+        w="fill"
+        h={{ fill: SummaryLayout.HEADER_H }}
+        color={SummaryColour.BLACK}
+        transparency={SummaryFade.DARK}
+        fill
+      />
+      <text
+        x={0}
+        y={2}
+        w="fill"
+        h={SummaryLayout.HEADER_H}
+        text={title}
+        font={SummaryFonts.SMALL}
+        color={summaryAccent()}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function StatRow({
+  index,
+  top,
+  height,
+  label,
+  value,
+}: {
+  index: Int;
+  top: Int;
+  height: Int;
+  label: String;
+  value: String;
+}): Component {
+  return (
+    <>
+      <rect
+        x={0}
+        y={top}
+        w="fill"
+        h={height}
+        color={SummaryColour.BLACK}
+        fill
+        transparency={index % 2 === 0 ? SummaryFade.LIGHT : SummaryFade.DARK}
+      />
+      <text
+        x={SummaryLayout.TEXT_X}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text={label}
+        font={SummaryFonts.SMALL}
+        color={summaryAccent()}
+        align="left"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={{ right: SummaryLayout.TEXT_X }}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text={value}
+        font={SummaryFonts.SMALL}
+        color={summaryValueColour()}
+        align="right"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function TimePlayedRow({ top, height }: { top: Int; height: Int }): Component {
+  const shown: Int = useServerState(Varbits.ACCOUNT_SUMMARY_DISPLAY_PLAYTIME);
+  return (
+    <>
+      <rect x={0} y={top} w="fill" h={height} color={SummaryColour.BLACK} fill transparency={SummaryFade.LIGHT} />
+      <text
+        x={SummaryLayout.TEXT_X}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text="Time Played"
+        font={SummaryFonts.SMALL}
+        color={summaryAccent()}
+        align="left"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={{ right: SummaryLayout.TEXT_X }}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text="-"
+        font={SummaryFonts.SMALL}
+        color={summaryValueColour()}
+        align="right"
+        valign="middle"
+        shadow
+        options={[shown === 1 ? 'Hide' : 'Reveal']}
+        optionSubject={SummaryText.TIME_SUBJECT}
+        onOptionSelect={() => infoSelectSound()}
+      />
+    </>
+  );
+}
+
+function StatsList(): Component {
+  const rowH: Int = onMobile() ? SummaryLayout.ROW_H_MOBILE : SummaryLayout.ROW_H;
+  const total: Int = rowH * SummaryLayout.STAT_ROWS;
+  const hit: Int = useServerState(Varbits.TRACKING_HIGHEST_HIT);
+  const dealt: Int = useServerState(Varps.TRACKING_DAMAGE_DEALT_TO_NPCS);
+  const taken: Int = useServerState(Varps.TRACKING_DAMAGE_TAKEN_FROM_NPCS);
+  const deaths: Int = useServerState(Varps.TRACKING_DEATHS);
+  const bosses: Int = useServerState(Varps.TRACKING_BOSSES_KILLED);
+  const echoes: Int = useServerState(Varps.TRACKING_ECHO_BOSSES_KILLED);
+  const npcs: Int = useServerState(Varps.TRACKING_MONSTERS_KILLED);
+  const players: Int = useServerState(Varps.TRACKING_PLAYERS_KILLED);
+  const specs: Int = useServerState(Varps.TRACKING_SPECIAL_ATTACKS_USED);
+  const clues: Int = useServerState(Varps.TRACKING_CLUES_COMPLETED);
+  const gained: Int = useServerState(Varps.TRACKING_COINS_GAINED);
+  const lost: Int = useServerState(Varps.TRACKING_COINS_LOST);
+  const worn: Int = useServerState(Varps.TRACKING_HIGHEST_VALUE_ITEM_WORN);
+  const logs: Int = useServerState(Varps.TRACKING_LOGS_CHOPPED);
+  const fish: Int = useServerState(Varps.TRACKING_FISH_CAUGHT);
+  const ore: Int = useServerState(Varps.TRACKING_ORE_MINED);
+  const potions: Int = useServerState(Varps.TRACKING_POTIONS_SIPPED);
+  const food: Int = useServerState(Varps.TRACKING_FOOD_EATEN);
+  const level: Int = totalLevel();
+  const xp: String = totalXpText();
+  const best: String = highestSkillName();
+  return (
+    <layer x={0} y={0} w="fill" h={total}>
+      <TimePlayedRow top={0} height={rowH} />
+      <StatRow index={1} top={rowH} height={rowH} label="Total XP" value={xp} />
+      <StatRow index={2} top={rowH * 2} height={rowH} label="Total level" value={stringOf(level)} />
+      <StatRow index={3} top={rowH * 3} height={rowH} label="Highest Skill" value={best} />
+      <StatRow index={4} top={rowH * 4} height={rowH} label="Highest hit (PvM)" value={groupDigits(hit, ',')} />
+      <StatRow index={5} top={rowH * 5} height={rowH} label="Damage dealt (PvM)" value={groupDigits(dealt, ',')} />
+      <StatRow index={6} top={rowH * 6} height={rowH} label="Damage taken (PvM)" value={groupDigits(taken, ',')} />
+      <StatRow index={7} top={rowH * 7} height={rowH} label="Deaths" value={groupDigits(deaths, ',')} />
+      <StatRow index={8} top={rowH * 8} height={rowH} label="Bosses killed" value={groupDigits(bosses, ',')} />
+      <StatRow index={9} top={rowH * 9} height={rowH} label="Echo Bosses killed" value={groupDigits(echoes, ',')} />
+      <StatRow index={10} top={rowH * 10} height={rowH} label="NPCs killed" value={groupDigits(npcs, ',')} />
+      <StatRow index={11} top={rowH * 11} height={rowH} label="Players killed" value={groupDigits(players, ',')} />
+      <StatRow index={12} top={rowH * 12} height={rowH} label="Special attacks used" value={groupDigits(specs, ',')} />
+      <StatRow index={13} top={rowH * 13} height={rowH} label="Clues completed" value={groupDigits(clues, ',')} />
+      <StatRow index={14} top={rowH * 14} height={rowH} label="Coins gained" value={groupDigits(gained, ',')} />
+      <StatRow index={15} top={rowH * 15} height={rowH} label="Coins lost" value={groupDigits(lost, ',')} />
+      <StatRow
+        index={16}
+        top={rowH * 16}
+        height={rowH}
+        label="Highest value item worn"
+        value={compactCount(worn, 1000000, 10000000, ',')}
+      />
+      <StatRow index={17} top={rowH * 17} height={rowH} label="Logs chopped" value={groupDigits(logs, ',')} />
+      <StatRow index={18} top={rowH * 18} height={rowH} label="Fish caught" value={groupDigits(fish, ',')} />
+      <StatRow index={19} top={rowH * 19} height={rowH} label="Ore mined" value={groupDigits(ore, ',')} />
+      <StatRow index={20} top={rowH * 20} height={rowH} label="Potions sipped" value={groupDigits(potions, ',')} />
+      <StatRow index={21} top={rowH * 21} height={rowH} label="Food eaten" value={groupDigits(food, ',')} />
+    </layer>
+  );
+}
+
+function sizeStatsPane(pane: ComponentId): void {
+  const rowH: Int = onMobile() ? SummaryLayout.ROW_H_MOBILE : SummaryLayout.ROW_H;
+  const total: Int = rowH * SummaryLayout.STAT_ROWS;
+  pane.scrollY = 0;
+  pane.scrollHeight = total > CS2.if_height_get(pane) ? total : 0;
+}
+
+function TotalsBox(): Component {
+  const box = useUniverse();
+  const third: Int = box.height / 3;
+  const points: Int = useServerState(Varps.LEAGUE_POINTS_COMPLETED);
+  const tasks: Int = useServerState(Varbits.LEAGUE_TOTAL_TASKS_COMPLETED);
+  const rank: Int = currentRank();
+  const top: Int = third * 2;
+  const height: Int = third + 1;
+  return (
+    <>
+      <StatRow index={0} top={0} height={third} label="Points" value={groupDigits(points, ',')} />
+      <StatRow index={1} top={third} height={third} label="Tasks" value={groupDigits(tasks, ',')} />
+      <rect x={0} y={top} w="fill" h={height} color={SummaryColour.BLACK} fill transparency={SummaryFade.LIGHT} />
+      <text
+        x={SummaryLayout.TEXT_X}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text="Rank"
+        font={SummaryFonts.SMALL}
+        color={summaryAccent()}
+        align="left"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={{ right: SummaryLayout.TEXT_X }}
+        y={top + SummaryLayout.RANK_ICON_DY}
+        w={SummaryLayout.RANK_ICON}
+        h={SummaryLayout.RANK_ICON}
+        sprite={RankSprites.get(rank) ?? SummarySprites.NO_RANK}
+        tiling
+      />
+      <text
+        x={{ right: SummaryLayout.RANK_VALUE_RIGHT }}
+        y={top + SummaryLayout.TEXT_DY}
+        w="fill"
+        h={height}
+        text={RankNames.get(rank) ?? 'Unranked'}
+        font={SummaryFonts.SMALL}
+        color={summaryValueColour()}
+        align="right"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function PactsBox(): Component {
+  const [masteries] = useState(summaryMasteriesShown);
+  if (masteries === 1) {
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <MasteriesBox />
+      </layer>
+    );
+  }
+  const pacts: Int = useServerState(Varps.VARP_5484);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <SectionHeader title="Demonic Pacts" />
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h="fill"
+        text={`${stringOf(pacts)}/${stringOf(SummaryLayout.PACTS_MAX)}`}
+        font={SummaryFonts.PACTS}
+        color={summaryValueColour()}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={0}
+        y={{ bottom: 0 }}
+        w="fill"
+        h={SummaryLayout.HEADER_H}
+        text="Points earned"
+        font={SummaryFonts.SMALL}
+        color={summaryAccent()}
+        align="center"
+        valign="top"
+        shadow
+      />
+    </layer>
+  );
+}
+
+function MasteriesBox(): Component {
+  const box = useUniverse();
+  const melee: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS);
+  const ranged: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS);
+  const magic: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS);
+  let count: Int = 0;
+  if (melee > 0) {
+    count = count + 1;
+  }
+  if (ranged > 0) {
+    count = count + 1;
+  }
+  if (magic > 0) {
+    count = count + 1;
+  }
+  if (count === 0) {
+    const gapDim: Int = (box.width - 3 * SummaryLayout.MASTERY_ICON) / 4;
+    const step: Int = SummaryLayout.MASTERY_ICON + gapDim;
+    return (
+      <layer x={0} y={0} w="fill" h="fill">
+        <SectionHeader title="Masteries" />
+        <sprite
+          x={gapDim}
+          y={SummaryLayout.MASTERY_Y_DIM}
+          w={SummaryLayout.MASTERY_ICON}
+          h={SummaryLayout.MASTERY_ICON}
+          sprite={SummarySprites.MASTERY_MELEE_OFF}
+          tiling
+          transparency={SummaryFade.LIGHT}
+        />
+        <sprite
+          x={gapDim + step}
+          y={SummaryLayout.MASTERY_Y_DIM}
+          w={SummaryLayout.MASTERY_ICON}
+          h={SummaryLayout.MASTERY_ICON}
+          sprite={SummarySprites.MASTERY_RANGED_OFF}
+          tiling
+          transparency={SummaryFade.LIGHT}
+        />
+        <sprite
+          x={gapDim + step * 2}
+          y={SummaryLayout.MASTERY_Y_DIM}
+          w={SummaryLayout.MASTERY_ICON}
+          h={SummaryLayout.MASTERY_ICON}
+          sprite={SummarySprites.MASTERY_MAGIC_OFF}
+          tiling
+          transparency={SummaryFade.LIGHT}
+        />
+      </layer>
+    );
+  }
+  const gap: Int = (box.width - count * SummaryLayout.MASTERY_ICON) / (count + 1);
+  const step: Int = SummaryLayout.MASTERY_ICON + gap;
+  const meleeX: Int = gap;
+  const rangedX: Int = melee > 0 ? meleeX + step : meleeX;
+  const magicX: Int = ranged > 0 ? rangedX + step : rangedX;
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <SectionHeader title="Masteries" />
+      {melee > 0 && <MasteryIcon style={0} progress={melee} x={meleeX} label="Melee" tip={20} />}
+      {ranged > 0 && <MasteryIcon style={1} progress={ranged} x={rangedX} label="Ranged" tip={21} />}
+      {magic > 0 && <MasteryIcon style={2} progress={magic} x={magicX} label="Magic" tip={22} />}
+    </layer>
+  );
+}
+
+function MasteryIcon({
+  style,
+  progress,
+  x,
+  label,
+  tip,
+}: {
+  style: Int;
+  progress: Int;
+  x: Int;
+  label: String;
+  tip: Int;
+}): Component {
+  const text: String = `${label} mastery progress: ${stringOf(progress)}`;
+  const mobile: Boolean = onMobile();
+  return (
+    <>
+      <sprite
+        x={x}
+        y={SummaryLayout.MASTERY_Y}
+        w={SummaryLayout.MASTERY_ICON}
+        h={SummaryLayout.MASTERY_ICON}
+        sprite={masteryIcon(style, progress)}
+        tiling
+        options={mobile ? [text] : []}
+        onOptionSelect={mobile ? () => summaryTipMessage(text) : undefined}
+        onMouseRepeat={mobile ? undefined : () => summaryTipShow(tip)}
+        onMouseLeave={mobile ? undefined : () => summaryTipHide()}
+      />
+      <sprite
+        x={x + SummaryLayout.MASTERY_PIP_DX}
+        y={SummaryLayout.MASTERY_Y + SummaryLayout.MASTERY_PIP_DY}
+        w={SummaryLayout.MASTERY_PIP}
+        h={SummaryLayout.MASTERY_PIP}
+        sprite={masteryPip(progress)}
+        tiling
+      />
+    </>
+  );
+}
+
+function RelicsBox(): Component {
+  const box = useUniverse();
+  const gapX: Int =
+    (box.width - SummaryLayout.RELIC_COLUMNS * SummaryLayout.RELIC_STEP) / (SummaryLayout.RELIC_COLUMNS + 1);
+  const gapY: Int =
+    (box.height - SummaryLayout.HEADER_H - SummaryLayout.RELIC_ROWS * SummaryLayout.RELIC_STEP) /
+    (SummaryLayout.RELIC_ROWS + 1);
+  const step: Int = SummaryLayout.RELIC_STEP + gapX;
+  const top: Int = SummaryLayout.HEADER_H + gapY;
+  const bottom: Int = top + SummaryLayout.RELIC_STEP + gapY;
+  return (
+    <>
+      <SectionHeader title="Relics" />
+      <RelicSlot tier={0} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_0)} x={gapX} y={top} />
+      <RelicSlot tier={2} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_2)} x={gapX + step} y={top} />
+      <RelicSlot tier={4} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_4)} x={gapX + step * 2} y={top} />
+      <RelicSlot tier={6} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_6)} x={gapX + step * 3} y={top} />
+      <RelicSlot tier={1} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_1)} x={gapX} y={bottom} />
+      <RelicSlot tier={3} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_3)} x={gapX + step} y={bottom} />
+      <RelicSlot tier={5} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_5)} x={gapX + step * 2} y={bottom} />
+      <RelicSlot tier={7} selection={useServerState(Varbits.LEAGUE_RELIC_SELECTION_7)} x={gapX + step * 3} y={bottom} />
+    </>
+  );
+}
+
+function RelicSlot({ tier, selection, x, y }: { tier: Int; selection: Int; x: Int; y: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const empty: Boolean = selection === 0;
+  const text: String = relicTip(tier, selection);
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={SummaryLayout.RELIC_ICON}
+      h={SummaryLayout.RELIC_ICON}
+      sprite={relicIcon(tier, selection)}
+      tiling
+      transparency={empty ? SummaryFade.LIGHT : 0}
+      options={!empty && mobile ? [text] : []}
+      onOptionSelect={!empty && mobile ? () => summaryTipMessage(text) : undefined}
+      onMouseRepeat={!empty && !mobile ? () => summaryTipShow(tier) : undefined}
+      onMouseLeave={!empty && !mobile ? () => summaryTipHide() : undefined}
+    />
+  );
+}
+
+function AreasBox(): Component {
+  const box = useUniverse();
+  const gap: Int =
+    (box.width - SummaryLayout.AREA_COLUMNS * SummaryLayout.AREA_ICON) / (SummaryLayout.AREA_COLUMNS + 1);
+  const step: Int = SummaryLayout.AREA_ICON + gap;
+  return (
+    <>
+      <SectionHeader title="Areas" />
+      <AreaSlot region={useServerState(Varbits.LEAGUE_AREA_SELECTION_2)} x={gap} place={1} tip={10} />
+      <AreaSlot region={useServerState(Varbits.LEAGUE_AREA_SELECTION_3)} x={gap + step} place={2} tip={11} />
+      <AreaSlot region={useServerState(Varbits.LEAGUE_AREA_SELECTION_4)} x={gap + step * 2} place={3} tip={12} />
+    </>
+  );
+}
+
+function AreaSlot({ region, x, place, tip }: { region: Int; x: Int; place: Int; tip: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const empty: Boolean = region === 0;
+  const text: String = areaTip(region);
+  return (
+    <>
+      <sprite
+        x={x}
+        y={SummaryLayout.AREA_Y}
+        w={SummaryLayout.AREA_ICON}
+        h={SummaryLayout.AREA_ICON}
+        sprite={areaIcon(region)}
+        tiling
+        transparency={empty ? SummaryFade.LIGHT : 0}
+        options={!empty && mobile ? [text] : []}
+        onOptionSelect={!empty && mobile ? () => summaryTipMessage(text) : undefined}
+        onMouseRepeat={!empty && !mobile ? () => summaryTipShow(tip) : undefined}
+        onMouseLeave={!empty && !mobile ? () => summaryTipHide() : undefined}
+      />
+      <text
+        x={x}
+        y={SummaryLayout.AREA_Y + SummaryLayout.AREA_ICON}
+        w={SummaryLayout.AREA_ICON}
+        h={SummaryLayout.AREA_CAPTION_H}
+        text={ordinal(place)}
+        font={SummaryFonts.SMALL}
+        color={summaryValueColour()}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function NameBox(): Component {
+  return <SectionHeader title={CS2.chat_playername()} />;
+}
+
+function SummaryTooltip(): Component {
+  const [tip] = useState(summaryTip);
+  if (tip < 0) {
+    return null;
+  }
+  const host = useUniverse();
+  const text: String = tipText(tip);
+  const measure: Int = Math.min(SummaryLayout.TIP_WRAP, host.width) - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+  const left: Int = tipX(tip);
+  const top: Int = tipY(tip);
+  const below: Int = top + tipSize(tip) + TooltipBox.nudge;
+  return (
+    <layer
+      x={Math.min(left + TooltipBox.nudge, host.width - boxW)}
+      y={below > host.height - boxH ? top - boxH - TooltipBox.nudge : below}
+      w={boxW}
+      h={boxH}
+    >
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}
+
+function tipText(tip: Int): String {
+  if (tip < 10) {
+    return relicTip(tip, relicSelection(tip));
+  }
+  if (tip < 20) {
+    return areaTip(areaRegion(tip - 10));
+  }
+  return masteryTip(tip - 20);
+}
+
+function relicSelection(tier: Int): Int {
+  switch (tier) {
+    case 0:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_0);
+    case 1:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_1);
+    case 2:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_2);
+    case 3:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_3);
+    case 4:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_4);
+    case 5:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_5);
+    case 6:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_6);
+    case 7:
+      return useServerState(Varbits.LEAGUE_RELIC_SELECTION_7);
+  }
+  return 0;
+}
+
+function areaRegion(slot: Int): Int {
+  if (slot === 0) {
+    return useServerState(Varbits.LEAGUE_AREA_SELECTION_2);
+  }
+  if (slot === 1) {
+    return useServerState(Varbits.LEAGUE_AREA_SELECTION_3);
+  }
+  return useServerState(Varbits.LEAGUE_AREA_SELECTION_4);
+}
+
+function masteryTip(style: Int): String {
+  if (style === 0) {
+    return `Melee mastery progress: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS))}`;
+  }
+  if (style === 1) {
+    return `Ranged mastery progress: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS))}`;
+  }
+  return `Magic mastery progress: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS))}`;
+}
+
+function tipX(tip: Int): Int {
+  const origin: Int = 6 + 230 + 4 + 2;
+  if (tip < 10) {
+    const gapX: Int =
+      (133 - SummaryLayout.RELIC_COLUMNS * SummaryLayout.RELIC_STEP) / (SummaryLayout.RELIC_COLUMNS + 1);
+    const column: Int = tip / 2;
+    return origin + gapX + (SummaryLayout.RELIC_STEP + gapX) * column;
+  }
+  if (tip < 20) {
+    const gap: Int = (133 - SummaryLayout.AREA_COLUMNS * SummaryLayout.AREA_ICON) / (SummaryLayout.AREA_COLUMNS + 1);
+    return origin + gap + (SummaryLayout.AREA_ICON + gap) * (tip - 10);
+  }
+  return origin;
+}
+
+function tipY(tip: Int): Int {
+  if (tip < 10) {
+    const gapY: Int =
+      (109 - SummaryLayout.HEADER_H - SummaryLayout.RELIC_ROWS * SummaryLayout.RELIC_STEP) /
+      (SummaryLayout.RELIC_ROWS + 1);
+    const row: Int = tip % 2;
+    return 5 + 33 + 86 + 2 + SummaryLayout.HEADER_H + gapY + (SummaryLayout.RELIC_STEP + gapY) * row;
+  }
+  if (tip < 20) {
+    return 5 + 33 + 4 + 2 + SummaryLayout.AREA_Y;
+  }
+  return 5 + 33 + 202 + 2 + SummaryLayout.MASTERY_Y;
+}
+
+function tipSize(tip: Int): Int {
+  if (tip < 10) {
+    return SummaryLayout.RELIC_ICON;
+  }
+  if (tip < 20) {
+    return SummaryLayout.AREA_ICON;
+  }
+  return SummaryLayout.MASTERY_ICON;
+}

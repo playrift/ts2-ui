@@ -1,0 +1,360 @@
+import { CS2, useState } from 'ts2';
+
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { graphicSwapper, onMobile } from '../lib/lib.helpers';
+import {
+  ALIGN_CENTER,
+  CANCEL_VALUE,
+  DIGIT_COLOUR,
+  HintFade,
+  HintMode,
+  Layout,
+  PadFonts,
+  PadGate,
+  PadKeys,
+  PadSounds,
+  PadSprites,
+  POS_LEFT,
+  POS_RIGHT,
+  POS_TOP,
+  REARM_CYCLES,
+  SIZE_ABS,
+  SPRITE_TYPE,
+  TEXT_TYPE,
+} from './number-pad.constants';
+import { closeRef, confirmRef, displayRef, padRef } from './number-pad.refs';
+import {
+  numberPadClear,
+  numberPadCloseRearm,
+  numberPadDigit,
+  numberPadPop,
+  numberPadPush,
+  numberPadSubmitRearm,
+  numberPadValue,
+} from './number-pad.state';
+
+function keySwap(container: ComponentId, index: Int, sprite: Sprite): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_sprite_set(sprite);
+  }
+}
+
+function displayCell(display: ComponentId, index: Int, x: Int): void {
+  CS2.cc_create(display, TEXT_TYPE, index, false);
+  CS2.cc_size_set(Layout.CELL_W, Layout.CELL_H, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(x, Layout.CELL_Y, POS_LEFT, POS_TOP);
+  CS2.cc_text_font_set(PadFonts.DIGIT);
+  CS2.cc_colour_set(DIGIT_COLOUR);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(ALIGN_CENTER, ALIGN_CENTER, 0);
+  const digit: Int = numberPadDigit(index);
+  if (digit < 0) {
+    CS2.cc_text_set('-');
+  } else {
+    CS2.cc_text_set(stringOf(digit));
+  }
+}
+
+export function displayDraw(display: ComponentId): void {
+  CS2.cc_all_delete(display);
+  displayCell(display, 0, Layout.CELL_X0);
+  displayCell(display, 1, Layout.CELL_X1);
+  displayCell(display, 2, Layout.CELL_X2);
+  displayCell(display, 3, Layout.CELL_X3);
+}
+
+function digitKeyPress(digit: Int, display: ComponentId, byKey: Int): void {
+  if (!numberPadPush(digit)) {
+    if (byKey === 0) {
+      playSound(PadSounds.WRONG);
+    }
+    return;
+  }
+  displayDraw(display);
+  playSound(PadSounds.PRESS);
+}
+
+function digitKeyOp(digit: Int, display: ComponentId): void {
+  digitKeyPress(digit, display, 0);
+}
+
+function digitKeyPressed(keyChar: Char, digit: Int, display: ComponentId): void {
+  if (keyChar === null || !dialogueMayAdvance(PadGate.THIS_PANEL, PadGate.NO_SUB)) {
+    return;
+  }
+  if (CS2.string_indexof_char(stringOf(digit), keyChar) !== -1) {
+    digitKeyPress(digit, display, 1);
+  }
+}
+
+function digitKey(
+  index: Int,
+  digit: Int,
+  x: Int,
+  y: Int,
+  pad: ComponentId,
+  display: ComponentId,
+  hint0: Int,
+  hint1: Int,
+  hint2: Int,
+  hint3: Int,
+  mode: Int,
+): Int {
+  CS2.cc_create(pad, SPRITE_TYPE, index, false);
+  CS2.cc_size_set(Layout.KEY, Layout.KEY, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(x, y, POS_LEFT, POS_TOP);
+  let hover: Sprite = PadSprites.KEY_HOVER;
+  let rest: Sprite = PadSprites.KEY;
+  let fade: Int = HintFade.NONE;
+  if (mode === HintMode.FLAT) {
+    if (digit === hint0 || digit === hint1 || digit === hint2 || digit === hint3) {
+      hover = PadSprites.HINT_2_HOVER;
+      rest = PadSprites.HINT_2;
+      fade = HintFade.HINT_2;
+    }
+  } else if (mode === HintMode.GRADED) {
+    if (digit === hint0) {
+      hover = PadSprites.HINT_4_HOVER;
+      rest = PadSprites.HINT_4;
+      fade = HintFade.HINT_4;
+    } else if (digit === hint1) {
+      hover = PadSprites.HINT_3_HOVER;
+      rest = PadSprites.HINT_3;
+      fade = HintFade.HINT_3;
+    } else if (digit === hint2) {
+      hover = PadSprites.HINT_2_HOVER;
+      rest = PadSprites.HINT_2;
+      fade = HintFade.HINT_2;
+    } else if (digit === hint3) {
+      hover = PadSprites.HINT_1_HOVER;
+      rest = PadSprites.HINT_1;
+      fade = HintFade.HINT_1;
+    }
+  }
+  CS2.cc_sprite_set(rest);
+  CS2.cc_op_set(1, 'Select');
+  CS2.cc_op_base_set(`<col=ff9040>${stringOf(digit)}</col>`);
+  CS2.cc_onop_set(() => digitKeyOp(digit, display));
+  CS2.cc_on_key_set((event) => digitKeyPressed(event.keyChar, digit, display));
+  CS2.cc_on_mouserepeat_set(() => keySwap(pad, index, hover));
+  CS2.cc_on_mouseleave_set(() => keySwap(pad, index, rest));
+
+  const label: Int = index + 1;
+  CS2.cc_create(pad, TEXT_TYPE, label, false);
+  CS2.cc_size_set(Layout.KEY, Layout.KEY, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(x, y, POS_LEFT, POS_TOP);
+  CS2.cc_text_font_set(PadFonts.DIGIT);
+  CS2.cc_colour_set(DIGIT_COLOUR);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(ALIGN_CENTER, ALIGN_CENTER, 0);
+  CS2.cc_text_set(stringOf(digit));
+  CS2.cc_transparency_set(fade);
+  return label + 1;
+}
+
+function backKeyPress(display: ComponentId, byKey: Int): void {
+  if (!numberPadPop()) {
+    if (byKey === 0) {
+      playSound(PadSounds.WRONG);
+    }
+    return;
+  }
+  displayDraw(display);
+  playSound(PadSounds.PRESS);
+}
+
+function backKeyOp(display: ComponentId): void {
+  backKeyPress(display, 0);
+}
+
+function backKeyPressed(keyCode: Int, display: ComponentId): void {
+  if (!dialogueMayAdvance(PadGate.THIS_PANEL, PadGate.NO_SUB)) {
+    return;
+  }
+  if (keyCode === PadKeys.BACKSPACE) {
+    backKeyPress(display, 1);
+  }
+}
+
+function backKey(index: Int, x: Int, y: Int, pad: ComponentId, display: ComponentId): Int {
+  CS2.cc_create(pad, SPRITE_TYPE, index, false);
+  CS2.cc_size_set(Layout.KEY, Layout.KEY, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(x, y, POS_LEFT, POS_TOP);
+  const hover: Sprite = PadSprites.KEY_HOVER;
+  const rest: Sprite = PadSprites.KEY;
+  CS2.cc_sprite_set(rest);
+  CS2.cc_op_set(1, 'Back');
+  CS2.cc_onop_set(() => backKeyOp(display));
+  CS2.cc_on_key_set((event) => backKeyPressed(event.keyCode, display));
+  CS2.cc_on_mouserepeat_set(() => keySwap(pad, index, hover));
+  CS2.cc_on_mouseleave_set(() => keySwap(pad, index, rest));
+
+  const arrow: Int = index + 1;
+  CS2.cc_create(pad, SPRITE_TYPE, arrow, false);
+  CS2.cc_size_set(Layout.ARROW, Layout.ARROW, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(x + Layout.ARROW_INSET, y + Layout.ARROW_INSET, POS_LEFT, POS_TOP);
+  CS2.cc_sprite_set(PadSprites.ARROW_BACK);
+  return arrow + 1;
+}
+
+export function numberPadBuild(hint0: Int, hint1: Int, hint2: Int, hint3: Int, mode: Int): void {
+  CS2.cc_all_delete(padRef);
+  CS2.cc_all_delete(displayRef);
+  numberPadClear();
+  displayDraw(displayRef);
+  let next: Int = 0;
+  next = digitKey(next, 1, 0, 0, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(next, 2, Layout.KEY_PITCH, 0, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(next, 3, Layout.KEY_PITCH * 2, 0, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(next, 4, 0, Layout.KEY_PITCH, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(next, 5, Layout.KEY_PITCH, Layout.KEY_PITCH, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(
+    next,
+    6,
+    Layout.KEY_PITCH * 2,
+    Layout.KEY_PITCH,
+    padRef,
+    displayRef,
+    hint0,
+    hint1,
+    hint2,
+    hint3,
+    mode,
+  );
+  next = digitKey(next, 7, 0, Layout.KEY_PITCH * 2, padRef, displayRef, hint0, hint1, hint2, hint3, mode);
+  next = digitKey(
+    next,
+    8,
+    Layout.KEY_PITCH,
+    Layout.KEY_PITCH * 2,
+    padRef,
+    displayRef,
+    hint0,
+    hint1,
+    hint2,
+    hint3,
+    mode,
+  );
+  next = digitKey(
+    next,
+    9,
+    Layout.KEY_PITCH * 2,
+    Layout.KEY_PITCH * 2,
+    padRef,
+    displayRef,
+    hint0,
+    hint1,
+    hint2,
+    hint3,
+    mode,
+  );
+  next = digitKey(
+    next,
+    0,
+    Layout.KEY_PITCH,
+    Layout.KEY_PITCH * 3,
+    padRef,
+    displayRef,
+    hint0,
+    hint1,
+    hint2,
+    hint3,
+    mode,
+  );
+  next = backKey(next, 0, Layout.KEY_PITCH * 3, padRef, displayRef);
+}
+
+function submitPress(button: ComponentId, byKey: Int): void {
+  playSound(PadSounds.ATTEMPT);
+  if (CS2.cc_find(button, 0)) {
+    if (byKey === 0) {
+      CS2.cc_sprite_set(PadSprites.KEY_HOVER);
+    } else {
+      CS2.cc_sprite_set(PadSprites.KEY);
+    }
+  }
+  CS2.if_on_mouserepeat_set(null, button);
+  CS2.if_on_mouseleave_set(null, button);
+  CS2.if_onop_set(null, button);
+  CS2.if_on_key_set(null, button);
+  CS2.if_ops_clear(button);
+  CS2.countdialog_resume(stringOf(numberPadValue()));
+  const [, setSubmitRearm] = useState(numberPadSubmitRearm);
+  setSubmitRearm(clientClock() + REARM_CYCLES);
+}
+
+export function numberPadRearmTick(): void {
+  const [submitAt, setSubmitAt] = useState(numberPadSubmitRearm);
+  const [closeAt] = useState(numberPadCloseRearm);
+  if (submitAt >= 0 && clientClock() >= submitAt) {
+    setSubmitAt(-1);
+    submitButtonBuild(confirmRef);
+  }
+  if (closeAt >= 0 && clientClock() >= closeAt) {
+    CS2.if_onop_set(() => closeButtonOp(closeRef), closeRef);
+  }
+}
+
+function submitOp(button: ComponentId): void {
+  submitPress(button, 0);
+}
+
+function submitKeyPressed(keyCode: Int, button: ComponentId): void {
+  if (!dialogueMayAdvance(PadGate.THIS_PANEL, PadGate.NO_SUB)) {
+    return;
+  }
+  if (keyCode === PadKeys.RETURN) {
+    submitPress(button, 1);
+  }
+}
+
+export function submitButtonBuild(button: ComponentId): void {
+  CS2.cc_all_delete(button);
+  CS2.cc_create(button, SPRITE_TYPE, 0, false);
+  CS2.cc_size_set(Layout.KEY, Layout.KEY, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(0, 0, POS_LEFT, POS_TOP);
+  const hover: Sprite = PadSprites.KEY_HOVER;
+  const rest: Sprite = PadSprites.KEY;
+  CS2.cc_sprite_set(rest);
+  CS2.if_op_set(1, 'Submit', button);
+  CS2.if_onop_set(() => submitOp(button), button);
+  CS2.if_on_key_set((event) => submitKeyPressed(event.keyCode, button), button);
+  CS2.if_on_mouserepeat_set(() => keySwap(button, 0, hover), button);
+  CS2.if_on_mouseleave_set(() => keySwap(button, 0, rest), button);
+  const [, setSubmitRearm] = useState(numberPadSubmitRearm);
+  setSubmitRearm(-1);
+  CS2.cc_create(button, SPRITE_TYPE, 1, false);
+  CS2.cc_size_set(Layout.ARROW, Layout.ARROW, SIZE_ABS, SIZE_ABS);
+  CS2.cc_position_set(Layout.ARROW_INSET, Layout.ARROW_INSET, POS_LEFT, POS_TOP);
+  CS2.cc_sprite_set(PadSprites.ARROW_SUBMIT);
+}
+
+function closeButtonOp(button: ComponentId): void {
+  CS2.if_onop_set(null, button);
+  CS2.countdialog_resume(stringOf(CANCEL_VALUE));
+  const [, setCloseRearm] = useState(numberPadCloseRearm);
+  setCloseRearm(clientClock() + REARM_CYCLES);
+}
+
+export function closeButtonInit(button: ComponentId): void {
+  const [, setCloseRearm] = useState(numberPadCloseRearm);
+  setCloseRearm(-1);
+  if (onMobile()) {
+    CS2.if_size_set(Layout.CLOSE_MOBILE, Layout.CLOSE_MOBILE, SIZE_ABS, SIZE_ABS, button);
+    CS2.if_position_set(Layout.CLOSE_MOBILE_INSET, Layout.CLOSE_MOBILE_INSET, POS_RIGHT, POS_TOP, button);
+    const mobileSprite: Sprite = PadSprites.CLOSE_MOBILE;
+    CS2.if_sprite_set(mobileSprite, button);
+    CS2.if_on_mouseleave_set(() => graphicSwapper(button, mobileSprite), button);
+  } else {
+    CS2.if_size_set(Layout.CLOSE_W, Layout.CLOSE_H, SIZE_ABS, SIZE_ABS, button);
+    CS2.if_position_set(Layout.CLOSE_RIGHT, Layout.CLOSE_Y, POS_RIGHT, POS_TOP, button);
+    const rest: Sprite = PadSprites.CLOSE;
+    CS2.if_sprite_set(rest, button);
+    CS2.if_on_mouseleave_set(() => graphicSwapper(button, rest), button);
+    const hover: Sprite = PadSprites.CLOSE_HOVER;
+    CS2.if_on_mouseover_set(() => graphicSwapper(button, hover), button);
+  }
+  CS2.if_op_set(1, 'Close', button);
+  CS2.if_onop_set(() => closeButtonOp(button), button);
+}

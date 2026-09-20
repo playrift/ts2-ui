@@ -1,0 +1,149 @@
+import { useInventory, useServerState, useSkillBase } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { itemName } from '../lib/lib.engine';
+import { Skills } from '../0243_pest_rewardshop/pest-rewardshop.constants';
+import {
+  Copy,
+  ExpLayout,
+  GatedReward,
+  RewardsInventories,
+  RewardsVarps,
+  RewardSkill,
+} from './soul-wars-rewards.constants';
+import { ExpOptionNames } from './exp-option-names.data';
+import { ImbueTargets } from './imbue-targets.data';
+import { OtherCosts } from './other-costs.data';
+import { OtherRewards } from './other-rewards.data';
+
+export function baseLevel(skill: Int): Int {
+  switch (skill) {
+    case RewardSkill.ATTACK:
+      return useSkillBase(Skills.ATTACK);
+    case RewardSkill.DEFENCE:
+      return useSkillBase(Skills.DEFENCE);
+    case RewardSkill.STRENGTH:
+      return useSkillBase(Skills.STRENGTH);
+    case RewardSkill.HITPOINTS:
+      return useSkillBase(Skills.HITPOINTS);
+    case RewardSkill.RANGED:
+      return useSkillBase(Skills.RANGED);
+    case RewardSkill.PRAYER:
+      return useSkillBase(Skills.PRAYER);
+    case RewardSkill.MAGIC:
+      return useSkillBase(Skills.MAGIC);
+  }
+  return 0;
+}
+
+export function xpPerToken(skill: Int): Int {
+  const level: Int = baseLevel(skill);
+  if (level < ExpLayout.LEVEL_MIN) {
+    return 0;
+  }
+  if (skill === RewardSkill.RANGED || skill === RewardSkill.MAGIC) {
+    return ((level * level) / 600) * 27 * 10;
+  }
+  if (skill === RewardSkill.PRAYER) {
+    return ((level * level) / 600) * 14 * 10;
+  }
+  return ((level * level) / 600) * 30 * 10;
+}
+
+export function tokenWord(count: Int): String {
+  if (count > 1) {
+    return 'Tokens';
+  }
+  return 'Token';
+}
+
+export function needTokens(count: Int): String {
+  return `You need ${groupDigits(count, ',')} ${tokenWord(count)} to claim that reward.`;
+}
+
+export function needAtLeast(count: Int): String {
+  return `You need at least ${groupDigits(count, ',')} ${tokenWord(count)} to claim that reward.`;
+}
+
+export function rewardGate(reward: ItemName): String {
+  const prayer: Int = useSkillBase(Skills.PRAYER);
+  if (reward === GatedReward.SOUL_CAPE_A || reward === GatedReward.SOUL_CAPE_B) {
+    if (prayer < 70) {
+      return Copy.SOUL_CAPE;
+    }
+  } else if (reward === GatedReward.ECTOPLASMATOR && prayer < 40) {
+    return Copy.ECTOPLASMATOR;
+  }
+  return '';
+}
+
+export function expConfirmCaption(pick: Int): String {
+  const quantity: Int = useServerState(RewardsVarps.XP_QUANTITY);
+  const xp: Int = (xpPerToken(expSkillAt(pick / 4)) * quantity) / 10;
+  return `${groupDigits(xp, ',')} ${ExpOptionNames.at(pick) ?? 'null'}`;
+}
+
+export function expSkillAt(row: Int): Int {
+  switch (row) {
+    case 0:
+      return RewardSkill.ATTACK;
+    case 1:
+      return RewardSkill.STRENGTH;
+    case 2:
+      return RewardSkill.DEFENCE;
+    case 3:
+      return RewardSkill.RANGED;
+    case 4:
+      return RewardSkill.MAGIC;
+    case 5:
+      return RewardSkill.HITPOINTS;
+  }
+  return RewardSkill.PRAYER;
+}
+
+export function otherConfirmTop(pick: Int): String {
+  const quantity: Int = useServerState(RewardsVarps.OTHER_QUANTITY);
+  return `Confirm (${quantity * (OtherCosts.at(pick) ?? -1)} Tokens)`;
+}
+
+export function otherConfirmName(pick: Int, sub: Int): String {
+  const quantity: Int = useServerState(RewardsVarps.OTHER_QUANTITY);
+  const name: String = itemName((OtherRewards.at(pick) ?? -1) as Item);
+  if (sub === 0) {
+    return name;
+  }
+  if (quantity <= 1) {
+    return `${quantity} ${name}`;
+  }
+  return `${quantity} ${name}s`;
+}
+
+export function firstImbuable(slot: Int): Boolean {
+  const pack = useInventory(RewardsInventories.BACKPACK);
+  const item: Item = pack[slot];
+  const target: ItemName = ImbueTargets.get(item) ?? -1;
+  if (target === -1) {
+    return false;
+  }
+  let earlier: Int = 0;
+  while (earlier < slot) {
+    const other: Item = pack[earlier];
+    if ((ImbueTargets.get(other) ?? -1) === target) {
+      return false;
+    }
+    earlier = earlier + 1;
+  }
+  return true;
+}
+
+export function imbuableCount(): Int {
+  let count: Int = 0;
+  let slot: Int = 0;
+  while (slot < 28) {
+    if (firstImbuable(slot)) {
+      count = count + 1;
+    }
+    slot = slot + 1;
+  }
+  return count;
+}

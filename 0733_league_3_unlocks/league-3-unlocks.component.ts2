@@ -1,0 +1,299 @@
+import { CS2, useDerived, useServerState, useState, useUniverse } from 'ts2';
+
+import { SteelBorder } from '../lib/steel-border.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { CloseButton } from '../0735_league_3_fragments/close-button.component';
+import { LeagueMenuButton, LeagueMenuOverlay } from '../0654_league_info/league-menu.component';
+import { BossUnlocks } from './boss-unlocks.data';
+import { BuyButton } from './buy-button.component';
+import { ConfirmOverlay } from './confirm-overlay.component';
+import { BossesContent, QuestsContent, SkillsContent } from './content-pane.component';
+import { InfoOverlay } from './info-overlay.component';
+import { InfoPanel } from './info-panel.component';
+import {
+  BuyState,
+  Layout,
+  THIS_LEAGUE,
+  UnlockColor,
+  UnlockFonts,
+  UnlockSprites,
+  UnlockTab,
+  UnlockVarps,
+} from './league-3-unlocks.constants';
+import {
+  desktop,
+  leagueBossUnlocked,
+  leagueColour,
+  leagueKnown,
+  questCost,
+  wikiSearch,
+} from './league-3-unlocks.helpers';
+import { leagueSkillUnlocked } from '../0240_xpreward/xpreward.helpers';
+import { PanelBox, PanelBoxes } from './panel-boxes.data';
+import { PanelBoxFrame } from './panel-box-frame.component';
+import { QuestUnlocks } from './quest-unlocks.data';
+import { SideTab } from './side-tab.component';
+import { SkillUnlocks } from './skill-unlocks.data';
+import { infoOverlayOpen } from './league-3-unlocks.state';
+
+export function LeagueUnlocks(): Component {
+  const universe = useUniverse();
+  const [, setInfoOpen] = useState(infoOverlayOpen);
+
+  const tab: Int = useServerState(UnlockVarps.CURRENT_TAB);
+  const selection: Int = useServerState(UnlockVarps.CURRENT_SELECTION);
+  const points: Int = useServerState(UnlockVarps.POINTS);
+
+  const colour: Int = leagueColour(THIS_LEAGUE);
+  const known: Boolean = leagueKnown();
+
+  const skills: Boolean = tab === UnlockTab.SKILLS;
+  const bosses: Boolean = tab === UnlockTab.BOSSES;
+  const quests: Boolean = tab === UnlockTab.QUESTS;
+
+  const menuHeight: Int = universe.height - 47;
+
+  const key: Int = selection - 1;
+  const skillRow = skills ? SkillUnlocks.at(key) : null;
+  const bossRow = bosses ? BossUnlocks.at(key) : null;
+  const questRow = quests ? QuestUnlocks.at(key) : null;
+
+  let title: String = '';
+  let body: String = '';
+  let cost: Int = 0;
+  let owned: Int = 0;
+
+  if (skillRow !== null) {
+    title = skillRow.name;
+    body = skillRow.description;
+    cost = skillRow.cost;
+    owned = useDerived(() => leagueSkillUnlocked(skillRow.skill));
+  }
+  if (bossRow !== null) {
+    title = bossRow.name;
+    body = bossRow.description;
+    cost = bossRow.cost;
+    owned = useDerived(() => leagueBossUnlocked(bossRow.npc));
+  }
+  if (questRow !== null) {
+    title = questRow.name;
+    body = questRow.description;
+    cost = useDerived(() => questCost(questRow.costIndex));
+    owned = cost === 0 ? 1 : 0;
+  }
+
+  let buyState: BuyState = BuyState.IDLE;
+  if (selection !== 0) {
+    if (owned === 1) {
+      buyState = BuyState.OWNED;
+    } else if (cost > points) {
+      buyState = BuyState.TOO_DEAR;
+    } else {
+      buyState = BuyState.READY;
+    }
+  }
+
+  let panelTitle: String = title;
+  let panelBody: String = body;
+  if (selection === 0) {
+    if (bosses) {
+      panelTitle = 'Unlock a boss';
+      panelBody =
+        "<col=cfcfcf>First, select a boss above. Once you've chosen, use the Unlock<br><col=cfcfcf>button to unlock access to your<br><col=cfcfcf>selected boss.";
+    } else if (quests) {
+      panelTitle = 'Auto-complete Quests';
+      panelBody =
+        '<col=cfcfcf>Select a package to complete a series of quests, <col=29ffbd>all quests can still be completed normally.';
+    } else {
+      panelTitle = 'Unlock a skill';
+      panelBody =
+        "<col=cfcfcf>First, select a skill above. Once you've chosen, use the Unlock<br><col=cfcfcf>button to unlock gaining XP in your<br><col=cfcfcf>selected skill.";
+    }
+  } else if (owned === 1) {
+    panelTitle = `${title} - Unlocked`;
+  }
+
+  const live: Boolean = selection !== 0;
+  const swap: Boolean = live ? desktop() : false;
+  const buyHeight: Int = skills ? Layout.BUY_H_SKILLS : Layout.BUY_H_LIST;
+  const buyWidth: Int = 85;
+  const bossName: String = bossRow === null ? '' : bossRow.name;
+
+  return (
+    <layer w={480} h={314} x="center" y="center">
+      <layer w="fill" h="fill">
+        <SteelBorder title="League Unlocks" titleColor={known ? colour : 0xff981f} flags={1} />
+      </layer>
+
+      <rect x={6} y={35} w={{ fill: 12 }} h={{ fill: 41 }} fill color={UnlockColor.BLACK} transparency={200} />
+
+      <layer x={{ center: -176 }} y={{ bottom: 20 }} w={100} h={36}>
+        <rect x="center" y="center" w="fill" h="fill" fill color={UnlockColor.BLACK} transparency={200} />
+        <ThinBox />
+      </layer>
+      <text
+        x={{ center: -176 }}
+        y={{ bottom: 20 }}
+        w={80}
+        h={36}
+        align="right"
+        valign="middle"
+        shadow
+        lineHeight={18}
+        font={645}
+        color={colour}
+        text={stringOf(points)}
+      />
+      <text
+        x={{ center: -176 }}
+        y={{ bottom: 18 }}
+        w={80}
+        h={36}
+        align="left"
+        valign="middle"
+        shadow
+        lineHeight={18}
+        font={645}
+        color={colour}
+        text="…"
+      />
+
+      <layer x={{ right: 9 }} y={38} w={349} h={267}>
+        <PanelBoxFrame x={0} y={0} w={349} h={267} style={PanelBoxes.at(PanelBox.ACTIVE)} colour={UnlockColor.PANEL} />
+      </layer>
+
+      <layer x={9} y={38} w={117} h={{ fill: 47 }}>
+        {known && (
+          <>
+            <SideTab
+              label="Skills"
+              icon={UnlockSprites.TAB_SKILLS}
+              index={0}
+              selected={skills ? 1 : 0}
+              colour={colour}
+              menuHeight={menuHeight}
+            />
+            <SideTab
+              label="Bosses"
+              icon={UnlockSprites.TAB_BOSSES}
+              index={1}
+              selected={bosses ? 1 : 0}
+              colour={colour}
+              menuHeight={menuHeight}
+            />
+            <SideTab
+              label="Quests"
+              icon={UnlockSprites.TAB_QUESTS}
+              index={2}
+              selected={quests ? 1 : 0}
+              colour={colour}
+              menuHeight={menuHeight}
+            />
+          </>
+        )}
+      </layer>
+
+      {skills && <SkillsContent colour={colour} selection={selection} />}
+      {bosses && <BossesContent colour={colour} selection={selection} />}
+      {quests && <QuestsContent colour={colour} selection={selection} />}
+
+      <layer x={134} y={{ bottom: 20 }} w={326} h={88}>
+        <InfoPanel title={panelTitle} body={panelBody} colour={colour} />
+      </layer>
+
+      <layer x={{ right: 26 }} y={{ bottom: 26 }} w={buyWidth} h={buyHeight}>
+        <BuyButton state={buyState} colour={colour} cost={cost} w={buyWidth} h={buyHeight} />
+      </layer>
+
+      <layer
+        x={369}
+        y={212}
+        w={40}
+        h={30}
+        hide={bosses ? false : true}
+        options={live ? ['View'] : ['']}
+        optionSubject="<col=ff9040>Wiki</col>"
+        onOptionSelect={live ? () => wikiSearch(bossName) : undefined}
+      >
+        <sprite x="center" y="center" w={40} h={14} sprite={2420} />
+        <StoneButtonSkin live={live} swap={swap} />
+      </layer>
+      <layer
+        x={414}
+        y={212}
+        w={40}
+        h={30}
+        hide={bosses ? false : true}
+        options={live ? ['View'] : ['']}
+        optionSubject="<col=ff9040>Map Location</col>"
+      >
+        <sprite x="center" y="center" w={22} h={22} sprite={1439} />
+        <StoneButtonSkin live={live} swap={swap} />
+      </layer>
+
+      <layer
+        x={369}
+        y={212}
+        w={85}
+        h={30}
+        hide={quests ? false : true}
+        options={live ? ['View'] : ['']}
+        optionSubject="<col=ff9040>Quest Info</col>"
+        onOptionSelect={
+          live
+            ? () => {
+                setInfoOpen(1);
+              }
+            : undefined
+        }
+      >
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          align="center"
+          valign="middle"
+          shadow
+          font={UnlockFonts.BOLD}
+          color={live ? colour : UnlockColor.MUTED}
+          text="Info"
+        />
+        <StoneButtonSkin live={live} swap={swap} />
+      </layer>
+
+      <CloseButton />
+      <layer x={7} y={7} w={21} h={21}>
+        {known && <LeagueMenuButton />}
+      </layer>
+      <layer w="fill" h="fill" noClickThrough>
+        {known && <LeagueMenuOverlay />}
+      </layer>
+
+      <InfoOverlay selection={selection} colour={colour} />
+      <ConfirmOverlay tab={tab} selection={selection} colour={colour} />
+    </layer>
+  );
+}
+
+function StoneButtonSkin({ live, swap }: { live: Boolean; swap: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  let pressed: Boolean = false;
+  if (live === false) {
+    pressed = true;
+  } else if (swap && hovered === 1) {
+    pressed = true;
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseEnter={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    >
+      {pressed ? <StoneButtonPressed /> : <StoneButton />}
+    </layer>
+  );
+}

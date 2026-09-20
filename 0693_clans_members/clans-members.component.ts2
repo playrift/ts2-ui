@@ -1,0 +1,241 @@
+import {
+  CS2,
+  Engine,
+  onMounted,
+  onUpdated,
+  useOnResize,
+  useRerenderOn,
+  useServerState,
+  useState,
+  useUniverse,
+} from 'ts2';
+
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { Sprites } from '../lib/game/sprites';
+import { meslayerinput, meslayermode } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { textLineCount } from '../lib/lib.engine';
+import { bankmainFilterString } from '../0012_bankmain/bankmain.helpers';
+import { clanStatusText } from '../0696_clans_storage_main/clan-interface-title';
+import { clanRankTitle } from '../0696_clans_storage_main/clan-permission';
+import { clanRankIcon } from '../0701_clans_sidepanel/clan-settings';
+import { BackButton } from './back-button.component';
+import { ClanSearchButton } from './clan-members-shared.search-button.component';
+import { ClanMemberColumns } from './clans-members.data';
+import { Header1, Header2 } from './column-header.component';
+import { Dropdown } from './dropdown.component';
+import { MemberListHost, clanMembersFilterCheck } from './member-list.component';
+import { MemberPane } from './member-pane.component';
+import { FiltersRow } from './rank-filter.component';
+import {
+  AffinityStatus,
+  ClanMembersColor,
+  ClanMembersFonts,
+  ClanMembersText,
+  ClanMembersVarbits,
+  Layout,
+  MAX_ROWS,
+  MESLAYER_SEARCH,
+} from './clans-members.constants';
+
+export function ClansMembers(): Component {
+  const root = useUniverse();
+  useOnResize(root);
+  useRerenderOn(Engine.CLAN_SETTINGS);
+
+  const asGuest: Int = useServerState(ClanMembersVarbits.LOAD_AS_GUEST);
+  const guestStatus: Int = useServerState(ClanMembersVarbits.GUEST_AFFINITY_STATUS);
+  const status: Int = useServerState(ClanMembersVarbits.AFFINITY_STATUS);
+  const column1: Int = useServerState(ClanMembersVarbits.COLUMN_1);
+  const column2Stored: Int = useServerState(ClanMembersVarbits.COLUMN_2);
+  const minRank: Int = useServerState(ClanMembersVarbits.MIN_RANK);
+  const maxRankPlus1: Int = useServerState(ClanMembersVarbits.MAX_RANK_PLUS_1);
+  const column2: Int = (column2Stored + 1) % ClanMemberColumns.length;
+
+  let loaded: Int = 0;
+  if (asGuest === 1 && guestStatus === AffinityStatus.LIVE && CS2.activeclansettings_listened_find()) {
+    loaded = 1;
+  }
+  if (asGuest === 0 && status === AffinityStatus.LIVE && CS2.activeclansettings_affined_find(0)) {
+    loaded = 1;
+  }
+
+  const [mode] = useState(meslayermode);
+  const [typed] = useState(meslayerinput);
+  let searching: Int = 0;
+  if (mode === MESLAYER_SEARCH) {
+    searching = 1;
+  } else if (mode <= 0 && typed.length > 0) {
+    searching = 1;
+  }
+  let filter: String = '';
+  if (searching === 1) {
+    filter = bankmainFilterString();
+  }
+  const filterLength: Int = filter.length;
+
+  let mobile: Int = 0;
+  if (onMobile()) {
+    mobile = 1;
+  }
+  const rowHeight: Int = mobile === 1 ? Layout.ROW_H_MOBILE : Layout.ROW_H;
+
+  let count: Int = 0;
+  if (loaded === 1) {
+    count = CS2.activeclansettings_affined_count_get();
+  }
+  let shown: Int = 0;
+  let at: Int = 0;
+  while (at < count && shown < MAX_ROWS) {
+    const slot: Int = CS2.activeclansettings_sorted_affined_slot_get(at);
+    if (clanMembersFilterCheck(slot, minRank, maxRankPlus1, filter) !== -1) {
+      shown = shown + 1;
+    }
+    at = at + 1;
+  }
+
+  let listHeight: Int = shown * rowHeight;
+  if (loaded === 1 && count > 0 && shown >= MAX_ROWS) {
+    listHeight =
+      listHeight +
+      textLineCount(ClanMembersText.OVERFLOW, PANE_W - Layout.OVERFLOW_INSET_W, ClanMembersFonts.BODY) *
+        Layout.OVERFLOW_LINE_H +
+      Layout.OVERFLOW_PAD;
+  }
+
+  const panelH: Int = Math.min(root.height - Layout.PANEL_SLACK, Math.max(Layout.LIST_MIN, listHeight) + PANEL_CHROME);
+  const paneH: Int = panelH - PANEL_CHROME;
+  const extent: Int = Math.max(Layout.LIST_MIN, listHeight);
+
+  const [fitGen, setFitGen] = useState(0);
+  const [wasScrolling, setWasScrolling] = useState(0);
+  const scrolls: Int = extent > paneH ? 1 : 0;
+  const was: Int = wasScrolling;
+  const fits: Int = fitGen;
+  onMounted(() => {
+    setWasScrolling(scrolls);
+  });
+  onUpdated(() => {
+    if (was === 1 && scrolls === 0) {
+      setFitGen(fits + 1);
+    }
+    setWasScrolling(scrolls);
+  });
+
+  let minTitle: String = ClanMembersText.FILTER_NONE;
+  let minIcon: Sprite = -1;
+  let maxTitle: String = ClanMembersText.FILTER_NONE;
+  let maxIcon: Sprite = -1;
+  if (loaded === 1) {
+    minTitle = clanRankTitle(minRank);
+    minIcon = clanRankIcon(minRank);
+    maxTitle = clanRankTitle(maxRankPlus1 - 1);
+    maxIcon = clanRankIcon(maxRankPlus1 - 1);
+  }
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h={panelH}>
+      <SteelBorderEntrypoint title={membersTitle(loaded, searching, filter, asGuest, guestStatus, status)} />
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_BOTTOM }}
+        w={{ fill: Layout.CONTENT_INSET_W }}
+        h={{ fill: Layout.CONTENT_INSET_H }}
+      >
+        <layer x="center" y={0} w="fill" h={{ fill: Layout.LIST_BOX_DROP }}>
+          <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={Sprites.TRADEBACKING_DARK} tiling />
+
+          <layer x="center" y={0} w="fill" h={Layout.HEADER_STRIP_H}>
+            <layer
+              x={{ right: Layout.HEADER1_RIGHT }}
+              y="center"
+              w={Layout.HEADER_W}
+              h={{ fill: Layout.HEADER_INSET_H }}
+            >
+              <Header1 />
+            </layer>
+            <layer
+              x={{ right: Layout.HEADER2_RIGHT }}
+              y="center"
+              w={Layout.HEADER_W}
+              h={{ fill: Layout.HEADER_INSET_H }}
+            >
+              <Header2 />
+            </layer>
+            <ThinBoxOutline />
+          </layer>
+
+          <MemberPane extent={extent} paneH={paneH} fitGen={fitGen}>
+            <MemberListHost
+              filter={filter}
+              filterLength={filterLength}
+              column1={column1}
+              column2={column2}
+              minRank={minRank}
+              maxRankPlus1={maxRankPlus1}
+              loaded={loaded}
+              count={count}
+              mobile={mobile}
+              rowHeight={rowHeight}
+              asGuest={asGuest}
+              guestStatus={guestStatus}
+              status={status}
+            />
+          </MemberPane>
+
+          <Dropdown />
+
+          <ThinBoxOutline />
+        </layer>
+
+        <layer x="center" y={{ bottom: Layout.FILTERS_BOTTOM }} w="fill" h={Layout.FILTERS_H}>
+          <FiltersRow minTitle={minTitle} minIcon={minIcon} maxTitle={maxTitle} maxIcon={maxIcon} />
+        </layer>
+
+        <layer x={0} y="bottom" w={Layout.BACK_W} h={Layout.BACK_H}>
+          <BackButton />
+        </layer>
+
+        <text
+          x={{ right: 0 }}
+          y="bottom"
+          w={{ fill: Layout.SPARE_TEXT_INSET_W }}
+          h={Layout.SPARE_TEXT_H}
+          font={ClanMembersFonts.BODY}
+          color={ClanMembersColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}
+
+const PANEL_CHROME = 139;
+
+const PANE_W = 461;
+
+function membersTitle(
+  loaded: Int,
+  searching: Int,
+  filter: String,
+  asGuest: Int,
+  guestStatus: Int,
+  status: Int,
+): String {
+  if (loaded === 0) {
+    return clanStatusText(asGuest, guestStatus, status);
+  }
+  if (searching === 1) {
+    if (filter.length > 0) {
+      return `${ClanMembersText.SEARCH_TITLE}<col=ff0000>${filter}</col>`;
+    }
+    return `${ClanMembersText.SEARCH_TITLE}<col=ff0000>${ClanMembersText.SEARCH_ANY}</col>`;
+  }
+  return `${CS2.activeclansettings_clan_name_get()}: ${ClanMembersText.TITLE_SUFFIX}`;
+}

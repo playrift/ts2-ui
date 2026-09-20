@@ -1,0 +1,54 @@
+import { useInterval, useState, useUniverse } from 'ts2';
+
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { TooltipBox, TooltipChrome, tooltipUp, tooltipHide, tooltipStale } from '../lib/tooltip.component';
+import { WideBar } from '../0717_ca_overview/ca-overview.constants';
+import { caProgressTipH, caProgressTipText, caProgressTipX, caProgressTipY } from '../0717_ca_overview/ca-shared.local';
+
+export function CaRewardsTooltip(): Component {
+  const [text] = useState(caProgressTipText);
+  const [anchorX] = useState(caProgressTipX);
+  const [anchorY] = useState(caProgressTipY);
+  const [anchorH] = useState(caProgressTipH);
+  const up: Boolean = tooltipUp();
+
+  useInterval(
+    up
+      ? () => {
+          if (tooltipStale()) {
+            tooltipHide();
+          }
+        }
+      : undefined,
+  );
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+
+  let measure: Int = WideBar.TIP_WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+
+  let x: Int = anchorX + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (!up) {
+    return null;
+  }
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}

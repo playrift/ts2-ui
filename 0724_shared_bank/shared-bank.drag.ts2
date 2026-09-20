@@ -1,0 +1,60 @@
+import { stopTimer, useInventory } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { bankmainSearching } from '../0012_bankmain/bankmain.helpers';
+import { Grid, SLOT_REST, SLOT_SEARCH_DROP, Storage } from './shared-bank.constants';
+import { itemsRef } from './shared-bank.refs';
+
+const SEARCH_DROP_CYCLES = 10;
+
+export function sharedBankDragItem(mouseY: Int, deadline: Int, cell: ComponentId): void {
+  const y: Int = mouseY - itemsRef.scrollY;
+  const paneHeight: Int = itemsRef.height;
+  let step: Int = 0;
+  if (y < Grid.DRAG_EDGE_FAST) {
+    step = -Grid.DRAG_STEP_FAST;
+  } else if (y < Grid.DRAG_EDGE_SLOW) {
+    step = -Grid.DRAG_STEP_SLOW;
+  } else if (y >= paneHeight - (Grid.DRAG_EDGE_FAST + cell.height!)) {
+    step = Grid.DRAG_STEP_FAST;
+  } else if (y >= paneHeight - (Grid.DRAG_EDGE_SLOW + cell.height!)) {
+    step = Grid.DRAG_STEP_SLOW;
+  } else {
+    return;
+  }
+  if (deadline - clientClock() < Grid.DRAG_THROTTLE) {
+    const held: Int = Math.max(clientClock(), deadline) + Grid.DRAG_HOLD;
+    cell.onDrag = (event) => sharedBankDragItem(event.mouseY, held, event.self);
+    return;
+  }
+  const next: Int = deadline + 1;
+  cell.onDrag = (event) => sharedBankDragItem(event.mouseY, next, event.self);
+  itemsRef.scrollY = Math.min(itemsRef.scrollHeight - paneHeight, Math.max(0, itemsRef.scrollY + step));
+}
+
+export function sharedBankReorder(
+  sameGrid: Boolean,
+  slot: Int,
+  targetSlot: Int,
+  capacity: Int,
+  cell: ComponentId,
+): void {
+  if (!sameGrid || slot < 0 || slot >= capacity || targetSlot < 0 || targetSlot >= capacity) {
+    return;
+  }
+  const bag = useInventory(Storage.INV);
+  if (bag[slot] === -1) {
+    return;
+  }
+  if (bankmainSearching()) {
+    const restoreAt: Int = clientClock() + SEARCH_DROP_CYCLES;
+    cell.transparency = SLOT_SEARCH_DROP;
+    cell.onTimer = () => {
+      if (clientClock() < restoreAt) {
+        return;
+      }
+      cell.transparency = SLOT_REST;
+      stopTimer(cell);
+    };
+  }
+}

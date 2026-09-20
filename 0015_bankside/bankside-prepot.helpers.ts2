@@ -1,0 +1,417 @@
+import { CS2, predictServerState, stopTimer, useInventory, useServerState, useState } from 'ts2';
+
+import { prepotDeviceLoadoutsUiActiveDevice } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { PotionByItem, PotionFamilies } from './bankside-potions.data';
+import { potionStoreDoses } from './bankside-potionstore.helpers';
+import {
+  BanksideInventories,
+  BanksideVarbits,
+  HoverFade,
+  Prepot,
+  prepotLoadoutContents0,
+  prepotLoadoutContents1,
+  prepotLoadoutContents2,
+  prepotLoadoutContents3,
+} from './bankside.constants';
+import { potionSettable } from './bankside.helpers';
+
+export function vialHover(entering: Boolean, target: ComponentId, rest: Int): void {
+  if (entering) {
+    const settleAt: Int = clientClock() + HoverFade.CYCLES;
+    if (rest >= HoverFade.VIAL_THRESHOLD) {
+      target.transparency = rest - HoverFade.VIAL_DOWN;
+    } else {
+      target.transparency = rest + HoverFade.VIAL_UP;
+    }
+    target.onTimer = () => {
+      if (clientClock() < settleAt) {
+        return;
+      }
+      target.transparency = rest;
+      stopTimer(target);
+    };
+    return;
+  }
+  target.transparency = rest;
+  target.onTimer = null;
+}
+
+export function vialHoverUnlessMobile(target: ComponentId, rest: Int): void {
+  if (onMobile()) {
+    return;
+  }
+  vialHover(true, target, rest);
+}
+
+export function familyDoseItem(family: Int, dose: Int): ItemName {
+  const row = PotionFamilies.at(family);
+  if (row !== null) {
+    if (dose === 1) {
+      return row.dose1;
+    }
+    if (dose === 2) {
+      return row.dose2;
+    }
+    if (dose === 3) {
+      return row.dose3;
+    }
+    if (dose === 4) {
+      return row.dose4;
+    }
+    return -1;
+  }
+  return 0;
+}
+
+export function potionFamily(item: Item): Int {
+  const row = PotionByItem.get(item);
+  return row === null ? -1 : row.family;
+}
+
+export function potionMaxDose(family: Int): Int {
+  const row = PotionFamilies.at(family);
+  return row === null ? -1 : row.maxDose;
+}
+
+export function potionLoadable(item: Item): Boolean {
+  if (!potionSettable(item)) {
+    return false;
+  }
+  if (potionFamily(item) === -1) {
+    return false;
+  }
+  return true;
+}
+
+export function prepotLoadoutPotion(loadout: Int, slot: Int): Int {
+  if (loadout === 0) {
+    if (slot === 0) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_0_POTION);
+    }
+    if (slot === 1) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_1_POTION);
+    }
+    if (slot === 2) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_2_POTION);
+    }
+    if (slot === 3) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_3_POTION);
+    }
+    if (slot === 4) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_4_POTION);
+    }
+  }
+  if (loadout === 1) {
+    if (slot === 0) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_0_POTION);
+    }
+    if (slot === 1) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_1_POTION);
+    }
+    if (slot === 2) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_2_POTION);
+    }
+    if (slot === 3) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_3_POTION);
+    }
+    if (slot === 4) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_4_POTION);
+    }
+  }
+  if (loadout === 2) {
+    if (slot === 0) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_0_POTION);
+    }
+    if (slot === 1) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_1_POTION);
+    }
+    if (slot === 2) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_2_POTION);
+    }
+    if (slot === 3) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_3_POTION);
+    }
+    if (slot === 4) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_4_POTION);
+    }
+  }
+  if (loadout === 3) {
+    if (slot === 0) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_0_POTION);
+    }
+    if (slot === 1) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_1_POTION);
+    }
+    if (slot === 2) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_2_POTION);
+    }
+    if (slot === 3) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_3_POTION);
+    }
+    if (slot === 4) {
+      return useServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_4_POTION);
+    }
+  }
+  return -1;
+}
+
+export function prepotLoadoutCap(loadout: Int, slot: Int): Int {
+  if (loadout === 0) {
+    if (slot === 0) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_0_CAP);
+    }
+    if (slot === 1) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_1_CAP);
+    }
+    if (slot === 2) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_2_CAP);
+    }
+    if (slot === 3) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_3_CAP);
+    }
+    if (slot === 4) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_4_CAP);
+    }
+  }
+  if (loadout === 1) {
+    if (slot === 0) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_0_CAP);
+    }
+    if (slot === 1) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_1_CAP);
+    }
+    if (slot === 2) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_2_CAP);
+    }
+    if (slot === 3) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_3_CAP);
+    }
+    if (slot === 4) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_4_CAP);
+    }
+  }
+  if (loadout === 2) {
+    if (slot === 0) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_0_CAP);
+    }
+    if (slot === 1) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_1_CAP);
+    }
+    if (slot === 2) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_2_CAP);
+    }
+    if (slot === 3) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_3_CAP);
+    }
+    if (slot === 4) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_4_CAP);
+    }
+  }
+  if (loadout === 3) {
+    if (slot === 0) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_0_CAP);
+    }
+    if (slot === 1) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_1_CAP);
+    }
+    if (slot === 2) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_2_CAP);
+    }
+    if (slot === 3) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_3_CAP);
+    }
+    if (slot === 4) {
+      return useServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_4_CAP);
+    }
+  }
+  return 0;
+}
+
+function writePrepotLoadout(loadout: Int, slot: Int, item: Item, cap: Int): void {
+  if (loadout === 0) {
+    if (slot === 0) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_0_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_0_CAP, cap);
+    }
+    if (slot === 1) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_1_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_1_CAP, cap);
+    }
+    if (slot === 2) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_2_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_2_CAP, cap);
+    }
+    if (slot === 3) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_3_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_3_CAP, cap);
+    }
+    if (slot === 4) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_0_SLOT_4_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_0_SLOT_4_CAP, cap);
+    }
+  }
+  if (loadout === 1) {
+    if (slot === 0) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_0_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_0_CAP, cap);
+    }
+    if (slot === 1) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_1_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_1_CAP, cap);
+    }
+    if (slot === 2) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_2_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_2_CAP, cap);
+    }
+    if (slot === 3) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_3_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_3_CAP, cap);
+    }
+    if (slot === 4) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_1_SLOT_4_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_1_SLOT_4_CAP, cap);
+    }
+  }
+  if (loadout === 2) {
+    if (slot === 0) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_0_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_0_CAP, cap);
+    }
+    if (slot === 1) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_1_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_1_CAP, cap);
+    }
+    if (slot === 2) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_2_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_2_CAP, cap);
+    }
+    if (slot === 3) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_3_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_3_CAP, cap);
+    }
+    if (slot === 4) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_2_SLOT_4_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_2_SLOT_4_CAP, cap);
+    }
+  }
+  if (loadout === 3) {
+    if (slot === 0) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_0_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_0_CAP, cap);
+    }
+    if (slot === 1) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_1_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_1_CAP, cap);
+    }
+    if (slot === 2) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_2_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_2_CAP, cap);
+    }
+    if (slot === 3) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_3_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_3_CAP, cap);
+    }
+    if (slot === 4) {
+      predictServerState(Varps.PREPOT_DEVICE_LOADOUT_3_SLOT_4_POTION, item as Int);
+      predictServerState(Varbits.PREPOT_DEVICE_LOADOUT_3_SLOT_4_CAP, cap);
+    }
+  }
+}
+
+export function setPrepotLoadout(loadout: Int, slot: Int, item: Item, cap: Int): void {
+  if (item !== -1 && !potionLoadable(item)) {
+    return;
+  }
+  let amount: Int = Math.max(0, Math.min(cap, Prepot.CAP_MAX));
+  if (amount >= Prepot.CAP_MAX) {
+    amount = 0;
+  }
+  if (item !== -1) {
+    const device = useInventory(BanksideInventories.PREPOT_DEVICE_INV);
+    let other: Int = 0;
+    while (other < device.size) {
+      if (other !== slot) {
+        if ((prepotLoadoutPotion(loadout, other) as Item) === item) {
+          writePrepotLoadout(loadout, other, -1, 0);
+        }
+      }
+      other = other + 1;
+    }
+  }
+  writePrepotLoadout(loadout, slot, item, amount);
+}
+
+export function prepotDropFromDevice(from: ComponentId, onto: ComponentId, fromSlot: Int, ontoSlot: Int): void {
+  if (fromSlot === ontoSlot || fromSlot < 0 || ontoSlot < 0) {
+    return;
+  }
+  const device = useInventory(BanksideInventories.PREPOT_DEVICE_INV);
+  const item: Item = device[fromSlot];
+  const count: Int = device.total(item);
+  if (onto === from) {
+    return;
+  }
+  let mount: ComponentId = -1;
+  let box: ComponentId = -1;
+  if (CS2.if_find(onto)) {
+    mount = CS2.cc_layer_get();
+  }
+  if (CS2.if_find(mount)) {
+    box = CS2.cc_layer_get();
+  }
+  let loadout: Int = -1;
+  if (box === prepotLoadoutContents0) {
+    loadout = 0;
+  }
+  if (box === prepotLoadoutContents1) {
+    loadout = 1;
+  }
+  if (box === prepotLoadoutContents2) {
+    loadout = 2;
+  }
+  if (box === prepotLoadoutContents3) {
+    loadout = 3;
+  }
+  if (loadout >= 0) {
+    setPrepotLoadout(loadout, ontoSlot, item, count);
+  }
+}
+
+export function prepotStoreDoses(loadout: Int, slot: Int): Int {
+  return potionStoreDoses(potionFamily(prepotLoadoutPotion(loadout, slot) as Item));
+}
+
+export function potionAvailable(potion: Item, family: Int, storeDoses: Int): Boolean {
+  const device = useInventory(BanksideInventories.PREPOT_DEVICE_INV);
+  if (device.total(potion) > 0) {
+    return true;
+  }
+  const tab: Int = useServerState(BanksideVarbits.CURRENT_TAB);
+  if (tab === Prepot.POTION_TAB && storeDoses > 0) {
+    return true;
+  }
+  const bank = useInventory(BanksideInventories.BANK);
+  const inv = useInventory(BanksideInventories.INV);
+  const maxDose: Int = potionMaxDose(family);
+  let dose: Int = 1;
+  while (dose <= maxDose) {
+    const doseItem: ItemName = familyDoseItem(family, dose);
+    if (tab !== Prepot.POTION_TAB && bank.total(doseItem as Item) > 0) {
+      return true;
+    }
+    if (inv.total(doseItem as Item) > 0) {
+      return true;
+    }
+    dose = dose + 1;
+  }
+  return false;
+}
+
+export function activePrepotDevice(): Item {
+  const [device] = useState(prepotDeviceLoadoutsUiActiveDevice);
+  return device as Item;
+}

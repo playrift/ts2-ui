@@ -1,0 +1,274 @@
+import { CS2 } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { groupDigits } from '../lib/lib.format';
+import { SkillIcons, SkillNames } from '../0243_pest_rewardshop/pest-tables.data';
+import { Copy, ExpLayout, Layout, RewardsColour, RewardsFonts, RewardTab } from './soul-wars-rewards.constants';
+import { baseLevel, needAtLeast, needTokens, tokenWord, xpPerToken } from './soul-wars-rewards.helpers';
+import { rewardRefuse, rewardSelect } from './soul-wars-rewards.state';
+import { ExpOptionTokens } from './exp-option-tokens.data';
+
+const EXP_ROWS = [
+  { skill: 0, col: 0, row: 0 },
+  { skill: 2, col: 1, row: 0 },
+  { skill: 1, col: 0, row: 1 },
+  { skill: 4, col: 1, row: 1 },
+  { skill: 6, col: 0, row: 2 },
+  { skill: 3, col: 1, row: 2 },
+  { skill: 5, col: 0, row: 3 },
+] as const;
+
+export function ExpList({ pick, tokens }: { pick: Int; tokens: Int }): Component {
+  const mobile: Boolean = onMobile();
+  return (
+    <layer w="fill" h="fill">
+      {EXP_ROWS.map((row, i) => (
+        <ExpSkill
+          skill={row.skill}
+          x={row.col * ExpLayout.COLUMN_W}
+          y={ExpLayout.TOP + row.row * Layout.ROW_STEP}
+          base={i * 4}
+          pick={pick}
+          tokens={tokens}
+          mobile={mobile}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function ExpSkill({
+  skill,
+  x,
+  y,
+  base,
+  pick,
+  tokens,
+  mobile,
+}: {
+  skill: Int;
+  x: Int;
+  y: Int;
+  base: Int;
+  pick: Int;
+  tokens: Int;
+  mobile: Boolean;
+}): Component {
+  const level: Int = baseLevel(skill);
+  const perToken: Int = xpPerToken(skill);
+  const name: String = SkillNames.get(skill as Skill) ?? 'Skill';
+  const gated: Boolean = level < ExpLayout.LEVEL_MIN;
+  const poor: Boolean = tokens < 1;
+  const mine: Boolean = pick === base || pick === base + 1 || pick === base + 2;
+  const title: String = gated ? `${name} - Requires level 30` : `${name} - ${perToken / 10} XP per Token`;
+  const titleColour: Int = gated || poor ? RewardsColour.GREY : mine ? RewardsColour.WHITE : RewardsColour.GREEN;
+  const optionX: Int = x + ExpLayout.OPTION_X;
+
+  return (
+    <>
+      <sprite
+        x={x + ExpLayout.ICON_X}
+        y={y - ExpLayout.ICON_DY}
+        w={ExpLayout.ICON}
+        h={ExpLayout.ICON}
+        sprite={SkillIcons.get(skill as Skill) ?? -1}
+      />
+      <text
+        x={x + ExpLayout.TITLE_X}
+        y={y}
+        w={ExpLayout.TITLE_W}
+        h={Layout.ROW_H}
+        font={RewardsFonts.BODY}
+        shadow
+        align="left"
+        valign="top"
+        color={titleColour}
+        text={title}
+      />
+      <ExpOption
+        skill={skill}
+        name={name}
+        id={base}
+        x={optionX}
+        y={y}
+        w={ExpLayout.OPTION_1_W}
+        pick={pick}
+        tokens={tokens}
+        gated={gated}
+        perToken={perToken}
+        mobile={mobile}
+      />
+      <ExpOption
+        skill={skill}
+        name={name}
+        id={base + 1}
+        x={optionX + ExpLayout.OPTION_2_DX}
+        y={y}
+        w={ExpLayout.OPTION_2_W}
+        pick={pick}
+        tokens={tokens}
+        gated={gated}
+        perToken={perToken}
+        mobile={mobile}
+      />
+      <ExpOption
+        skill={skill}
+        name={name}
+        id={base + 2}
+        x={optionX + ExpLayout.OPTION_3_DX}
+        y={y}
+        w={ExpLayout.OPTION_3_W}
+        pick={pick}
+        tokens={tokens}
+        gated={gated}
+        perToken={perToken}
+        mobile={mobile}
+      />
+      <ExpOptionX
+        name={name}
+        id={base + 3}
+        x={optionX + ExpLayout.OPTION_X_DX}
+        y={y}
+        pick={pick}
+        tokens={tokens}
+        gated={gated}
+        perToken={perToken}
+        mobile={mobile}
+      />
+    </>
+  );
+}
+
+function ExpOption({
+  skill,
+  name,
+  id,
+  x,
+  y,
+  w,
+  pick,
+  tokens,
+  gated,
+  perToken,
+  mobile,
+}: {
+  skill: Int;
+  name: String;
+  id: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  pick: Int;
+  tokens: Int;
+  gated: Boolean;
+  perToken: Int;
+  mobile: Boolean;
+}): Component {
+  const cost: Int = ExpOptionTokens.get(id) ?? -1;
+  const xp: Int = (perToken * cost) / 10;
+  const reason: String = gated ? Copy.LEVEL_NEEDED : tokens < cost ? needTokens(cost) : '';
+  const refused: Boolean = CS2.string_length(reason) > 0;
+  const chosen: Boolean = pick === id;
+  const hoverable: Boolean = !chosen && !refused && !mobile;
+  return (
+    <text
+      x={x}
+      y={y}
+      w={w}
+      h={Layout.ROW_H}
+      font={RewardsFonts.SMALL}
+      shadow
+      align="left"
+      valign="bottom"
+      color={chosen ? RewardsColour.WHITE : refused ? RewardsColour.GREY : RewardsColour.ORANGE}
+      text={`${cost} ${tokenWord(cost)}`}
+      options={[Copy.SELECT]}
+      optionSubject={`<col=ff9040>${groupDigits(xp, ',')} ${name} XP</col>`}
+      onMouseRepeat={
+        hoverable
+          ? (event) => {
+              event.self.color = RewardsColour.YELLOW;
+            }
+          : undefined
+      }
+      onMouseLeave={
+        hoverable
+          ? (event) => {
+              event.self.color = RewardsColour.ORANGE;
+            }
+          : undefined
+      }
+      onOptionSelect={(event) => {
+        if (refused) {
+          rewardRefuse(event.option, RewardTab.EXPERIENCE, reason, 0);
+          return;
+        }
+        rewardSelect(event.option, RewardTab.EXPERIENCE, id, -1, 0);
+      }}
+    />
+  );
+}
+
+function ExpOptionX({
+  name,
+  id,
+  x,
+  y,
+  pick,
+  tokens,
+  gated,
+  perToken,
+  mobile,
+}: {
+  name: String;
+  id: Int;
+  x: Int;
+  y: Int;
+  pick: Int;
+  tokens: Int;
+  gated: Boolean;
+  perToken: Int;
+  mobile: Boolean;
+}): Component {
+  const reason: String = gated ? Copy.LEVEL_NEEDED : tokens < 1 ? needAtLeast(1) : '';
+  const refused: Boolean = CS2.string_length(reason) > 0;
+  const chosen: Boolean = pick === id;
+  const hoverable: Boolean = !chosen && !refused && !mobile;
+  return (
+    <text
+      x={x}
+      y={y}
+      w={ExpLayout.OPTION_X_W}
+      h={Layout.ROW_H}
+      font={RewardsFonts.SMALL}
+      shadow
+      align="left"
+      valign="bottom"
+      color={chosen ? RewardsColour.WHITE : refused ? RewardsColour.GREY : RewardsColour.ORANGE}
+      text={`X ${tokenWord(9)}`}
+      options={[Copy.SELECT]}
+      optionSubject={`<col=ff9040>${groupDigits(perToken / 10, ',')} ${name} XP/Token</col>`}
+      onMouseRepeat={
+        hoverable
+          ? (event) => {
+              event.self.color = RewardsColour.YELLOW;
+            }
+          : undefined
+      }
+      onMouseLeave={
+        hoverable
+          ? (event) => {
+              event.self.color = RewardsColour.ORANGE;
+            }
+          : undefined
+      }
+      onOptionSelect={(event) => {
+        if (refused) {
+          rewardRefuse(event.option, RewardTab.EXPERIENCE, reason, 0);
+          return;
+        }
+        rewardSelect(event.option, RewardTab.EXPERIENCE, id, -1, 0);
+      }}
+    />
+  );
+}

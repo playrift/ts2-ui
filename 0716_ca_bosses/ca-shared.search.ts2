@@ -1,0 +1,184 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { caCtrlHit, caSearchString, snapshotOpen } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  chatDefaultSetOnKey,
+  keyboardHide,
+  keyboardShow,
+  keyboardShowString,
+  meslayerClose,
+} from '../0162_chatbox/meslayer';
+import { mesKeyboardRef } from '../0162_chatbox/chatbox.constants';
+
+import { CA_SEARCH_MAX, CaArt, CaColour, CaFont, CaKey } from './ca-shared.constants';
+
+export function CaSearchbar(): Component {
+  const searching: Int = useServerState(Varbits.CA_BOSSES_IS_SEARCHING);
+  const mobile: Boolean = onMobile();
+  const [query] = useState(caSearchString);
+
+  return (
+    <>
+      {searching === 1 ? (
+        <CaSearchFieldOpen mobile={mobile} />
+      ) : (
+        <layer x={85} y={5} w={373} h={{ fill: 10 }} options={['Search']} onOptionSelect={() => caSearchbarOp()}>
+          <CaSearchField />
+        </layer>
+      )}
+
+      {searching === 1 ? (
+        <text
+          x={90}
+          y="center"
+          w={{ fill: 111 }}
+          h={{ fill: 18 }}
+          text={query.concat('<col=f4f4f4>*</col>')}
+          font={CaFont.BODY}
+          color={CaColour.AMBER}
+          shadow
+          valign="middle"
+          onKey={(event) => caSearchbarKeypress(event.keyCode, event.keyChar)}
+        />
+      ) : (
+        <text
+          x={90}
+          y="center"
+          w={{ fill: 111 }}
+          h={{ fill: 18 }}
+          text={query.concat('*')}
+          font={CaFont.BODY}
+          color={CaColour.AMBER}
+          shadow
+          valign="middle"
+          hover={{ color: CaColour.WHITE }}
+        />
+      )}
+    </>
+  );
+}
+
+function CaSearchFieldOpen({ mobile }: { mobile: Boolean }): Component {
+  return mobile ? (
+    <layer
+      x={85}
+      y={5}
+      w={373}
+      h={{ fill: 10 }}
+      options={['Show keyboard']}
+      onOptionSelect={() => caSettingsShowKeyboard()}
+    >
+      <CaSearchField />
+    </layer>
+  ) : (
+    <layer x={85} y={5} w={373} h={{ fill: 10 }} options={['']}>
+      <CaSearchField />
+    </layer>
+  );
+}
+
+function CaSearchField(): Component {
+  return (
+    <>
+      <sprite x="center" y="center" w={{ fill: 8 }} h="fill" sprite={CaArt.FIELD_MID} />
+      <sprite x={0} y="center" w={4} h="fill" sprite={CaArt.FIELD_LEFT} />
+      <sprite x="right" y="center" w={4} h="fill" sprite={CaArt.FIELD_RIGHT} />
+    </>
+  );
+}
+
+export function caSearchbarOp(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+    return;
+  }
+  caBossEnableSearch();
+  if (onMobile()) {
+    keyboardShow(0, CA_SEARCH_MAX);
+  }
+  const [, setQuery] = useState(caSearchString);
+  setQuery('');
+}
+
+export function caSettingsShowKeyboard(): void {
+  const [query] = useState(caSearchString);
+  keyboardShowString(0, CA_SEARCH_MAX, query);
+}
+
+export function caBossEnableSearch(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 0) {
+    chatDefaultStopInput();
+    predictServerState(Varbits.CA_BOSSES_IS_SEARCHING, 1);
+  }
+}
+
+export function caBossDisableSearch(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+    chatDefaultRestoreInput();
+    predictServerState(Varbits.CA_BOSSES_IS_SEARCHING, 0);
+  }
+}
+
+export function caSearchbarKeypress(keyCode: Int, keyChar: Char): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 0) {
+    return;
+  }
+  const [ctrlHit, setCtrlHit] = useState(caCtrlHit);
+  const [query, setQuery] = useState(caSearchString);
+
+  if (keyCode === CaKey.CONTROL_LEFT) {
+    setCtrlHit(1);
+    return;
+  }
+  if (keyCode === CaKey.BACKSPACE && ctrlHit === 1) {
+    setQuery('');
+    return;
+  }
+  setCtrlHit(0);
+  if (keyCode === CaKey.DELETE) {
+    setQuery('');
+    return;
+  }
+  if (keyCode === CaKey.RETURN) {
+    if (onMobile()) {
+      keyboardHide();
+    }
+    if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+      caBossDisableSearch();
+    }
+    return;
+  }
+  if (keyCode === CaKey.BACKSPACE) {
+    if (query.length > 0) {
+      setQuery(query.substring(0, query.length - 1));
+    }
+    return;
+  }
+  if (CS2.char_alpha_numeric_is(keyChar) === false && CS2.string_indexof_char("-'", keyChar) === -1) {
+    return;
+  }
+  const next: String = CS2.append_char(query, keyChar);
+  if (next.length > CA_SEARCH_MAX) {
+    return;
+  }
+  setQuery(next);
+}
+
+export function chatDefaultStopInput(): void {
+  const [, setSnapshot] = useState(snapshotOpen);
+  setSnapshot(1);
+  if (CS2.if_hide_get(mesKeyboardRef) === false) {
+    meslayerClose(true, true, true);
+  }
+  chatDefaultSetOnKey(0);
+}
+
+export function chatDefaultRestoreInput(): void {
+  chatDefaultSetOnKey(1);
+  const [, setSnapshot] = useState(snapshotOpen);
+  setSnapshot(0);
+  if (onMobile()) {
+    keyboardHide();
+  }
+}

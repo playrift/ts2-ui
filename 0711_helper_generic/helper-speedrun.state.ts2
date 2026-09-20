@@ -1,0 +1,77 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import {
+  nextTrophy,
+  speedrunBestTime,
+  speedrunClockLabel,
+  speedrunTitle,
+} from '../0779_speedrunning_panel/speedrunning-panel.helpers';
+import { timeConvertOption } from '../0512_trailblazer_areas/time.shared';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  HelperActive,
+  helperGenericActive,
+  helperGenericAddData,
+  helperGenericAddTitle,
+  helperGenericBuildUi,
+  helperGenericClear,
+  helperGenericSetBit,
+  helperGenericUpdateText,
+} from './helper-generic.state';
+
+export const helperSpeedrunClockRow = sessionState(0);
+
+export const helperSpeedrunClockOffset = sessionState(0);
+
+export const helperSpeedrunClockPrecise = sessionState(0);
+
+export const helperSpeedrunClockSeparate = sessionState(0);
+
+export function speedrunHelperUpdateTimeEntrypoint(): void {
+  const [row] = useState(helperSpeedrunClockRow);
+  if (row === 0) {
+    return;
+  }
+  const [offset] = useState(helperSpeedrunClockOffset);
+  const [precise] = useState(helperSpeedrunClockPrecise);
+  const [separate] = useState(helperSpeedrunClockSeparate);
+  helperGenericUpdateText(row, speedrunClockLabel(offset, precise, separate));
+}
+
+export function speedrunHelperUpdateTime(elapsed: Int): void {
+  const offset: Int = elapsed * 30 - CS2.clientclock();
+  const precise: Int = useServerState(Varbits.OPTION_PRECISE_TIMING);
+  const separate: Int = useServerState(Varbits.OPTION_SEPARATE_HOURS);
+  const left: Int = helperGenericAddData('Time: ', speedrunClockLabel(offset, precise, separate));
+  const [, setRow] = useState(helperSpeedrunClockRow);
+  const [, setOffset] = useState(helperSpeedrunClockOffset);
+  const [, setPrecise] = useState(helperSpeedrunClockPrecise);
+  const [, setSeparate] = useState(helperSpeedrunClockSeparate);
+  setRow(left === 0 ? 0 : left + 1);
+  setOffset(offset);
+  setPrecise(precise);
+  setSeparate(separate);
+}
+
+export function speedrunHelperDraw(elapsed: Int): void {
+  const quest: Int = useServerState(Varps.CURRENT_SPEEDRUN_DBROW);
+  const title: String = speedrunTitle(quest);
+  const [trophy, target] = nextTrophy(quest, elapsed);
+  const targetText: String = timeConvertOption(target);
+  const best: Int = speedrunBestTime(quest);
+  const bestText: String = timeConvertOption(best);
+  helperGenericClear();
+  helperGenericSetBit(0);
+  helperGenericAddTitle(title, 1);
+  const [, setActive] = useState(helperGenericActive);
+  setActive(HelperActive.SPEEDRUN);
+  speedrunHelperUpdateTime(elapsed);
+  if (target > 0 && CS2.string_length(trophy) > 0) {
+    helperGenericAddData(`${trophy}: `, targetText);
+  }
+  if (best > 0) {
+    helperGenericAddData('Best Time: ', bestText);
+  }
+  helperGenericBuildUi();
+}

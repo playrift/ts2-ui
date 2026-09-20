@@ -1,0 +1,136 @@
+import { CS2, stopTimer } from 'ts2';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { BUTTON_OPSOUND_MASK, GimSidepanelColor, GimSidepanelFonts } from './gim-sidepanel.constants';
+
+export function gimSidepanelLimitedInit(button: ComponentId, canCreate: Int, message: ComponentId, text: String): void {
+  if (canCreate === 1) {
+    button.hide = false;
+    button.onOptionSelect = (event) => opsound(event.option, BUTTON_OPSOUND_MASK);
+    stoneButtonInit(CREATE_GROUP, button, GimSidepanelFonts.BODY);
+  } else {
+    button.hide = true;
+  }
+  message.text = text;
+}
+
+const CREATE_GROUP = '<col=0dc10d>Create Group</col>';
+
+const Skin = {
+  SPRITE_TYPE: 5,
+  TEXT_TYPE: 4,
+  RECT_TYPE: 3,
+  POS_ABS: 0,
+  POS_CENTER: 1,
+  SIZE_ABS: 0,
+  SIZE_MINUS: 1,
+  CORNER: 9,
+  EDGE_INSET: 18,
+  PRESSED_FILL: 0x30201c,
+  PRESSED_FILL_WASH: 200,
+  PRESSED_FILL_INSET: 2,
+  RELEASE_CYCLES: 2,
+} as const;
+
+const RaisedSkin = {
+  TOP_LEFT: 913,
+  TOP_RIGHT: 914,
+  BOTTOM_LEFT: 915,
+  BOTTOM_RIGHT: 916,
+  LEFT: 917,
+  TOP: 918,
+  RIGHT: 919,
+  BOTTOM: 920,
+} as const;
+
+const PressedSkin = {
+  TOP_LEFT: 921,
+  TOP_RIGHT: 922,
+  BOTTOM_LEFT: 923,
+  BOTTOM_RIGHT: 924,
+  LEFT: 925,
+  TOP: 926,
+  RIGHT: 927,
+  BOTTOM: 928,
+} as const;
+
+function createGraphic(container: ComponentId, index: Int, sprite: Sprite, x: Int, y: Int, w: Int, h: Int): void {
+  CS2.cc_create(container, Skin.SPRITE_TYPE, index, false);
+  CS2.cc_position_set(x, y, Skin.POS_ABS, Skin.POS_ABS);
+  CS2.cc_size_set(w, h, Skin.SIZE_ABS, Skin.SIZE_ABS);
+  CS2.cc_sprite_set(sprite);
+  CS2.cc_tiling_set(true);
+}
+
+function stoneButtonSkin(container: ComponentId, pressed: Int): Int {
+  CS2.cc_all_delete(container);
+  const w: Int = CS2.if_width_get(container);
+  const h: Int = CS2.if_height_get(container);
+  const right: Int = w - Skin.CORNER;
+  const bottom: Int = h - Skin.CORNER;
+  const spanW: Int = w - Skin.EDGE_INSET;
+  const spanH: Int = h - Skin.EDGE_INSET;
+  if (pressed === 1) {
+    CS2.cc_create(container, Skin.RECT_TYPE, 0, false);
+    CS2.cc_position_set(0, 0, Skin.POS_CENTER, Skin.POS_CENTER);
+    CS2.cc_size_set(Skin.PRESSED_FILL_INSET, Skin.PRESSED_FILL_INSET, Skin.SIZE_MINUS, Skin.SIZE_MINUS);
+    CS2.cc_fill_set(true);
+    CS2.cc_colour_set(Skin.PRESSED_FILL);
+    CS2.cc_transparency_set(Skin.PRESSED_FILL_WASH);
+    createGraphic(container, 1, PressedSkin.TOP_LEFT, 0, 0, Skin.CORNER, Skin.CORNER);
+    createGraphic(container, 2, PressedSkin.TOP_RIGHT, right, 0, Skin.CORNER, Skin.CORNER);
+    createGraphic(container, 3, PressedSkin.BOTTOM_LEFT, 0, bottom, Skin.CORNER, Skin.CORNER);
+    createGraphic(container, 4, PressedSkin.BOTTOM_RIGHT, right, bottom, Skin.CORNER, Skin.CORNER);
+    createGraphic(container, 5, PressedSkin.LEFT, 0, Skin.CORNER, Skin.CORNER, spanH);
+    createGraphic(container, 6, PressedSkin.TOP, Skin.CORNER, 0, spanW, Skin.CORNER);
+    createGraphic(container, 7, PressedSkin.RIGHT, right, Skin.CORNER, Skin.CORNER, spanH);
+    createGraphic(container, 8, PressedSkin.BOTTOM, Skin.CORNER, bottom, spanW, Skin.CORNER);
+    return 9;
+  }
+  createGraphic(container, 0, RaisedSkin.TOP_LEFT, 0, 0, Skin.CORNER, Skin.CORNER);
+  createGraphic(container, 1, RaisedSkin.TOP_RIGHT, right, 0, Skin.CORNER, Skin.CORNER);
+  createGraphic(container, 2, RaisedSkin.BOTTOM_LEFT, 0, bottom, Skin.CORNER, Skin.CORNER);
+  createGraphic(container, 3, RaisedSkin.BOTTOM_RIGHT, right, bottom, Skin.CORNER, Skin.CORNER);
+  createGraphic(container, 4, RaisedSkin.LEFT, 0, Skin.CORNER, Skin.CORNER, spanH);
+  createGraphic(container, 5, RaisedSkin.TOP, Skin.CORNER, 0, spanW, Skin.CORNER);
+  createGraphic(container, 6, RaisedSkin.RIGHT, right, Skin.CORNER, Skin.CORNER, spanH);
+  createGraphic(container, 7, RaisedSkin.BOTTOM, Skin.CORNER, bottom, spanW, Skin.CORNER);
+  return 8;
+}
+
+function stoneButtonDraw(pressed: Int, label: String, font: Font, container: ComponentId): void {
+  const next: Int = stoneButtonSkin(container, pressed);
+  CS2.cc_create(container, Skin.TEXT_TYPE, next, false);
+  CS2.cc_size_set(0, 0, Skin.SIZE_MINUS, Skin.SIZE_MINUS);
+  CS2.cc_position_set(0, 0, Skin.POS_CENTER, Skin.POS_CENTER);
+  CS2.cc_colour_set(GimSidepanelColor.LABEL);
+  CS2.cc_text_font_set(font);
+  CS2.cc_text_align_set(1, 1, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(label);
+}
+
+function stoneButtonState(pressed: Int, label: String, font: Font, container: ComponentId): void {
+  stoneButtonDraw(pressed, label, font, container);
+  if (pressed === 1) {
+    const releaseAt: Int = clientClock() + Skin.RELEASE_CYCLES;
+    container.onTimer = () => {
+      if (clientClock() >= releaseAt) {
+        stopTimer(container);
+        stoneButtonDraw(0, label, font, container);
+      }
+    };
+    return;
+  }
+  stopTimer(container);
+}
+
+function stoneButtonInit(label: String, container: ComponentId, font: Font): void {
+  stoneButtonDraw(0, label, font, container);
+  if (!onMobile()) {
+    container.onMouseRepeat = () => stoneButtonState(1, label, font, container);
+  }
+  container.onMouseLeave = () => stoneButtonState(0, label, font, container);
+  container.options = [CS2.tags_remove(label)];
+  stopTimer(container);
+}

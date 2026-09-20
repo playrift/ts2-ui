@@ -1,4 +1,4 @@
-import { CS2, sessionState, useInterval, useState } from 'ts2';
+import { CS2, sessionState, stopTimer, useRef, useState } from 'ts2';
 
 import { clientClock, itemName, playSound } from '../lib/lib.engine';
 import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
@@ -23,41 +23,50 @@ import { runeTotal } from './zmi-bank-payment.helpers';
 
 const hoveredCell = sessionState(-1);
 
-const pressedCell = sessionState(-1);
-const pressedAt = sessionState(0);
-const pressPhase = sessionState(0);
+export function pressRune(index: Int, item: ItemName, mode: Int, cell: ComponentId, icon: ComponentId): void {
+  playSound(ZmiSounds.CLICK);
+  cell.onMouseEnter = null;
+  cell.onMouseLeave = null;
+  icon.hide = true;
+  const unhideAt: Int = clientClock() + Press.UNHIDE_AFTER;
+  const redrawAt: Int = clientClock() + Press.REDRAW_AFTER;
+  cell.onTimer = () => selectionReset(unhideAt, redrawAt, index, item, mode, cell, icon);
+}
+
+function selectionReset(
+  unhideAt: Int,
+  redrawAt: Int,
+  index: Int,
+  item: ItemName,
+  mode: Int,
+  cell: ComponentId,
+  icon: ComponentId,
+): void {
+  if (clientClock() < unhideAt) {
+    return;
+  }
+  icon.hide = false;
+  if (clientClock() < redrawAt) {
+    return;
+  }
+  const [, setHovered] = useState(hoveredCell);
+  setHovered(-1);
+  let live: Boolean = false;
+  if (mode === 0) {
+    live = true;
+  } else if (runeTotal(item) >= MIN_RUNES) {
+    live = true;
+  }
+  if (live) {
+    cell.onMouseEnter = () => hoverRune(index);
+    cell.onMouseLeave = () => hoverRune(-1);
+  }
+  stopTimer(cell);
+}
 
 export function hoverRune(index: Int): void {
   const [, setHovered] = useState(hoveredCell);
   setHovered(index);
-}
-
-export function pressRune(index: Int): void {
-  playSound(ZmiSounds.CLICK);
-  const [, setCell] = useState(pressedCell);
-  const [, setAt] = useState(pressedAt);
-  const [, setPhase] = useState(pressPhase);
-  setCell(index);
-  setAt(clientClock());
-  setPhase(1);
-}
-
-export function pressTick(): void {
-  const [at] = useState(pressedAt);
-  const [phase, setPhase] = useState(pressPhase);
-  const [, setCell] = useState(pressedCell);
-  const now: Int = clientClock();
-  if (phase === 1) {
-    if (now >= at + Press.UNHIDE_AFTER) {
-      setPhase(2);
-    }
-  }
-  if (phase === 2) {
-    if (now >= at + Press.REDRAW_AFTER) {
-      setPhase(0);
-      setCell(-1);
-    }
-  }
 }
 
 export function RuneCell({
@@ -82,21 +91,8 @@ export function RuneCell({
   }
 
   const [hovered] = useState(hoveredCell);
-  const [pressed] = useState(pressedCell);
-  const [phase] = useState(pressPhase);
 
-  let skinHidden: Boolean = false;
-  if (phase === 1) {
-    if (pressed === index) {
-      skinHidden = true;
-    }
-  }
-  let listening: Boolean = live;
-  if (phase !== 0) {
-    if (pressed === index) {
-      listening = false;
-    }
-  }
+  const icon = useRef();
 
   return (
     <layer
@@ -106,66 +102,32 @@ export function RuneCell({
       h={Grid.CELL}
       options={[CHOOSE_OP]}
       optionSubject={`<col=ff9040>${itemName(item as Item)}</col>`}
-      onMouseEnter={listening ? () => hoverRune(index) : undefined}
-      onMouseLeave={listening ? () => hoverRune(-1) : undefined}
+      onMouseEnter={live ? () => hoverRune(index) : undefined}
+      onMouseLeave={live ? () => hoverRune(-1) : undefined}
       onOptionSelect={(event) => {
-        pressRune(index);
+        pressRune(index, item, mode, event.self, icon);
         CS2.if_resume_pausebutton(event.component);
       }}
     >
-      {!live ? (
-        <StoneButtonFilled hide={skinHidden}>
-          <sprite
-            x={{ center: Grid.ICON_DX }}
-            y="center"
-            w={Grid.ICON_W}
-            h={Grid.ICON_H}
-            item={item}
-            itemCount={held}
-            itemCountMode="always"
-            outline={Grid.OUTLINE}
-            shadowColor={Grid.SHADOW}
-            transparency={Grid.DISABLED_FADE}
-          />
-        </StoneButtonFilled>
-      ) : hovered === index ? (
-        <StoneButtonPressedFilled hide={skinHidden}>
-          <sprite
-            x={{ center: Grid.ICON_DX }}
-            y="center"
-            w={Grid.ICON_W}
-            h={Grid.ICON_H}
-            item={item}
-            itemCount={held}
-            itemCountMode="always"
-            outline={Grid.OUTLINE}
-            shadowColor={Grid.SHADOW}
-          />
-        </StoneButtonPressedFilled>
-      ) : (
-        <StoneButtonOutFilled hide={skinHidden}>
-          <sprite
-            x={{ center: Grid.ICON_DX }}
-            y="center"
-            w={Grid.ICON_W}
-            h={Grid.ICON_H}
-            item={item}
-            itemCount={held}
-            itemCountMode="always"
-            outline={Grid.OUTLINE}
-            shadowColor={Grid.SHADOW}
-          />
-        </StoneButtonOutFilled>
-      )}
+      {!live ? <StoneButtonFilled /> : hovered === index ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <sprite
+        ref={icon}
+        x={{ center: Grid.ICON_DX }}
+        y="center"
+        w={Grid.ICON_W}
+        h={Grid.ICON_H}
+        item={item}
+        itemCount={held}
+        itemCountMode="always"
+        outline={Grid.OUTLINE}
+        shadowColor={Grid.SHADOW}
+        transparency={live ? 0 : Grid.DISABLED_FADE}
+      />
     </layer>
   );
 }
 
 export function PaymentGrid(): Component {
-  const [phase] = useState(pressPhase);
-
-  useInterval(phase !== 0 ? () => pressTick() : undefined);
-
   return (
     <layer
       x="center"

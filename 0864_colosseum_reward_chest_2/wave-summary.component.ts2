@@ -1,0 +1,131 @@
+import { useServerState } from 'ts2';
+
+import {
+  ColosseumModifiers,
+  formatDurationMinutes,
+  modifierHeld,
+  modifierTier,
+  ticksToSeconds,
+} from './colosseum.helpers';
+import { ColosseumColor, ColosseumFonts, ColosseumVarps } from './colosseum.constants';
+
+export function WaveSummary({ wave, held, top }: { wave: Int; held: Int; top: Int }): Component {
+  const lastWave: Int = useServerState(ColosseumVarps.LAST_WAVE_DURATION);
+  const glory: Int = useServerState(ColosseumVarps.GLORY);
+  const damage: Int = useServerState(ColosseumVarps.DAMAGE_TAKEN);
+  const lastWaveTime: String = formatDurationMinutes(ticksToSeconds(lastWave));
+  const totalTime: String = formatDurationMinutes(ticksToSeconds(useServerState(ColosseumVarps.TOTAL_DURATION)));
+  const gloryText: String = glory === 2147483647 ? 'Lots!' : `${glory}`;
+  const waveBonus: Int = wave === 12 ? 100 * wave + 1000 : 100 * wave;
+  const speedBonus: Int = lastWave > 0 && lastWave < 500 ? (500 - lastWave) * wave : 0;
+  const modifierBonus: Int = heldModifierGlory(held);
+  const damageBonus: Int = damage <= 0 ? wave * 100 : 0;
+
+  return (
+    <>
+      <SummaryLabel top={top} text="Wave complete: " />
+      <SummaryValue top={top} text={` <col=0dc10d>+${waveBonus}</col>`} />
+      <SummaryLabel top={top + 22} text="Speed bonus: " />
+      <SummaryValue top={top + 22} text={` <col=0dc10d>+${speedBonus}</col> (${lastWaveTime})`} />
+      <SummaryLabel top={top + 44} text="Modifier choice: " />
+      <SummaryValue top={top + 44} text={` <col=0dc10d>+${modifierBonus}</col>`} />
+      <SummaryLabel top={top + 66} text="Damage taken: " />
+      <SummaryValue top={top + 66} text={` <col=0dc10d>+${damageBonus}</col> (${damage})`} />
+      <text
+        x={0}
+        y={top + 95}
+        w="50%"
+        h={20}
+        text="Total Glory"
+        font={ColosseumFonts.BOLD}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={top + 95}
+        w="50%"
+        h={20}
+        text="Total time"
+        font={ColosseumFonts.BOLD}
+        color={ColosseumColor.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={0}
+        y={top + 115}
+        w="50%"
+        h={20}
+        text={gloryText}
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+      <text
+        x="right"
+        y={top + 115}
+        w="50%"
+        h={20}
+        text={totalTime}
+        font={ColosseumFonts.BODY}
+        color={ColosseumColor.WHITE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function SummaryLabel({ top, text }: { top: Int; text: String }): Component {
+  return (
+    <text
+      x={0}
+      y={top}
+      w="50%"
+      h={20}
+      text={text}
+      font={ColosseumFonts.BODY}
+      color={ColosseumColor.ORANGE}
+      shadow
+      align="right"
+      valign="middle"
+    />
+  );
+}
+
+function SummaryValue({ top, text }: { top: Int; text: String }): Component {
+  return (
+    <text
+      x="right"
+      y={top}
+      w="50%"
+      h={20}
+      text={text}
+      font={ColosseumFonts.BODY}
+      color={ColosseumColor.WHITE}
+      shadow
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+export function heldModifierGlory(held: Int): Int {
+  let total: Int = 0;
+  let key: Int = 0;
+  while (key < ColosseumModifiers.length) {
+    const row = ColosseumModifiers.at(key);
+    if (row !== null && modifierHeld(row, held)) {
+      total = total + row.glory * (row.tiered ? modifierTier(row) : 1);
+    }
+    key = key + 1;
+  }
+  return total;
+}

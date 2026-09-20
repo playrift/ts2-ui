@@ -1,0 +1,145 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Skills } from '../0320_stats/stats.constants';
+import { Varbits } from '../lib/game/varbits';
+import {
+  helperAgilityCourseDrawn,
+  helperAgilityCourseStartTime,
+  helperAgilityLapXp,
+  helperAgilityLapsCompleted,
+  helperAgilityLapsPerHour,
+  helperAgilityLapsUntilLevel,
+  helperAgilityNextLevel,
+  helperAgilityXpGained,
+} from '../lib/game/varcs';
+import { AgilityCourses } from './agility-courses.data';
+import {
+  HelperActive,
+  helperGenericActive,
+  helperGenericActiveArg,
+  helperGenericAddData,
+  helperGenericAddTitle,
+  helperGenericBuildUi,
+  helperGenericSetup,
+  helperGenericUpdateText,
+} from './helper-generic.state';
+
+const BRIMHAVEN = 2;
+
+const NO_COURSE = 'No Course';
+
+function courseName(): String {
+  return AgilityCourses.get(useServerState(Varbits.HELPER_AGILITY_CURRENT_COURSE)) ?? NO_COURSE;
+}
+
+export function helperAgilityInit(): void {
+  helperAgilityResetData();
+  helperAgilityDrawContent();
+}
+
+export function helperAgilityResetData(): void {
+  const [, setLaps] = useState(helperAgilityLapsCompleted);
+  const [, setUntil] = useState(helperAgilityLapsUntilLevel);
+  const [, setPerHour] = useState(helperAgilityLapsPerHour);
+  const [, setLapXp] = useState(helperAgilityLapXp);
+  const [, setXpGained] = useState(helperAgilityXpGained);
+  const [, setDrawn] = useState(helperAgilityCourseDrawn);
+  const [, setStart] = useState(helperAgilityCourseStartTime);
+  const [, setNext] = useState(helperAgilityNextLevel);
+  setLaps(0);
+  setUntil(0);
+  setPerHour(0);
+  setLapXp(0);
+  setXpGained(0);
+  setDrawn(useServerState(Varbits.HELPER_AGILITY_CURRENT_COURSE));
+  setStart(0);
+  setNext(CS2.stat_base(Skills.AGILITY) + 1);
+}
+
+export function helperAgilityDrawContent(): void {
+  const course: Int = useServerState(Varbits.HELPER_AGILITY_CURRENT_COURSE);
+  let done: String = 'Laps Completed';
+  let unit: String = 'Laps';
+  if (course === BRIMHAVEN) {
+    done = 'Tickets Gained';
+    unit = 'Tickets';
+  }
+  helperGenericSetup(1, 1, 1);
+  helperGenericAddTitle(courseName(), 0);
+  helperGenericAddData(`${done}: `, '...');
+  helperGenericAddData(`${unit} Per Hour: `, '...');
+  const [next] = useState(helperAgilityNextLevel);
+  let levelRows: Int = 0;
+  if (next <= 99 && course !== BRIMHAVEN) {
+    helperGenericAddData(`Laps Until Level ${CS2.tostring(next)}: `, '...');
+    levelRows = 1;
+  }
+  const [, setActive] = useState(helperGenericActive);
+  const [, setArg] = useState(helperGenericActiveArg);
+  setActive(HelperActive.AGILITY);
+  setArg(levelRows);
+  helperGenericBuildUi();
+  helperAgilityTransmit();
+}
+
+export function helperAgilityUpdateTitle(row: Int): void {
+  helperGenericUpdateText(row, courseName());
+}
+
+export function helperAgilityUpdateLapsCompleted(row: Int): void {
+  const [laps] = useState(helperAgilityLapsCompleted);
+  helperGenericUpdateText(row, CS2.tostring(laps));
+}
+
+export function helperAgilityUpdatePerHour(row: Int): void {
+  const [laps] = useState(helperAgilityLapsCompleted);
+  const [perHour] = useState(helperAgilityLapsPerHour);
+  if (laps > 1) {
+    helperGenericUpdateText(row, CS2.tostring(perHour));
+  } else {
+    helperGenericUpdateText(row, '...');
+  }
+}
+
+export function helperAgilityUpdateUntilLevel(row: Int): Int {
+  const [laps] = useState(helperAgilityLapsCompleted);
+  const [until] = useState(helperAgilityLapsUntilLevel);
+  const [next] = useState(helperAgilityNextLevel);
+  let text: String = '...';
+  if (laps > 0) {
+    text = CS2.tostring(Math.max(until, 0));
+  }
+  if (next <= 99) {
+    helperGenericUpdateText(row, text);
+    return 0;
+  }
+  helperAgilityDrawContent();
+  return 1;
+}
+
+export function helperAgilityUpdateNextLevel(row: Int): Int {
+  const [next] = useState(helperAgilityNextLevel);
+  if (next <= 99) {
+    helperGenericUpdateText(row, `Laps Until Level ${CS2.tostring(next)}: `);
+    return 0;
+  }
+  helperAgilityDrawContent();
+  return 1;
+}
+
+export function helperAgilityTransmit(): void {
+  const [active] = useState(helperGenericActive);
+  if (active !== HelperActive.AGILITY) {
+    return;
+  }
+  const [levelRows] = useState(helperGenericActiveArg);
+  helperAgilityUpdateTitle(0);
+  helperAgilityUpdateLapsCompleted(2);
+  helperAgilityUpdatePerHour(4);
+  if (levelRows === 1) {
+    if (helperAgilityUpdateNextLevel(5) === 1) {
+      return;
+    }
+    helperAgilityUpdateUntilLevel(6);
+  }
+}

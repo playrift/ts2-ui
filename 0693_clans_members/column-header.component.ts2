@@ -1,0 +1,138 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { ClanMemberColumns } from './clans-members.data';
+import {
+  ClanMembersColor,
+  ClanMembersFonts,
+  ClanMembersSounds,
+  ClanMembersSprites,
+  ClanMembersVarbits,
+  ClanMembersWash,
+  Layout,
+} from './clans-members.constants';
+import { openHeader, openHeaderClosed, openHeaderOpened, openHeaderWhich } from './clans-members.state';
+import { modulo } from './modulo';
+
+export function Header1(): Component {
+  const [open] = useState(openHeader);
+  const column: Int = useServerState(ClanMembersVarbits.COLUMN_1);
+  return (
+    <HeaderFace
+      which={1}
+      lit={openHeaderWhich(open) === 1 ? 1 : 0}
+      epoch={open}
+      caption={ClanMemberColumns.at(column) ?? ''}
+    />
+  );
+}
+
+export function Header2(): Component {
+  const [open] = useState(openHeader);
+  const stored: Int = useServerState(ClanMembersVarbits.COLUMN_2);
+  return (
+    <HeaderFace
+      which={2}
+      lit={openHeaderWhich(open) === 2 ? 1 : 0}
+      epoch={open}
+      caption={ClanMemberColumns.at((stored + 1) % ClanMemberColumns.length) ?? ''}
+    />
+  );
+}
+
+function HeaderFace({ which, lit, epoch, caption }: { which: Int; lit: Int; epoch: Int; caption: String }): Component {
+  const [hoveredAt, setHoveredAt] = useState(-1);
+
+  let plateWash: Int = ClanMembersWash.PLATE_REST;
+  let chevronWash: Int = ClanMembersWash.PLATE_REST;
+  let chevron: Sprite = ClanMembersSprites.CHEVRON;
+  let ink: Int = ClanMembersColor.LABEL;
+  if (lit === 1) {
+    plateWash = ClanMembersWash.PLATE_OPEN;
+    chevron = ClanMembersSprites.CHEVRON_OPEN;
+    ink = ClanMembersColor.LABEL_HOT;
+  } else if (hoveredAt === epoch) {
+    plateWash = ClanMembersWash.PLATE_HOVER;
+    chevronWash = ClanMembersWash.CHEVRON_HOVER;
+    ink = ClanMembersColor.LABEL_HOT;
+  }
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        sprite={ClanMembersSprites.HEADER_PLATE}
+        tiling
+        transparency={plateWash}
+        onMouseEnter={
+          lit === 1
+            ? null
+            : () => {
+                if (onMobile()) {
+                  return;
+                }
+                setHoveredAt(epoch);
+              }
+        }
+        onMouseLeave={lit === 1 ? null : () => setHoveredAt(-1)}
+        onClick={() => openColumnList(which)}
+      />
+
+      <rect x="center" y="center" w="fill" h="fill" color={ClanMembersColor.OUTLINE_OUTER} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={ClanMembersColor.OUTLINE_INNER} />
+
+      <sprite
+        x={{ right: Layout.CHEVRON_RIGHT }}
+        y="center"
+        w={Layout.CHEVRON}
+        h={Layout.CHEVRON}
+        sprite={chevron}
+        transparency={chevronWash}
+      />
+
+      <text
+        x={Layout.LABEL_X}
+        y="center"
+        w={{ fill: Layout.LABEL_INSET_W }}
+        h={Layout.LABEL_H}
+        text={caption}
+        font={ClanMembersFonts.BODY}
+        color={ink}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function openColumnList(which: Int): void {
+  playSound(ClanMembersSounds.CLICK);
+  const [open, setOpen] = useState(openHeader);
+  setOpen(openHeaderOpened(open, which));
+}
+
+export function chooseColumn(op: Int, index: Int, which: Int): void {
+  const count: Int = ClanMemberColumns.length;
+  if (op !== 1 || index < 0 || index >= count) {
+    return;
+  }
+  if (which === 1) {
+    predictServerState(ClanMembersVarbits.COLUMN_1, index);
+  } else if (which === 2) {
+    predictServerState(ClanMembersVarbits.COLUMN_2, modulo(index - 1, count));
+  }
+  closeColumnList();
+}
+
+export function closeColumnList(): void {
+  const [open, setOpen] = useState(openHeader);
+  if (openHeaderWhich(open) !== 0) {
+    playSound(ClanMembersSounds.CLICK);
+  }
+  setOpen(openHeaderClosed(open));
+}

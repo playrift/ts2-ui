@@ -1,0 +1,112 @@
+import { useServerState, useState } from 'ts2';
+
+import { groupDigits } from '../lib/lib.format';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ConfirmBar } from './confirm-bar.component';
+import { ExpList } from './exp-list.component';
+import { ImbueList } from './imbue-list.component';
+import { OtherList } from './other-list.component';
+import { RewardTabFace } from './reward-tab.component';
+import {
+  Copy,
+  Layout,
+  RewardsColour,
+  RewardsFonts,
+  RewardsVarps,
+  RewardTab,
+  TITLE,
+} from './soul-wars-rewards.constants';
+import { rewardsPick, rewardsPickSub, rewardsPickTokens, rewardsScroll, rewardsTab } from './soul-wars-rewards.state';
+
+export function SoulWarsRewards(): Component {
+  const [tab] = useState(rewardsTab);
+  const [rawPick] = useState(rewardsPick);
+  const [sub] = useState(rewardsPickSub);
+  const [pickTokens] = useState(rewardsPickTokens);
+  const [scroll] = useState(rewardsScroll);
+  const tokens: Int = useServerState(RewardsVarps.TOKENS);
+  const zeal: Int = useServerState(RewardsVarps.ZEAL);
+
+  const shown: Boolean = tab !== RewardTab.NONE;
+  const pick: Int = tab === RewardTab.OTHER || tokens === pickTokens ? rawPick : -1;
+
+  return (
+    <layer x={Layout.PANEL_X} y={Layout.PANEL_Y} w={Layout.PANEL_W} h={Layout.PANEL_H}>
+      <SteelBorderEntrypoint title={TITLE} />
+
+      <layer x={Layout.TABS_X} y={Layout.TABS_Y} w={Layout.TABS_W} h={Layout.TABS_H}>
+        <RewardTabFace
+          tab={RewardTab.EXPERIENCE}
+          label={Copy.EXPERIENCE}
+          x={0}
+          shown={shown}
+          selected={tab === RewardTab.EXPERIENCE}
+        />
+        <RewardTabFace
+          tab={RewardTab.IMBUES}
+          label={Copy.IMBUES}
+          x={Layout.TAB_W}
+          shown={shown}
+          selected={tab === RewardTab.IMBUES}
+        />
+        <RewardTabFace
+          tab={RewardTab.OTHER}
+          label={Copy.OTHER}
+          x={Layout.TAB_W * 2}
+          shown={shown}
+          selected={tab === RewardTab.OTHER}
+        />
+      </layer>
+
+      <line x={6} y={{ bottom: 246 }} w={7} h={0} color={RewardsColour.RULE_DARK} lineWidth={1} />
+      <line x={6} y={{ bottom: 245 }} w={7} h={0} color={RewardsColour.RULE_LIGHT} lineWidth={1} />
+      <line x={{ right: 7 }} y={{ bottom: 246 }} w={175} h={0} color={RewardsColour.RULE_DARK} lineWidth={1} />
+      <line x={{ right: 7 }} y={{ bottom: 51 }} w={471} h={0} color={RewardsColour.RULE_DARK} lineWidth={1} />
+      <line x={{ right: 7 }} y={{ bottom: 245 }} w={175} h={0} color={RewardsColour.RULE_LIGHT} lineWidth={1} />
+      <line x={{ right: 7 }} y={{ bottom: 50 }} w={471} h={0} color={RewardsColour.RULE_LIGHT} lineWidth={1} />
+
+      <layer x="center" y={Layout.PAGE_Y} w={{ fill: Layout.PAGE_INSET_W }} h={{ fill: Layout.PAGE_INSET_H }}>
+        <layer w="fill" h="fill" hide={shown && tab !== RewardTab.EXPERIENCE}>
+          {tab === RewardTab.EXPERIENCE && <ExpList pick={pick} tokens={tokens} />}
+        </layer>
+        <layer w="fill" h="fill">
+          {tab === RewardTab.IMBUES && <ImbueList pick={pick} tokens={tokens} scroll={scroll} />}
+        </layer>
+        <layer w="fill" h="fill">
+          {tab === RewardTab.OTHER && <OtherList pick={pick} sub={sub} tokens={tokens} scroll={scroll} />}
+        </layer>
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.FOOTER_BOTTOM }} w={{ fill: Layout.FOOTER_INSET_W }} h={Layout.FOOTER_H}>
+        <layer x="center" y="center" w={Layout.CONFIRM_W} h="fill">
+          {shown && <ConfirmBar tab={tab} pick={pick} sub={sub} />}
+        </layer>
+        <text
+          y={{ center: Layout.ZEAL_Y }}
+          w={Layout.ZEAL_W}
+          h={{ fill: Layout.ZEAL_INSET_H }}
+          font={RewardsFonts.BODY}
+          color={RewardsColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={Layout.ZEAL_LINE_H}
+          text={shown ? `Lifetime Zeal:<br> <col=ffffff>${groupDigits(zeal, ',')}</col>` : ''}
+        />
+        <text
+          x={Layout.TOKENS_X}
+          y={{ center: Layout.ZEAL_Y }}
+          w={Layout.ZEAL_W}
+          h={{ fill: Layout.ZEAL_INSET_H }}
+          font={RewardsFonts.BODY}
+          color={RewardsColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={Layout.ZEAL_LINE_H}
+          text={shown ? `Zeal Tokens:<br> <col=ffffff>${groupDigits(tokens, ',')}</col>` : ''}
+        />
+      </layer>
+    </layer>
+  );
+}

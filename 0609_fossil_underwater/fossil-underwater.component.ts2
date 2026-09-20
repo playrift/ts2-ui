@@ -1,34 +1,17 @@
-import { createRef, useInterval, useWatch } from 'ts2';
+import { createRef, onMounted, useInterval, useOnResize, useServerState, useState, useUniverse, useWatch } from 'ts2';
 
 import { Varbits } from '../lib/game/varbits';
+import { fossilOxygenWarning } from '../lib/game/varcs';
 import { Anchor, overlayRelayout } from '../lib/lib.overlay';
-import { FossilColor, FossilFonts, FossilUnderwater, Layout } from './fossil-underwater.constants';
-import { fossilOxygenLevel, fossilWarningFlasher } from './fossil-underwater.state';
+import { Flash, FossilColor, FossilFonts, FossilUnderwater, Layout } from './fossil-underwater.constants';
+import { flashStep, fossilOxygenLevel, oxygenBarPx, oxygenCaption } from './fossil-underwater.helpers';
+import { fossilFlashAlpha, fossilOxygenLabel } from './fossil-underwater.state';
 
 const timerHost1 = createRef('0609_fossil_underwater_timer_host1');
 
 const oxygenLayer = createRef('fossil_underwater_oxygen_layer');
 
-const oxygenBar = createRef('fossil_underwater_oxygen_bar');
-
-const oxygenLevel = createRef('fossil_underwater_oxygen_level');
-
-const warningLayer = createRef('fossil_underwater_warning_layer');
-
 export function FossilUnderwater_(): Component {
-  useInterval(() => fossilWarningFlasher(warningLayer));
-
-  useInterval(
-    () => overlayRelayout(timerHost1, oxygenLayer, FossilUnderwater.DODGE, Anchor.CENTRE, Anchor.TOP, 0),
-    timerHost1,
-  );
-
-  useWatch(
-    Varbits.FOSSIL_UNDERWATER_OXYGEN,
-    () => fossilOxygenLevel(oxygenBar, oxygenLevel, warningLayer),
-    oxygenLevel,
-  );
-
   return (
     <layer
       w="fill"
@@ -38,50 +21,73 @@ export function FossilUnderwater_(): Component {
       <layer x="center" y="center" w="fill" h="fill" />
 
       <layer x="center" y="center" w="fill" h="fill" ref={timerHost1}>
-        <layer ref={oxygenLayer} x="center" y={Layout.METER_Y} w={Layout.METER_W} h={Layout.METER_H}>
+        <layer static ref={oxygenLayer} x="center" y={Layout.METER_Y} w={Layout.METER_W} h={Layout.METER_H}>
           <rect x={0} y="center" w="fill" h="fill" color={FossilColor.RED} fill />
 
-          <rect
-            ref={oxygenBar}
-            x={Layout.BAR_X}
-            y={Layout.BAR_Y}
-            w={{ fill: Layout.BAR_INSET_W }}
-            h={{ fill: Layout.BAR_INSET_H }}
-            color={FossilColor.OXYGEN}
-            fill
-          />
-
-          <rect x="center" y="center" w="fill" h="fill" color={FossilColor.BLACK} />
-
-          <text
-            ref={oxygenLevel}
-            x="center"
-            y="center"
-            w="fill"
-            h="fill"
-            text="Oxygen Level: "
-            align="center"
-            valign="middle"
-            font={FossilFonts.LABEL}
-            color={FossilColor.BLACK}
-            onLoad={() => fossilOxygenLevel(oxygenBar, oxygenLevel, warningLayer)}
-          />
+          <OxygenMeter />
         </layer>
       </layer>
 
+      <WarningFlash />
+
+      <rect x="center" y="center" w="fill" h="fill" color={FossilColor.BLACK} fill transparency={255} hide />
+    </layer>
+  );
+}
+
+function OxygenMeter(): Component {
+  const meter = useUniverse();
+  useOnResize(meter);
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  const [lastCaption] = useState(fossilOxygenLabel);
+  let caption: String = lastCaption;
+  if (oxygen !== 0) {
+    caption = oxygenCaption(oxygen);
+  }
+
+  onMounted(() => fossilOxygenLevel());
+  useWatch(Varbits.FOSSIL_UNDERWATER_OXYGEN, () => fossilOxygenLevel());
+
+  return (
+    <>
       <rect
-        ref={warningLayer}
+        x={Layout.BAR_X}
+        y={Layout.BAR_Y}
+        w={oxygenBarPx(oxygen, meter.width)}
+        h={{ fill: Layout.BAR_INSET_H }}
+        color={FossilColor.OXYGEN}
+        fill
+      />
+
+      <rect x="center" y="center" w="fill" h="fill" color={FossilColor.BLACK} />
+
+      <text
         x="center"
         y="center"
         w="fill"
         h="fill"
-        color={FossilColor.RED}
-        fill
-        transparency={255}
-        hide
+        text={caption}
+        align="center"
+        valign="middle"
+        font={FossilFonts.LABEL}
+        color={FossilColor.BLACK}
       />
+    </>
+  );
+}
 
-      <rect x="center" y="center" w="fill" h="fill" color={FossilColor.BLACK} fill transparency={255} hide />
-    </layer>
+function WarningFlash(): Component {
+  const [warned] = useState(fossilOxygenWarning);
+  const [alpha] = useState(fossilFlashAlpha);
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  let hidden: Boolean = true;
+  if (warned === 1 || (oxygen > 0 && oxygen < Flash.ARM_AT)) {
+    hidden = false;
+  }
+
+  useInterval(() => flashStep());
+
+  return (
+    <rect x="center" y="center" w="fill" h="fill" color={FossilColor.RED} fill transparency={alpha} hide={hidden} />
   );
 }

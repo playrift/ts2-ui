@@ -1,0 +1,96 @@
+import { useInterval, useRef, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { FLASH_CYCLES, LootLayout, LootSounds, LootSprites, LootText } from './wildy-loot-chest.constants';
+import { openDestroyPrompt } from './wildy-loot-chest.state';
+
+export function DestroyButton(): Component {
+  const [hot, setHot] = useState(0);
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y="center"
+        w={LootLayout.BUTTON_BOX}
+        h={LootLayout.BUTTON_BOX}
+        sprite={LootSprites.BUTTON}
+        transparency={hot === 1 ? LootLayout.BUTTON_DIM : LootLayout.BUTTON_LIT}
+        options={[LootText.DESTROY]}
+        onMouseEnter={() => {
+          setHot(1);
+        }}
+        onMouseLeave={() => {
+          setHot(0);
+        }}
+        onOptionSelect={() => {
+          openDestroyPrompt();
+        }}
+      />
+      <sprite
+        x="center"
+        y="center"
+        w={LootLayout.BUTTON_ICON_W}
+        h={LootLayout.BUTTON_ICON_H}
+        sprite={LootSprites.ICON_DESTROY}
+      />
+    </>
+  );
+}
+
+export function WithdrawButton({
+  icon,
+  centered,
+  iconX,
+  iconY,
+}: {
+  icon: Sprite;
+  centered: Int;
+  iconX: Int;
+  iconY: Int;
+}): Component {
+  const [hot, setHot] = useState(0);
+  const [flashUntil, setFlashUntil] = useState(-1);
+  const host = useRef();
+
+  useInterval(() => {
+    if (clientClock() >= flashUntil) {
+      setFlashUntil(-1);
+    }
+  }, host);
+
+  return (
+    <>
+      <sprite
+        x={0}
+        y={0}
+        w={LootLayout.BUTTON_BOX}
+        h={LootLayout.BUTTON_BOX}
+        sprite={flashUntil === -1 ? LootSprites.BUTTON : LootSprites.BUTTON_PRESSED}
+        transparency={hot === 1 ? LootLayout.BUTTON_DIM : LootLayout.BUTTON_LIT}
+        options={[LootText.WITHDRAW_ALL]}
+        onMouseEnter={() => {
+          setHot(1);
+        }}
+        onMouseLeave={() => {
+          setHot(0);
+        }}
+        onOptionSelect={(event) => {
+          if (event.option !== 1) {
+            return;
+          }
+          setFlashUntil(clientClock() + FLASH_CYCLES);
+          playSound(LootSounds.SELECT);
+        }}
+      />
+      <sprite
+        x={centered === 1 ? 'center' : iconX}
+        y={centered === 1 ? 'center' : iconY}
+        w={LootLayout.BUTTON_ICON_W}
+        h={LootLayout.BUTTON_ICON_H}
+        sprite={icon}
+      />
+      <layer ref={host} x={0} y={0} w={1} h={1} hide={flashUntil === -1} />
+    </>
+  );
+}

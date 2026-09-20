@@ -1,15 +1,18 @@
-import { createRef, useInterval } from 'ts2';
+import { CS2, createRef, useDerived, useServerState } from 'ts2';
 
-import { Anchor, overlayRelayout } from '../lib/lib.overlay';
+import { hasBit } from '../lib/lib.engine';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { Anchor, mobileGameframe, overlayInit } from '../lib/lib.overlay';
 import {
   AHRIM,
   AHRIM_X,
   AHRIM_Y,
-  BarrowsColor,
   BarrowsFonts,
   BarrowsModel,
   BarrowsOverlay,
   BarrowsSprites,
+  BarrowsVarbits,
+  BarrowsVarps,
   DHAROK,
   DHAROK_X,
   DHAROK_Y,
@@ -27,228 +30,39 @@ import {
   VERAC_X,
   VERAC_Y,
 } from './barrows-overlay.constants';
-import { barrowsBrother, barrowsOverlayTick, modelTransparentInit } from './barrows-overlay.helpers';
 import {
-  ahrimModel,
-  ahrimTick,
-  brothers,
-  content,
-  dharokModel,
-  dharokTick,
-  guthanModel,
-  guthanTick,
-  hud,
-  karilModel,
-  karilTick,
-  killcount,
-  tooltipHost,
-  toragModel,
-  toragTick,
-  veracModel,
-  veracTick,
-} from './barrows-overlay.refs';
+  barrowsColour,
+  barrowsZone,
+  barrowsZoom,
+  brothersOffset,
+  brothersTop,
+  gameframeInset,
+  killcountRight,
+  killcountTop,
+  laidOut,
+  rewardText,
+  widestBrotherName,
+  Zone,
+} from './barrows-overlay.helpers';
+import { content, tooltipHost } from './barrows-overlay.refs';
 import { hideBarrowsTooltip, showBarrowsTooltip } from './barrows-overlay.state';
 import { BarrowsTooltip } from './barrows-tooltip.component';
 
-const timerHost1 = createRef('0024_barrows_overlay_timer_host1');
-
 const timerHost2 = createRef('0024_barrows_overlay_timer_host2');
 
-const timerHost9 = createRef('0024_barrows_overlay_timer_host9');
-
-const timerHost10 = createRef('0024_barrows_overlay_timer_host10');
-
-const timerHost11 = createRef('0024_barrows_overlay_timer_host11');
-
-const timerHost12 = createRef('0024_barrows_overlay_timer_host12');
-
-const timerHost13 = createRef('0024_barrows_overlay_timer_host13');
-
-const timerHost14 = createRef('0024_barrows_overlay_timer_host14');
-
 export function BarrowsOverlay_(): Component {
-  useInterval(
-    () =>
-      barrowsOverlayTick(
-        hud,
-        brothers,
-        killcount,
-        ahrimModel,
-        dharokModel,
-        guthanModel,
-        karilModel,
-        toragModel,
-        veracModel,
-      ),
-    timerHost1,
-  );
-  useInterval(
-    () => overlayRelayout(timerHost2, content, BarrowsOverlay.DODGE, Anchor.CENTRE, Anchor.CENTRE, 0),
-    timerHost2,
-  );
-  useInterval(() => modelTransparentInit(ahrimModel), ahrimModel);
-  useInterval(() => modelTransparentInit(dharokModel), dharokModel);
-  useInterval(() => modelTransparentInit(guthanModel), guthanModel);
-  useInterval(() => modelTransparentInit(karilModel), karilModel);
-  useInterval(() => modelTransparentInit(toragModel), toragModel);
-  useInterval(() => modelTransparentInit(veracModel), veracModel);
-  useInterval(() => barrowsBrother(timerHost9, ahrimTick, 0), timerHost9);
-  useInterval(() => barrowsBrother(timerHost10, dharokTick, 1), timerHost10);
-  useInterval(() => barrowsBrother(timerHost11, guthanTick, 2), timerHost11);
-  useInterval(() => barrowsBrother(timerHost12, karilTick, 3), timerHost12);
-  useInterval(() => barrowsBrother(timerHost13, toragTick, 4), timerHost13);
-  useInterval(() => barrowsBrother(timerHost14, veracTick, 5), timerHost14);
-
   return (
-    <layer w="fill" h="fill" ref={timerHost1}>
-      <layer x="center" y="center" w="fill" h="fill" ref={timerHost2}>
+    <layer w="fill" h="fill">
+      <layer
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        ref={timerHost2}
+        onLoad={() => overlayInit(timerHost2, content, BarrowsOverlay.DODGE, Anchor.CENTRE, Anchor.CENTRE, 0)}
+      >
         <layer ref={content} w="fill" h="fill">
-          <layer ref={hud} w="fill" h="fill">
-            <model
-              ref={ahrimModel}
-              x={AHRIM_X}
-              y={AHRIM_Y}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              model={BarrowsModel.AHRIM}
-              zoom={Layout.MODEL_ZOOM}
-            />
-            <model
-              ref={dharokModel}
-              x={DHAROK_X}
-              y={{ bottom: DHAROK_Y }}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              zoom={Layout.MODEL_ZOOM}
-            />
-            <model
-              ref={guthanModel}
-              x={{ right: GUTHAN_X }}
-              y={GUTHAN_Y}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              zoom={Layout.MODEL_ZOOM}
-            />
-            <model
-              ref={karilModel}
-              x={{ right: KARIL_X }}
-              y={{ bottom: KARIL_Y }}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              zoom={Layout.MODEL_ZOOM}
-            />
-            <model
-              ref={toragModel}
-              x={{ right: TORAG_X }}
-              y={TORAG_Y}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              zoom={Layout.MODEL_ZOOM}
-            />
-            <model
-              ref={veracModel}
-              x={VERAC_X}
-              y={{ bottom: VERAC_Y }}
-              w={Layout.MODEL}
-              h={Layout.MODEL}
-              zoom={Layout.MODEL_ZOOM}
-            />
-          </layer>
-
-          <layer
-            ref={brothers}
-            x={{ right: Layout.BROTHERS_X }}
-            y={{ bottom: Layout.BROTHERS_Y }}
-            w={Layout.BROTHERS_W}
-            h={Layout.BROTHERS_H}
-          >
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={AHRIM}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost9}
-            />
-            <sprite ref={ahrimTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={DHAROK}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost10}
-            />
-            <sprite ref={dharokTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={GUTHAN}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost11}
-            />
-            <sprite ref={guthanTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={KARIL}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost12}
-            />
-            <sprite ref={karilTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={TORAG}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost13}
-            />
-            <sprite ref={toragTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-
-            <text
-              w={{ fill: Layout.LABEL_INSET }}
-              h={Layout.ROW_H}
-              text={VERAC}
-              font={BarrowsFonts.LABEL}
-              align="left"
-              valign="middle"
-              shadow
-              ref={timerHost14}
-            />
-            <sprite ref={veracTick} w={Layout.TICK} h={Layout.TICK} sprite={BarrowsSprites.TICK} hide />
-          </layer>
-
-          <text
-            ref={killcount}
-            x={{ right: Layout.KILLCOUNT_X }}
-            y={{ bottom: Layout.KILLCOUNT_Y }}
-            w={Layout.KILLCOUNT_W}
-            h={Layout.KILLCOUNT_H}
-            font={BarrowsFonts.LABEL}
-            align="right"
-            valign="top"
-            shadow
-            color={BarrowsColor.REST}
-            onMouseRepeat={() => showBarrowsTooltip()}
-            onMouseLeave={() => hideBarrowsTooltip()}
-          />
+          <BarrowsPlate />
         </layer>
       </layer>
 
@@ -256,5 +70,257 @@ export function BarrowsOverlay_(): Component {
         <BarrowsTooltip />
       </layer>
     </layer>
+  );
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+function BarrowsPlate(): Component {
+  const frame: Int = useDerived(() => toplevelComponents());
+  const zone: Int = useDerived(() => barrowsZone());
+  const kills: Int = useServerState(BarrowsVarps.KILLS);
+  const minimapClosed: Int = useServerState(BarrowsVarbits.MINIMAP_TOGGLE);
+  const gravestone: Int = useServerState(BarrowsVarbits.GRAVESTONE_DURATION);
+  const brothersKilled: Int =
+    useServerState(BarrowsVarbits.KILLED_AHRIM) +
+    useServerState(BarrowsVarbits.KILLED_DHAROK) +
+    useServerState(BarrowsVarbits.KILLED_GUTHAN) +
+    useServerState(BarrowsVarbits.KILLED_KARIL) +
+    useServerState(BarrowsVarbits.KILLED_TORAG) +
+    useServerState(BarrowsVarbits.KILLED_VERAC);
+  const monstersKilled: Int = useServerState(BarrowsVarbits.KILLED_MONSTER);
+
+  const placed: Boolean = laidOut(frame);
+  const framed: Boolean = gameframeInset(frame) > 0;
+  const mobile: Boolean = mobileGameframe(frame);
+
+  const hudHidden: Boolean = placed && zone !== Zone.TUNNELS;
+  const listHidden: Boolean = placed && zone === Zone.AWAY;
+
+  const colour: Int = barrowsColour(frame);
+  const labelColour: Int = placed ? colour : 0;
+  const labelRight: Boolean = placed && !framed;
+  const tickRight: Boolean = placed && framed;
+  const rowStep: Int = placed ? Layout.ROW_H : 0;
+
+  const zoom: Int = placed ? barrowsZoom(heightOf(content)) : Layout.MODEL_ZOOM;
+
+  const kRight: Int = killcountRight(frame, minimapClosed);
+  const kTop: Int = killcountTop(frame);
+  const bOffset: Int = brothersOffset(frame, minimapClosed);
+  const bTop: Int = brothersTop(frame);
+
+  return (
+    <>
+      <layer w="fill" h="fill" hide={hudHidden}>
+        <model
+          x={AHRIM_X}
+          y={AHRIM_Y}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          model={BarrowsModel.AHRIM}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+        <model
+          x={DHAROK_X}
+          y={{ bottom: DHAROK_Y }}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+        <model
+          x={{ right: GUTHAN_X }}
+          y={GUTHAN_Y}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+        <model
+          x={{ right: KARIL_X }}
+          y={{ bottom: KARIL_Y }}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+        <model
+          x={{ right: TORAG_X }}
+          y={TORAG_Y}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+        <model
+          x={VERAC_X}
+          y={{ bottom: VERAC_Y }}
+          w={Layout.MODEL}
+          h={Layout.MODEL}
+          zoom={zoom}
+          transparent
+          hide={placed}
+        />
+      </layer>
+
+      <layer
+        x={framed ? (mobile ? { right: bOffset } : bOffset) : { right: Layout.BROTHERS_X }}
+        y={framed ? bTop : { bottom: Layout.BROTHERS_Y }}
+        w={widestBrotherName() + Layout.BROTHERS_PAD}
+        h={Layout.BROTHERS_FITTED_H}
+        hide={listHidden}
+      >
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={0}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={AHRIM}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={0}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 0)}
+        />
+
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={rowStep}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={DHAROK}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={rowStep}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 1)}
+        />
+
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={rowStep * 2}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={GUTHAN}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={rowStep * 2}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 2)}
+        />
+
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={rowStep * 3}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={KARIL}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={rowStep * 3}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 3)}
+        />
+
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={rowStep * 4}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={TORAG}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={rowStep * 4}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 4)}
+        />
+
+        <text
+          x={labelRight ? { right: 0 } : 0}
+          y={rowStep * 5}
+          w={{ fill: Layout.LABEL_INSET }}
+          h={Layout.ROW_H}
+          text={VERAC}
+          font={BarrowsFonts.LABEL}
+          color={labelColour}
+          align="left"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={tickRight ? { right: 0 } : 0}
+          y={rowStep * 5}
+          w={Layout.TICK}
+          h={Layout.TICK}
+          sprite={BarrowsSprites.TICK}
+          hide={!hasBit(kills, 5)}
+        />
+      </layer>
+
+      <text
+        x={{ right: kRight }}
+        y={framed ? kTop : { bottom: Layout.KILLCOUNT_Y }}
+        w={Layout.KILLCOUNT_W}
+        h={Layout.KILLCOUNT_H}
+        font={BarrowsFonts.LABEL}
+        align="right"
+        valign="top"
+        shadow
+        color={colour}
+        text={rewardText(gravestone, frame, brothersKilled, monstersKilled)}
+        hide={listHidden}
+        onMouseRepeat={() => showBarrowsTooltip()}
+        onMouseLeave={() => hideBarrowsTooltip()}
+      />
+    </>
   );
 }

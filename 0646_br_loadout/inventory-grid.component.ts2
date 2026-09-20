@@ -1,0 +1,171 @@
+import { CS2, intArray, useUniverse } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { DRAG_DEAD, FillerAngle, Grid, LoadoutColor, LoadoutModels, Wash } from './br-loadout.constants';
+import { itemOf, itemOpBase, loadoutInv } from './br-loadout.helpers';
+import { dropZone } from './drop-zone';
+import { invOverCap, rearrange } from './loadout-edit';
+
+export function InventoryGrid({
+  tab,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  tab: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const box = useUniverse();
+  const strideX: Int = (box.width - Grid.X_PAD - Grid.COLUMNS * Grid.W) / (Grid.COLUMNS - 1) + Grid.W;
+  const strideY: Int = (box.height - Grid.Y_PAD - Grid.ROWS * Grid.H) / (Grid.ROWS - 1) + Grid.H;
+
+  const held = intArray<Item>(Grid.SLOTS);
+  const marked = intArray(Grid.SLOTS);
+  let slot: Int = 0;
+  while (slot < Grid.SLOTS) {
+    held[slot] = itemOf(tab, loadoutInv(tab, slot));
+    marked[slot] = invOverCap(tab, slot);
+    slot = slot + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {held.map((item, i) => (
+        <InventorySlot
+          tab={tab}
+          slot={i}
+          item={item}
+          x={Grid.ORIGIN_X + strideX * (i % Grid.COLUMNS)}
+          y={Grid.ORIGIN_Y + strideY * (i / Grid.COLUMNS)}
+          proxy={proxy}
+          bin={bin}
+          grid={grid}
+          w0={w0}
+          w1={w1}
+          w2={w2}
+          w3={w3}
+          w4={w4}
+          w5={w5}
+          w7={w7}
+          w9={w9}
+          w10={w10}
+          w12={w12}
+          w13={w13}
+        />
+      ))}
+      {marked.map(
+        (over, i) =>
+          over === 1 && (
+            <model
+              x={Grid.ORIGIN_X + strideX * (i % Grid.COLUMNS)}
+              y={Grid.ORIGIN_Y + strideY * (i / Grid.COLUMNS)}
+              w={Grid.W}
+              h={Grid.H}
+              model={LoadoutModels.FILLER}
+              pitch={FillerAngle.PITCH}
+              yaw={FillerAngle.YAW}
+              roll={FillerAngle.ROLL}
+              zoom={FillerAngle.ZOOM}
+              offsetX={FillerAngle.OFFSET_X}
+              offsetY={FillerAngle.OFFSET_Y}
+            />
+          ),
+      )}
+      <ThinBoxOutline />
+    </layer>
+  );
+}
+
+function InventorySlot({
+  tab,
+  slot,
+  item,
+  x,
+  y,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  tab: Int;
+  slot: Int;
+  item: Item;
+  x: Int;
+  y: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  if (item === -1) {
+    return <sprite x={x} y={y} w={Grid.W} h={Grid.H} transparency={Wash.EMPTY} />;
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={CS2.item_stackable(item) ? 5000 : 1}
+      transparency={Wash.ITEM}
+      outline={1}
+      shadowColor={LoadoutColor.ITEM_SHADOW}
+      options={['Discard', '', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={itemOpBase(item)}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Wash.PRESS, Wash.ITEM);
+      }}
+      draggable={proxy}
+      dragDeadZone={DRAG_DEAD}
+      dragDeadTime={DRAG_DEAD}
+      onDragComplete={(event) => {
+        rearrange(tab, -1, slot, dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13));
+      }}
+    />
+  );
+}

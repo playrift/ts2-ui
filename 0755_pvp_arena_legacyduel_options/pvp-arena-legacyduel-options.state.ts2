@@ -1,17 +1,13 @@
-import { CS2, predictServerState, sessionState, stopTimer, useInventory, useServerState, useState } from 'ts2';
+import { CS2, predictServerState, sessionState, useServerState, useState } from 'ts2';
 
 import { Varbits } from '../lib/game/varbits';
-import { chatMessage, clientClock, hasBit, itemName, membersWorld, playSound } from '../lib/lib.engine';
-import { onMobile } from '../lib/lib.helpers';
+import { hasBit, playSound } from '../lib/lib.engine';
 import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
 import {
   DuelBit,
-  DuelInventories,
   DuelSounds,
-  DuelSprites,
   DuelVarbits,
   DuelVarps,
-  FLASH_CYCLES,
   FLASHER_HALF,
   FLASHER_LIFE,
   FLASHER_PERIOD,
@@ -20,77 +16,6 @@ import {
   WornSlot,
 } from './pvp-arena-legacyduel-options.constants';
 import { DuelTip, DuelTips } from './pvp-arena-legacyduel-options.data';
-import {
-  iconAmmo,
-  iconBody,
-  iconCape,
-  iconFeet,
-  iconHands,
-  iconHead,
-  iconLegs,
-  iconNeck,
-  iconRing,
-  iconShield,
-  iconWeapon,
-  itemAmmo,
-  itemBody,
-  itemCape,
-  itemFeet,
-  itemHands,
-  itemHead,
-  itemLegs,
-  itemNeck,
-  itemRing,
-  itemShield,
-  itemWeapon,
-  labelNoSpecial,
-  radioFunWeapons,
-  radioNoDrinks,
-  radioNoFood,
-  radioNoForfeit,
-  radioNoMagic,
-  radioNoMelee,
-  radioNoMovement,
-  radioNoPrayer,
-  radioNoRanged,
-  radioNoSpecial,
-  radioNoSwitch,
-  radioShowInv,
-  signFunWeapons,
-  signNoDrinks,
-  signNoFood,
-  signNoForfeit,
-  signNoMagic,
-  signNoMelee,
-  signNoMovement,
-  signNoPrayer,
-  signNoRanged,
-  signNoSpecial,
-  signNoSwitch,
-  signShowInv,
-  stopAmmo,
-  stopBody,
-  stopCape,
-  stopFeet,
-  stopHands,
-  stopHead,
-  stopLegs,
-  stopNeck,
-  stopRing,
-  stopShield,
-  stopWeapon,
-  wornSign0,
-  wornSign1,
-  wornSign10,
-  wornSign2,
-  wornSign3,
-  wornSign4,
-  wornSign5,
-  wornSign6,
-  wornSign7,
-  wornSign8,
-  wornSign9,
-} from './pvp-arena-legacyduel-options.refs';
 
 export function onEnhancedMobile(): Boolean {
   const type: Int = CS2.clienttype();
@@ -133,243 +58,219 @@ export function hideDuelTooltip(): void {
   setTip(DuelTip.NONE);
 }
 
-export function hoverDuelOption(wash: ComponentId, tip: Int): void {
-  if (onMobile()) {
-    return;
+export function toggleDuelBit(bit: Int): void {
+  const options: Int = useServerState(DuelVarps.OPTIONS);
+  if (hasBit(options, bit)) {
+    predictServerState(DuelVarps.OPTIONS, CS2.bit_clear(options, bit));
+  } else {
+    predictServerState(DuelVarps.OPTIONS, CS2.bit_set(options, bit));
   }
-  wash.transparency = RowWash.HOVER;
-  showDuelTooltip(tip);
-}
-
-export function leaveDuelOption(wash: ComponentId): void {
-  wash.transparency = RowWash.REST;
-  hideDuelTooltip();
-}
-
-export function clickDuelOption(option: Int, bit: Int, tip: Int, wash: ComponentId): void {
-  const row = DuelTips.at(tip);
-  if (row === null) {
-    return;
-  }
-  if (option === 2) {
-    if (onMobile()) {
-      playSound(DuelSounds.SELECT);
-      chatMessage(`${row.label}: ${row.text}`);
-    }
-    return;
-  }
-  if (option !== 1) {
-    return;
-  }
-  if (bit === DuelBit.NO_SPECIAL && !membersWorld()) {
-    return;
-  }
-  playSound(DuelSounds.SELECT);
-  if (bit !== DuelBit.NONE) {
-    const options: Int = useServerState(DuelVarps.OPTIONS);
-    if (hasBit(options, bit)) {
-      predictServerState(DuelVarps.OPTIONS, CS2.bit_clear(options, bit));
-    } else {
-      predictServerState(DuelVarps.OPTIONS, CS2.bit_set(options, bit));
-    }
-    refreshDuelOptions();
-  }
-  wash.transparency = RowWash.PRESSED;
-  const restoreAt: Int = clientClock() + FLASH_CYCLES;
-  wash.onTimer = () => {
-    if (clientClock() < restoreAt) {
-      return;
-    }
-    wash.transparency = RowWash.REST;
-    stopTimer(wash);
-  };
-  hideDuelTooltip();
+  hideTooltipIfUnbarred();
 }
 
 export function toggleWornOption(bit: Int): void {
   playSound(DuelSounds.SELECT);
-  const options: Int = useServerState(DuelVarps.OPTIONS);
-  if (!hasBit(options, bit)) {
-    predictServerState(DuelVarps.OPTIONS, CS2.bit_set(options, bit));
-  } else {
-    predictServerState(DuelVarps.OPTIONS, CS2.bit_clear(options, bit));
-  }
-  refreshDuelOptions();
+  toggleDuelBit(bit);
 }
 
-function paintRadio(radio: ComponentId, options: Int, bit: Int): void {
-  if (hasBit(options, bit)) {
-    radio.sprite = DuelSprites.RADIO_ON;
-  } else {
-    radio.sprite = DuelSprites.RADIO_OFF;
-  }
-}
-
-function paintWornSign(sign: ComponentId, worn: Int, slot: Int): void {
-  if (hasBit(worn, slot)) {
-    sign.hide = false;
-  } else {
-    sign.hide = true;
+export function hideTooltipIfUnbarred(): void {
+  const barred: Int = useServerState(DuelVarbits.WORN_OPTIONS);
+  if (
+    !hasBit(barred, WornSlot.HEAD) ||
+    !hasBit(barred, WornSlot.CAPE) ||
+    !hasBit(barred, WornSlot.NECK) ||
+    !hasBit(barred, WornSlot.WEAPON) ||
+    !hasBit(barred, WornSlot.BODY) ||
+    !hasBit(barred, WornSlot.SHIELD) ||
+    !hasBit(barred, WornSlot.LEGS) ||
+    !hasBit(barred, WornSlot.HANDS) ||
+    !hasBit(barred, WornSlot.FEET) ||
+    !hasBit(barred, WornSlot.RING) ||
+    !hasBit(barred, WornSlot.AMMO)
+  ) {
     hideDuelTooltip();
   }
 }
 
-export function refreshDuelOptions(): void {
-  const options: Int = useServerState(DuelVarps.OPTIONS);
-  paintRadio(radioNoForfeit, options, DuelBit.NO_FORFEIT);
-  paintRadio(radioNoMovement, options, DuelBit.NO_MOVEMENT);
-  paintRadio(radioNoSwitch, options, DuelBit.NO_SWITCH);
-  paintRadio(radioShowInv, options, DuelBit.SHOW_INVENTORIES);
-  paintRadio(radioNoRanged, options, DuelBit.NO_RANGED);
-  paintRadio(radioNoMelee, options, DuelBit.NO_MELEE);
-  paintRadio(radioNoMagic, options, DuelBit.NO_MAGIC);
-  paintRadio(radioNoDrinks, options, DuelBit.NO_DRINKS);
-  paintRadio(radioNoFood, options, DuelBit.NO_FOOD);
-  paintRadio(radioNoPrayer, options, DuelBit.NO_PRAYER);
-  paintRadio(radioFunWeapons, options, DuelBit.FUN_WEAPONS);
-  paintRadio(radioNoSpecial, options, DuelBit.NO_SPECIAL);
+export const flashNoForfeit = sessionState(-1);
+export const flashNoMovement = sessionState(-1);
+export const flashNoSwitch = sessionState(-1);
+export const flashShowInv = sessionState(-1);
+export const flashNoRanged = sessionState(-1);
+export const flashNoMelee = sessionState(-1);
+export const flashNoMagic = sessionState(-1);
+export const flashNoDrinks = sessionState(-1);
+export const flashNoFood = sessionState(-1);
+export const flashNoPrayer = sessionState(-1);
+export const flashFunWeapons = sessionState(-1);
+export const flashNoSpecial = sessionState(-1);
+export const flashWornHead = sessionState(-1);
+export const flashWornCape = sessionState(-1);
+export const flashWornNeck = sessionState(-1);
+export const flashWornAmmo = sessionState(-1);
+export const flashWornWeapon = sessionState(-1);
+export const flashWornBody = sessionState(-1);
+export const flashWornShield = sessionState(-1);
+export const flashWornLegs = sessionState(-1);
+export const flashWornHands = sessionState(-1);
+export const flashWornFeet = sessionState(-1);
+export const flashWornRing = sessionState(-1);
 
-  const worn: Int = useServerState(DuelVarbits.WORN_OPTIONS);
-  paintWornSign(stopAmmo, worn, WornSlot.AMMO);
-  paintWornSign(stopRing, worn, WornSlot.RING);
-  paintWornSign(stopFeet, worn, WornSlot.FEET);
-  paintWornSign(stopHands, worn, WornSlot.HANDS);
-  paintWornSign(stopLegs, worn, WornSlot.LEGS);
-  paintWornSign(stopShield, worn, WornSlot.SHIELD);
-  paintWornSign(stopBody, worn, WornSlot.BODY);
-  paintWornSign(stopWeapon, worn, WornSlot.WEAPON);
-  paintWornSign(stopNeck, worn, WornSlot.NECK);
-  paintWornSign(stopCape, worn, WornSlot.CAPE);
-  paintWornSign(stopHead, worn, WornSlot.HEAD);
-}
-
-export function initDuelOptions(): void {
-  if (!membersWorld()) {
-    labelNoSpecial.text = `<col=${DISABLED_HEX}>No Special Attacks</col>`;
-  }
-  refreshDuelOptions();
-}
-
-const DISABLED_HEX = '999999';
-
-function paintWornSlot(slot: Int, cell: ComponentId, icon: ComponentId, placeholder: Sprite): void {
-  const worn = useInventory(DuelInventories.WORN);
-  const item: Item = worn[slot];
-  if (item !== -1) {
-    cell.props = { item: item, itemCount: worn.count(slot) };
-    cell.optionSubject = `<col=ff9040>${itemName(item)}</col>`;
-    cell.hide = false;
-    icon.sprite = -1;
-  } else {
-    icon.sprite = placeholder;
-  }
-}
-
-export function initDuelWorn(): void {
-  paintWornSlot(WornSlot.HEAD, itemHead, iconHead, DuelSprites.WORN_HEAD);
-  paintWornSlot(WornSlot.CAPE, itemCape, iconCape, DuelSprites.WORN_CAPE);
-  paintWornSlot(WornSlot.NECK, itemNeck, iconNeck, DuelSprites.WORN_NECK);
-  paintWornSlot(WornSlot.AMMO, itemAmmo, iconAmmo, DuelSprites.WORN_AMMO);
-  paintWornSlot(WornSlot.WEAPON, itemWeapon, iconWeapon, DuelSprites.WORN_WEAPON);
-  paintWornSlot(WornSlot.BODY, itemBody, iconBody, DuelSprites.WORN_BODY);
-  paintWornSlot(WornSlot.SHIELD, itemShield, iconShield, DuelSprites.WORN_SHIELD);
-  paintWornSlot(WornSlot.LEGS, itemLegs, iconLegs, DuelSprites.WORN_LEGS);
-  paintWornSlot(WornSlot.HANDS, itemHands, iconHands, DuelSprites.WORN_HANDS);
-  paintWornSlot(WornSlot.FEET, itemFeet, iconFeet, DuelSprites.WORN_FEET);
-  paintWornSlot(WornSlot.RING, itemRing, iconRing, DuelSprites.WORN_RING);
-}
-
-export function ccFlasher(target: ComponentId, since: Int): void {
-  const now: Int = clientClock();
+export function flasherAlpha(now: Int, since: Int): Int {
   const elapsed: Int = now - since;
   if (elapsed >= FLASHER_LIFE) {
-    target.transparency = RowWash.REST;
-    stopTimer(target);
-    return;
+    return RowWash.REST;
   }
   if (now % FLASHER_PERIOD >= FLASHER_HALF) {
-    target.transparency = RowWash.REST;
-    return;
+    return RowWash.REST;
   }
-  target.transparency = CS2.interpolate(0, elapsed, 0, FLASHER_LIFE, RowWash.REST);
+  return CS2.interpolate(0, elapsed, 0, FLASHER_LIFE, RowWash.REST);
 }
 
-function startFlasher(sign: ComponentId): void {
-  const since: Int = clientClock();
-  sign.hide = false;
-  sign.onTimer = () => ccFlasher(sign, since);
+export function openDuelRules(): void {
+  const [, setNoForfeit] = useState(flashNoForfeit);
+  const [, setNoMovement] = useState(flashNoMovement);
+  const [, setNoSwitch] = useState(flashNoSwitch);
+  const [, setShowInv] = useState(flashShowInv);
+  const [, setNoRanged] = useState(flashNoRanged);
+  const [, setNoMelee] = useState(flashNoMelee);
+  const [, setNoMagic] = useState(flashNoMagic);
+  const [, setNoDrinks] = useState(flashNoDrinks);
+  const [, setNoFood] = useState(flashNoFood);
+  const [, setNoPrayer] = useState(flashNoPrayer);
+  const [, setFunWeapons] = useState(flashFunWeapons);
+  const [, setNoSpecial] = useState(flashNoSpecial);
+  const [, setHead] = useState(flashWornHead);
+  const [, setCape] = useState(flashWornCape);
+  const [, setNeck] = useState(flashWornNeck);
+  const [, setAmmo] = useState(flashWornAmmo);
+  const [, setWeapon] = useState(flashWornWeapon);
+  const [, setBody] = useState(flashWornBody);
+  const [, setShield] = useState(flashWornShield);
+  const [, setLegs] = useState(flashWornLegs);
+  const [, setHands] = useState(flashWornHands);
+  const [, setFeet] = useState(flashWornFeet);
+  const [, setRing] = useState(flashWornRing);
+  setNoForfeit(-1);
+  setNoMovement(-1);
+  setNoSwitch(-1);
+  setShowInv(-1);
+  setNoRanged(-1);
+  setNoMelee(-1);
+  setNoMagic(-1);
+  setNoDrinks(-1);
+  setNoFood(-1);
+  setNoPrayer(-1);
+  setFunWeapons(-1);
+  setNoSpecial(-1);
+  setHead(-1);
+  setCape(-1);
+  setNeck(-1);
+  setAmmo(-1);
+  setWeapon(-1);
+  setBody(-1);
+  setShield(-1);
+  setLegs(-1);
+  setHands(-1);
+  setFeet(-1);
+  setRing(-1);
+  hideTooltipIfUnbarred();
 }
 
 export function flashDuelOption(option: Int): void {
+  const [, setNoForfeit] = useState(flashNoForfeit);
+  const [, setNoMovement] = useState(flashNoMovement);
+  const [, setNoSwitch] = useState(flashNoSwitch);
+  const [, setShowInv] = useState(flashShowInv);
+  const [, setNoRanged] = useState(flashNoRanged);
+  const [, setNoMelee] = useState(flashNoMelee);
+  const [, setNoMagic] = useState(flashNoMagic);
+  const [, setNoDrinks] = useState(flashNoDrinks);
+  const [, setNoFood] = useState(flashNoFood);
+  const [, setNoPrayer] = useState(flashNoPrayer);
+  const [, setFunWeapons] = useState(flashFunWeapons);
+  const [, setNoSpecial] = useState(flashNoSpecial);
+  const [, setHead] = useState(flashWornHead);
+  const [, setCape] = useState(flashWornCape);
+  const [, setNeck] = useState(flashWornNeck);
+  const [, setAmmo] = useState(flashWornAmmo);
+  const [, setWeapon] = useState(flashWornWeapon);
+  const [, setBody] = useState(flashWornBody);
+  const [, setShield] = useState(flashWornShield);
+  const [, setLegs] = useState(flashWornLegs);
+  const [, setHands] = useState(flashWornHands);
+  const [, setFeet] = useState(flashWornFeet);
+  const [, setRing] = useState(flashWornRing);
+  const now: Int = CS2.clientclock();
   switch (option) {
     case DuelBit.NO_FORFEIT: {
-      startFlasher(signNoForfeit);
+      setNoForfeit(now);
     }
     case DuelBit.NO_MOVEMENT: {
-      startFlasher(signNoMovement);
+      setNoMovement(now);
     }
     case DuelBit.NO_SWITCH: {
-      startFlasher(signNoSwitch);
+      setNoSwitch(now);
     }
     case DuelBit.SHOW_INVENTORIES: {
-      startFlasher(signShowInv);
+      setShowInv(now);
     }
     case DuelBit.NO_RANGED: {
-      startFlasher(signNoRanged);
+      setNoRanged(now);
     }
     case DuelBit.NO_MELEE: {
-      startFlasher(signNoMelee);
+      setNoMelee(now);
     }
     case DuelBit.NO_MAGIC: {
-      startFlasher(signNoMagic);
+      setNoMagic(now);
     }
     case DuelBit.NO_DRINKS: {
-      startFlasher(signNoDrinks);
+      setNoDrinks(now);
     }
     case DuelBit.NO_FOOD: {
-      startFlasher(signNoFood);
+      setNoFood(now);
     }
     case DuelBit.NO_PRAYER: {
-      startFlasher(signNoPrayer);
+      setNoPrayer(now);
     }
     case DuelBit.FUN_WEAPONS: {
-      startFlasher(signFunWeapons);
+      setFunWeapons(now);
     }
     case DuelBit.NO_SPECIAL: {
-      startFlasher(signNoSpecial);
+      setNoSpecial(now);
     }
     case WornBit.HEAD: {
-      startFlasher(wornSign0);
+      setHead(now);
     }
     case WornBit.CAPE: {
-      startFlasher(wornSign1);
+      setCape(now);
     }
     case WornBit.NECK: {
-      startFlasher(wornSign2);
+      setNeck(now);
     }
     case WornBit.AMMO: {
-      startFlasher(wornSign3);
+      setAmmo(now);
     }
     case WornBit.WEAPON: {
-      startFlasher(wornSign4);
+      setWeapon(now);
     }
     case WornBit.BODY: {
-      startFlasher(wornSign5);
+      setBody(now);
     }
     case WornBit.SHIELD: {
-      startFlasher(wornSign6);
+      setShield(now);
     }
     case WornBit.LEGS: {
-      startFlasher(wornSign7);
+      setLegs(now);
     }
     case WornBit.HANDS: {
-      startFlasher(wornSign8);
+      setHands(now);
     }
     case WornBit.FEET: {
-      startFlasher(wornSign9);
+      setFeet(now);
     }
     case WornBit.RING: {
-      startFlasher(wornSign10);
+      setRing(now);
     }
   }
 }

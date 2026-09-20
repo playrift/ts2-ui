@@ -1,4 +1,4 @@
-import { useRef, useServerState, predictServerState } from 'ts2';
+import { predictServerState, useRef, useServerState, useState } from 'ts2';
 import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
 import { setTransparency } from '../lib/lib.components';
 import { onMobile } from '../lib/lib.helpers';
@@ -10,98 +10,13 @@ import {
   OptionsFonts,
   OptionsLayout,
   OptionsVarbits,
+  OptionsVarps,
   RANKED_SUBJECT,
   RuneModels,
   RuneSubjects,
   TimeChoices,
   TimeSubjects,
 } from './boardgames-options.constants';
-
-export function showRune(
-  fire: Ref,
-  water: Ref,
-  earth: Ref,
-  air: Ref,
-  mind: Ref,
-  body: Ref,
-  nature: Ref,
-  chaos: Ref,
-  law: Ref,
-  cosmic: Ref,
-  blood: Ref,
-  soul: Ref,
-  chosen: Int,
-): void {
-  fire.sprite = OptionsArt.UNSELECTED;
-  water.sprite = OptionsArt.UNSELECTED;
-  earth.sprite = OptionsArt.UNSELECTED;
-  air.sprite = OptionsArt.UNSELECTED;
-  mind.sprite = OptionsArt.UNSELECTED;
-  body.sprite = OptionsArt.UNSELECTED;
-  nature.sprite = OptionsArt.UNSELECTED;
-  chaos.sprite = OptionsArt.UNSELECTED;
-  law.sprite = OptionsArt.UNSELECTED;
-  cosmic.sprite = OptionsArt.UNSELECTED;
-  blood.sprite = OptionsArt.UNSELECTED;
-  soul.sprite = OptionsArt.UNSELECTED;
-
-  if (chosen === 1) {
-    fire.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 2) {
-    water.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 3) {
-    earth.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 4) {
-    air.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 5) {
-    mind.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 6) {
-    body.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 7) {
-    nature.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 8) {
-    chaos.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 9) {
-    law.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 10) {
-    cosmic.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 11) {
-    blood.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 12) {
-    soul.sprite = OptionsArt.SELECTED;
-  }
-}
-
-export function showTime(fifteen: Ref, thirty: Ref, minute: Ref, twoMinutes: Ref, chosen: Int): void {
-  fifteen.sprite = OptionsArt.UNSELECTED;
-  thirty.sprite = OptionsArt.UNSELECTED;
-  minute.sprite = OptionsArt.UNSELECTED;
-  twoMinutes.sprite = OptionsArt.UNSELECTED;
-
-  if (chosen === 0) {
-    fifteen.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 1) {
-    thirty.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 2) {
-    minute.sprite = OptionsArt.SELECTED;
-  }
-  if (chosen === 3) {
-    twoMinutes.sprite = OptionsArt.SELECTED;
-  }
-}
 
 function fadeUnlessMobile(icon: Ref, transparency: Int): void {
   if (!onMobile()) {
@@ -113,6 +28,18 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
   const piece: Int = useServerState(OptionsVarbits.PIECE);
   const time: Int = useServerState(OptionsVarbits.TIME);
   const ranked: Int = useServerState(OptionsVarbits.RANKED);
+
+  const selections: Int = useServerState(OptionsVarps.SELECTIONS);
+  const rankedVarp: Int = useServerState(OptionsVarps.RANKED);
+
+  const [piecePick, setPiecePick] = useState(-1);
+  const [timePick, setTimePick] = useState(-1);
+  const [pickedAt355, setPickedAt355] = useState(-1);
+  const [pickedAt356, setPickedAt356] = useState(-1);
+
+  const standing: Boolean = pickedAt355 === selections && pickedAt356 === rankedVarp;
+  const pieceShown: Int = standing && piecePick !== -1 ? piecePick : piece;
+  const timeShown: Int = standing && timePick !== -1 ? timePick : time;
 
   const fire = useRef();
   const water = useRef();
@@ -146,7 +73,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.FIRE : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 1);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(1);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(fire, HOVER_TRANSPARENCY);
@@ -161,7 +93,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 1 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 1 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -183,7 +115,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.WATER : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 2);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(2);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(water, HOVER_TRANSPARENCY);
@@ -198,7 +135,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 2 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 2 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -220,7 +157,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.EARTH : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 3);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(3);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(earth, HOVER_TRANSPARENCY);
@@ -235,7 +177,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 3 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 3 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -257,7 +199,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.AIR : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 4);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(4);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(air, HOVER_TRANSPARENCY);
@@ -272,7 +219,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 4 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 4 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -294,7 +241,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.MIND : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 5);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(5);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(mind, HOVER_TRANSPARENCY);
@@ -309,7 +261,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 5 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 5 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -331,7 +283,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.BODY : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 6);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(6);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(body, HOVER_TRANSPARENCY);
@@ -346,7 +303,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 6 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 6 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -368,7 +325,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.NATURE : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 7);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(7);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(nature, HOVER_TRANSPARENCY);
@@ -383,7 +345,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 7 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 7 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -405,7 +367,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.CHAOS : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 8);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(8);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(chaos, HOVER_TRANSPARENCY);
@@ -420,7 +387,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 8 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 8 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -442,7 +409,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.LAW : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 9);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(9);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(law, HOVER_TRANSPARENCY);
@@ -457,7 +429,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 9 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 9 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -479,7 +451,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.COSMIC : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 10);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(10);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(cosmic, HOVER_TRANSPARENCY);
@@ -494,7 +471,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 10 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 10 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -516,7 +493,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.BLOOD : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 11);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(11);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(blood, HOVER_TRANSPARENCY);
@@ -531,7 +513,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 11 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 11 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -553,7 +535,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Select']}
             optionSubject={subjects ? RuneSubjects.SOUL : ''}
             onOptionSelect={() => {
-              showRune(fire, water, earth, air, mind, body, nature, chaos, law, cosmic, blood, soul, 12);
+              if (!standing) {
+                setTimePick(-1);
+              }
+              setPiecePick(12);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(soul, HOVER_TRANSPARENCY);
@@ -568,7 +555,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y="center"
               w={OptionsLayout.RADIO}
               h={OptionsLayout.RADIO}
-              sprite={piece === 12 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={pieceShown === 12 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <model
               x="right"
@@ -613,7 +600,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Options']}
             optionSubject={subjects ? TimeSubjects.FIFTEEN : ''}
             onOptionSelect={() => {
-              showTime(fifteen, thirty, minute, twoMinutes, 0);
+              if (!standing) {
+                setPiecePick(-1);
+              }
+              setTimePick(0);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(fifteen, HOVER_TRANSPARENCY);
@@ -628,7 +620,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y={0}
               w={17}
               h={17}
-              sprite={time === 0 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={timeShown === 0 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <text
               x={32}
@@ -649,7 +641,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Options']}
             optionSubject={subjects ? TimeSubjects.THIRTY : ''}
             onOptionSelect={() => {
-              showTime(fifteen, thirty, minute, twoMinutes, 1);
+              if (!standing) {
+                setPiecePick(-1);
+              }
+              setTimePick(1);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(thirty, HOVER_TRANSPARENCY);
@@ -664,7 +661,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y={0}
               w={17}
               h={17}
-              sprite={time === 1 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={timeShown === 1 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <text
               x={32}
@@ -685,7 +682,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Options']}
             optionSubject={subjects ? TimeSubjects.MINUTE : ''}
             onOptionSelect={() => {
-              showTime(fifteen, thirty, minute, twoMinutes, 2);
+              if (!standing) {
+                setPiecePick(-1);
+              }
+              setTimePick(2);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(minute, HOVER_TRANSPARENCY);
@@ -700,7 +702,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y={0}
               w={17}
               h={17}
-              sprite={time === 2 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={timeShown === 2 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <text
               x={32}
@@ -721,7 +723,12 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
             options={['Options']}
             optionSubject={subjects ? TimeSubjects.TWO_MINUTES : ''}
             onOptionSelect={() => {
-              showTime(fifteen, thirty, minute, twoMinutes, 3);
+              if (!standing) {
+                setPiecePick(-1);
+              }
+              setTimePick(3);
+              setPickedAt355(selections);
+              setPickedAt356(rankedVarp);
             }}
             onMouseRepeat={() => {
               fadeUnlessMobile(twoMinutes, HOVER_TRANSPARENCY);
@@ -736,7 +743,7 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
               y={0}
               w={17}
               h={17}
-              sprite={time === 3 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
+              sprite={timeShown === 3 ? OptionsArt.SELECTED : OptionsArt.UNSELECTED}
             />
             <text
               x={32}
@@ -759,7 +766,11 @@ export function BoardgamesOptions({ title, subjects = false }: { title: String; 
           options={['Select']}
           optionSubject={subjects ? RANKED_SUBJECT : ''}
           onOptionSelect={() => {
+            const keep: Boolean = standing;
             predictServerState(OptionsVarbits.RANKED, 1 - ranked);
+            if (keep) {
+              setPickedAt356(rankedVarp);
+            }
           }}
           onMouseRepeat={() => {
             fadeUnlessMobile(rankedBox, HOVER_TRANSPARENCY);

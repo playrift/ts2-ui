@@ -1,0 +1,176 @@
+import { CS2, useRef, useServerState, useState, useUniverse } from 'ts2';
+import { KitButton } from '../0823_forestry_kit_main/kit-button.component';
+import { onMobile } from '../lib/lib.helpers';
+import { playSound } from '../lib/lib.engine';
+import { ThinBox } from '../lib/thin-box.component';
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { Varps } from '../lib/game/varps';
+import { OmnishopShops, ShopFilterTitles } from './omnishop.data';
+import { ShopColors, ShopFonts, ShopLayout } from './omnishop-main.constants';
+import { omnishopHelp, omnishopToggleView } from './omnishop-main.entry';
+import { shopShowsPoints } from './omnishop-info.component';
+import { omnishopShop } from './omnishop-main.state';
+
+const enum Drop {
+  ARROW = 16,
+  LABEL_INSET = 2,
+  LABEL_INSET_H = 4,
+  WASH = 125,
+}
+
+function ShopDropdownButton({ label, entryCount, color }: { label: String; entryCount: Int; color: Int }): Component {
+  const universe = useUniverse();
+  const [wash, setWash] = useState(0);
+  const arrowInset: Int = (universe.height - Drop.ARROW) / 2;
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[entryCount > 0 ? 'Expand' : '']}
+      onOptionSelect={() => playSound(Sounds.INTERFACE_SELECT1)}
+      onMouseEnter={() => {
+        if (!onMobile() && entryCount > 0) {
+          setWash(Drop.WASH);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!onMobile() && entryCount > 0) {
+          setWash(0);
+        }
+      }}
+    >
+      <sprite w="fill" h="fill" sprite={Sprites.TRADEBACKING} tiling />
+      <ThinBox />
+      <sprite
+        x={{ right: arrowInset }}
+        y={arrowInset}
+        w={Drop.ARROW}
+        h={Drop.ARROW}
+        sprite={Sprites.SCROLLBAR_V2_1}
+        tiling
+        transparency={entryCount > 0 ? wash : Drop.WASH}
+      />
+      <text
+        x={Drop.LABEL_INSET}
+        y={{ bottom: Drop.LABEL_INSET }}
+        w={{ fill: universe.height }}
+        h={{ fill: Drop.LABEL_INSET_H }}
+        text={label}
+        font={ShopFonts.P11}
+        color={color}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function ControlBarContents(): Component {
+  const expanded: Int = useServerState(Varps.OMNISHOP_VIEW_EXPANDED);
+  const filter: Int = useServerState(Varps.OMNISHOP_FILTER);
+  const [shopIndex] = useState(omnishopShop);
+  const shop: Int = shopIndex;
+  const shopRow = OmnishopShops.at(shop);
+  let filterSet: Int = -1;
+  if (shopRow !== null) {
+    filterSet = shopRow.filterSet;
+  }
+  let label: String = filterSet >= 0 ? '' : 'No filters available';
+  let entries: Int = 0;
+  let index: Int = 0;
+  while (index < ShopFilterTitles.length) {
+    const row = ShopFilterTitles.at(index);
+    if (row !== null) {
+      if (row.set === filterSet) {
+        entries = entries + 1;
+        if (row.key === filter) {
+          label = row.title;
+        }
+      }
+    }
+    index = index + 1;
+  }
+  const points: Boolean = shopShowsPoints(shop);
+  const pointsOne: Boolean = expanded === 1 && points;
+  return (
+    <>
+      <layer
+        x="right"
+        y={0}
+        w={20}
+        h="fill"
+        optionSubject="View"
+        options={['Expanded']}
+        onClick={() => omnishopToggleView()}
+      >
+        {shop >= 0 ? (
+          <sprite
+            x={2}
+            y={2}
+            w={16}
+            h={16}
+            sprite={expanded === 1 ? Sprites.DIRECTIONAL_LOCK_ARROWS_3 : Sprites.DIRECTIONAL_LOCK_ARROWS_1}
+            tiling
+          />
+        ) : null}
+      </layer>
+      <layer
+        x={{ right: 26 }}
+        y={0}
+        w={20}
+        h={20}
+        hide={expanded === 0}
+        options={['Help']}
+        onOptionSelect={(event) => omnishopHelp(event.option)}
+      >
+        {shop >= 0 ? (
+          <sprite
+            x={0}
+            y={0}
+            w={21}
+            h={21}
+            sprite={Sprites.MENU_BUTTONS_2}
+            tiling
+            hover={{ sprite: onMobile() ? Sprites.MENU_BUTTONS_2 : Sprites.MENU_BUTTONS_3 }}
+          />
+        ) : null}
+      </layer>
+      <layer x={0} y={0} w={pointsOne ? 200 : { fill: expanded === 1 ? 52 : 26 }} h={ShopLayout.CONTROL_H}>
+        {shop >= 0 ? (
+          <ShopDropdownButton
+            label={label}
+            entryCount={entries}
+            color={filterSet >= 0 ? ShopColors.ORANGE : ShopColors.GREY}
+          />
+        ) : null}
+      </layer>
+      <layer x={206} y={0} w={{ fill: 258 }} h={20} hide={!pointsOne} />
+    </>
+  );
+}
+
+export function ButtonsPane(): Component {
+  const universe = useUniverse();
+  const width: Int = (universe.width - 18) / 4;
+  const gap: Int = 18 / 4;
+  const hiddenCount: Int = 4;
+  return (
+    <layer x="center" y="center" w={hiddenCount * width + hiddenCount * gap + gap} h="fill">
+      <layer x={0} y={0} w={225} h={44} />
+      <layer x={gap} y="bottom" w={width} h={{ fill: 18 }} hide>
+        <KitButton label="1" enabled={1} />
+      </layer>
+      <layer x={width + gap * 2} y="bottom" w={width} h={{ fill: 18 }} hide>
+        <KitButton label="5" enabled={1} />
+      </layer>
+      <layer x={width * 2 + gap * 3} y="bottom" w={width} h={{ fill: 18 }} hide>
+        <KitButton label="10" enabled={1} />
+      </layer>
+      <layer x={width * 3 + gap * 4} y="bottom" w={width} h={{ fill: 18 }} hide>
+        <KitButton label="50" enabled={1} />
+      </layer>
+    </layer>
+  );
+}

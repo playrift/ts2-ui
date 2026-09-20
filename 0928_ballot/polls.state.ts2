@@ -1,0 +1,175 @@
+import { CS2, predictServerState, sessionState, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { BallotPage, BallotSound } from './ballot.constants';
+import { ballotSetTitle, ballotShowPage } from './ballot.entry';
+import { PollCategories } from './polls.data';
+
+export const pollsYear = sessionState(-1);
+
+export const pollsYearMask = sessionState(0);
+
+export const pollsRowCount = sessionState(0);
+
+export const pollsListBuild = sessionState(0);
+
+export const pollsRows = sessionState('');
+
+export const PollsRowField = {
+  TITLE: 0,
+  SUBTITLE: 1,
+  ID: 2,
+  FILTER: 3,
+} as const;
+
+export const POLLS_ROW_FIELDS = 4;
+
+export const POLLS_FIELD_DIGITS = 4;
+
+export const pollsLoadingRow = sessionState(-1);
+
+export const pollsLoadingUntil = sessionState(0);
+
+export const POLLS_MAX_ROWS = 64;
+
+export const POLLS_FIRST_YEAR = 2013;
+export const POLLS_YEAR_BITS = 31;
+
+export function pollsShowList(
+  year: Int,
+  yearMask: Int,
+  titles: Strings,
+  subtitles: Strings,
+  ids: Ints,
+  filters: Ints,
+): void {
+  const [, setYear] = useState(pollsYear);
+  const [, setMask] = useState(pollsYearMask);
+  const [, setCount] = useState(pollsRowCount);
+  const [, setRows] = useState(pollsRows);
+  const [, setLoadingRow] = useState(pollsLoadingRow);
+  const [build, setBuild] = useState(pollsListBuild);
+
+  const count: Int = ids.length;
+
+  let joined: String = '';
+  let at: Int = 0;
+  while (at < count) {
+    joined =
+      `${joined}${pollsField(titles[at])}${pollsField(subtitles[at])}` +
+      `${pollsIntField(ids[at])}${pollsIntField(filters[at])}`;
+    at = at + 1;
+  }
+
+  setYear(year);
+  setMask(yearMask);
+  setCount(count);
+  setRows(joined);
+  setLoadingRow(-1);
+  setBuild(build + 1);
+
+  ballotSetTitle(`Poll History: ${year}`);
+  ballotShowPage(BallotPage.POLLS);
+}
+
+export function pollsSelectYear(year: Int, component: ComponentId, subId: Int): void {
+  playSound(BallotSound.SELECT);
+  ballotSetTitle('Loading...');
+  CS2.if_runscript(PollsServerScript.SELECT_YEAR, component, subId, year, 'i');
+}
+
+export function pollsViewPoll(index: Int, id: Int, component: ComponentId, subId: Int): void {
+  const [, setLoadingRow] = useState(pollsLoadingRow);
+  const [, setUntil] = useState(pollsLoadingUntil);
+
+  playSound(BallotSound.SELECT);
+  setLoadingRow(index);
+  setUntil(clientClock() + POLLS_LOADING_CYCLES);
+  CS2.if_runscript(PollsServerScript.VIEW_POLL, component, subId, id, 'i');
+}
+
+export const POLLS_LOADING_CYCLES = 60;
+
+export function pollsLoadingExpired(): void {
+  const [until] = useState(pollsLoadingUntil);
+  const [, setLoadingRow] = useState(pollsLoadingRow);
+
+  if (clientClock() >= until) {
+    setLoadingRow(-1);
+  }
+}
+
+export function pollsToggleFilter(
+  category: Boolean,
+  key: Int,
+  hidden: Boolean,
+  component: ComponentId,
+  subId: Int,
+): void {
+  playSound(BallotSound.SELECT);
+
+  if (category) {
+    const before: Int = useServerState(Varbits.POLL_FILTERS_CATEGORIES);
+    predictServerState(Varbits.POLL_FILTERS_CATEGORIES, hidden ? CS2.bit_clear(before, key) : CS2.bit_set(before, key));
+  } else {
+    const before: Int = useServerState(Varbits.POLL_FILTERS_STATUSES);
+    predictServerState(Varbits.POLL_FILTERS_STATUSES, hidden ? CS2.bit_clear(before, key) : CS2.bit_set(before, key));
+  }
+
+  CS2.if_runscript(PollsServerScript.TOGGLE_FILTER, component, subId, category ? 1 : 0, key, hidden ? 0 : 1, 'iii');
+}
+
+export const PollsServerScript = {
+  SELECT_YEAR: -2050946704,
+  VIEW_POLL: -13159379,
+  TOGGLE_FILTER: -972412918,
+};
+
+function pollsField(text: String): String {
+  return `${CS2.tostring(CS2.string_length(text)).padStart(POLLS_FIELD_DIGITS, '0')}${text}`;
+}
+
+function pollsIntField(value: Int): String {
+  return pollsField(CS2.tostring(value));
+}
+
+function pollsSeek(joined: String, k: Int): Int {
+  let at: Int = 0;
+  let i: Int = 0;
+  while (i < k) {
+    const len: Int = parseInt(joined.substring(at, at + POLLS_FIELD_DIGITS));
+    at = at + POLLS_FIELD_DIGITS + len;
+    i = i + 1;
+  }
+  return at;
+}
+
+export function pollsFieldAt(joined: String, index: Int): String {
+  if (CS2.string_length(joined) === 0) {
+    return '';
+  }
+  const at: Int = pollsSeek(joined, index);
+  if (at >= CS2.string_length(joined)) {
+    return '';
+  }
+  const len: Int = parseInt(joined.substring(at, at + POLLS_FIELD_DIGITS));
+  return joined.substring(at + POLLS_FIELD_DIGITS, at + POLLS_FIELD_DIGITS + len);
+}
+
+export function pollsRowField(joined: String, row: Int, field: Int): String {
+  return pollsFieldAt(joined, row * POLLS_ROW_FIELDS + field);
+}
+
+export function pollCategoryIcon(category: Boolean, key: Int): Int {
+  let at: Int = 0;
+  while (at < PollCategories.length) {
+    const row = PollCategories.at(at);
+    if (row !== null) {
+      if (row.category === category && row.id === key) {
+        return row.icon as Int;
+      }
+    }
+    at = at + 1;
+  }
+  return -1;
+}

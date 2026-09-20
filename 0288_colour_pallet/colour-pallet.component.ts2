@@ -1,0 +1,494 @@
+import { CS2, useInterval, useRef, useState, useUniverse } from 'ts2';
+
+import { settingsColourPalletSelected } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelborderColor } from '../lib/lib.constants';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { ColourPalette } from './colour-palette.data';
+import {
+  CANCEL_LABEL,
+  CELL_VEIL,
+  CELL_VEIL_HOVER,
+  CLAMP,
+  CustomFields,
+  FADER,
+  FIELD_BACKING,
+  FIELD_VEIL_HOVER,
+  Fade,
+  Layout,
+  PalletColour,
+  PalletFonts,
+  PalletScrollbar,
+  PICK_FLASH_CYCLES,
+  PICK_FLASH_TRANSPARENCY,
+  SAVE_LABEL,
+} from './colour-pallet.constants';
+import {
+  colourPalletCancel,
+  colourPalletDismiss,
+  colourPalletInput,
+  colourPalletOpened,
+  colourPalletOpenedColour,
+  colourPalletPick,
+  colourPalletRow,
+  colourPalletSave,
+  colourToString,
+  pickerDefaultColour,
+  pickerTitle,
+} from './colour-pallet.state';
+
+export function ColourPallet(): Component {
+  return (
+    <layer ref={CLAMP} x="center" y="center" w="fill" h="fill" noClickThrough onClick={() => colourPalletDismiss()}>
+      <rect
+        ref={FADER}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={PalletColour.BLACK}
+        fill
+        transparency={Fade.CLEAR}
+      />
+      <layer x="center" y="center" w={Layout.WINDOW_W} h={Layout.WINDOW_H} noClickThrough>
+        <PalletBorder />
+        <layer x="center" y={Layout.BOX_Y} w={{ fill: Layout.BOX_INSET_W }} h={{ fill: Layout.BOX_INSET_H }}>
+          <layer
+            x={Layout.SWATCHES_X}
+            y={Layout.SWATCHES_Y}
+            w={{ fill: Layout.SWATCHES_INSET_W }}
+            h={Layout.SWATCHES_H}
+          >
+            <CurrentAndNew />
+          </layer>
+          <CustomInput />
+          <layer
+            x={Layout.GRID_X}
+            y={{ bottom: Layout.GRID_BOTTOM }}
+            w={{ fill: Layout.GRID_INSET_W }}
+            h={{ fill: Layout.GRID_INSET_H }}
+          >
+            <PaletteGrid />
+          </layer>
+          <ThinBoxEntrypoint />
+        </layer>
+        <layer
+          x={{ center: -Layout.BUTTON_DX }}
+          y={{ bottom: Layout.BUTTON_BOTTOM }}
+          w={Layout.BUTTON_W}
+          h={Layout.BUTTON_H}
+        >
+          <PalletButton label={CANCEL_LABEL} save={0} />
+        </layer>
+        <layer
+          x={{ center: Layout.BUTTON_DX }}
+          y={{ bottom: Layout.BUTTON_BOTTOM }}
+          w={Layout.BUTTON_W}
+          h={Layout.BUTTON_H}
+        >
+          <PalletButton label={SAVE_LABEL} save={1} />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function PalletBorder(): Component {
+  const [opened] = useState(colourPalletOpened);
+  const [row] = useState(colourPalletRow);
+  if (opened !== 1 || row < 0) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      <SteelBorder title={`Colour picker - ${pickerTitle(row)}`} titleColor={SteelborderColor.TITLE} flags={1} />
+    </layer>
+  );
+}
+
+function CurrentAndNew(): Component {
+  const [opened] = useState(colourPalletOpened);
+  const [row] = useState(colourPalletRow);
+  const [current] = useState(colourPalletOpenedColour);
+  const [chosen] = useState(settingsColourPalletSelected);
+  if (opened !== 1 || row < 0) {
+    return null;
+  }
+  return (
+    <>
+      <text
+        x={Layout.CURRENT_CAPTION_X}
+        y={2}
+        w={Layout.CAPTION_W}
+        h={Layout.CAPTION_H}
+        text="Current colour"
+        font={PalletFonts.BOLD}
+        shadow
+        color={PalletColour.AMBER}
+        align="center"
+        valign="middle"
+      />
+      <rect
+        x={Layout.CURRENT_SWATCH_X}
+        y={Layout.BIG_SWATCH_Y}
+        w={Layout.BIG_SWATCH}
+        h={Layout.BIG_SWATCH}
+        color={current}
+        fill
+      />
+      <rect
+        x={Layout.CURRENT_SWATCH_X}
+        y={Layout.BIG_SWATCH_Y}
+        w={Layout.BIG_SWATCH}
+        h={Layout.BIG_SWATCH}
+        color={PalletColour.OUTLINE_DARK}
+      />
+      <rect
+        x={Layout.CURRENT_SWATCH_X + 1}
+        y={Layout.BIG_SWATCH_Y + 1}
+        w={Layout.BIG_SWATCH - 2}
+        h={Layout.BIG_SWATCH - 2}
+        color={PalletColour.OUTLINE_LIGHT}
+      />
+      <text
+        x={Layout.CURRENT_HEX_X}
+        y={{ bottom: Layout.HEX_BOTTOM }}
+        w={Layout.HEX_W}
+        h={Layout.CAPTION_H}
+        text={`#${colourToString(current)}`}
+        font={PalletFonts.SMALL}
+        shadow
+        color={PalletColour.AMBER}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={Layout.NEW_CAPTION_X}
+        y={2}
+        w={Layout.CAPTION_W}
+        h={Layout.CAPTION_H}
+        text="New colour"
+        font={PalletFonts.BOLD}
+        shadow
+        color={PalletColour.AMBER}
+        align="center"
+        valign="middle"
+      />
+      <rect
+        x={Layout.NEW_SWATCH_X}
+        y={Layout.BIG_SWATCH_Y}
+        w={Layout.BIG_SWATCH}
+        h={Layout.BIG_SWATCH}
+        color={chosen}
+        fill
+      />
+      <rect
+        x={Layout.NEW_SWATCH_X}
+        y={Layout.BIG_SWATCH_Y}
+        w={Layout.BIG_SWATCH}
+        h={Layout.BIG_SWATCH}
+        color={PalletColour.OUTLINE_DARK}
+      />
+      <rect
+        x={Layout.NEW_SWATCH_X + 1}
+        y={Layout.BIG_SWATCH_Y + 1}
+        w={Layout.BIG_SWATCH - 2}
+        h={Layout.BIG_SWATCH - 2}
+        color={PalletColour.OUTLINE_LIGHT}
+      />
+      <text
+        x={Layout.NEW_HEX_X}
+        y={{ bottom: Layout.HEX_BOTTOM }}
+        w={Layout.HEX_W}
+        h={Layout.CAPTION_H}
+        text={`#${colourToString(chosen)}`}
+        font={PalletFonts.SMALL}
+        shadow
+        color={PalletColour.AMBER}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function CustomInput(): Component {
+  const [opened] = useState(colourPalletOpened);
+  const [row] = useState(colourPalletRow);
+  const [chosen] = useState(settingsColourPalletSelected);
+  const [hovered, setHovered] = useState(-1);
+  if (opened !== 1 || row < 0) {
+    return null;
+  }
+  return (
+    <>
+      <layer x={Layout.INPUT_X} y={Layout.SWATCHES_Y} w={{ fill: Layout.INPUT_INSET_W }} h={Layout.SWATCHES_H}>
+        {CustomFields.map((field, index) => (
+          <>
+            <text
+              x={field.x}
+              y={field.y - Layout.FIELD_LABEL_H}
+              w={field.w}
+              h={Layout.FIELD_LABEL_H}
+              text={field.label}
+              font={PalletFonts.SMALL}
+              shadow
+              color={PalletColour.AMBER}
+              align="center"
+              valign="middle"
+            />
+            <sprite x={field.x} y={field.y} w={field.w} h={field.h} sprite={FIELD_BACKING} tiling />
+            <rect x={field.x} y={field.y} w={field.w} h={field.h} color={PalletColour.OUTLINE_DARK} />
+            <rect x={field.x + 1} y={field.y + 1} w={field.w - 2} h={field.h - 2} color={PalletColour.OUTLINE_LIGHT} />
+            <text
+              x={field.x + 3}
+              y={field.y + 2}
+              w={field.w - 6}
+              h={field.h - 4}
+              text={fieldValue(index, chosen)}
+              font={PalletFonts.BODY}
+              shadow
+              color={PalletColour.AMBER}
+              align="center"
+              valign="middle"
+            />
+            <rect
+              x={field.x}
+              y={field.y}
+              w={field.w}
+              h={field.h}
+              color={PalletColour.BLACK}
+              fill
+              transparency={hovered === index ? FIELD_VEIL_HOVER : 255}
+            />
+          </>
+        ))}
+        <text
+          x={Layout.CUSTOM_CAPTION_X}
+          y={2}
+          w={Layout.CAPTION_W}
+          h={Layout.CAPTION_H}
+          text="Custom input"
+          font={PalletFonts.BOLD}
+          shadow
+          color={PalletColour.AMBER}
+          align="center"
+          valign="middle"
+        />
+      </layer>
+      <layer x={Layout.INPUT_X} y={Layout.SWATCHES_Y} w={{ fill: Layout.INPUT_INSET_W }} h={Layout.SWATCHES_H}>
+        {CustomFields.map((field, index) => (
+          <rect
+            x={field.x}
+            y={field.y - Layout.FIELD_LABEL_H}
+            w={field.w}
+            h={field.h + Layout.FIELD_LABEL_H}
+            color={PalletColour.WHITE}
+            fill
+            transparency={255}
+            options={['Select']}
+            onOptionSelect={() => colourPalletInput(index)}
+            onMouseEnter={() => {
+              if (!onMobile()) {
+                setHovered(index);
+              }
+            }}
+            onMouseLeave={() => {
+              if (!onMobile()) {
+                setHovered(-1);
+              }
+            }}
+          />
+        ))}
+      </layer>
+    </>
+  );
+}
+
+function fieldValue(index: Int, colour: Int): String {
+  if (index === 0) {
+    return `#${colourToString(colour)}`;
+  }
+  const red: Int = (colour / 65536) % 256;
+  const green: Int = (colour / 256) % 256;
+  const blue: Int = colour % 256;
+  if (index === 1) {
+    return `${red}`;
+  }
+  if (index === 2) {
+    return `${green}`;
+  }
+  return `${blue}`;
+}
+
+const PaletteCells = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+  32, 33, 34, 35, 36, 37, 38,
+] as const;
+
+function PaletteGrid(): Component {
+  const [opened] = useState(colourPalletOpened);
+  const [row] = useState(colourPalletRow);
+  const [flashCell, setFlashCell] = useState(-1);
+  const [flashUntil, setFlashUntil] = useState(0);
+  const universe = useUniverse();
+  const pane = useRef();
+  const mobile: Boolean = onMobile();
+
+  useInterval(
+    flashUntil === 0
+      ? undefined
+      : () => {
+          if (clientClock() < flashUntil) {
+            return;
+          }
+          setFlashUntil(0);
+          setFlashCell(-1);
+        },
+    pane,
+  );
+
+  const step: Int = Layout.CELL + Layout.CELL_GAP;
+  const total: Int = PaletteCells.length;
+  const fitRows: Int = universe.height / step;
+  const fallback: Int = pickerDefaultColour(row);
+  const fullWidth: Int = universe.width;
+  const wideRows: Int = rowsFor(total, fullWidth / step);
+  const scrolls: Boolean = wideRows > fitRows;
+  const width: Int = scrolls ? fullWidth - Layout.BAR_W : fullWidth;
+  const perRow: Int = width / step;
+  const rows: Int = rowsFor(total, perRow);
+  const lastCount: Int = total % perRow > 0 ? total % perRow : perRow;
+  const top: Int = total / perRow === 0 ? universe.height / 2 - step / 2 : 0;
+
+  if (opened !== 1 || row < 0) {
+    return null;
+  }
+  return (
+    <>
+      <layer ref={pane} x={0} y={0} w={width} h="fill" scrollHeight={scrolls ? rows * step + top : 0}>
+        {PaletteCells.map((cell) => (
+          <>
+            <rect
+              x={cellX(cell, perRow, rows, lastCount, width)}
+              y={top + (cell / perRow) * step}
+              w={Layout.CELL}
+              h={Layout.CELL}
+              color={cellColour(cell, fallback)}
+              fill
+              transparency={flashCell === cell ? PICK_FLASH_TRANSPARENCY : 0}
+              options={['Select colour']}
+              onOptionSelect={(event) => {
+                if (event.option !== 1) {
+                  return;
+                }
+                setFlashCell(cell);
+                setFlashUntil(clientClock() + PICK_FLASH_CYCLES);
+                colourPalletPick(cellColour(cell, fallback));
+              }}
+            />
+            {mobile ? (
+              <rect
+                x={cellX(cell, perRow, rows, lastCount, width)}
+                y={top + (cell / perRow) * step}
+                w={Layout.CELL}
+                h={Layout.CELL}
+                color={PalletColour.BLACK}
+                fill
+                hide
+              />
+            ) : (
+              <rect
+                x={cellX(cell, perRow, rows, lastCount, width)}
+                y={top + (cell / perRow) * step}
+                w={Layout.CELL}
+                h={Layout.CELL}
+                color={PalletColour.BLACK}
+                fill
+                transparency={CELL_VEIL}
+                hover={{ transparency: CELL_VEIL_HOVER }}
+              />
+            )}
+            <rect
+              x={cellX(cell, perRow, rows, lastCount, width)}
+              y={top + (cell / perRow) * step}
+              w={Layout.CELL}
+              h={Layout.CELL}
+              color={PalletColour.OUTLINE_DARK}
+            />
+            <rect
+              x={cellX(cell, perRow, rows, lastCount, width) + 1}
+              y={top + (cell / perRow) * step + 1}
+              w={Layout.CELL - 2}
+              h={Layout.CELL - 2}
+              color={PalletColour.OUTLINE_LIGHT}
+            />
+          </>
+        ))}
+      </layer>
+      <layer x="right" y={0} w={Layout.BAR_W} h="fill" hide={!scrolls}>
+        {scrolls ? (
+          <ScrollbarVertical
+            content={pane}
+            track={PalletScrollbar.TRACK}
+            capTopSprite={PalletScrollbar.CAP_TOP}
+            thumbSprite={PalletScrollbar.THUMB}
+            capBottomSprite={PalletScrollbar.CAP_BOTTOM}
+            arrowUp={PalletScrollbar.ARROW_UP}
+            arrowDown={PalletScrollbar.ARROW_DOWN}
+          />
+        ) : null}
+      </layer>
+    </>
+  );
+}
+
+function rowsFor(total: Int, perRow: Int): Int {
+  return total % perRow > 0 ? total / perRow + 1 : total / perRow;
+}
+
+function cellX(cell: Int, perRow: Int, rows: Int, lastCount: Int, width: Int): Int {
+  const step: Int = Layout.CELL + Layout.CELL_GAP;
+  const inRow: Int = cell / perRow === rows - 1 ? lastCount : perRow;
+  return (width - inRow * step) / 2 + (cell % perRow) * step;
+}
+
+function cellColour(cell: Int, fallback: Int): Int {
+  const listed: Int = ColourPalette.get(cell) ?? -1;
+  return listed === -1 ? fallback : listed;
+}
+
+function PalletButton({ label, save }: { label: String; save: Int }): Component {
+  const [opened] = useState(colourPalletOpened);
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+  if (opened !== 1) {
+    return null;
+  }
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onOptionSelect={() => {
+        if (save === 1) {
+          colourPalletSave();
+          return;
+        }
+        colourPalletCancel();
+      }}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={label} font={PalletFonts.BODY} pressed={skin} />
+    </layer>
+  );
+}

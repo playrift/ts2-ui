@@ -1,0 +1,208 @@
+import { CS2, intArray, useDerived, useRef, useState } from 'ts2';
+
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBox } from '../lib/thin-box.component';
+import { ButtonStyle, ButtonStyles } from './button-styles.data';
+import { ConfirmAction, ConfirmButton } from './confirm-overlay.component';
+import { Layout, UnlockColor, UnlockFonts, UnlockSounds, UnlockSprites } from './league-3-unlocks.constants';
+import { Quest } from '../lib/lib.quests';
+import { desktop, questDone, rfdComplete } from './league-3-unlocks.helpers';
+import { infoOverlayOpen } from './league-3-unlocks.state';
+import { QuestUnlocks } from './quest-unlocks.data';
+import { QuestSteps, RfdStep } from './quest-steps.data';
+
+export function InfoOverlay({ selection, colour }: { selection: Int; colour: Int }): Component {
+  const [open, setOpen] = useState(infoOverlayOpen);
+  const list = useRef();
+
+  const key: Int = selection - 1;
+  const pkg = QuestUnlocks.at(key);
+  const name: String = pkg === null ? '' : pkg.name;
+  const info: String = pkg === null ? '' : pkg.info;
+  const lines: Int = pkg === null ? 0 : pkg.lines;
+  const start: Int = pkg === null ? 0 : pkg.start;
+  const slots = intArray(MAX_LINES);
+
+  const scrolls: Boolean = lines > Layout.QUEST_LINES_VISIBLE;
+  const content: Int = scrolls ? lines * Layout.QUEST_LINE_H : 0;
+
+  return (
+    <layer w="fill" h="fill" noClickThrough hide={open === 1 ? false : true}>
+      <layer w="fill" h="fill" noClickThrough>
+        <SteelFrame backdrop />
+
+        <text
+          x={10}
+          y={13}
+          w={228}
+          h={20}
+          align="center"
+          valign="middle"
+          shadow
+          lineHeight={15}
+          font={UnlockFonts.BOLD}
+          color={colour}
+          text={`${name} - Quest List`}
+        />
+      </layer>
+
+      <layer x={10} y={35} w={228} h={47}>
+        <rect x="center" y="center" w="fill" h="fill" fill color={UnlockColor.BLACK} transparency={200} />
+        <text
+          x={8}
+          y={3}
+          w={212}
+          h={41}
+          align="center"
+          valign="middle"
+          shadow
+          lineHeight={13}
+          font={UnlockFonts.BODY}
+          color={0xefefef}
+          text="Full list of everything that will be <col=29ffbd>auto-completed.</col> Anything <col=9f9f9f>already completed</col> will reduce the cost."
+        />
+        <ThinBox />
+      </layer>
+
+      <text
+        x={242}
+        y={13}
+        w={228}
+        h={20}
+        align="center"
+        valign="middle"
+        shadow
+        font={UnlockFonts.BOLD}
+        color={colour}
+        text="Content Access"
+      />
+
+      <layer x={242} y={35} w={228} h={232}>
+        <rect x="center" y="center" w="fill" h="fill" fill color={UnlockColor.BLACK} transparency={200} />
+        <text
+          x={8}
+          y={5}
+          w={212}
+          h={221}
+          align="left"
+          valign="top"
+          shadow
+          lineHeight={20}
+          font={UnlockFonts.BODY}
+          color={0xefefef}
+          text={info}
+        />
+        <ThinBox />
+      </layer>
+
+      <layer x={10} y={86} w={212} h={181}>
+        <ThinBox />
+      </layer>
+
+      <layer ref={list} x={12} y={88} w={208} h={177} scrollHeight={content}>
+        {slots.map((_slot, i) => (
+          <QuestLine offset={start + i} index={i} shown={i < lines ? 1 : 0} />
+        ))}
+
+        {lines <= Layout.QUEST_LINES_VISIBLE && (
+          <rect
+            x={0}
+            y={Layout.QUEST_LINE_H * lines}
+            w="fill"
+            h={{ fill: Layout.QUEST_LINE_H * lines }}
+            fill
+            color={UnlockColor.BLACK}
+            transparency={lines % 2 === 0 ? 200 : 220}
+          />
+        )}
+      </layer>
+
+      <layer x={221} y={86} w={16} h={181}>
+        <ScrollbarVertical
+          content={list}
+          track={UnlockSprites.SCROLL_TRACK}
+          capTopSprite={UnlockSprites.SCROLL_CAP_TOP}
+          thumbSprite={UnlockSprites.SCROLL_THUMB}
+          capBottomSprite={UnlockSprites.SCROLL_CAP_BOTTOM}
+          arrowUp={UnlockSprites.SCROLL_BAR_TOP}
+          arrowDown={UnlockSprites.SCROLL_BAR_BOTTOM}
+        />
+      </layer>
+
+      <ConfirmButton
+        x={0}
+        skin={ButtonStyles.at(ButtonStyle.DECLINE)}
+        hoverSkin={ButtonStyles.at(ButtonStyle.DECLINE_HOVER)}
+        option="Close"
+        swap={desktop()}
+        action={ConfirmAction.CLOSE_INFO}
+        bottom={7}
+      />
+
+      <text
+        x={202}
+        y={{ bottom: 8 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={14857104}
+        text="Close"
+      />
+      <text
+        x={201}
+        y={{ bottom: 9 }}
+        w={75}
+        h={32}
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={UnlockColor.BLACK}
+        text="Close"
+      />
+    </layer>
+  );
+}
+
+const MAX_LINES = 33;
+
+function QuestLine({ offset, index, shown }: { offset: Int; index: Int; shown: Int }): Component {
+  const step = QuestSteps.at(offset);
+  const name: String = step === null ? '' : step.name;
+  const rfd: RfdStep = step === null ? RfdStep.NONE : step.rfd;
+  const quest: Int = step === null ? -1 : step.quest;
+
+  const y: Int = index * Layout.QUEST_LINE_H;
+  const done: Int =
+    rfd === RfdStep.NONE ? useDerived(() => questDone(quest as Quest)) : useDerived(() => rfdComplete(rfd));
+
+  return (
+    <>
+      <rect
+        x={0}
+        y={y}
+        w="fill"
+        h={Layout.QUEST_LINE_H}
+        fill
+        color={UnlockColor.BLACK}
+        transparency={index % 2 === 0 ? 200 : 220}
+        hide={shown === 1 ? false : true}
+      />
+      <text
+        hide={shown === 1 ? false : true}
+        x={5}
+        y={y}
+        w={{ fill: 5 }}
+        h={Layout.QUEST_LINE_H}
+        align="left"
+        valign="middle"
+        shadow
+        lineHeight={Layout.QUEST_LINE_H}
+        font={UnlockFonts.BODY}
+        text={done === 1 ? `<col=9f9f9f>${name}` : `<col=29ffbd>${name}`}
+      />
+    </>
+  );
+}

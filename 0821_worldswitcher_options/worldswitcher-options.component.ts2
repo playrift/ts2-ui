@@ -1,0 +1,149 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import { Colour as WorldColour, Metric, SortKey } from '../0069_worldswitcher/worldswitcher.constants';
+import { favouritesHint, footerHeight, headerHeight } from '../0069_worldswitcher/worldswitcher.helpers';
+import { SortButton } from '../0069_worldswitcher/sort-button.component';
+import { FilterBar } from './filter-bar.component';
+import { Layout, OptionsFonts, OptionsSprites, TITLE, UNTITLED_INSET } from './worldswitcher-options.constants';
+import { worldSwitcherSearchGet } from './worldswitcher-options.helpers';
+
+export function WorldSwitcherOptions(): Component {
+  const [polls, setPolls] = useState(0);
+  const loaded: Boolean = CS2.worldlist_fetch();
+  useInterval(
+    loaded
+      ? undefined
+      : () => {
+          if (CS2.worldlist_fetch()) {
+            setPolls(polls + 1);
+          }
+        },
+  );
+
+  const footerH: Int = footerHeight();
+  const headerH: Int = loaded ? headerHeight() : Metric.HEADER_H;
+  const bodyInsetH: Int = Layout.BODY_Y + footerH + UNTITLED_INSET;
+  const searched: Boolean = CS2.string_length(worldSwitcherSearchGet()) > 0;
+
+  const viewport = useRef();
+
+  return (
+    <layer x="center" y="center" w={Layout.PANEL_W} h="fill">
+      <SteelBorderEntrypoint title={TITLE} />
+
+      <layer x="center" y={Layout.BAR_Y} w={{ fill: Layout.BAR_INSET_W }} h={Layout.BAR_H}>
+        <FilterBar />
+      </layer>
+
+      <layer x="center" y={Layout.BODY_Y} w={{ fill: UNTITLED_INSET * 2 }} h={{ fill: bodyInsetH }}>
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: Layout.BACKING_INSET }}
+          h={{ fill: Layout.BACKING_INSET }}
+          sprite={OptionsSprites.BACKING}
+          tiling
+        />
+        <layer x="center" y="center" w={{ fill: Layout.INNER_INSET }} h={{ fill: Layout.INNER_INSET }}>
+          <layer x="center" w="fill" h={headerH}>
+            <rect x="center" y="center" w="fill" h="fill" fill transparency={Layout.HEADER_WASH_TRANS} />
+            <SortButton
+              x={Layout.SORT_1_X}
+              w={Layout.SORT_W}
+              asc={SortKey.MEMBERS_ASC}
+              desc={SortKey.MEMBERS_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_2_X}
+              w={Layout.SORT_W}
+              asc={SortKey.WORLD_ASC}
+              desc={SortKey.WORLD_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_3_X}
+              w={Layout.SORT_W}
+              asc={SortKey.COUNTRY_ASC}
+              desc={SortKey.COUNTRY_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_4_X}
+              w={Layout.SORT_W}
+              asc={SortKey.PLAYERS_ASC}
+              desc={SortKey.PLAYERS_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_5_X}
+              w={Layout.SORT_W}
+              asc={SortKey.ACTIVITY_ASC}
+              desc={SortKey.ACTIVITY_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+          </layer>
+
+          <layer
+            ref={viewport}
+            w={{ fill: Layout.SCROLLBAR_W }}
+            h={{ fill: headerH }}
+            y="bottom"
+            hide={!loaded}
+            scrollY={0}
+          >
+            <layer x="center" w="fill" h="fill" />
+            <layer x="center" w="fill" h="fill" />
+          </layer>
+
+          <layer w={Layout.SCROLLBAR_W} h={{ fill: headerH }} x="right" y="bottom">
+            <ScrollbarVertical
+              content={viewport}
+              track={ScrollbarSprites.TRACK}
+              capTopSprite={ScrollbarSprites.CAP_TOP}
+              thumbSprite={ScrollbarSprites.THUMB}
+              capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+              arrowUp={ScrollbarSprites.ARROW_UP}
+              arrowDown={ScrollbarSprites.ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+        <ThinBoxEntrypoint />
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.FOOTER_BOTTOM }} w={{ fill: Layout.FOOTER_INSET_W }} h={footerH}>
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={OptionsFonts.BODY}
+          align="center"
+          valign="middle"
+          shadow
+          color={WorldColour.ORANGE}
+          text={favouritesHint()}
+        />
+        <layer x="center" w={{ fill: Layout.FAVOURITE_INSET_W }} h={Layout.FAVOURITE_H} options={['Switch', 'Clear']} />
+        <layer
+          x="center"
+          y="bottom"
+          w={{ fill: Layout.FAVOURITE_INSET_W }}
+          h={Layout.FAVOURITE_H}
+          options={['Switch', 'Clear']}
+        />
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </layer>
+  );
+}

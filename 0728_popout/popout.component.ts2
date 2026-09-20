@@ -1,0 +1,397 @@
+import { CS2, onMounted, onUpdated, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
+
+import { gameframeSlot, GameframeSlot } from '../lib/lib.gameframe';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { popoutState } from '../0601_toplevel_osm/toplevel-osm.helpers';
+import { Skills } from '../0320_stats/stats.constants';
+import { xptrackerSkillTransmit, xptrackerTick } from '../0729_xptracker/xptracker.state';
+import { PopoutTab, PopoutTabs } from './popout.data';
+import { popoutBodyRef, popoutContentRef, popoutSlotsRef, popoutTipRef, popoutTrackerSlotRef } from './popout.refs';
+import {
+  PopoutArm,
+  popoutArm,
+  popoutDesktopTabsBuilt,
+  popoutMobileTabsBuilt,
+  popoutReset,
+  popoutTabAvailable,
+  popoutToggleState,
+} from './popout.state';
+
+const enum Tabs {
+  DESKTOP_ICON = 30,
+  DESKTOP_STEP = 36,
+  PLATE_W = 52,
+  PLATE_H = 40,
+  MOBILE_STEP = 39,
+  MOBILE_ICON_LIFT = 5,
+  HOVER = 128,
+}
+
+const enum Frame {
+  COLUMN_W = 58,
+  BORDER = 32,
+  BORDER_SPAN = 64,
+  SLICE = 3,
+  BUTTON_INSET = 3,
+  BUTTON_W = 52,
+  BUTTON_H = 40,
+  LIST_INSET_H = 44,
+  DESKTOP_TABS_RIGHT = 6,
+  DESKTOP_TABS_W = 30,
+  DESKTOP_TABS_INSET_H = 12,
+  CONTENT_X = 6,
+  CONTENT_INSET_W = 48,
+  CONTENT_INSET_H = 12,
+  SLOT_W = 512,
+  SLOT_H = 334,
+}
+
+export function Popout(): Component {
+  return (
+    <>
+      <layer x={0} y={0} w={0} h={0} onLoad={() => popoutReset()} />
+      <layer static ref={popoutBodyRef} x={{ right: 0 }} y={0} w="fill" h="fill">
+        <layer static ref={popoutSlotsRef} x={0} y={0} w="fill" h="fill">
+          <layer static ref={popoutTrackerSlotRef} x={0} y={0} w={Frame.SLOT_W} h={Frame.SLOT_H} />
+          <layer x={0} y={0} w={1} h={1}>
+            <PopoutTrackerHooks />
+          </layer>
+        </layer>
+        <layer x={0} y={0} w="fill" h="fill">
+          <PopoutChrome />
+        </layer>
+        <layer static ref={popoutTipRef} x={0} y={0} w="fill" h="fill" />
+        <layer
+          static
+          ref={popoutContentRef}
+          x={Frame.CONTENT_X}
+          y={Frame.CONTENT_X}
+          w={{ fill: Frame.CONTENT_INSET_W }}
+          h={{ fill: Frame.CONTENT_INSET_H }}
+        />
+      </layer>
+      <layer x={0} y={0} w={1} h={1}>
+        <PopoutLayout />
+      </layer>
+    </>
+  );
+}
+
+export function PopoutChrome(): Component {
+  const [arm] = useState(popoutArm);
+  const [desktopBuilt] = useState(popoutDesktopTabsBuilt);
+  const [mobileBuilt] = useState(popoutMobileTabsBuilt);
+  const open: Int = useServerState(Varbits.POPOUT_OPEN);
+  const state: Int = popoutState();
+  const mobileArm: Boolean = arm === PopoutArm.MOBILE;
+  const hasContent: Boolean = CS2.if_sub_has(popoutContentRef);
+
+  const openRow = PopoutTabs.get(open);
+  const openIcon: Sprite = openRow === null ? -1 : openRow.icon;
+  const showOpenIcon: Boolean = mobileArm && open !== 0 && openIcon !== -1;
+  let buttonIcon: Sprite = Sprites.SIDE_ICONS_43;
+  let buttonOp: String = 'Expand';
+  if (mobileArm && state === 1) {
+    buttonIcon = Sprites.SIDE_ICONS_52;
+    buttonOp = 'Minimise';
+  } else if (mobileArm && state === 2) {
+    buttonIcon = Sprites.SIDE_ICONS_44;
+    buttonOp = 'Close';
+  }
+  const chatH: Int = mobileArm && state === 1 ? CS2.if_height_get(gameframeSlot(GameframeSlot.CHAT_CONTAINER)) : 0;
+  const listHidden: Boolean = mobileArm && state !== 1;
+  const frameHidden: Boolean = mobileArm && !hasContent;
+
+  return (
+    <>
+      <layer x={{ right: 0 }} y={0} w="fill" h="fill" hide={arm !== PopoutArm.DESKTOP}>
+        <layer x={0} y={0} w="fill" h="fill" noClickThrough>
+          <StoneFrame divider={1} />
+        </layer>
+        <layer
+          x={{ right: Frame.DESKTOP_TABS_RIGHT }}
+          y="center"
+          w={Frame.DESKTOP_TABS_W}
+          h={{ fill: Frame.DESKTOP_TABS_INSET_H }}
+        >
+          {desktopBuilt === 1 &&
+            PopoutTabs.filter((row, key) => popoutTabAvailable(key)).map((row, key, index) => (
+              <DesktopTab tab={key} index={index} />
+            ))}
+        </layer>
+      </layer>
+      <layer x={0} y={{ bottom: 0 }} w="fill" h="fill" hide={arm === PopoutArm.DESKTOP}>
+        <layer
+          x={0}
+          y={mobileArm && state === 1 ? { bottom: 4 } : mobileArm && state === 2 ? { bottom: 0 } : 0}
+          w={Frame.COLUMN_W}
+          h={mobileArm && state === 1 ? 284 : mobileArm && state === 2 ? 46 : 'fill'}
+          noClickThrough
+        >
+          <NineSlice />
+          <layer
+            x={Frame.BUTTON_INSET}
+            y={{ bottom: Frame.BUTTON_INSET }}
+            w={Frame.BUTTON_W}
+            h={Frame.BUTTON_H}
+            noClickThrough
+            optionSubject="<col=ff9040>Popout"
+            options={mobileArm ? [buttonOp] : undefined}
+            onOptionSelect={() => popoutToggleState()}
+          >
+            <sprite x="center" y="center" w={52} h={40} sprite={Sprites.TLI_BUTTON01_RECTANGLE_52X40_0} />
+            <sprite x={showOpenIcon ? { right: 0 } : 'center'} y="center" w={33} h={36} sprite={buttonIcon} />
+            <sprite
+              x={0}
+              y="center"
+              w={30}
+              h={30}
+              sprite={showOpenIcon ? openIcon : Sprites.SIDE_ICONS_18}
+              hide={!showOpenIcon}
+            />
+          </layer>
+          <layer
+            x={Frame.BUTTON_INSET}
+            y={Frame.BUTTON_INSET}
+            w={Frame.BUTTON_W}
+            h={{ fill: Frame.LIST_INSET_H }}
+            noClickThrough
+            hide={listHidden}
+          >
+            {mobileBuilt === 1 &&
+              PopoutTabs.filter((row, key) => popoutTabAvailable(key)).map((row, key, index) => (
+                <MobileTab tab={key} index={index} open={open} />
+              ))}
+          </layer>
+        </layer>
+        <layer
+          x={{ right: 0 }}
+          y={{ bottom: 0 }}
+          w={{ fill: Frame.COLUMN_W }}
+          h={mobileArm && state === 1 ? { fill: chatH + 14 } : 'fill'}
+          noClickThrough
+          hide={frameHidden}
+        >
+          <StoneFrame divider={0} />
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+function DesktopTab({ tab, index }: { tab: Int; index: Int }): Component {
+  const [wash, setWash] = useState(0);
+  const open: Int = useServerState(Varbits.POPOUT_OPEN);
+  const row = PopoutTabs.get(tab);
+  if (row === null) {
+    return null;
+  }
+  return (
+    <sprite
+      x="center"
+      y={index * Tabs.DESKTOP_STEP}
+      w={Tabs.DESKTOP_ICON}
+      h={Tabs.DESKTOP_ICON}
+      sprite={row.icon}
+      transparency={wash}
+      options={[open === tab ? 'Close' : 'Open']}
+      optionSubject={`<col=ff9040>${row.name}</col>`}
+      onMouseRepeat={() => setWash(Tabs.HOVER)}
+      onMouseLeave={() => setWash(0)}
+    />
+  );
+}
+
+function MobileTab({ tab, index, open }: { tab: Int; index: Int; open: Int }): Component {
+  const row = PopoutTabs.get(tab);
+  if (row === null) {
+    return null;
+  }
+  const bottom: Int = index * Tabs.MOBILE_STEP;
+  return (
+    <>
+      <sprite
+        x="center"
+        y={{ bottom: bottom }}
+        w={Tabs.PLATE_W}
+        h={Tabs.PLATE_H}
+        sprite={open === tab ? Sprites.TLI_BUTTON01_RECTANGLE_52X40_1 : Sprites.TLI_BUTTON01_RECTANGLE_52X40_0}
+        options={[open === tab ? 'Close' : 'Open']}
+        optionSubject={`<col=ff9040>${row.name}</col>`}
+        noClickThrough
+      />
+      <sprite
+        x="center"
+        y={{ bottom: bottom + Tabs.MOBILE_ICON_LIFT }}
+        w={Tabs.DESKTOP_ICON}
+        h={Tabs.DESKTOP_ICON}
+        sprite={row.icon}
+      />
+    </>
+  );
+}
+
+export function PopoutTrackerHooks(): Component {
+  const [desktopBuilt] = useState(popoutDesktopTabsBuilt);
+  const [mobileBuilt] = useState(popoutMobileTabsBuilt);
+  const hooked: Boolean = (desktopBuilt === 1 || mobileBuilt === 1) && popoutTabAvailable(PopoutTab.XP_TRACKER);
+  return <>{hooked && <TrackerHooks />}</>;
+}
+
+function TrackerHooks(): Component {
+  const host = useRef();
+  useWatch(
+    [
+      Skills.ATTACK,
+      Skills.DEFENCE,
+      Skills.STRENGTH,
+      Skills.HITPOINTS,
+      Skills.RANGED,
+      Skills.PRAYER,
+      Skills.MAGIC,
+      Skills.COOKING,
+      Skills.WOODCUTTING,
+      Skills.FLETCHING,
+      Skills.FISHING,
+      Skills.FIREMAKING,
+      Skills.CRAFTING,
+      Skills.SMITHING,
+      Skills.MINING,
+      Skills.HERBLORE,
+      Skills.AGILITY,
+      Skills.THIEVING,
+      Skills.SLAYER,
+      Skills.FARMING,
+      Skills.RUNECRAFT,
+      Skills.HUNTER,
+      Skills.CONSTRUCTION,
+      Skills.SAILING,
+    ],
+    () => xptrackerSkillTransmit(),
+    host,
+  );
+  useInterval(() => xptrackerTick(), host);
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+export function PopoutLayout(): Component {
+  const [arm] = useState(popoutArm);
+  const state: Int = popoutState();
+  const chatH: Int =
+    arm === PopoutArm.MOBILE && state === 1 ? CS2.if_height_get(gameframeSlot(GameframeSlot.CHAT_CONTAINER)) : 0;
+  onMounted(() => placePopout(arm, state, chatH));
+  onUpdated(() => placePopout(arm, state, chatH));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placePopout(arm: Int, state: Int, chatH: Int): void {
+  popoutBodyRef.props = { hide: arm === PopoutArm.HIDDEN };
+  if (arm === PopoutArm.DESKTOP) {
+    popoutContentRef.props = { hide: false, x: 6, y: 6, w: { fill: 48 }, h: { fill: 12 } };
+  } else if (arm === PopoutArm.MOBILE && state === 1) {
+    popoutContentRef.props = { hide: false, x: { right: 6 }, y: 20 + chatH, w: { fill: 6 }, h: { fill: 26 + chatH } };
+  } else if (arm === PopoutArm.MOBILE && state === 2) {
+    popoutContentRef.props = { hide: false, x: { right: 6 }, y: 6, w: 'fill', h: { fill: 12 } };
+  } else if (arm === PopoutArm.MOBILE) {
+    popoutContentRef.props = { hide: true, x: { right: 6 }, y: 6, w: { fill: 70 }, h: { fill: 12 } };
+  } else {
+    popoutContentRef.props = { hide: false, x: 6, y: 6, w: { fill: 48 }, h: { fill: 12 } };
+  }
+}
+
+function StoneFrame({ divider }: { divider: Int }): Component {
+  const withDivider: Boolean = divider === 1;
+  return (
+    <>
+      <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={Sprites.TRADEBACKING} tiling />
+      <sprite
+        x={{ right: -12 }}
+        y={Frame.BORDER}
+        w={Frame.BORDER}
+        h={{ fill: Frame.BORDER_SPAN }}
+        sprite={Sprites.V2_STONE_BORDERS_13}
+        tiling
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: 0 }}
+        w={Frame.BORDER}
+        h={Frame.BORDER}
+        sprite={Sprites.V2_STONE_BORDERS_21}
+      />
+      <sprite x={{ right: 0 }} y={0} w={Frame.BORDER} h={Frame.BORDER} sprite={Sprites.V2_STONE_BORDERS_19} />
+      <sprite
+        x={Frame.BORDER}
+        y={-14}
+        w={{ fill: Frame.BORDER_SPAN }}
+        h={Frame.BORDER}
+        sprite={Sprites.V2_STONE_BORDERS_0}
+      />
+      <sprite
+        x={Frame.BORDER}
+        y={{ bottom: -12 }}
+        w={{ fill: Frame.BORDER_SPAN }}
+        h={Frame.BORDER}
+        sprite={Sprites.V2_STONE_BORDERS_8}
+      />
+      <sprite
+        x={{ right: 24 }}
+        y="center"
+        w={Frame.BORDER}
+        h={{ fill: 21 }}
+        sprite={Sprites.V2_STONE_BORDERS_13}
+        tiling
+        hide={!withDivider}
+      />
+      <sprite
+        x={{ right: 24 }}
+        y={-1}
+        w={Frame.BORDER}
+        h={Frame.BORDER}
+        sprite={Sprites.V2_STONE_BORDERS_12}
+        hide={!withDivider}
+      />
+      <sprite
+        x={{ right: 23 }}
+        y={{ bottom: 0 }}
+        w={Frame.BORDER}
+        h={Frame.BORDER}
+        sprite={Sprites.V2_STONE_BORDERS_15}
+        hide={!withDivider}
+      />
+      <sprite
+        x={-14}
+        y={Frame.BORDER}
+        w={Frame.BORDER}
+        h={{ fill: Frame.BORDER_SPAN }}
+        sprite={Sprites.V2_STONE_BORDERS_1}
+        tiling
+      />
+      <sprite x={0} y={0} w={Frame.BORDER} h={Frame.BORDER} sprite={Sprites.V2_STONE_BORDERS_18} />
+      <sprite x={0} y={{ bottom: 0 }} w={Frame.BORDER} h={Frame.BORDER} sprite={Sprites.V2_STONE_BORDERS_20} />
+    </>
+  );
+}
+
+function NineSlice(): Component {
+  return (
+    <>
+      <sprite x={0} y={0} w={Frame.SLICE} h={Frame.SLICE} sprite={Sprites._9SLICE_DARK01_3X3_0} />
+      <sprite x={{ right: 0 }} y={0} w={Frame.SLICE} h={Frame.SLICE} sprite={Sprites._9SLICE_DARK01_3X3_2} />
+      <sprite x="center" y={0} w={{ fill: 6 }} h={Frame.SLICE} sprite={Sprites._9SLICE_DARK01_3X3_1} />
+      <sprite x={0} y="center" w={Frame.SLICE} h={{ fill: 6 }} sprite={Sprites._9SLICE_DARK01_3X3_3} />
+      <sprite x="center" y="center" w={{ fill: 6 }} h={{ fill: 6 }} sprite={Sprites._9SLICE_DARK01_3X3_4} />
+      <sprite x={{ right: 0 }} y="center" w={Frame.SLICE} h={{ fill: 6 }} sprite={Sprites._9SLICE_DARK01_3X3_5} />
+      <sprite x={0} y={{ bottom: 0 }} w={Frame.SLICE} h={Frame.SLICE} sprite={Sprites._9SLICE_DARK01_3X3_6} />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: 0 }}
+        w={Frame.SLICE}
+        h={Frame.SLICE}
+        sprite={Sprites._9SLICE_DARK01_3X3_8}
+      />
+      <sprite x="center" y={{ bottom: 0 }} w={{ fill: 6 }} h={Frame.SLICE} sprite={Sprites._9SLICE_DARK01_3X3_7} />
+    </>
+  );
+}

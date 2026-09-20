@@ -1,0 +1,227 @@
+import { onUpdated, useRef, useState, useServerState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { CaColour, CaFont, CaScrollbar } from '../0716_ca_bosses/ca-shared.constants';
+import { CaBosses } from '../0716_ca_bosses/ca-shared.data';
+
+import { CaBossArt, CaBossLayout, CaBossTabId, CaBossText, caBossTab } from './ca-boss.constants';
+
+export function caBossTabsInit(): void {
+  const [, setTab] = useState(caBossTab);
+  setTab(CaBossTabId.OVERVIEW);
+}
+
+export function CaBossTabs(): Component {
+  const [tab] = useState(caBossTab);
+  const mobile: Boolean = onMobile();
+  return (
+    <>
+      <CaBossTab tab={CaBossTabId.OVERVIEW} selected={tab} label={CaBossText.OVERVIEW} x={0} mobile={mobile} />
+      <CaBossTab
+        tab={CaBossTabId.DIFFICULTY}
+        selected={tab}
+        label={CaBossText.DIFFICULTY}
+        x={CaBossLayout.TAB_W}
+        mobile={mobile}
+      />
+    </>
+  );
+}
+
+function CaBossTab({
+  tab,
+  selected,
+  label,
+  x,
+  mobile,
+}: {
+  tab: Int;
+  selected: Int;
+  label: String;
+  x: Int;
+  mobile: Boolean;
+}): Component {
+  if (tab === selected) {
+    return (
+      <layer x={x} y={0} w={CaBossLayout.TAB_W} h="fill" options={['View']}>
+        <sprite
+          x={0}
+          y={0}
+          w={CaBossLayout.TAB_CAP_W}
+          h={CaBossLayout.TAB_FACE_H}
+          sprite={CaBossArt.TAB_SELECTED_CAP}
+        />
+        <sprite
+          x={CaBossLayout.TAB_CAP_W}
+          y={0}
+          w={{ fill: CaBossLayout.TAB_MID_INSET }}
+          h={CaBossLayout.TAB_FACE_H}
+          sprite={CaBossArt.TAB_SELECTED_MID}
+          tiling
+        />
+        <sprite
+          x="right"
+          y={0}
+          w={CaBossLayout.TAB_CAP_W}
+          h={CaBossLayout.TAB_FACE_H}
+          sprite={CaBossArt.TAB_SELECTED_CAP}
+          hflip
+        />
+        <text
+          x="center"
+          y={CaBossLayout.TAB_TEXT_Y}
+          w="fill"
+          h={CaBossLayout.TAB_TEXT_H}
+          text={label}
+          font={CaFont.BODY}
+          shadow
+          align="center"
+          valign="middle"
+          color={CaColour.TAB_SELECTED}
+        />
+      </layer>
+    );
+  }
+  return (
+    <layer x={x} y={0} w={CaBossLayout.TAB_W} h="fill">
+      <CaBossTabIdle tab={tab} label={label} x={0} mobile={mobile} />
+    </layer>
+  );
+}
+
+function CaBossTabIdle({ tab, label, x, mobile }: { tab: Int; label: String; x: Int; mobile: Boolean }): Component {
+  const [, setTab] = useState(caBossTab);
+  const [lit, setLit] = useState(0);
+  return (
+    <layer
+      x={x}
+      y={0}
+      w={CaBossLayout.TAB_W}
+      h="fill"
+      options={['View']}
+      onOptionSelect={() => setTab(tab)}
+      onMouseRepeat={
+        mobile
+          ? undefined
+          : () => {
+              setLit(1);
+            }
+      }
+      onMouseLeave={
+        mobile
+          ? undefined
+          : () => {
+              setLit(0);
+            }
+      }
+    >
+      <sprite
+        x={0}
+        y={0}
+        w={CaBossLayout.TAB_CAP_W}
+        h={CaBossLayout.TAB_FACE_H}
+        sprite={lit === 1 ? CaBossArt.TAB_HOVER_CAP : CaBossArt.TAB_REST_CAP}
+      />
+      <sprite
+        x={CaBossLayout.TAB_CAP_W}
+        y={0}
+        w={{ fill: CaBossLayout.TAB_MID_INSET }}
+        h={CaBossLayout.TAB_FACE_H}
+        sprite={lit === 1 ? CaBossArt.TAB_HOVER_MID : CaBossArt.TAB_REST_MID}
+        tiling
+      />
+      <sprite
+        x="right"
+        y={0}
+        w={CaBossLayout.TAB_CAP_W}
+        h={CaBossLayout.TAB_FACE_H}
+        sprite={lit === 1 ? CaBossArt.TAB_HOVER_CAP : CaBossArt.TAB_REST_CAP}
+        hflip
+      />
+      <text
+        x="center"
+        y={CaBossLayout.TAB_TEXT_Y}
+        w="fill"
+        h={CaBossLayout.TAB_TEXT_H}
+        text={label}
+        font={CaFont.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        color={CaColour.TAB_REST}
+      />
+    </layer>
+  );
+}
+
+function caBossTabString(tab: Int): String {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  if (row === null) {
+    return '';
+  }
+  if (tab === CaBossTabId.DIFFICULTY) {
+    return row.difficulty;
+  }
+  return row.overview;
+}
+
+export function CaBossTabPane(): Component {
+  const box = useUniverse();
+  const paneWidth: Int = box.width - CaBossLayout.INFO_CONTENT_INSET_W;
+  const paneHeight: Int = box.height - CaBossLayout.INFO_CONTENT_INSET_H;
+
+  const [tab] = useState(caBossTab);
+  const text: String = caBossTabString(tab);
+  const extent: Int =
+    textLineCount(text, paneWidth, CaFont.BODY) * CaBossLayout.INFO_LINE_H + CaBossLayout.INFO_TEXT_PAD;
+
+  const pane = useRef();
+  onUpdated(() => {
+    pane.scrollY = 0;
+  });
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={CaBossLayout.INFO_CONTENT_X}
+        y={CaBossLayout.INFO_CONTENT_Y}
+        w={{ fill: CaBossLayout.INFO_CONTENT_INSET_W }}
+        h={{ fill: CaBossLayout.INFO_CONTENT_INSET_H }}
+        scrollHeight={extent > paneHeight ? extent : 0}
+      >
+        <text
+          x="center"
+          y={CaBossLayout.INFO_TEXT_Y}
+          w="fill"
+          h={{ fill: CaBossLayout.INFO_TEXT_INSET_H }}
+          text={text}
+          font={CaFont.BODY}
+          shadow
+          color={CaColour.AMBER}
+          lineHeight={CaBossLayout.INFO_LINE_H}
+        />
+      </layer>
+
+      <layer
+        x={{ right: CaBossLayout.INFO_SCROLLBAR_RIGHT }}
+        y="center"
+        w={CaBossLayout.INFO_SCROLLBAR_W}
+        h={{ fill: CaBossLayout.INFO_SCROLLBAR_INSET_H }}
+      >
+        <ScrollbarVertical
+          content={pane}
+          track={CaScrollbar.TRACK}
+          capTopSprite={CaScrollbar.CAP_TOP}
+          thumbSprite={CaScrollbar.THUMB}
+          capBottomSprite={CaScrollbar.CAP_BOTTOM}
+          arrowUp={CaScrollbar.ARROW_UP}
+          arrowDown={CaScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}

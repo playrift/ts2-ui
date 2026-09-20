@@ -1,0 +1,111 @@
+import { CS2, useServerState } from 'ts2';
+
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import { gameframeSlot, GameframeSlot } from '../lib/lib.gameframe';
+import { Hint, Metric, SortKey, Title, TITLED_INSET, Layout, WorldBits } from './worldswitcher.constants';
+
+export function rowHeight(): Int {
+  if (onMobile()) {
+    return Metric.ROW_H_MOBILE;
+  }
+  return Metric.ROW_H;
+}
+
+export function headerHeight(): Int {
+  if (onMobile()) {
+    return Metric.HEADER_H_MOBILE;
+  }
+  return Metric.HEADER_H;
+}
+
+export function footerHeight(): Int {
+  if (onMobile()) {
+    return Metric.FOOTER_H_MOBILE;
+  }
+  return Metric.FOOTER_H;
+}
+
+export function bodyInsetBottom(): Int {
+  return Layout.BODY_Y + footerHeight() + TITLED_INSET;
+}
+
+export function favouritesHint(): String {
+  return textDevice(Hint.DESKTOP, Hint.MOBILE);
+}
+
+export function worldSwitcherTitle(loaded: Boolean): String {
+  if (!loaded) {
+    return Title.LOADING;
+  }
+  if (useServerState(WorldBits.OPTIONS_OPEN) === 1) {
+    if (CS2.if_sub_has(gameframeSlot(GameframeSlot.VIEWPORT))) {
+      return Title.CONFIGURING;
+    }
+  }
+  return `Current world - ${CS2.map_world()}`;
+}
+
+export function applySort(sort: Int): void {
+  switch (sort) {
+    case SortKey.MEMBERS_ASC:
+      CS2.worldlist_sort(7, false, 0, false);
+      return;
+    case SortKey.MEMBERS_DESC:
+      CS2.worldlist_sort(7, true, 0, false);
+      return;
+    case SortKey.COUNTRY_ASC:
+      CS2.worldlist_sort(2, false, 0, false);
+      return;
+    case SortKey.COUNTRY_DESC:
+      CS2.worldlist_sort(2, true, 0, false);
+      return;
+    case SortKey.PLAYERS_ASC:
+      CS2.worldlist_sort(1, false, 0, false);
+      return;
+    case SortKey.PLAYERS_DESC:
+      CS2.worldlist_sort(1, true, 0, false);
+      return;
+    case SortKey.ACTIVITY_ASC:
+      CS2.worldlist_sort(3, false, 0, false);
+      return;
+    case SortKey.ACTIVITY_DESC:
+      CS2.worldlist_sort(3, true, 0, false);
+      return;
+    case SortKey.WORLD_DESC:
+      CS2.worldlist_sort(0, true, 7, false);
+      return;
+  }
+  CS2.worldlist_sort(0, false, 7, false);
+}
+
+export function columnFiltered(column: Int, searched: Boolean): Boolean {
+  if (column === SortKey.MEMBERS_ASC) {
+    return useServerState(WorldBits.FILTER_MEMBER) !== 0;
+  }
+  if (column === SortKey.COUNTRY_ASC) {
+    return useServerState(WorldBits.FILTER_COUNTRY) !== 0;
+  }
+  if (column === SortKey.ACTIVITY_ASC) {
+    if (searched) {
+      return true;
+    }
+    return useServerState(WorldBits.FILTER_THEME) !== 0;
+  }
+  return false;
+}
+
+export function worldCount(): Int {
+  let count: Int = 0;
+  let [world, flags, activity, country, players, host] = CS2.worldlist_start();
+  while (world > 0) {
+    count = count + 1;
+    const [w2, f2, a2, c2, p2, h2] = CS2.worldlist_next();
+    world = w2;
+    flags = f2;
+    activity = a2;
+    country = c2;
+    players = p2;
+    host = h2;
+  }
+  return count;
+}

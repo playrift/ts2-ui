@@ -1,0 +1,52 @@
+import { CS2, useServerState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { InventoryVarbits, OpPriority, SHIFT_KEY } from './inventory.constants';
+import { InventoryOpSlots } from './inventory-op-slots.data';
+
+export function shiftHeld(): Int {
+  return CS2.key_held(SHIFT_KEY) ? 1 : 0;
+}
+
+export function dropSettingOn(): Int {
+  const mobile: Boolean = onMobile();
+  const desktopDrop: Int = useServerState(InventoryVarbits.DESKTOP_SHIFT_DROP);
+  const mobileDrop: Int = useServerState(InventoryVarbits.MOBILE_TAP_DROP);
+  if (mobile === false && desktopDrop === 1) {
+    return 1;
+  }
+  if (mobile === true && mobileDrop === 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function shiftClickDropActive(shift: Int): Int {
+  if (dropSettingOn() === 1 && (shift === 1 || CS2.tap_to_drop_get())) {
+    return 1;
+  }
+  return 0;
+}
+
+export function opSlot(iop: Int): Int {
+  return InventoryOpSlots.get(iop) ?? -1;
+}
+
+export function swapSlot(item: Item): Int {
+  return CS2.item_shiftclickop(item);
+}
+
+export function opPriority(item: Item): Int {
+  const priority: Int = opSlot(item.opPriorityGroup ?? -1);
+  if (priority < OpPriority.NONE) {
+    return OpPriority.MIN;
+  }
+  if (priority > OpPriority.MAX) {
+    return OpPriority.MAX;
+  }
+  return priority;
+}
+
+export function opLabel(item: Item, iop: Int): String {
+  return CS2.item_iop(item, iop);
+}

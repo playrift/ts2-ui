@@ -1,0 +1,189 @@
+import { useInterval, useRef, useState } from 'ts2';
+
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { onMobile } from '../lib/lib.helpers';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { ClanRankTitles } from '../0696_clans_storage_main/tables.data';
+import { ClanSearchButton } from './clan-members-shared.search-button.component';
+import {
+  ClanMembersColor,
+  ClanMembersFonts,
+  ClanMembersOps,
+  ClanMembersSounds,
+  ClanMembersSprites,
+  ClanMembersText,
+  ClanMembersWash,
+  HOVER_CYCLES,
+  Layout,
+  PRESS_CYCLES,
+} from './clans-members.constants';
+
+export function FiltersRow({
+  minTitle,
+  minIcon,
+  maxTitle,
+  maxIcon,
+}: {
+  minTitle: String;
+  minIcon: Sprite;
+  maxTitle: String;
+  maxIcon: Sprite;
+}): Component {
+  let widest: Int = 0;
+  let key: Int = WIDEST_RANK_KEY;
+  while (key > 0) {
+    widest = Math.max(widest, textWidth(ClanRankTitles.get(key) ?? '', MEASURE_WIDTH, ClanMembersFonts.BOLD));
+    key = key - 1;
+  }
+  const filterW: Int = 2 * (Layout.FILTER_PAD + Layout.FILTER_ICON + Layout.FILTER_PAD + widest / 2);
+
+  const toW: Int = textWidth(ClanMembersText.RANKS_TO, MEASURE_WIDTH, ClanMembersFonts.BODY);
+  const toRight: Int = filterW + Layout.FILTER_GAP;
+  const minRight: Int = toRight + toW + Layout.FILTER_GAP;
+  const fromW: Int = textWidth(ClanMembersText.RANKS_FROM, MEASURE_WIDTH, ClanMembersFonts.BODY);
+  const fromRight: Int = minRight + filterW + Layout.FILTER_GAP;
+  const searchInset: Int = fromRight + fromW + Layout.FILTER_GAP;
+
+  return (
+    <>
+      <layer x={0} y="center" w={{ fill: searchInset }} h="fill">
+        <ClanSearchButton />
+      </layer>
+
+      <layer x={{ right: minRight }} y="center" w={filterW} h="fill">
+        <RankFilterFace title={minTitle} icon={minIcon} subject={`<col=ff9040>${ClanMembersText.MIN_RANK}</col>`} />
+      </layer>
+
+      <layer x={{ right: 0 }} y="center" w={filterW} h="fill">
+        <RankFilterFace title={maxTitle} icon={maxIcon} subject={`<col=ff9040>${ClanMembersText.MAX_RANK}</col>`} />
+      </layer>
+
+      <text
+        x={{ right: toRight }}
+        y="center"
+        w={toW}
+        h="fill"
+        text={ClanMembersText.RANKS_TO}
+        font={ClanMembersFonts.BODY}
+        color={ClanMembersColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <text
+        x={{ right: fromRight }}
+        y="center"
+        w={fromW}
+        h="fill"
+        text={ClanMembersText.RANKS_FROM}
+        font={ClanMembersFonts.BODY}
+        color={ClanMembersColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+const WIDEST_RANK_KEY = 265;
+const MEASURE_WIDTH = 512;
+
+function RankFilterFace({ title, icon, subject }: { title: String; icon: Sprite; subject: String }): Component {
+  const root = useRef();
+  const [hovered, setHovered] = useState(0);
+  const [pressedAt, setPressedAt] = useState(-1);
+  const [restoreAt, setRestoreAt] = useState(-1);
+
+  const pressed: Int = pressedAt !== -1 ? 1 : 0;
+  let wash: Int = ClanMembersWash.FILTER_REST;
+  if (pressed === 1) {
+    wash = ClanMembersWash.FILTER_PRESSED;
+  } else if (hovered === 1 || restoreAt !== -1) {
+    wash = ClanMembersWash.FILTER_HOVER;
+  }
+
+  useInterval(
+    pressed === 1 || restoreAt !== -1
+      ? () => {
+          const since: Int = pressedAt;
+          const until: Int = restoreAt;
+          const now: Int = clientClock();
+          if (since !== -1) {
+            if (now >= since + PRESS_CYCLES) {
+              setPressedAt(-1);
+              setHovered(0);
+              setRestoreAt(now + HOVER_CYCLES);
+            }
+            return;
+          }
+          if (until !== -1 && now >= until) {
+            setRestoreAt(-1);
+          }
+        }
+      : undefined,
+    root,
+  );
+
+  const iconDx: Int =
+    0 - ((Layout.FILTER_ICON + textWidth(title, MEASURE_WIDTH, ClanMembersFonts.BOLD)) / 2 + Layout.FILTER_PAD);
+
+  return (
+    <layer
+      ref={root}
+      w="fill"
+      h="fill"
+      options={[ClanMembersOps.SET]}
+      optionSubject={subject}
+      onMouseRepeat={
+        pressed === 1
+          ? undefined
+          : () => {
+              if (onMobile()) {
+                return;
+              }
+              setHovered(1);
+            }
+      }
+      onMouseLeave={
+        pressed === 1
+          ? undefined
+          : () => {
+              setHovered(0);
+              setRestoreAt(-1);
+            }
+      }
+      onOptionSelect={
+        pressed === 1
+          ? undefined
+          : (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              playSound(ClanMembersSounds.CLICK);
+              setPressedAt(clientClock());
+              setRestoreAt(-1);
+            }
+      }
+    >
+      <sprite x="center" y="center" w="fill" h="fill" sprite={ClanMembersSprites.FILTER_PLATE} tiling />
+      <rect x="center" y="center" w="fill" h="fill" fill color={ClanMembersColor.WHITE} transparency={wash} />
+      <ThinBoxOutline />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={title}
+        font={ClanMembersFonts.BOLD}
+        color={ClanMembersColor.LABEL_HOT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      {icon !== -1 && (
+        <sprite x={{ center: iconDx }} y="center" w={Layout.FILTER_ICON} h={Layout.FILTER_ICON} sprite={icon} />
+      )}
+    </layer>
+  );
+}

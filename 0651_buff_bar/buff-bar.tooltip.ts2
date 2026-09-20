@@ -1,0 +1,218 @@
+import { sessionState, useServerState, useState } from 'ts2';
+
+import { CombatMasteries } from '../0311_league_combat_mastery/league-combat-mastery.data';
+import { relicTip } from '../0529_league_summary/league-summary.helpers';
+import { Fragments } from '../0735_league_3_fragments/fragments.data';
+import { enhancedAny, onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { buffBarTooltip, tooltipBuilt } from '../lib/game/varcs';
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { Buffs } from './buffs.data';
+
+export const BUFF_TIP_WRAP = 512;
+const TAP_CYCLES = 240;
+
+export const buffTipSlot = sessionState(-1);
+export const buffTipIndex = sessionState(-1);
+export const buffTipLeft = sessionState(0);
+export const buffTipBottom = sessionState(0);
+export const buffTipUntil = sessionState(-1);
+
+export const TIP_NONE = 0;
+export const TIP_HOVER = 1;
+export const TIP_TAP = 2;
+
+export function buffTipArm(): Int {
+  if (useServerState(Varbits.BUFF_BAR_TOOLTIPS_HIDDEN) === 1 || useServerState(Varbits.BUFF_BAR_HIDDEN) === 1) {
+    return TIP_NONE;
+  }
+  if (onMobile()) {
+    return TIP_TAP;
+  }
+  return TIP_HOVER;
+}
+
+export function buffTipsRebuilt(shown: Int): void {
+  if (shown <= 0) {
+    return;
+  }
+  const arm: Int = buffTipArm();
+  if (arm === TIP_NONE) {
+    const [, setOpen] = useState(buffBarTooltip);
+    closeBuffBox();
+    setOpen(-1);
+  } else if (arm === TIP_HOVER) {
+    const [, setBuilt] = useState(tooltipBuilt);
+    setBuilt(0);
+  }
+}
+
+function closeBuffBox(): void {
+  const [, setSlot] = useState(buffTipSlot);
+  tooltipHide();
+  setSlot(-1);
+}
+
+function openBuffBox(slot: Int, index: Int, left: Int, bottom: Int): void {
+  const [, setSlot] = useState(buffTipSlot);
+  const [, setIndex] = useState(buffTipIndex);
+  const [, setLeft] = useState(buffTipLeft);
+  const [, setBottom] = useState(buffTipBottom);
+  setSlot(slot);
+  setIndex(index);
+  setLeft(left);
+  setBottom(bottom);
+  tooltipRaise();
+}
+
+export function showBuffTip(slot: Int, index: Int, left: Int, bottom: Int): void {
+  const [shown] = useState(buffTipSlot);
+  const [shownIndex] = useState(buffTipIndex);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  tooltipMark();
+  if (shown !== -1 && shownIndex !== index) {
+    closeBuffBox();
+  }
+  if (!tooltipDwellElapsed(0)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  if (enhancedAny()) {
+    return;
+  }
+  openBuffBox(slot, index, left, bottom);
+}
+
+export function hideBuffTip(): void {
+  closeBuffBox();
+}
+
+export function tapBuffTip(slot: Int, index: Int, left: Int, bottom: Int): void {
+  const [open, setOpen] = useState(buffBarTooltip);
+  const [, setUntil] = useState(buffTipUntil);
+  if (open === index) {
+    closeBuffBox();
+    setOpen(-1);
+    return;
+  }
+  if (!enhancedAny()) {
+    openBuffBox(slot, index, left, bottom);
+  }
+  setOpen(index);
+  setUntil(clientClock() + TAP_CYCLES);
+}
+
+export function expireBuffTip(): void {
+  const [, setOpen] = useState(buffBarTooltip);
+  const [until] = useState(buffTipUntil);
+  if (clientClock() < until) {
+    return;
+  }
+  closeBuffBox();
+  setOpen(-1);
+}
+
+export function buffTipText(slot: Int): String {
+  const row = Buffs.at(slot);
+  if (row === null) {
+    return '';
+  }
+  if (row.tooltipFromValue === 1) {
+    return buffValueTip(slot);
+  }
+  return row.tooltip;
+}
+
+function buffValueTip(slot: Int): String {
+  switch (slot) {
+    case 49:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_0));
+    case 50:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_1));
+    case 51:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_2));
+    case 52:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_3));
+    case 53:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_4));
+    case 54:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_5));
+    case 55:
+      return fragmentTip(useServerState(Varbits.LEAGUE_3_FRAGMENT_LOADOUT_SLOT_6));
+    case 96:
+      return `Group woodcutting bonus: +${stringOf(useServerState(Varbits.GROUP_GATHERING_BUFF_VALUE))}`;
+    case 97:
+      return `Woodcutting leprechaun's luck: ${stringOf(useServerState(Varbits.GATHERING_EVENT_WOODCUTTING_LEPRECHAUN_TOTAL_RAINBOWS))}/255<br>5 consumed per successful chop`;
+    case 101:
+      return relicTip(0, useServerState(Varbits.LEAGUE_RELIC_SELECTION_0));
+    case 102:
+      return relicTip(1, useServerState(Varbits.LEAGUE_RELIC_SELECTION_1));
+    case 103:
+      return relicTip(2, useServerState(Varbits.LEAGUE_RELIC_SELECTION_2));
+    case 104:
+      return relicTip(3, useServerState(Varbits.LEAGUE_RELIC_SELECTION_3));
+    case 105:
+      return relicTip(4, useServerState(Varbits.LEAGUE_RELIC_SELECTION_4));
+    case 106:
+      return relicTip(5, useServerState(Varbits.LEAGUE_RELIC_SELECTION_5));
+    case 107:
+      return relicTip(6, useServerState(Varbits.LEAGUE_RELIC_SELECTION_6));
+    case 108:
+      return relicTip(7, useServerState(Varbits.LEAGUE_RELIC_SELECTION_7));
+    case 123:
+      return `Melee Mastery: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS))} / ${stringOf(masteryTiers(3))}`;
+    case 124:
+      return `Ranged Mastery: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS))} / ${stringOf(masteryTiers(4))}`;
+    case 125:
+      return `Magic Mastery: ${stringOf(useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS))} / ${stringOf(masteryTiers(5))}`;
+    case 133:
+      return `Bow Min Hit Stacks: ${stringOf(useServerState(Varbits.VARBIT_20321))}`;
+    case 134:
+      return `Bow Max Hit Stacks: ${stringOf(useServerState(Varbits.VARBIT_20322))}`;
+    case 135: {
+      const style: Int = useServerState(Varbits.VARBIT_20337);
+      if (style === 3) {
+        return 'Next hit with Magic or Ranged will deal +25% damage';
+      }
+      if (style === 4) {
+        return 'Next hit with Magic or Melee will deal +25% damage';
+      }
+      if (style === 5) {
+        return 'Next hit with Melee or Ranged will deal +25% damage';
+      }
+    }
+  }
+  return 'Buff';
+}
+
+function masteryTiers(styleParam: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < CombatMasteries.length) {
+    const row = CombatMasteries.at(i);
+    if (row !== null) {
+      if (row.styleParam === styleParam) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+function fragmentTip(fragment: Int): String {
+  if (fragment <= 0) {
+    return 'Active league fragment.';
+  }
+  const row = Fragments.get(fragment);
+  if (row === null) {
+    return '';
+  }
+  return `${row.name}<br>${row.description}`;
+}

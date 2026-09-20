@@ -1,0 +1,681 @@
+import { CS2, useRef, useServerState, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { hasBit, itemName, npcName, textLineCount } from '../lib/lib.engine';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { CellBoxes } from '../0823_forestry_kit_main/cell-box.data';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { bingoInfoMaximised, bingoInfoVisible, bingoSelectedGrid, bingoSelectedTile } from '../lib/game/varcs';
+import { BingoColour } from './bingo-overlay.constants';
+import { BingoRewardBox } from './bingo-grid.component';
+import { BingoEvents } from './bingo-overlay.data';
+import {
+  bingoChallenge,
+  bingoChallengeComplete,
+  bingoChallengeId,
+  bingoChallengeProgress,
+  bingoGridCount,
+  bingoGridPoints,
+  bingoTileRewardSlot,
+} from './bingo-overlay.helpers';
+import {
+  BingoChallengeCategories,
+  BingoChallengeItems,
+  BingoChallengeNotes,
+  BingoChallengeNpcs,
+  BingoEventRelics,
+  BingoMastery,
+  BingoXpSlots,
+  bingoChallengeCategoryCount,
+  bingoChallengeItemCount,
+  bingoChallengeNpcCount,
+  bingoChallengeShowRelevant,
+} from './bingo-bonus.data';
+import {
+  BINGO_SCROLL_GUTTER,
+  BingoBonusRow,
+  BingoDetailRow,
+  BingoMasteryRow,
+  BingoNoteRow,
+  BingoPanelButton,
+  BingoRow,
+  BingoScrollbar,
+  BingoThinBox,
+  BingoXpShareRows,
+  bingoNoteBlockHeight,
+  bingoNoteLabelHeight,
+  bingoStripMembers,
+  bingoXpBonus,
+  bingoXpSkillName,
+} from './bingo-rows.component';
+import { BingoLookupReward, BingoPanelAction, BingoPanelStyle, bingoInfoPopout } from './bingo-panels.state';
+
+const PANE_FILL = 0x726451;
+
+export function BingoInfoPane({ w, h }: { w: Int; h: Int }): Component {
+  return (
+    <>
+      <rect x={1} y={1} w={w - 2} h={h - 2} fill color={PANE_FILL} />
+      <StructBoxFrame x={0} y={0} w={w} h={h} style={CellBoxes.at(0)} />
+      <BingoInfoBody x={0} y={0} w={w} h={h} />
+    </>
+  );
+}
+
+export function BingoInnerOverlay({ w, h }: { w: Int; h: Int }): Component {
+  const [visible] = useState(bingoInfoVisible);
+  const [popout] = useState(bingoInfoPopout);
+  const open: Boolean = popout === 1 && visible !== 1;
+
+  const cardX: Int = (w - CARD_W) / 2;
+  const cardH: Int = h - CARD_BOTTOM;
+  const closeX: Int = (w - CLOSE_W) / 2;
+  const closeY: Int = h - CLOSE_H - CLOSE_INSET;
+
+  return (
+    <>
+      <BingoPanelButton
+        x={closeX}
+        y={closeY}
+        w={CLOSE_W}
+        h={CLOSE_H}
+        hide={!open}
+        style={BingoPanelStyle.STONE}
+        toggled={0}
+        disabled={false}
+        op={CLOSE_LABEL}
+        action={BingoPanelAction.CLOSE_POPOUT}
+      >
+        <text
+          x={0}
+          y={0}
+          w="fill"
+          h="fill"
+          font={Fonts.P12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={CLOSE_LABEL}
+        />
+      </BingoPanelButton>
+      <layer x={0} y={0} w="fill" h="fill" hide={!open}>
+        <rect
+          x={0}
+          y={{ bottom: 0 }}
+          w="fill"
+          h="fill"
+          fill
+          color={BingoColour.BLACK}
+          transparency={64}
+          noClickThrough
+        />
+        <rect x={cardX + 1} y={1} w={CARD_W - 2} h={cardH - 2} fill color={PANE_FILL} />
+        <StructBoxFrame x={cardX} y={0} w={CARD_W} h={cardH} style={CellBoxes.at(0)} />
+        <BingoInfoBody x={cardX} y={0} w={CARD_W} h={cardH} />
+      </layer>
+    </>
+  );
+}
+
+const CARD_W = 314;
+const CARD_BOTTOM = 30;
+const CLOSE_W = 100;
+const CLOSE_H = 22;
+const CLOSE_INSET = 4;
+const CLOSE_LABEL = 'Close';
+
+export function BingoInfoBody({ x, y, w, h }: { x: Int; y: Int; w: Int; h: Int }): Component {
+  const event = BingoEvents.at(0);
+  const eventEnd: Int = event === null ? -1 : event.eventEnd;
+  const grids: Int = bingoGridCount();
+  const [maximised] = useState(bingoInfoMaximised);
+  const [grid] = useState(bingoSelectedGrid);
+  const [tile] = useState(bingoSelectedTile);
+
+  const boxX: Int = x + BingoRow.PAD;
+  const boxW: Int = w - BingoRow.PAD * 2;
+
+  const detailsShown: Boolean = eventEnd !== -1 || grids < 2;
+  let top: Int = y + BingoRow.PAD;
+  let stripe: Int = 0;
+
+  const captionY: Int = top;
+  const captionStripe: Int = stripe;
+  if (detailsShown) {
+    top = top + BingoRow.H;
+    stripe = 1 - stripe;
+  }
+
+  const [gridPoints, _needed] = bingoGridPoints(grid);
+  const pointsShown: Boolean = detailsShown && grids < 2;
+  const pointsY: Int = top;
+  const pointsStripe: Int = stripe;
+  if (pointsShown) {
+    top = top + BingoRow.H;
+    stripe = 1 - stripe;
+  }
+
+  const endShown: Boolean = detailsShown && eventEnd !== -1;
+  const endY: Int = top;
+  const endStripe: Int = stripe;
+  if (endShown) {
+    top = top + BingoRow.H;
+    stripe = 1 - stripe;
+  }
+
+  if (detailsShown) {
+    top = top + BingoRow.H;
+    stripe = 0;
+  }
+
+  const tileShown: Boolean = maximised === 1;
+  const tileCaptionY: Int = top;
+  const tileCaptionStripe: Int = stripe;
+  if (tileShown) {
+    top = top + BingoRow.H;
+    stripe = 1 - stripe;
+  }
+  const tileBlockY: Int = top;
+  const tileBlockStripe: Int = stripe;
+  if (tileShown) {
+    stripe = 1 - stripe;
+    top = top + BingoRow.TILE_BLOCK_H + BingoRow.H;
+    stripe = 0;
+  }
+
+  const bonusCaptionY: Int = top;
+  const bonusCaptionStripe: Int = stripe;
+  top = top + BingoRow.H;
+  stripe = 1 - stripe;
+
+  const scrollY: Int = top;
+  const scrollH: Int = h - (top + BingoRow.PAD);
+
+  return (
+    <>
+      {detailsShown && (
+        <>
+          <BingoThinBox x={boxX} y={captionY} w={boxW} h={BingoRow.H} />
+          <BingoDetailRow x={x} y={captionY} w={w} label="Event Details" value="" dark={captionStripe === 1} />
+          {pointsShown && (
+            <BingoDetailRow
+              x={x}
+              y={pointsY}
+              w={w}
+              label="Grid Points"
+              value={stringOf(gridPoints)}
+              dark={pointsStripe === 1}
+            />
+          )}
+          {endShown && (
+            <BingoDetailRow
+              x={x}
+              y={endY}
+              w={w}
+              label="End Date"
+              value={CS2.fromdate(eventEnd)}
+              dark={endStripe === 1}
+            />
+          )}
+        </>
+      )}
+      {tileShown && (
+        <>
+          <BingoThinBox x={boxX} y={tileCaptionY} w={boxW} h={BingoRow.H} />
+          <BingoDetailRow x={x} y={tileCaptionY} w={w} label="Selected Tile" value="" dark={tileCaptionStripe === 1} />
+          <rect
+            x={boxX}
+            y={tileBlockY}
+            w={boxW}
+            h={BingoRow.TILE_BLOCK_H}
+            fill
+            color={BingoColour.BLACK}
+            transparency={tileBlockStripe === 1 ? BingoRow.SHADE_DARK : BingoRow.SHADE_LIGHT}
+          />
+          <layer x={0} y={0} w="fill" h="fill" hide={grid <= -1 || tile <= -1}>
+            <BingoTileDetail x={x} blockY={tileBlockY} grid={grid} tile={tile} />
+          </layer>
+        </>
+      )}
+      <BingoThinBox x={boxX} y={bonusCaptionY} w={boxW} h={BingoRow.H} />
+      <BingoDetailRow x={x} y={bonusCaptionY} w={w} label="Bonus Effects" value="" dark={bonusCaptionStripe === 1} />
+      <BingoBonusList x={boxX} y={scrollY} w={boxW} h={scrollH} stripe={stripe} />
+    </>
+  );
+}
+
+function BingoBonusList({ x, y, w, h, stripe }: { x: Int; y: Int; w: Int; h: Int; stripe: Int }): Component {
+  let xpCount: Int = 0;
+  let slot: Int = 0;
+  while (slot <= BINGO_XP_LAST_SLOT) {
+    if (bingoXpBonus(slot) > 0) {
+      xpCount = xpCount + 1;
+    }
+    slot = slot + 1;
+  }
+  const xpRows: Int = xpCount === 0 ? 1 : xpCount;
+
+  let row: Int = xpRows;
+  let parity: Int = (stripe + xpRows) % 2;
+
+  const dropRow: Int = row;
+  const dropParity: Int = parity;
+  const miniRow: Int = row + 1;
+  const miniParity: Int = 1 - parity;
+  const farmRow: Int = row + 2;
+  const farmParity: Int = parity;
+  const slayRow: Int = row + 3;
+  const slayParity: Int = 1 - parity;
+  row = row + 4;
+
+  const combatOn: Boolean = useServerState(Varbits.EVENT_REWARDS_XP_SHARER_GROUP_1_ACTIVE) === 1;
+  const combatRow: Int = row;
+  const combatParity: Int = parity;
+  if (combatOn) {
+    row = row + 3;
+    parity = 1 - parity;
+  }
+  const craftOn: Boolean = useServerState(Varbits.EVENT_REWARDS_XP_SHARER_GROUP_2_ACTIVE) === 1;
+  const craftRow: Int = row;
+  const craftParity: Int = parity;
+  if (craftOn) {
+    row = row + 3;
+    parity = 1 - parity;
+  }
+  const gatherOn: Boolean = useServerState(Varbits.EVENT_REWARDS_XP_SHARER_GROUP_3_ACTIVE) === 1;
+  const gatherRow: Int = row;
+  const gatherParity: Int = parity;
+  if (gatherOn) {
+    row = row + 3;
+    parity = 1 - parity;
+  }
+
+  const melee: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MELEE_PROGRESS);
+  const meleeRow: Int = row;
+  const meleeParity: Int = parity;
+  if (melee > 0) {
+    row = row + 1;
+    parity = 1 - parity;
+  }
+  const ranged: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_RANGED_PROGRESS);
+  const rangedRow: Int = row;
+  const rangedParity: Int = parity;
+  if (ranged > 0) {
+    row = row + 1;
+    parity = 1 - parity;
+  }
+  const magic: Int = useServerState(Varbits.LEAGUE_COMBAT_MASTERY_MAGIC_PROGRESS);
+  const magicRow: Int = row;
+  const magicParity: Int = parity;
+  if (magic > 0) {
+    row = row + 1;
+    parity = 1 - parity;
+  }
+
+  const relicsOn: Boolean = useServerState(Varps.EVENT_LEAGUE_RELICS) !== -1;
+  const relicRow: Int = row;
+  const relicParity: Int = parity;
+  let relicCount: Int = 0;
+  if (relicsOn) {
+    let index: Int = 0;
+    while (index < BingoEventRelics.length) {
+      const entry = BingoEventRelics.at(index);
+      if (entry !== null) {
+        if (bingoEventRelicActive(entry.index)) {
+          relicCount = relicCount + 1;
+        }
+      }
+      index = index + 1;
+    }
+  }
+  row = row + relicCount;
+
+  const extent: Int = row * BingoRow.H;
+  const scrolls: Boolean = h < extent;
+
+  const pane = useRef();
+
+  return (
+    <layer x={x} y={y} w={w} h={h}>
+      <layer
+        ref={pane}
+        x={0}
+        y={0}
+        w={{ fill: scrolls ? BINGO_SCROLL_GUTTER : 0 }}
+        h="fill"
+        scrollHeight={scrolls ? extent : 0}
+      >
+        <BingoBonusRow y={0} label={xpCount === 0 ? 'All Skills XP' : ''} value="+0%" dark={stripe === 1} />
+        {BingoXpSlots.filter((s) => bingoXpBonus(s) > 0).map((s, i) => (
+          <BingoBonusRow
+            y={i * BingoRow.H}
+            label={s === 0 ? 'All Skills XP' : `${bingoXpSkillName(s)} XP`}
+            value={`+${stringOf(bingoXpBonus(s))}%`}
+            dark={(stripe + i) % 2 === 1}
+          />
+        ))}
+        <BingoBonusRow y={dropRow * BingoRow.H} label="Drop Rate" value="x8" dark={dropParity === 1} />
+        <BingoBonusRow y={miniRow * BingoRow.H} label="Minigame Points" value="x4" dark={miniParity === 1} />
+        <BingoBonusRow y={farmRow * BingoRow.H} label="Farming Tickrate" value="x5" dark={farmParity === 1} />
+        <BingoBonusRow y={slayRow * BingoRow.H} label="Slayer Points" value="x5" dark={slayParity === 1} />
+        {combatOn && (
+          <BingoXpShareRows
+            y={combatRow * BingoRow.H}
+            label="Combatant"
+            lookup={BingoLookupReward.COMBATANT}
+            statA={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_1_STAT_1)}
+            statB={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_1_STAT_2)}
+            statC={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_1_STAT_3)}
+            dark={combatParity === 1}
+          />
+        )}
+        {craftOn && (
+          <BingoXpShareRows
+            y={craftRow * BingoRow.H}
+            label="Craftsman"
+            lookup={BingoLookupReward.CRAFTSMAN}
+            statA={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_2_STAT_1)}
+            statB={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_2_STAT_2)}
+            statC={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_2_STAT_3)}
+            dark={craftParity === 1}
+          />
+        )}
+        {gatherOn && (
+          <BingoXpShareRows
+            y={gatherRow * BingoRow.H}
+            label="Gatherer"
+            lookup={BingoLookupReward.GATHERER}
+            statA={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_3_STAT_1)}
+            statB={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_3_STAT_2)}
+            statC={useServerState(Varbits.EVENT_REWARDS_XP_SHARED_GROUP_3_STAT_3)}
+            dark={gatherParity === 1}
+          />
+        )}
+        {melee > 0 && (
+          <BingoMasteryRow
+            y={meleeRow * BingoRow.H}
+            mastery={BingoMastery.MELEE}
+            tiers={melee}
+            dark={meleeParity === 1}
+          />
+        )}
+        {ranged > 0 && (
+          <BingoMasteryRow
+            y={rangedRow * BingoRow.H}
+            mastery={BingoMastery.RANGED}
+            tiers={ranged}
+            dark={rangedParity === 1}
+          />
+        )}
+        {magic > 0 && (
+          <BingoMasteryRow
+            y={magicRow * BingoRow.H}
+            mastery={BingoMastery.MAGIC}
+            tiers={magic}
+            dark={magicParity === 1}
+          />
+        )}
+        {relicsOn &&
+          BingoEventRelics.filter((entry) => bingoEventRelicActive(entry.index)).map((entry, i) => (
+            <BingoBonusRow
+              y={(relicRow + i) * BingoRow.H}
+              label={entry.name}
+              value="On"
+              dark={(relicParity + i) % 2 === 1}
+            />
+          ))}
+      </layer>
+      <BingoScrollbar content={pane} hide={!scrolls} />
+    </layer>
+  );
+}
+
+function bingoEventRelicActive(index: Int): Boolean {
+  if (index === -1) {
+    return false;
+  }
+  if (index < BINGO_REWARD_WORD_BITS) {
+    return hasBit(useServerState(Varps.EVENT_REWARDS_TEMP_9), index);
+  }
+  return hasBit(useServerState(Varps.EVENT_REWARDS_TEMP_10), index - BINGO_REWARD_WORD_BITS);
+}
+
+const BINGO_XP_LAST_SLOT = 24;
+const BINGO_REWARD_WORD_BITS = 32;
+
+function BingoTileDetail({ x, blockY, grid, tile }: { x: Int; blockY: Int; grid: Int; tile: Int }): Component {
+  const id: Int = bingoChallengeId(grid, tile);
+  const challenge = bingoChallenge(id);
+  const target: Int = challenge === null ? 0 : challenge.target;
+  const points: Int = challenge === null ? 0 : challenge.points;
+  const tier: Int = challenge === null ? 0 : challenge.tier;
+  const name: String = challenge === null ? '' : challenge.name;
+  const sprite: Sprite = challenge === null ? -1 : challenge.sprite;
+  const item: Item = challenge === null ? -1 : challenge.item;
+  const progress: Int = bingoChallengeProgress(id);
+  const done: Boolean = bingoChallengeComplete(id);
+  const rewardSlot: Int = bingoTileRewardSlot(grid, tile);
+
+  const left: Int = x + BingoRow.PAD;
+  const top: Int = blockY + BingoRow.PAD;
+  const bottom: Int = blockY + BingoRow.TILE_BLOCK_H - BingoRow.PAD;
+
+  const progressY: Int = top + TILE_ICON_W + BingoRow.PAD;
+  const rewardsY: Int = progressY + BingoRow.H + BingoRow.PAD;
+
+  let descColour: Int = BingoColour.ORANGE;
+  if (tier === 1) {
+    descColour = DESC_TIER_1;
+  } else if (tier === 2) {
+    descColour = DESC_TIER_2;
+  } else if (tier === 3) {
+    descColour = DESC_TIER_3;
+  }
+  const descH: Int = textLineCount(name, TILE_DESC_W, Fonts.B12_FULL) * 12 + 5;
+  const notesY: Int = top + descH + BingoRow.H;
+  const notesH: Int = bottom - notesY;
+
+  const contentW: Int = TILE_DESC_W - BINGO_SCROLL_GUTTER;
+
+  const notesExtent: Int = bingoNotesExtent(id, contentW);
+
+  const derived: Boolean = bingoChallengeShowRelevant(id);
+  const itemCount: Int = bingoChallengeItemCount(id);
+  const npcCount: Int = bingoChallengeNpcCount(id);
+  const categoryCount: Int = bingoChallengeCategoryCount(id);
+
+  const itemsShown: Boolean = derived && itemCount > 0;
+  const itemsLabel: String = `Relevant Items (${itemCount})`;
+  const itemsHeadY: Int = bingoGapAt(notesExtent);
+  const itemsHeadH: Int = bingoNoteLabelHeight(itemsLabel, contentW);
+  const itemsExtent: Int = itemsShown ? itemsHeadY + itemsHeadH + itemCount * BingoRow.H : notesExtent;
+
+  const npcsShown: Boolean = derived && (npcCount > 0 || categoryCount > 0);
+  const npcsHeadY: Int = bingoGapAt(itemsExtent);
+  const npcsHeadH: Int = bingoNoteLabelHeight(NPCS_LABEL, contentW);
+  const npcsBodyY: Int = npcsHeadY + npcsHeadH;
+  const extent: Int = npcsShown ? npcsBodyY + (npcCount + categoryCount) * BingoRow.H : itemsExtent;
+
+  const scrolls: Boolean = notesH < extent;
+
+  const notesPane = useRef();
+
+  return (
+    <>
+      <sprite
+        x={left}
+        y={top}
+        w={TILE_ICON_W}
+        h={TILE_ICON_W}
+        sprite={sprite}
+        item={item}
+        itemCount={target}
+        itemCountMode="never"
+        outline={item === -1 ? 0 : 1}
+      />
+      <text
+        x={left}
+        y={progressY}
+        w={TILE_ICON_W}
+        h={BingoRow.H}
+        font={Fonts.P12_FULL}
+        shadow
+        color={done ? BingoColour.COMPLETE : PROGRESS_WHITE}
+        align="center"
+        valign="middle"
+        text={bingoProgressText(progress, target, done)}
+      />
+      <text
+        x={{ right: x + BingoRow.PAD }}
+        y={top}
+        w={TILE_DESC_W}
+        h={descH}
+        font={Fonts.B12_FULL}
+        shadow
+        color={descColour}
+        align="center"
+        valign="middle"
+        text={name}
+      />
+      <layer x={{ right: x + BingoRow.PAD }} y={notesY} w={TILE_DESC_W} h={notesH}>
+        <layer
+          ref={notesPane}
+          x={0}
+          y={0}
+          w={{ fill: scrolls ? BINGO_SCROLL_GUTTER : 0 }}
+          h="fill"
+          scrollHeight={scrolls ? extent : 0}
+        >
+          {BingoChallengeNotes.filter((r) => r.challenge === id).map((note, index) => (
+            <BingoNoteRow y={bingoNoteRowY(id, index, contentW)} w={contentW} label={note.label} text={note.text} />
+          ))}
+          {itemsShown && (
+            <>
+              <BingoNoteRow y={itemsHeadY} w={contentW} label={itemsLabel} text="" />
+              {BingoChallengeItems.filter((r) => r.challenge === id).map((row, index) => (
+                <BingoNoteRow
+                  y={itemsHeadY + itemsHeadH + index * BingoRow.H}
+                  w={contentW}
+                  label=""
+                  text={bingoStripMembers(itemName(row.item))}
+                />
+              ))}
+            </>
+          )}
+          {npcsShown && (
+            <>
+              <BingoNoteRow y={npcsHeadY} w={contentW} label={NPCS_LABEL} text="" />
+              {BingoChallengeNpcs.filter((r) => r.challenge === id).map((row, index) => (
+                <BingoNoteRow y={npcsBodyY + index * BingoRow.H} w={contentW} label="" text={npcName(row.npc)} />
+              ))}
+              {BingoChallengeCategories.filter((r) => r.challenge === id).map((row, index) => (
+                <BingoNoteRow y={npcsBodyY + (npcCount + index) * BingoRow.H} w={contentW} label="" text={row.text} />
+              ))}
+            </>
+          )}
+        </layer>
+        <BingoScrollbar content={notesPane} hide={!scrolls} />
+      </layer>
+      <text
+        x={left}
+        y={rewardsY}
+        w={TILE_ICON_W}
+        h={BingoRow.H}
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="center"
+        valign="middle"
+        text="Rewards"
+      />
+      <text
+        x={left}
+        y={rewardsY + BingoRow.H}
+        w={TILE_ICON_W}
+        h={BingoRow.H}
+        font={Fonts.P12_FULL}
+        shadow
+        color={PROGRESS_WHITE}
+        align="center"
+        valign="middle"
+        text={`${points} Points`}
+      />
+      <BingoRewardBox
+        grid={grid}
+        slot={rewardSlot}
+        tile={tile}
+        fromCard={false}
+        x={left + TILE_REWARD_BOX_X}
+        y={rewardsY + 2 * BingoRow.H}
+        w={TILE_REWARD_BOX}
+        h={TILE_REWARD_BOX}
+      />
+    </>
+  );
+}
+
+function bingoProgressText(progress: Int, target: Int, done: Boolean): String {
+  if (done) {
+    return `${target} / ${target}`;
+  }
+  if (progress >= target) {
+    return `${target - 1} / ${target}`;
+  }
+  return `${progress} / ${target}`;
+}
+
+function bingoGapAt(y: Int): Int {
+  if (y === 0) {
+    return 0;
+  }
+  return y + BingoRow.H;
+}
+
+function bingoNoteRowY(id: Int, index: Int, w: Int): Int {
+  let y: Int = 0;
+  let seen: Int = 0;
+  let i: Int = 0;
+  while (i < BingoChallengeNotes.length) {
+    const row = BingoChallengeNotes.at(i);
+    if (row !== null) {
+      if (row.challenge === id) {
+        if (seen === index) {
+          if (row.label.length > 0) {
+            return bingoGapAt(y);
+          }
+          return y;
+        }
+        y = y + bingoNoteBlockHeight(y, w, row.label, row.text);
+        seen = seen + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return y;
+}
+
+function bingoNotesExtent(id: Int, w: Int): Int {
+  let y: Int = 0;
+  let i: Int = 0;
+  while (i < BingoChallengeNotes.length) {
+    const row = BingoChallengeNotes.at(i);
+    if (row !== null) {
+      if (row.challenge === id) {
+        y = y + bingoNoteBlockHeight(y, w, row.label, row.text);
+      }
+    }
+    i = i + 1;
+  }
+  return y;
+}
+
+const TILE_ICON_W = 100;
+const TILE_DESC_W = 196;
+const PROGRESS_WHITE = 0xffffff;
+const DESC_TIER_1 = 0x8db679;
+const DESC_TIER_2 = 0xeaab5e;
+const DESC_TIER_3 = 0xe45951;
+const NPCS_LABEL = 'Relevant NPCs';
+const TILE_REWARD_BOX_X = 20;
+const TILE_REWARD_BOX = 60;

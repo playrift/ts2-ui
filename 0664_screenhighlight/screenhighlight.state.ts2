@@ -1,210 +1,38 @@
-import { CS2, useServerState, useState } from 'ts2';
-import { playSound, scaled, textLineCount } from '../lib/lib.engine';
-import {
-  HighlightFonts,
-  HighlightSounds,
-  HighlightVarbits,
-  highlightAccent,
-  highlightCaption,
-  highlightCloseMount,
-  highlightCloseShown,
-  highlightCounter,
-  highlightMarker,
-  highlightNextLabel,
-  highlightNextMode,
-  highlightNextResumes,
-  highlightPanel,
-  highlightPauseButton,
-  highlightPrevLabel,
-  highlightPrevMode,
-  HighlightTextbox,
-} from './screenhighlight.constants';
+import { sessionState } from 'ts2';
 
-function xOf(component: ComponentId): Int {
-  return CS2.if_x_get(component);
-}
-function yOf(component: ComponentId): Int {
-  return CS2.if_y_get(component);
-}
-function widthOf(component: ComponentId): Int {
-  return CS2.if_width_get(component);
-}
-function heightOf(component: ComponentId): Int {
-  return CS2.if_height_get(component);
-}
-function hiddenComponent(component: ComponentId): Boolean {
-  return CS2.if_hide_get(component);
-}
+export const PANEL_REST = -1;
+export const PANEL_PLACED = 0;
+export const PANEL_FALLBACK = 1;
 
-function textboxWidth(text: String): Int {
-  let raw: Int = 0;
-  let found: Int = 0;
-  let step: Int = 0;
-  while (step < 500) {
-    if (found === 0) {
-      raw = raw + 10;
-      if (raw >= textLineCount(text, raw, HighlightFonts.BODY) * HighlightTextbox.LINE) {
-        found = 1;
-      }
-    }
-    step = step + 1;
-  }
-  const grown: Int = scaled(150, 100, raw + HighlightTextbox.MARGIN);
-  if (grown < HighlightTextbox.MIN_W) {
-    return HighlightTextbox.MIN_W;
-  }
-  return grown;
-}
+export const highlightCaption = sessionState('Sample text<br>More sample text');
 
-function textboxHeight(text: String): Int {
-  const width: Int = textboxWidth(text);
-  const lines: Int = textLineCount(text, width - HighlightTextbox.MARGIN, HighlightFonts.BODY);
-  return Math.max(lines * HighlightTextbox.LINE + HighlightTextbox.CHROME, HighlightTextbox.MIN_H);
-}
+export const highlightAccent = sessionState(-1);
 
-export function highlightTextbox(text: String, colour: Int, showClose: Boolean, universe: ComponentId): void {
-  const [, setCaption] = useState(highlightCaption);
-  const [, setCounter] = useState(highlightCounter);
-  const [, setAccent] = useState(highlightAccent);
-  const [, setCloseShown] = useState(highlightCloseShown);
+export const highlightCounter = sessionState('0/10');
 
-  if (showClose) {
-    setCloseShown(1);
-    highlightCloseMount.hide = false;
-  } else {
-    setCloseShown(0);
-    highlightCloseMount.hide = true;
-  }
+export const highlightCloseShown = sessionState(1);
 
-  const stageH: Int = heightOf(universe);
-  const stageW: Int = widthOf(universe);
+export const highlightFallback = sessionState(0);
 
-  setAccent(colour);
-  setCaption(text);
-  setCounter(
-    `${stringOf(useServerState(HighlightVarbits.STEP) + 1)}/${stringOf(useServerState(HighlightVarbits.STEPS))}`,
-  );
+export const highlightPanelPlace = sessionState(-1);
+export const highlightPanelX = sessionState(180);
+export const highlightPanelY = sessionState(66);
+export const highlightPanelW = sessionState(242);
+export const highlightPanelH = sessionState(165);
 
-  const boxW: Int = textboxWidth(text);
-  const boxH: Int = textboxHeight(text);
-  highlightPanel.width = boxW;
-  highlightPanel.height = boxH;
+export const highlightMeasuredH = sessionState(-1);
+export const highlightMeasuredW = sessionState(-1);
 
-  if (hiddenComponent(highlightMarker)) {
-    highlightPanel.x = (stageW - boxW) / 2;
-    highlightPanel.y = stageH - HighlightTextbox.FALLBACK_BOTTOM - boxH;
-    return;
-  }
+export const highlightNextLabel = sessionState('');
+export const highlightNextMode = sessionState(-1);
 
-  const markerX: Int = xOf(highlightMarker);
-  const markerY: Int = yOf(highlightMarker);
-  const markerW: Int = widthOf(highlightMarker);
-  const markerH: Int = heightOf(highlightMarker);
+export const highlightPrevLabel = sessionState('');
+export const highlightPrevMode = sessionState(-1);
 
-  if (boxH + HighlightTextbox.GAP <= markerY) {
-    highlightPanel.x = clampX(markerX + markerW / 2 - boxW / 2, boxW, stageW);
-    highlightPanel.y = markerY - HighlightTextbox.GAP - boxH;
-    return;
-  }
-  if (markerY + markerH + boxH + HighlightTextbox.GAP <= stageH) {
-    highlightPanel.x = clampX(markerX + markerW / 2 - boxW / 2, boxW, stageW);
-    highlightPanel.y = markerY + HighlightTextbox.GAP + markerH;
-    return;
-  }
-  if (boxW + HighlightTextbox.GAP <= markerX) {
-    highlightPanel.x = markerX - HighlightTextbox.GAP - boxW;
-    highlightPanel.y = clampY(markerY + markerH / 2 - boxH / 2, boxH, stageH);
-    return;
-  }
-  if (markerX + markerW + boxW + HighlightTextbox.GAP <= stageW) {
-    highlightPanel.x = markerX + HighlightTextbox.GAP + markerW;
-    highlightPanel.y = clampY(markerY + markerH / 2 - boxH / 2, boxH, stageH);
-    return;
-  }
-  highlightPanel.x = (stageW - boxW) / 2;
-  highlightPanel.y = stageH - HighlightTextbox.FALLBACK_BOTTOM - boxH;
-}
+export const highlightNextResumes = sessionState(0);
 
-function clampX(x: Int, boxW: Int, stageW: Int): Int {
-  if (x <= 1) {
-    return HighlightTextbox.EDGE;
-  }
-  if (x + boxW >= stageW) {
-    return stageW - HighlightTextbox.EDGE - boxW;
-  }
-  return x;
-}
+export const highlightNextDisarmed = sessionState(0);
+export const highlightPrevDisarmed = sessionState(0);
 
-function clampY(y: Int, boxH: Int, stageH: Int): Int {
-  if (y <= 1) {
-    return HighlightTextbox.EDGE;
-  }
-  if (y + boxH >= stageH) {
-    return stageH - HighlightTextbox.EDGE - boxH;
-  }
-  return y;
-}
-
-export function highlightButton(slot: Int, mode: Int, label: String, resumes: Boolean): void {
-  if (slot === HighlightTextbox.SLOT_NEXT) {
-    const [, setLabel] = useState(highlightNextLabel);
-    const [, setMode] = useState(highlightNextMode);
-    const [, setResumes] = useState(highlightNextResumes);
-    setLabel(label);
-    setMode(mode);
-    setResumes(resumes ? 1 : 0);
-    return;
-  }
-  const [, setPrevLabel] = useState(highlightPrevLabel);
-  const [, setPrevMode] = useState(highlightPrevMode);
-  setPrevLabel(label);
-  setPrevMode(mode);
-}
-
-export function highlightNext(resumes: Int): void {
-  let silent: Int = 0;
-  if (useServerState(HighlightVarbits.LEAGUE) === 3) {
-    if (useServerState(HighlightVarbits.LEAGUE_TUTORIAL) === 9 && useServerState(HighlightVarbits.STEP) === 6) {
-      silent = 1;
-    }
-    if (useServerState(HighlightVarbits.LEAGUE_TUTORIAL) === 11 && useServerState(HighlightVarbits.STEP) === 7) {
-      silent = 1;
-    }
-  }
-  if (silent === 0) {
-    playSound(HighlightSounds.SELECT);
-  }
-  const [, setMode] = useState(highlightNextMode);
-  setMode(1);
-  if (resumes === 1) {
-    resumeHighlightFrom(highlightPauseButton);
-  }
-}
-
-function resumeHighlightFrom(pauseButton: ComponentId): void {
-  CS2.if_resume_pausebutton(pauseButton);
-}
-
-export function screenHighlightSetup(
-  colour: Int,
-  resumes: Boolean,
-  showClose: Boolean,
-  universe: ComponentId,
-  text: String,
-): void {
-  highlightTextbox(text, colour, showClose, universe);
-
-  const step: Int = useServerState(HighlightVarbits.STEP);
-  const steps: Int = useServerState(HighlightVarbits.STEPS);
-
-  if (step >= steps - 1) {
-    highlightButton(HighlightTextbox.SLOT_NEXT, 0, 'Finish', resumes);
-  } else {
-    highlightButton(HighlightTextbox.SLOT_NEXT, 0, 'Continue', resumes);
-  }
-  if (step > 0) {
-    highlightButton(HighlightTextbox.SLOT_PREV, 0, 'Previous', false);
-  } else {
-    highlightButton(HighlightTextbox.SLOT_PREV, 1, 'Previous', false);
-  }
-}
+export const highlightNextHovered = sessionState(0);
+export const highlightPrevHovered = sessionState(0);

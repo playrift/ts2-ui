@@ -1,0 +1,111 @@
+import { sessionState, useServerState, useState } from 'ts2';
+
+import { onMobile, toplevelComponents } from '../lib/lib.helpers';
+import { enhancedAny, mobileGameframe } from '../lib/lib.overlay';
+import { Varbits } from '../lib/game/varbits';
+import { osmPopoutState } from '../lib/game/varcs';
+import { clearPopoutTip } from './popout-tooltip.state';
+import { POPOUT_TAB_COUNT, PopoutTab } from './popout.data';
+
+export const enum PopoutArm {
+  NONE = -1,
+  HIDDEN = 0,
+  DESKTOP = 1,
+  MOBILE = 2,
+}
+
+export const popoutArm = sessionState(-1);
+export const popoutDesktopTabsBuilt = sessionState(0);
+export const popoutMobileTabsBuilt = sessionState(0);
+
+export function popoutReset(): void {
+  const [, setArm] = useState(popoutArm);
+  const [, setDesktop] = useState(popoutDesktopTabsBuilt);
+  const [, setMobile] = useState(popoutMobileTabsBuilt);
+  setArm(PopoutArm.NONE);
+  setDesktop(0);
+  setMobile(0);
+}
+
+export function popoutTabAvailable(tab: Int): Boolean {
+  switch (tab) {
+    case PopoutTab.XP_TRACKER:
+      return useServerState(Varbits.POPOUT_XPTRACKER_DISABLED) === 0;
+    case PopoutTab.LOOT_TOOLS:
+      return useServerState(Varbits.POPOUT_LOOTTOOLS_DISABLED) === 0;
+    case PopoutTab.HISCORES:
+      return true;
+  }
+  return false;
+}
+
+export function popoutAnyAvailable(): Boolean {
+  let tab: Int = 1;
+  while (tab <= POPOUT_TAB_COUNT) {
+    if (popoutTabAvailable(tab)) {
+      return true;
+    }
+    tab = tab + 1;
+  }
+  return false;
+}
+
+export function popoutAllowed(): Boolean {
+  if (!enhancedAny()) {
+    return false;
+  }
+  if (onMobile()) {
+    if (!mobileGameframe(toplevelComponents())) {
+      return false;
+    }
+    if (useServerState(Varbits.POPOUT_PANEL_MOBILE_ENABLED) === 0 || useServerState(Varbits.CUTSCENE_STATUS) === 1) {
+      return false;
+    }
+  } else if (useServerState(Varbits.POPOUT_PANEL_DESKTOP_DISABLED) === 1) {
+    return false;
+  }
+  return popoutAnyAvailable();
+}
+
+export function popoutLayout(): void {
+  clearPopoutTip();
+  const [, setArm] = useState(popoutArm);
+  if (!popoutAllowed()) {
+    setArm(PopoutArm.HIDDEN);
+    return;
+  }
+  if (onMobile()) {
+    if (useServerState(Varbits.CUTSCENE_STATUS) === 1) {
+      setArm(PopoutArm.HIDDEN);
+      return;
+    }
+    const [state, setState] = useState(osmPopoutState);
+    if (state !== 1 && state !== 2 && state !== 0) {
+      setState(0);
+    }
+    setArm(PopoutArm.MOBILE);
+    popoutMobileTabs();
+    return;
+  }
+  setArm(PopoutArm.DESKTOP);
+  popoutDesktopTabs();
+}
+
+export function popoutDesktopTabs(): void {
+  const [, setBuilt] = useState(popoutDesktopTabsBuilt);
+  setBuilt(1);
+}
+
+export function popoutMobileTabs(): void {
+  const [, setBuilt] = useState(popoutMobileTabsBuilt);
+  setBuilt(1);
+}
+
+export function popoutToggleState(): void {
+  const [state, setState] = useState(osmPopoutState);
+  if (state === 1 || state === 2) {
+    setState(0);
+  } else {
+    setState(1);
+  }
+}

@@ -1,0 +1,90 @@
+import { useRef } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { CrSprite, recommendationsRef } from './cr-ui.constants';
+
+export function RecommendationsScrollbar({ extent, paneHeight }: { extent: Int; paneHeight: Int }): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const measured: Int = extent > 0 ? extent : paneHeight;
+  const barHeight: Int = paneHeight;
+  const thumbH: Int = thumbHeightOf(barHeight, paneHeight, measured, false);
+
+  recommendationsRef.onScrollWheel = (event) => {
+    recommendationsRef.scrollY = recommendationsRef.scrollY + event.mouseY * WHEEL;
+    trackScroll(gutter, thumb, capTop, capBottom, recommendationsRef);
+  };
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={CrSprite.SCROLL_TRACK}
+        noClickThrough
+        onScrollWheel={(event) => {
+          recommendationsRef.scrollY = recommendationsRef.scrollY + event.mouseY * WHEEL;
+          trackScroll(gutter, thumb, capTop, capBottom, recommendationsRef);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = recommendationsRef.scrollHeight - recommendationsRef.height;
+          recommendationsRef.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, recommendationsRef);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={ARROW + ((barHeight - ARROW * 2 - thumbH) * recommendationsRef.scrollY) / Math.max(1, extent - paneHeight)}
+        w="fill"
+        h={thumbH}
+        sprite={CrSprite.SCROLL_THUMB}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = recommendationsRef.scrollHeight - recommendationsRef.height;
+          recommendationsRef.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={CrSprite.SCROLL_CAP_TOP} />
+      <sprite ref={capBottom} y={thumb.y + thumb.height - CAP} w="fill" h={CAP} sprite={CrSprite.SCROLL_CAP_BOTTOM} />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={CrSprite.SCROLL_UP}
+        noClickThrough
+        onHold={() => {
+          recommendationsRef.scrollY = recommendationsRef.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, recommendationsRef);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={CrSprite.SCROLL_DOWN}
+        noClickThrough
+        onHold={() => {
+          recommendationsRef.scrollY = recommendationsRef.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, recommendationsRef);
+        }}
+      />
+    </layer>
+  );
+}

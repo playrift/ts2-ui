@@ -1,0 +1,99 @@
+import { CS2 } from 'ts2';
+
+import { friendschatOp, wildwarsWorld } from '../0076_grouping/grouping.state';
+import { ChannelColor, ChannelFonts, MemberRowLayout } from './chatchannel-current.constants';
+import { FriendsChatRankIcons } from './tables.data';
+
+export function MemberRow({
+  slot,
+  top,
+  rowHeight,
+  here,
+  minKickRank,
+  myRank,
+  enhanced,
+}: {
+  slot: Int;
+  top: Int;
+  rowHeight: Int;
+  here: Int;
+  minKickRank: Int;
+  myRank: Int;
+  enhanced: Int;
+}): Component {
+  const name: String = CS2.friendschat_chat_username_get(slot);
+  const world: Int = CS2.friendschat_chat_user_world_get(slot);
+  const rank: Int = CS2.friendschat_chat_user_rank_get(slot);
+
+  let worldColor: Int = ChannelColor.WORLD_AWAY;
+  if (world === here) {
+    worldColor = ChannelColor.WORLD_HERE;
+  }
+
+  let addFriend: String = '';
+  let addIgnore: String = '';
+  let removeFriend: String = '';
+  let removeIgnore: String = '';
+  let switchWorld: String = '';
+  if (!CS2.friendschat_self_is(slot)) {
+    if (CS2.friendschat_friend_is(slot)) {
+      removeFriend = 'Remove friend';
+    } else if (CS2.friendschat_ignore_is(slot)) {
+      removeIgnore = 'Remove ignore';
+    } else {
+      addFriend = 'Add friend';
+      addIgnore = 'Add ignore';
+    }
+    if (enhanced === 1) {
+      switchWorld = 'Switch world';
+    }
+  }
+  let kick: String = '';
+  if (!wildwarsWorld() && myRank >= minKickRank && myRank > rank) {
+    kick = 'Kick user';
+  }
+
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  return (
+    <>
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: MemberRowLayout.TEXT_INSET }}
+        h={rowHeight}
+        text={name}
+        font={ChannelFonts.SMALL}
+        color={ChannelColor.MEMBER}
+        align="left"
+        valign="middle"
+        optionSubject={subject}
+        options={['', '', '', '', switchWorld, kick, addFriend, addIgnore, removeFriend, removeIgnore]}
+        onOptionSelect={(event) => friendschatOp(event.optionSubject, event.option, world)}
+      />
+
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: MemberRowLayout.TEXT_INSET }}
+        h={rowHeight}
+        text={`W${stringOf(world)}`}
+        font={ChannelFonts.SMALL}
+        color={worldColor}
+        align="right"
+        valign="middle"
+        optionSubject={subject}
+        options={['', '', '', '', switchWorld, kick, addFriend, addIgnore, removeFriend, removeIgnore]}
+        onOptionSelect={(event) => friendschatOp(event.optionSubject, event.option, world)}
+      />
+
+      <sprite
+        x={MemberRowLayout.ICON_X}
+        y={top + (rowHeight - MemberRowLayout.ICON) / 2}
+        w={MemberRowLayout.ICON}
+        h={MemberRowLayout.ICON}
+        sprite={FriendsChatRankIcons.get(rank) ?? -1}
+      />
+    </>
+  );
+}

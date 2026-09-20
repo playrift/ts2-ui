@@ -1,0 +1,360 @@
+import { CS2, sessionState, useServerState, useState } from 'ts2';
+
+import { textClient } from '../0179_farming_view/farming-view.helpers';
+import { enhancedAny, onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { totalLevel, totalXpText } from '../0712_account_summary_sidepanel/account-summary-sidepanel.helpers';
+import { clientClock, membersWorld, textWidth } from '../lib/lib.engine';
+import { groupDigits, pipeHead, pipeTail } from '../lib/lib.format';
+import { playermember, tooltipBuilt, tooltipTime } from '../lib/game/varcs';
+import { SkillNames } from '../lib/skills.data';
+import { TooltipChrome } from '../lib/tooltip.component';
+import {
+  STATS_TOOLTIP_DWELL,
+  Skills,
+  StatsFonts,
+  StatsLayout,
+  StatsTooltipBox,
+  StatsVarbits,
+  StatsVarps,
+} from './stats.constants';
+import {
+  equilibriumActive,
+  equilibriumCaption,
+  equilibriumTotalXp,
+  equilibriumXp,
+  deadmanXpPermitted,
+  deadmanXpToRegain,
+  f2pTotalLevel,
+  membersOnly,
+  onDeadmanWorld,
+  xpForLevel,
+} from './stats.helpers';
+
+export const statsTipSkill = sessionState(-1);
+export const statsTipX = sessionState(-1);
+export const statsTipY = sessionState(-1);
+export const statsTipH = sessionState(-1);
+
+export const TOTAL_ROW = 24;
+
+export function showStatsTip(skill: Int, x: Int, y: Int, height: Int): void {
+  const [until, setUntil] = useState(tooltipTime);
+  const [built, setBuilt] = useState(tooltipBuilt);
+  const [, setSkill] = useState(statsTipSkill);
+  const [, setX] = useState(statsTipX);
+  const [, setY] = useState(statsTipY);
+  const [, setH] = useState(statsTipH);
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (until < clientClock() + STATS_TOOLTIP_DWELL) {
+    if (until < clientClock()) {
+      setUntil(clientClock() + 2);
+    } else {
+      setUntil(until + 2);
+    }
+    return;
+  }
+  setUntil(clientClock() + STATS_TOOLTIP_DWELL + 10);
+  if (built !== 0) {
+    return;
+  }
+  setSkill(skill);
+  setX(x);
+  setY(y);
+  setH(height);
+  setBuilt(1);
+}
+
+export function hideStatsTip(): void {
+  const [, setBuilt] = useState(tooltipBuilt);
+  const [, setSkill] = useState(statsTipSkill);
+  setBuilt(0);
+  setSkill(-1);
+}
+
+export function toggleStatsTip(skill: Int, x: Int, y: Int, height: Int): void {
+  const [current] = useState(statsTipSkill);
+  const [, setSkill] = useState(statsTipSkill);
+  const [, setX] = useState(statsTipX);
+  const [, setY] = useState(statsTipY);
+  const [, setH] = useState(statsTipH);
+  const [, setBuilt] = useState(tooltipBuilt);
+  if (enhancedAny()) {
+    return;
+  }
+  if (current !== skill) {
+    setSkill(skill);
+    setX(x);
+    setY(y);
+    setH(height);
+    setBuilt(1);
+    return;
+  }
+  setSkill(-1);
+  setBuilt(0);
+}
+
+export function StatsTooltip({ root }: { root: Ref }): Component {
+  const [skill] = useState(statsTipSkill);
+  const [anchorX] = useState(statsTipX);
+  const [anchorY] = useState(statsTipY);
+  const [anchorH] = useState(statsTipH);
+  const [built] = useState(tooltipBuilt);
+
+  let left: String = '';
+  let right: String = '';
+  if (built === 1 && skill >= 0) {
+    left = tipLeft(skill as Skill);
+    right = tipRight(skill as Skill);
+  }
+
+  const hostW: Int = root.width;
+  const hostH: Int = root.height;
+
+  const boxW: Int = StatsTooltipBox.padX + widestRow(left, right);
+  const rows: Int = rowCount(left, right);
+  const boxH: Int = rows * StatsTooltipBox.line + StatsTooltipBox.padY;
+
+  const leftText: String = brJoin(left, rows);
+  const rightText: String = brJoin(right, rows);
+
+  let x: Int = anchorX + StatsTooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + StatsTooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - StatsTooltipBox.nudge;
+  }
+
+  if (left.length === 0 && right.length === 0) {
+    return <layer w={StatsLayout.TOOLTIP_W} h={StatsLayout.TOOLTIP_H} />;
+  }
+
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <TooltipChrome text={leftText} font={StatsFonts.TOOLTIP} lineHeight={0} />
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w={{ fill: StatsTooltipBox.padX }}
+        h={{ fill: 1 }}
+        text={rightText}
+        align="right"
+        valign="top"
+        lineHeight={0}
+        font={StatsFonts.TOOLTIP}
+        color={StatsTooltipBox.ink}
+      />
+    </layer>
+  );
+}
+
+function brJoin(text: String, rows: Int): String {
+  let rest: String = text;
+  let out: String = pipeHead(rest);
+  let row: Int = 1;
+  while (row < 32) {
+    if (row >= rows) {
+      return out;
+    }
+    rest = pipeTail(rest);
+    out = `${out}<br>${pipeHead(rest)}`;
+    row = row + 1;
+  }
+  return out;
+}
+
+function widestRow(left: String, right: String): Int {
+  let heads: String = left;
+  let tails: String = right;
+  let widest: Int = 0;
+  let rows: Int = 0;
+  while (rows < 32) {
+    const label: String = pipeHead(heads);
+    const value: String = pipeHead(tails);
+    let width: Int = 0;
+    if (label.length > 0) {
+      width = textWidth(label, StatsTooltipBox.unwrapped, StatsFonts.TOOLTIP);
+    }
+    if (value.length > 0) {
+      width = width + StatsTooltipBox.gap + textWidth(value, StatsTooltipBox.unwrapped, StatsFonts.TOOLTIP);
+    }
+    if (widest < width) {
+      widest = width;
+    }
+    if (heads.length === 0 && tails.length === 0) {
+      return widest;
+    }
+    heads = pipeTail(heads);
+    tails = pipeTail(tails);
+    rows = rows + 1;
+    if (heads.length === 0 && tails.length === 0) {
+      return widest;
+    }
+  }
+  return widest;
+}
+
+function rowCount(left: String, right: String): Int {
+  let heads: String = left;
+  let tails: String = right;
+  let rows: Int = 0;
+  while (rows < 32) {
+    rows = rows + 1;
+    if (heads.length === 0 && tails.length === 0) {
+      return rows;
+    }
+    heads = pipeTail(heads);
+    tails = pipeTail(tails);
+    if (heads.length === 0 && tails.length === 0) {
+      return rows;
+    }
+  }
+  return rows;
+}
+
+function tipLeft(skill: Skill): String {
+  if (skill === TOTAL_ROW) {
+    let label: String = 'Total XP:';
+    if (!membersWorld() && !playerIsMember()) {
+      label = 'Total XP:|Free Total Level:';
+    }
+    if (equilibriumActive()) {
+      return `${label}|${equilibriumCaption()}`;
+    }
+    return label;
+  }
+
+  const name: String = SkillNames.get(skill) ?? 'Skill';
+  const base: Int = CS2.stat_base(skill);
+  let label: String = `${name} XP:`;
+
+  if (useServerState(StatsVarbits.HIDE_XP_TO_LEVEL) === 0) {
+    if (base < 99) {
+      label = `${label}|Next level at:|Remaining XP:`;
+    }
+  } else {
+    label = `${label}|Next level at:`;
+  }
+
+  if (equilibriumActive()) {
+    label = `${label}|${equilibriumCaption()}`;
+  }
+
+  if (onDeadmanWorld()) {
+    const regain: Int = deadmanRegainSurplus(skill);
+    if (regain > 0) {
+      label = `${label}|${deadmanInk()}XP to regain:</col>`;
+    } else if (deadmanCapDivisor(skill) > 0) {
+      label = `${label}|${deadmanInk()}XP permitted:</col>`;
+    }
+  }
+
+  if (membersLocked(skill)) {
+    return `<col=ff0000>${name}:</col>`;
+  }
+  return label;
+}
+
+function tipRight(skill: Skill): String {
+  if (skill === TOTAL_ROW) {
+    let value: String = totalXpText();
+    if (!membersWorld() && !playerIsMember()) {
+      value = `${totalXpText()}|${f2pTotalLevel()}`;
+    }
+    if (equilibriumActive()) {
+      return `${value}|${groupDigits(equilibriumTotalXp(), ',')}`;
+    }
+    return value;
+  }
+
+  const name: String = SkillNames.get(skill) ?? 'Skill';
+  const xp: Int = CS2.skill_visible_xp(skill);
+  const base: Int = CS2.stat_base(skill);
+  let value: String = groupDigits(xp, ',');
+
+  if (useServerState(StatsVarbits.HIDE_XP_TO_LEVEL) === 0) {
+    if (base < 99) {
+      const next: Int = xpForLevel(base + 1);
+      value = `${value}|${groupDigits(next, ',')}|${groupDigits(next - xp, ',')}`;
+    }
+  } else {
+    value = `${value}|${groupDigits(xpForLevel(base + 1), ',')}`;
+  }
+
+  if (equilibriumActive()) {
+    value = `${value}|${groupDigits(equilibriumXp(skill), ',')}`;
+  }
+
+  if (onDeadmanWorld()) {
+    const regain: Int = deadmanRegainSurplus(skill);
+    if (regain > 0) {
+      value = `${value}|${deadmanInk()}${groupDigits(regain, ',')}</col>`;
+    } else {
+      const divisor: Int = deadmanCapDivisor(skill);
+      if (divisor > 0) {
+        const permitted: Int = deadmanXpPermitted(divisor);
+        if (permitted > 0) {
+          value = `${value}|${deadmanInk()}${groupDigits(permitted, ',')}</col>`;
+        } else {
+          value = `${value}|${deadmanInk()}NONE</col>`;
+        }
+      }
+    }
+  }
+
+  if (membersLocked(skill)) {
+    return '<col=ff0000>Members Only</col>';
+  }
+  return value;
+}
+
+function deadmanRegainSurplus(skill: Skill): Int {
+  const banked: Int = deadmanXpToRegain(skill);
+  if (banked === -1) {
+    return 0;
+  }
+  const target: Int = banked / 10;
+  const have: Int = CS2.skill_visible_xp(skill);
+  if (target > have) {
+    return target - have;
+  }
+  return 0;
+}
+
+function deadmanCapDivisor(skill: Skill): Int {
+  if (useServerState(StatsVarps.DEADMAN_XP_TO_CAP) <= 0) {
+    return 0;
+  }
+  if (skill === Skills.ATTACK || skill === Skills.STRENGTH || skill === Skills.MAGIC) {
+    return 20;
+  }
+  if (skill === Skills.RANGED) {
+    return 30;
+  }
+  if (skill === Skills.DEFENCE) {
+    return 40;
+  }
+  return 0;
+}
+
+function deadmanInk(): String {
+  return textClient('<col=7c0808>', '<col=ef1020>');
+}
+
+function membersLocked(skill: Skill): Boolean {
+  if (!membersOnly(skill)) {
+    return false;
+  }
+  if (membersWorld()) {
+    return false;
+  }
+  return !playerIsMember();
+}
+
+function playerIsMember(): Boolean {
+  const [member] = useState(playermember);
+  return member === 1;
+}

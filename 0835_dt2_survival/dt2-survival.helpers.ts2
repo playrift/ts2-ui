@@ -1,5 +1,6 @@
-import { CS2, sessionState, useServerState, useState } from 'ts2';
+import { useServerState, useState } from 'ts2';
 
+import { Varps } from '../lib/game/varps';
 import { scaled } from '../lib/lib.engine';
 import {
   CYCLES_PER_SECOND,
@@ -8,86 +9,107 @@ import {
   Dt2Varbits,
   KASONDE_MAX_HP,
   SECONDS_PER_MINUTE,
+  TRACK_W,
 } from './dt2-survival.constants';
+import {
+  dt2SurvivalBarPx,
+  dt2SurvivalClockFrom,
+  dt2SurvivalCycles,
+  dt2SurvivalOpened,
+  dt2SurvivalWalkTarget,
+} from './dt2-survival.state';
 
-const enum SizeMode {
-  ABS = 0,
-  MINUS = 1,
-}
-
-const survivalCycles = sessionState(-1);
-
-const survivalSeen = sessionState(-1);
-
-export function dt2SurvivalTime(label: ComponentId): void {
-  const [seen, setSeen] = useState(survivalSeen);
-  const [left, setLeft] = useState(survivalCycles);
-  const remaining: Int = useServerState(Dt2Varbits.TIME_REMAINING);
-
-  let cycles: Int = left;
-  if (remaining !== seen) {
-    setSeen(remaining);
-    cycles = remaining * CYCLES_PER_UNIT;
+export function clockLabel(cycles: Int): String {
+  let left: Int = cycles;
+  if (left < 0) {
+    left = 0;
   }
-
-  if (cycles < 0) {
-    cycles = 0;
-  }
-  const seconds: Int = cycles / CYCLES_PER_SECOND;
+  const seconds: Int = left / CYCLES_PER_SECOND;
   const minutes: Int = seconds / SECONDS_PER_MINUTE;
   const rest: Int = seconds % SECONDS_PER_MINUTE;
   if (rest < 10) {
-    label.text = `Time Left: ${stringOf(minutes)}:0${stringOf(rest)}`;
-  } else {
-    label.text = `Time Left: ${stringOf(minutes)}:${stringOf(rest)}`;
+    return `Time Left: ${minutes}:0${rest}`;
   }
-
-  setLeft(cycles - 1);
+  return `Time Left: ${minutes}:${rest}`;
 }
 
-function healthWidth(hp: Int, track: ComponentId): Int {
-  const width: Int = scaled(hp, KASONDE_MAX_HP, CS2.if_width_get(track));
+export function clockFor(units: Int): Int {
+  return units * CYCLES_PER_UNIT;
+}
+
+export function dt2SurvivalReset(): void {
+  const units: Int = useServerState(Dt2Varbits.TIME_REMAINING);
+  const [, setCycles] = useState(dt2SurvivalCycles);
+  const [, setFrom] = useState(dt2SurvivalClockFrom);
+  setCycles(clockFor(units));
+  setFrom(useServerState(Varps.STRANGLEWOOD));
+}
+
+export function healthWidth(hp: Int): Int {
+  const width: Int = scaled(hp, KASONDE_MAX_HP, TRACK_W);
   if (width > 1) {
     return width;
   }
   return 1;
 }
 
-export function dt2SurvivalHealth(track: ComponentId, percent: ComponentId, bar: ComponentId): void {
-  const hp: Int = useServerState(Dt2Varbits.KASONDE_HP);
-
+export function healthCaption(hp: Int): String {
   if (hp <= 0) {
-    percent.text = DEAD_TEXT;
-    CS2.if_size_set(0, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-    return;
+    return DEAD_TEXT;
   }
-
-  const target: Int = healthWidth(hp, track);
-  const shown: Int = CS2.if_width_get(bar);
-
-  if (shown <= 0) {
-    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
-  }
-
   let pct: Int = scaled(hp, KASONDE_MAX_HP, 100);
   if (pct < 1) {
     pct = 1;
   }
-  percent.text = `${stringOf(pct)}%`;
+  return `${pct}%`;
+}
 
-  if (shown <= 0) {
+export function dt2SurvivalHealth(): void {
+  const hp: Int = useServerState(Dt2Varbits.KASONDE_HP);
+  const [barPx, setBarPx] = useState(dt2SurvivalBarPx);
+  const [, setWalkTarget] = useState(dt2SurvivalWalkTarget);
+
+  if (hp <= 0) {
+    setBarPx(0);
     return;
   }
+  if (barPx <= 0) {
+    setBarPx(1);
+  }
+  setWalkTarget(healthWidth(hp));
+}
 
-  if (shown === target) {
-    CS2.if_size_set(target, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
+export function dt2SurvivalHealthWalk(): void {
+  const [walkTarget, setWalkTarget] = useState(dt2SurvivalWalkTarget);
+  if (walkTarget === -1) {
+    return;
+  }
+  const [shown, setBarPx] = useState(dt2SurvivalBarPx);
+  if (shown === walkTarget) {
+    setWalkTarget(-1);
     return;
   }
   if (shown === 0) {
-    CS2.if_size_set(target, 0, SizeMode.ABS, SizeMode.MINUS, bar);
-  } else if (shown < target) {
-    CS2.if_size_set(shown + 1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
-  } else if (shown > target) {
-    CS2.if_size_set(shown - 1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+    setBarPx(walkTarget);
+  } else if (shown < walkTarget) {
+    setBarPx(shown + 1);
+  } else if (shown > walkTarget) {
+    setBarPx(shown - 1);
   }
+}
+
+export function dt2SurvivalTick(): void {
+  const [opened, setOpened] = useState(dt2SurvivalOpened);
+  if (opened === 0) {
+    setOpened(1);
+    dt2SurvivalReset();
+    dt2SurvivalHealth();
+  }
+  const [cycles, setCycles] = useState(dt2SurvivalCycles);
+  let left: Int = cycles;
+  if (left < 0) {
+    left = 0;
+  }
+  setCycles(left - 1);
+  dt2SurvivalHealthWalk();
 }

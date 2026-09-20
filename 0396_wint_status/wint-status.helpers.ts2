@@ -1,28 +1,20 @@
-import { sessionState, useServerState, useState } from 'ts2';
+import { CS2, useServerState } from 'ts2';
 
 import { clientClock } from '../lib/lib.engine';
 import { WintTimer, WintVarbits } from './wint-status.constants';
 
-const respawnDeadline = sessionState(0);
-
-const seenDelay = sessionState(-1);
-
-export function wintTimerCountdown(target: ComponentId): void {
+export function wintTimerResynch(target: ComponentId): void {
   const delay: Int = useServerState(WintVarbits.RESPAWN_DELAY);
-  const [seen, setSeen] = useState(seenDelay);
-  const [stored, setDeadline] = useState(respawnDeadline);
-
-  let deadline: Int = stored;
-  if (delay !== seen) {
-    setSeen(delay);
-    deadline = clientClock() + delay * WintTimer.CYCLES_PER_UNIT;
-    setDeadline(deadline);
-  }
-
   if (delay <= 0) {
+    CS2.if_on_timer_set(null, target);
     return;
   }
+  const deadline: Int = clientClock() + delay * WintTimer.CYCLES_PER_UNIT;
+  wintTimerCountdown(target, deadline);
+  CS2.if_on_timer_set(() => wintTimerCountdown(target, deadline), target);
+}
 
+export function wintTimerCountdown(target: ComponentId, deadline: Int): void {
   const left: Int = deadline - clientClock();
   if (left <= 0) {
     return;

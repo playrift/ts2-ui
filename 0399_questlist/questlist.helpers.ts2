@@ -1,0 +1,121 @@
+import { useState } from 'ts2';
+
+import { clientClock, scaled } from '../lib/lib.engine';
+import { HealthBar, HealthBarAnim } from './questlist.constants';
+import {
+  healthbarAnim,
+  healthbarBoundAt,
+  healthbarBoxWidth,
+  healthbarCurrent,
+  healthbarFillPx,
+  healthbarFrameLit,
+  healthbarMax,
+  healthbarOverlayPx,
+  healthbarShown,
+} from './questlist.state';
+
+export function questlistHealthbarDraw(current: Int, max: Int, previous: Int): void {
+  const [, setShown] = useState(healthbarShown);
+  const [, setCurrent] = useState(healthbarCurrent);
+  const [, setMax] = useState(healthbarMax);
+  const [, setAnim] = useState(healthbarAnim);
+  const [, setBoundAt] = useState(healthbarBoundAt);
+  const [, setOverlay] = useState(healthbarOverlayPx);
+  const [, setFill] = useState(healthbarFillPx);
+  const [, setFrameLit] = useState(healthbarFrameLit);
+  const [boxWidth] = useState(healthbarBoxWidth);
+
+  setShown(1);
+  setCurrent(current);
+  setMax(max);
+  setAnim(HealthBarAnim.NONE);
+  setOverlay(0);
+  setFill(0);
+  setFrameLit(0);
+
+  const fillWidth: Int = boxWidth - HealthBar.FILL_MARGIN;
+  const delta: Int = previous - current;
+
+  if (current > 0 && current >= max) {
+    return;
+  }
+
+  if (current <= 0) {
+    if (delta > 0) {
+      const ghost: Int = scaled(delta, max, fillWidth);
+      if (ghost > 0) {
+        setOverlay(ghost);
+        setBoundAt(clientClock());
+        setAnim(HealthBarAnim.FADE);
+      }
+    }
+    return;
+  }
+
+  const fill: Int = scaled(current, max, fillWidth);
+  setFill(fill);
+  if (delta > 0) {
+    const ghost: Int = scaled(previous, max, fillWidth);
+    if (ghost > 0 && ghost > fill) {
+      setOverlay(ghost - fill);
+      setBoundAt(clientClock());
+      setAnim(HealthBarAnim.DAMAGE);
+    }
+  } else if (delta < 0) {
+    const old: Int = scaled(previous, max, fillWidth);
+    if (old > 0 && old < fill) {
+      setFill(old);
+      setOverlay(fill - old);
+      setBoundAt(clientClock());
+      setAnim(HealthBarAnim.HEAL);
+    }
+  }
+}
+
+export function healthbarStep(): void {
+  const [anim, setAnim] = useState(healthbarAnim);
+  const [boundAt] = useState(healthbarBoundAt);
+  const [overlay, setOverlay] = useState(healthbarOverlayPx);
+
+  if (anim === HealthBarAnim.NONE) {
+    return;
+  }
+  if (anim === HealthBarAnim.FADE_DONE) {
+    const [, setFrameLit] = useState(healthbarFrameLit);
+    setFrameLit(1);
+    setAnim(HealthBarAnim.NONE);
+    return;
+  }
+
+  let hold: Int = HealthBar.GHOST_HOLD;
+  if (anim === HealthBarAnim.HEAL) {
+    hold = HealthBar.HEAL_HOLD;
+  }
+  if (clientClock() - boundAt < hold) {
+    return;
+  }
+
+  const left: Int = overlay - HealthBar.TICK;
+  if (anim === HealthBarAnim.HEAL) {
+    const [fill, setFill] = useState(healthbarFillPx);
+    if (left <= 0) {
+      setFill(fill + overlay);
+      setOverlay(0);
+      setAnim(HealthBarAnim.NONE);
+    } else {
+      setFill(fill + HealthBar.TICK);
+      setOverlay(left);
+    }
+    return;
+  }
+  if (left <= 0) {
+    setOverlay(0);
+    if (anim === HealthBarAnim.FADE) {
+      setAnim(HealthBarAnim.FADE_DONE);
+    } else {
+      setAnim(HealthBarAnim.NONE);
+    }
+    return;
+  }
+  setOverlay(left);
+}

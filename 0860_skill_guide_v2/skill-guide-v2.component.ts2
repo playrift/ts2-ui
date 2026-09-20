@@ -1,0 +1,473 @@
+import { useOnResize, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { responsiveCurrentBreakpoint, skillGuideV2CurrentSkill, skillGuideV2CurrentTab } from '../lib/game/varcs';
+import { textWidth } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SkillByIndex } from '../lib/skills.data';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { BoxStyle, BoxStyleRow, BoxStyles } from '../0718_giants_foundry_mould/box-styles.data';
+
+import {
+  Close,
+  CloseArt,
+  GuideBar,
+  GuideColour,
+  GuideFont,
+  ICON_HOVER_TRANS,
+  Layout,
+  Row,
+  Tab,
+  Title,
+} from './skill-guide-v2.constants';
+import {
+  GuideCategories,
+  GuideEntries,
+  GuideEntryCount,
+  GuideEntryStart,
+  GuideSkillIcons,
+  GuideUnlock,
+  GuideUnlocks,
+} from './skill-guide-v2.data';
+import {
+  categoryCount,
+  entryHeight,
+  entryRow,
+  entryText,
+  entryWidth,
+  guideTitle,
+  iconOp,
+  iconOpItem,
+  iconOpLabel,
+  pageMembersOnly,
+  rowLineHeight,
+  skillGuideV2SelectTab,
+  tabGap,
+  tabHeight,
+  tabLabelPad,
+  tableExtent,
+  tableRows,
+  unlockHeight,
+  unlockText,
+  unlockTextWidth,
+} from './skill-guide-v2.helpers';
+import { guideLevelFrom, guideLevelTo } from './skill-guide-v2.state';
+
+export function SkillGuideV2(): Component {
+  return (
+    <>
+      <layer static x="center" y="center" w={Layout.window.w} h={Layout.window.h}>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <GuideTitle />
+        </layer>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <GuideClose />
+        </layer>
+        <layer
+          static
+          x={Layout.content.x}
+          y={Layout.content.y}
+          w={{ fill: Layout.content.insetW }}
+          h={{ fill: Layout.content.insetH }}
+        >
+          <layer
+            static
+            x={{ right: Layout.frame.right }}
+            y={Layout.frame.y}
+            w={{ fill: Layout.frame.insetW }}
+            h={{ fill: Layout.frame.insetH }}
+          >
+            <GuideFrame />
+          </layer>
+          <layer static x={Layout.tabs.x} y={Layout.tabs.y} w={Layout.tabs.w} h={{ fill: Layout.tabs.insetH }}>
+            <GuideTabs />
+          </layer>
+          <layer
+            static
+            x={{ right: Layout.page.right }}
+            y={{ bottom: Layout.page.bottom }}
+            w={{ fill: Layout.page.insetW }}
+            h={{ fill: Layout.page.insetH }}
+          />
+          <layer
+            static
+            x={{ right: Layout.page.right }}
+            y={{ bottom: Layout.page.bottom }}
+            w={{ fill: Layout.page.insetW }}
+            h={{ fill: Layout.page.insetH }}
+          >
+            <GuideTable />
+          </layer>
+        </layer>
+      </layer>
+      <layer static x={0} y={0} w={Layout.window.w} h={Layout.window.h} hide />
+    </>
+  );
+}
+
+function GuideTitle(): Component {
+  const [skill] = useState(skillGuideV2CurrentSkill);
+  const [tab] = useState(skillGuideV2CurrentTab);
+  const title: String = guideTitle(skill, tab);
+  const titleWidth: Int = textWidth(title, Layout.window.w - Title.inset, GuideFont.TITLE);
+  const icon: Sprite = GuideSkillIcons.get(SkillByIndex.get(skill) ?? -1) ?? -1;
+  return (
+    <SteelBorder title={title} titleColor={GuideColour.TEXT} flags={1}>
+      <sprite
+        x={{ center: 0 - (titleWidth + Title.icon) / 2 - 5 }}
+        y={Title.y + (Title.h - Title.icon) / 2}
+        w={Title.icon}
+        h={Title.icon}
+        sprite={icon}
+      />
+    </SteelBorder>
+  );
+}
+
+function GuideClose(): Component {
+  if (onMobile()) {
+    return (
+      <sprite
+        x={{ right: (Layout.content.y - Close.mobile) / 2 }}
+        y={(Layout.content.y - Close.mobile) / 2}
+        w={Close.mobile}
+        h={Close.mobile}
+        sprite={CloseArt.CLOSE_MOBILE}
+        options={[{ label: 'Close', hotkey: 13 }]}
+        onOptionSelect={(event) => opsound(event.option, 2)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={{ right: (Layout.content.y - Close.h) / 2 }}
+      y={(Layout.content.y - Close.h) / 2}
+      w={Close.w}
+      h={Close.h}
+      sprite={CloseArt.CLOSE}
+      hover={{ sprite: CloseArt.CLOSE_HOVER }}
+      options={[{ label: 'Close', hotkey: 13 }]}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+    />
+  );
+}
+
+function GuideFrame(): Component {
+  const frame = BoxStyles.at(BoxStyle.ACTIVE);
+  return (
+    <>
+      <rect x={1} y={1} w={{ fill: 2 }} h={{ fill: 2 }} fill color={GuideColour.PANEL} />
+      <sprite x={Tab.border} y={Tab.border} w={{ fill: 8 }} h={{ fill: 8 }} sprite={frame.fill} tiling />
+      <sprite x={Tab.border} y={0} w={{ fill: 8 }} h={Tab.border} sprite={frame.edgeTop} tiling />
+      <sprite x={Tab.border} y={{ bottom: 0 }} w={{ fill: 8 }} h={Tab.border} sprite={frame.edgeBottom} tiling />
+      <sprite x={0} y={Tab.border} w={Tab.border} h={{ fill: 8 }} sprite={frame.edgeLeft} tiling />
+      <sprite x={{ right: 0 }} y={Tab.border} w={Tab.border} h={{ fill: 8 }} sprite={frame.edgeRight} tiling />
+      <sprite x={0} y={0} w={Tab.border} h={Tab.border} sprite={frame.cornerTl} tiling />
+      <sprite x={{ right: 0 }} y={0} w={Tab.border} h={Tab.border} sprite={frame.cornerTr} tiling />
+      <sprite x={0} y={{ bottom: 0 }} w={Tab.border} h={Tab.border} sprite={frame.cornerBl} tiling />
+      <sprite x={{ right: 0 }} y={{ bottom: 0 }} w={Tab.border} h={Tab.border} sprite={frame.cornerBr} tiling />
+    </>
+  );
+}
+
+function GuideTabs(): Component {
+  const [skill] = useState(skillGuideV2CurrentSkill);
+  const [tab] = useState(skillGuideV2CurrentTab);
+  const box = useUniverse();
+  useOnResize(box);
+  const mobile: Boolean = onMobile();
+  const listHeight: Int = box.height;
+  const count: Int = categoryCount(skill);
+  const height: Int = tabHeight(listHeight, count);
+  const gap: Int = tabGap(listHeight, count);
+  const pad: Int = tabLabelPad(height);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {GuideCategories.filter((category) => category.skill === skill).map((category) => (
+        <GuideTab
+          label={category.header}
+          category={category.tab}
+          open={category.tab === tab}
+          height={height}
+          gap={gap}
+          pad={pad}
+          listHeight={listHeight}
+          mobile={mobile}
+        />
+      ))}
+    </layer>
+  );
+}
+
+function GuideTab({
+  label,
+  category,
+  open,
+  height,
+  gap,
+  pad,
+  listHeight,
+  mobile,
+}: {
+  label: String;
+  category: Int;
+  open: Boolean;
+  height: Int;
+  gap: Int;
+  pad: Int;
+  listHeight: Int;
+  mobile: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const top: Int = category * (height + gap);
+  let style: BoxStyleRow = BoxStyles.at(BoxStyle.INACTIVE);
+  if (open) {
+    style = BoxStyles.at(BoxStyle.ACTIVE);
+  } else if (hovered === 1) {
+    style = BoxStyles.at(BoxStyle.HOVER);
+  }
+  const closedInset: Int = 2 * Tab.border - Tab.overlap;
+  const fillInset: Int = open ? Tab.border : closedInset;
+  const topInset: Int = top === 0 && open ? Tab.border : closedInset;
+  const bottomInset: Int = top + height === listHeight && open ? Tab.border : closedInset;
+  const labelX: Int = Tab.labelX + pad;
+  return (
+    <>
+      <rect
+        x={1}
+        y={top + 1}
+        w={{ fill: Tab.border - Tab.overlap }}
+        h={height - 2}
+        fill
+        color={GuideColour.PANEL}
+        options={[open ? '' : 'View']}
+        optionSubject={open ? '' : `<col=ff9040>${label}</col>`}
+        onMouseEnter={() => {
+          if (!open && !mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => setHovered(0)}
+        onOptionSelect={() => skillGuideV2SelectTab(category)}
+      />
+      <sprite x={Tab.border} y={top + 2} w={{ fill: fillInset }} h={height - 4} sprite={style.fill} tiling />
+      <sprite x={Tab.border} y={top} w={{ fill: topInset }} h={Tab.border} sprite={style.edgeTop} tiling />
+      <sprite
+        x={Tab.border}
+        y={top + height - Tab.border}
+        w={{ fill: bottomInset }}
+        h={Tab.border}
+        sprite={style.edgeBottom}
+        tiling
+      />
+      <sprite x={0} y={top + Tab.border} w={Tab.border} h={height - 2 * Tab.border} sprite={style.edgeLeft} tiling />
+      <sprite x={0} y={top} w={Tab.border} h={Tab.border} sprite={style.cornerTl} tiling />
+      <sprite x={0} y={top + height - Tab.border} w={Tab.border} h={Tab.border} sprite={style.cornerBl} tiling />
+      <text
+        x={labelX}
+        y={top}
+        w={{ fill: labelX + Tab.labelPad }}
+        h={height}
+        align="left"
+        valign="middle"
+        shadow
+        font={GuideFont.BODY}
+        color={GuideColour.TEXT}
+        text={label}
+      />
+    </>
+  );
+}
+
+function GuideTable(): Component {
+  const [skill] = useState(skillGuideV2CurrentSkill);
+  const [tab] = useState(skillGuideV2CurrentTab);
+  const [from] = useState(guideLevelFrom);
+  const [to] = useState(guideLevelTo);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const league: Int = useServerState(Varbits.LEAGUE_TYPE);
+  const box = useUniverse();
+  useOnResize(box);
+  const pane = useRef();
+  if (tab === 0) {
+    return null;
+  }
+  const paneHeight: Int = box.height - Layout.pane.insetH;
+  const textW: Int = box.width - Layout.pane.insetW - Row.iconColumn - Row.inset * 2;
+  const lineHeight: Int = rowLineHeight(breakpoint);
+  const pageMembers: Boolean = pageMembersOnly(skill, tab);
+  const start: Int = GuideEntryStart.get(skill) ?? 0;
+  const end: Int = start + (GuideEntryCount.get(skill) ?? 0);
+
+  const extent: Int = tableExtent(skill, tab, from, to, league, pageMembers, textW, lineHeight);
+  const drawn: Int = tableRows(skill, tab, from, to, league);
+
+  return (
+    <>
+      <layer x={0} y={0} w={{ fill: Layout.tableBox.insetW }} h="fill">
+        <ThinBoxEntrypoint />
+      </layer>
+      <layer
+        ref={pane}
+        x={Layout.pane.x}
+        y={Layout.pane.y}
+        w={{ fill: Layout.pane.insetW }}
+        h={{ fill: Layout.pane.insetH }}
+        scrollHeight={extent}
+      >
+        {GuideEntries.filter(
+          (entry, index) => index >= start && index < end && entryRow(entry, skill, tab, from, to, league) !== -1,
+        ).scan(
+          (entry, index, y) => (
+            <UnlockRow
+              row={entryRow(entry, skill, tab, from, to, league)}
+              level={entry.level}
+              y={y}
+              stripe={index}
+              skill={skill}
+              lineHeight={lineHeight}
+              text={entryText(entry, skill, tab, from, to, league, pageMembers)}
+              width={entryWidth(entry, skill, tab, from, to, league, textW)}
+              height={entryHeight(entry, skill, tab, from, to, league, pageMembers, textW, lineHeight)}
+            />
+          ),
+          (entry) => entryHeight(entry, skill, tab, from, to, league, pageMembers, textW, lineHeight),
+        )}
+        <rect
+          x={0}
+          y={extent}
+          w="fill"
+          h={paneHeight}
+          fill
+          color={GuideColour.ROW}
+          transparency={drawn % 2 === 0 ? Row.evenTrans : Row.oddTrans}
+        />
+      </layer>
+      <layer x={{ right: 0 }} y={0} w={Layout.bar.w} h="fill">
+        <ScrollbarVertical
+          content={pane}
+          track={GuideBar.TRACK}
+          capTopSprite={GuideBar.CAP_TOP}
+          thumbSprite={GuideBar.THUMB}
+          capBottomSprite={GuideBar.CAP_BOTTOM}
+          arrowUp={GuideBar.ARROW_UP}
+          arrowDown={GuideBar.ARROW_DOWN}
+          rebuilt
+        />
+      </layer>
+    </>
+  );
+}
+
+function UnlockIcon({ unlock, skill }: { unlock: GuideUnlock; skill: Int }): Component {
+  const [hovered, setHovered] = useState(0);
+  const opItem: Item = iconOpItem(unlock, skill);
+  const hasOp: Boolean = opItem !== -1;
+  if (unlock.sprite !== -1) {
+    return (
+      <sprite
+        x={Row.inset + Row.iconX + Math.max(0, (Row.itemW - unlock.spriteW) / 2 - 3) + unlock.spriteDx}
+        y={Row.iconY + Math.max(0, (Row.itemH - unlock.spriteH) / 2 - 1) + unlock.spriteDy}
+        w={unlock.spriteW}
+        h={unlock.spriteH}
+        sprite={unlock.sprite}
+        outline={1}
+        shadowColor={GuideColour.ICON_SHADOW}
+        transparency={hovered === 1 ? ICON_HOVER_TRANS : 0}
+        options={[hasOp ? iconOpLabel(skill) : '']}
+        onMouseRepeat={hasOp ? () => setHovered(1) : undefined}
+        onMouseLeave={hasOp ? () => setHovered(0) : undefined}
+        onOptionSelect={hasOp ? (event) => iconOp(skill, opItem, event.component, event.subId) : undefined}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={Row.inset + Row.iconX}
+      y={Row.iconY}
+      w={Row.itemW}
+      h={Row.itemH}
+      item={unlock.icon}
+      itemCount={-1}
+      outline={1}
+      shadowColor={GuideColour.ICON_SHADOW}
+      transparency={hovered === 1 ? ICON_HOVER_TRANS : 0}
+      options={[hasOp ? iconOpLabel(skill) : '']}
+      onMouseRepeat={hasOp ? () => setHovered(1) : undefined}
+      onMouseLeave={hasOp ? () => setHovered(0) : undefined}
+      onOptionSelect={hasOp ? (event) => iconOp(skill, opItem, event.component, event.subId) : undefined}
+    />
+  );
+}
+
+function UnlockRow({
+  row,
+  level,
+  y,
+  stripe,
+  skill,
+  lineHeight,
+  text,
+  width,
+  height,
+}: {
+  row: Int;
+  level: Int;
+  y: Int;
+  stripe: Int;
+  skill: Int;
+  lineHeight: Int;
+  text: String;
+  width: Int;
+  height: Int;
+}): Component {
+  const unlock = GuideUnlocks.at(row);
+  if (unlock === null) {
+    return null;
+  }
+  const levelShown: Boolean = level >= 1 && level <= 99;
+  return (
+    <>
+      <rect
+        x={0}
+        y={y}
+        w="fill"
+        h={height}
+        fill
+        color={GuideColour.ROW}
+        transparency={stripe % 2 === 0 ? Row.evenTrans : Row.oddTrans}
+      />
+      <text
+        x={Row.inset}
+        y={y}
+        w={Row.levelW}
+        h={Row.minH}
+        align="left"
+        valign="middle"
+        shadow
+        font={GuideFont.BODY}
+        color={GuideColour.TEXT}
+        text={levelShown ? stringOf(level) : ''}
+        hide={!levelShown}
+      />
+      <layer x={0} y={y} w="fill" h={height}>
+        <UnlockIcon unlock={unlock} skill={skill} />
+      </layer>
+      <text
+        x={{ right: Row.inset }}
+        y={y + Row.inset}
+        w={width}
+        h={height - Row.inset * 2}
+        align="left"
+        valign="middle"
+        lineHeight={lineHeight}
+        shadow
+        font={GuideFont.BODY}
+        color={GuideColour.TEXT}
+        text={text}
+      />
+    </>
+  );
+}

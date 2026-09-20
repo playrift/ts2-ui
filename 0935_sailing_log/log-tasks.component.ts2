@@ -1,0 +1,249 @@
+import { useRef, useServerState, useState, useWatch } from 'ts2';
+import { commas } from '../0465_ge_offers/ge-offers.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { PortTasks } from '../0942_port_task_info/port-tasks.data';
+import { PortTaskId, PortTaskModel, dockIcon, taskBackingLog } from '../0942_port_task_info/port-tasks.helpers';
+import { TaskBoardLayoutIndex, TaskBoardLayouts } from '../0942_port_task_info/task-board-layouts.data';
+import { Varps } from '../lib/game/varps';
+import { onMobile } from '../lib/lib.helpers';
+import { LogFont, LogObj, LogSprite } from './sailing-log.constants';
+import {
+  logCardX,
+  logCardY,
+  logSlotAt,
+  logSlotLevel,
+  logTaskDetails,
+  sailingLogCancelSound,
+  sailingLogSlotSelect,
+  sailingLogTaskBack,
+  sailingLogTasksChanged,
+} from './sailing-log.helpers';
+import { logBuilt, logWindowShown, logWindowTask } from './sailing-log.state';
+
+export function TasksPage(): Component {
+  const [built] = useState(logBuilt);
+  const isBuilt: Boolean = built === 1;
+  const cards = useRef();
+  useWatch(Varps.PORT_TASKS_GENERAL, () => sailingLogTasksChanged(), cards);
+  const completed: Int = useServerState(Varps.PORT_TASKS_COMPLETED);
+  const first: Int = TaskBoardLayouts.at(TaskBoardLayoutIndex.LOG).tasksOnFirstRow;
+
+  return (
+    <>
+      <layer ref={cards} x="center" y={0} w="fill" h={{ fill: 10 }}>
+        {isBuilt && (
+          <>
+            <LogCard slot={0} task={logSlotAt(0)} x={logCardX(0, first)} y={logCardY(0, first)} />
+            <LogCard slot={1} task={logSlotAt(1)} x={logCardX(1, first)} y={logCardY(1, first)} />
+            <LogCard slot={2} task={logSlotAt(2)} x={logCardX(2, first)} y={logCardY(2, first)} />
+            <LogCard slot={3} task={logSlotAt(3)} x={logCardX(3, first)} y={logCardY(3, first)} />
+            <LogCard slot={4} task={logSlotAt(4)} x={logCardX(4, first)} y={logCardY(4, first)} />
+          </>
+        )}
+      </layer>
+      <layer x="center" y={0} w="fill" h={{ fill: 10 }}>
+        {isBuilt && (
+          <>
+            <LogCardClick slot={0} task={logSlotAt(0)} x={logCardX(0, first)} y={logCardY(0, first)} />
+            <LogCardClick slot={1} task={logSlotAt(1)} x={logCardX(1, first)} y={logCardY(1, first)} />
+            <LogCardClick slot={2} task={logSlotAt(2)} x={logCardX(2, first)} y={logCardY(2, first)} />
+            <LogCardClick slot={3} task={logSlotAt(3)} x={logCardX(3, first)} y={logCardY(3, first)} />
+            <LogCardClick slot={4} task={logSlotAt(4)} x={logCardX(4, first)} y={logCardY(4, first)} />
+          </>
+        )}
+      </layer>
+      <text
+        x="center"
+        y={{ bottom: 0 }}
+        w="fill"
+        h={20}
+        text={`Completed: <col=ffffff>${commas(completed)}`}
+        font={LogFont.P12}
+        color={0xff981f}
+        shadow
+        align="center"
+        valign="bottom"
+      />
+      <TaskWindow />
+    </>
+  );
+}
+
+function LogCard({ slot, task, x, y }: { slot: Int; task: Int; x: Int; y: Int }): Component {
+  const row = PortTasks.at(task);
+  if (row === null) {
+    return null;
+  }
+  const locked: Boolean = row.taskId === PortTaskId.LOCKED;
+  const placeholder: Boolean = locked || row.taskId === PortTaskId.BLANK;
+  const level: Int = logSlotLevel(slot);
+  const bounty: Boolean = row.taskType === 1;
+  const iconDock: Int = bounty ? row.startDock : row.cargoDock;
+  return (
+    <>
+      <model x={x} y={y} w={85} h={120} model={row.graphic} pitch={512} zoom={1800} />
+      {locked && (
+        <model x={x + 22} y={y + 40} w={40} h={40} item={LogObj.PADLOCK as Item} itemCount={1} itemCountMode="never" />
+      )}
+      {locked && level !== -1 && (
+        <text
+          x={x}
+          y={y + 85}
+          w={85}
+          h={30}
+          text={`${level}`}
+          font={LogFont.QUILL}
+          color={0}
+          align="center"
+          valign="middle"
+        />
+      )}
+      {placeholder ? (
+        <model x={x} y={y} w={1} h={1} model={PortTaskModel.PLACEHOLDER_ICON} pitch={512} zoom={1500} />
+      ) : (
+        <model
+          x={x + 22 + (bounty ? 5 : 0)}
+          y={y + 92 + (bounty ? 8 : 0)}
+          w={1}
+          h={1}
+          model={dockIcon(iconDock)}
+          pitch={512}
+          zoom={1800}
+        />
+      )}
+    </>
+  );
+}
+
+function LogCardClick({ slot, task, x, y }: { slot: Int; task: Int; x: Int; y: Int }): Component {
+  const row = PortTasks.at(task);
+  if (row === null) {
+    return null;
+  }
+  const named: Boolean = row.taskId !== PortTaskId.LOCKED && row.taskId !== PortTaskId.BLANK;
+  return (
+    <rect
+      x={x}
+      y={y}
+      w={85}
+      h={120}
+      transparency={255}
+      options={['Select']}
+      optionSubject={named ? `<col=ff9040>${row.name}</col>` : ''}
+      onOptionSelect={() => sailingLogSlotSelect(slot)}
+    />
+  );
+}
+
+function TaskWindow(): Component {
+  const [task] = useState(logWindowTask);
+  const [shown] = useState(logWindowShown);
+  const row = PortTasks.at(task);
+  const placed: Boolean = row !== null;
+  const drawn: Boolean = placed && shown === 1;
+  const hidden: Boolean = shown === 0;
+  let cancellable: Boolean = false;
+  let name: String = '';
+  let flavour: String = '';
+  let backing: Model = -1;
+  if (row !== null) {
+    cancellable = row.cancellable;
+    name = row.name;
+    flavour = row.flavour;
+    backing = taskBackingLog(row.graphic);
+  }
+  const cancelHidden: Boolean = placed && !cancellable;
+  const cancelLive: Boolean = placed && cancellable;
+  const backX: Int = placed && !cancellable ? 0 : -60;
+
+  return (
+    <layer x="center" y="center" w="fill" h={{ fill: 10 }} noClickThrough hide={hidden}>
+      <layer x="center" y="center" w="fill" h="fill">
+        {drawn && <model x="center" y={{ center: 1 }} w={2} h={2} model={backing} pitch={512} yaw={512} zoom={620} />}
+      </layer>
+      <text
+        x={placed ? 32 : 'center'}
+        y={placed ? 15 : 37}
+        w={{ fill: placed ? 55 : 20 }}
+        h={placed ? 20 : 18}
+        text={drawn ? name : ''}
+        font={LogFont.P12}
+        color={0xffffff}
+        shadow
+        lineHeight={placed ? 18 : 16}
+      />
+      <text
+        x={placed ? 32 : 'center'}
+        y={placed ? 38 : 61}
+        w={{ fill: placed ? 55 : 20 }}
+        h={placed ? 96 : 82}
+        text={drawn ? logTaskDetails(task) : ''}
+        font={LogFont.P12}
+        color={0xffffff}
+        shadow
+        lineHeight={placed ? 18 : 16}
+      />
+      <text
+        x={placed ? 32 : 'center'}
+        y={placed ? 133 : 149}
+        w={{ fill: placed ? 55 : 20 }}
+        h={{ fill: 193 }}
+        text={drawn ? flavour : ''}
+        font={LogFont.P12}
+        color={0xffffff}
+        shadow
+        lineHeight={placed ? 18 : 16}
+      />
+      <layer
+        x={{ center: backX }}
+        y={{ bottom: 14 }}
+        w={100}
+        h={28}
+        options={placed ? ['Back'] : ['*']}
+        onOptionSelect={placed ? () => sailingLogTaskBack() : null}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          sprite={LogSprite.TRADEBACKING}
+          tiling
+          transparency={100}
+        />
+        {drawn && <LogButton label="Back" />}
+      </layer>
+      <layer
+        x={{ center: 60 }}
+        y={{ bottom: 14 }}
+        w={100}
+        h={28}
+        hide={cancelHidden}
+        options={placed ? (cancellable ? ['Cancel task'] : ['']) : ['*']}
+        onOptionSelect={cancelLive ? (event) => sailingLogCancelSound(event.option) : null}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          sprite={LogSprite.TRADEBACKING}
+          tiling
+          transparency={100}
+        />
+        {drawn && cancellable && <LogButton label="Cancel task" />}
+      </layer>
+    </layer>
+  );
+}
+
+function LogButton({ label }: { label: String }): Component {
+  const [pressed, setPressed] = useState(0);
+  const mobile: Boolean = onMobile();
+  const skin: Int = pressed;
+  return (
+    <layer w="fill" h="fill" onMouseRepeat={mobile ? null : () => setPressed(1)} onMouseLeave={() => setPressed(0)}>
+      <StoneButtonDraw label={label} font={LogFont.P12} pressed={skin} />
+    </layer>
+  );
+}

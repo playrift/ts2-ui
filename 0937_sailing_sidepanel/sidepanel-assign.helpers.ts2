@@ -1,0 +1,289 @@
+import { useServerState, useState } from 'ts2';
+import { slotCrew } from '../0938_sailing_crew/sailing-crew.helpers';
+import { sailingKeelsOffered } from '../0312_smithing/smithing.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { SidepanelBoats, SidepanelParts } from './sidepanel-boats.data';
+import {
+  boatCrewCapacity,
+  boatIndex,
+  crewCount,
+  crewPosition,
+  crewStat,
+  hotspotPart,
+  layoutIcon,
+} from './sidepanel-crew.helpers';
+import {
+  sidepanelAssignCount,
+  sidepanelAssignDim0,
+  sidepanelAssignDim1,
+  sidepanelAssignDim2,
+  sidepanelAssignDim3,
+  sidepanelAssignDim4,
+  sidepanelAssignExperienced,
+  sidepanelAssignIcon0,
+  sidepanelAssignIcon1,
+  sidepanelAssignIcon2,
+  sidepanelAssignIcon3,
+  sidepanelAssignIcon4,
+  sidepanelAssignId0,
+  sidepanelAssignId1,
+  sidepanelAssignId2,
+  sidepanelAssignId3,
+  sidepanelAssignId4,
+  sidepanelAssignLit0,
+  sidepanelAssignLit1,
+  sidepanelAssignLit2,
+  sidepanelAssignLit3,
+  sidepanelAssignLit4,
+  sidepanelAssignMax,
+  sidepanelAssignRows,
+  sidepanelAssignTitle,
+  sidepanelAssignUnassignLit,
+} from './sailing-sidepanel.state';
+
+export function assignFacilityPart(view: Int): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return -1;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return -1;
+  }
+  switch (view) {
+    case 0:
+      return optionPart(boat.sailFirst, boat.sailCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_SAIL));
+    case 1:
+      return optionPart(boat.helmFirst, boat.helmCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HELM));
+    case 2:
+      return optionPart(boat.hullFirst, boat.hullCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HULL));
+  }
+  if (view >= 3 && view <= 15) {
+    return hotspotPart(view - 3);
+  }
+  return -1;
+}
+
+function optionPart(first: Int, count: Int, index: Int): Int {
+  if (index < 0 || index >= count) {
+    return -1;
+  }
+  return first + index;
+}
+
+export function positionPart(position: Int): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return -1;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return -1;
+  }
+  if (position === 2) {
+    return optionPart(boat.sailFirst, boat.sailCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_SAIL));
+  }
+  if (position === 3 || position === 4) {
+    return optionPart(boat.helmFirst, boat.helmCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HELM));
+  }
+  if (position === 5) {
+    return optionPart(boat.hullFirst, boat.hullCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HULL));
+  }
+  if (position >= 6 && position <= 18) {
+    return hotspotPart(position - 6);
+  }
+  return -1;
+}
+
+export function assignFacilityName(view: Int): String {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return '';
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return '';
+  }
+  if (view === 0) {
+    return 'Sail';
+  }
+  if (view === 1) {
+    return boat.combinedNavigation ? 'Helm and sails' : 'Helm';
+  }
+  if (view === 2) {
+    return 'Hull repairs';
+  }
+  const partIndex: Int = assignFacilityPart(view);
+  if (partIndex < 0) {
+    return 'Facility';
+  }
+  const part = SidepanelParts.at(partIndex);
+  if (part === null) {
+    return 'Facility';
+  }
+  return part.name;
+}
+
+export function requirementSuffix(part: Int): String {
+  if (part < 0) {
+    return '';
+  }
+  const row = SidepanelParts.at(part);
+  if (row === null) {
+    return '';
+  }
+  const level: Int = Math.max(row.statLevel, 1);
+  switch (row.statType) {
+    case 1:
+      return ` (H${level})`;
+    case 2:
+      return ` (P${level})`;
+    case 3:
+      return ` (D${level})`;
+  }
+  return '';
+}
+
+export function meetsRequirement(part: Int, crewId: Int): Boolean {
+  if (part < 0) {
+    return true;
+  }
+  const row = SidepanelParts.at(part);
+  if (row === null) {
+    return true;
+  }
+  if (row.statType < 1 || row.statType > 3) {
+    return true;
+  }
+  const whirlpool: Boolean = useServerState(Varbits.SAILING_SIDEPANEL_WHIRLPOOL_SURPRISE_ACTIVE) === 1;
+  return crewStat(row.statType, crewId, whirlpool) >= Math.max(row.statLevel, 1);
+}
+
+export function sidepanelAssignCapture(): void {
+  const [, setTitle] = useState(sidepanelAssignTitle);
+  const [, setCount] = useState(sidepanelAssignCount);
+  const [, setMax] = useState(sidepanelAssignMax);
+  const [, setExperienced] = useState(sidepanelAssignExperienced);
+  const [, setRows] = useState(sidepanelAssignRows);
+  const [, setUnassignLit] = useState(sidepanelAssignUnassignLit);
+
+  const view: Int = useServerState(Varbits.SAILING_SIDEPANEL_CREW_ASSIGNATION_FACILITY_VIEWED);
+  const facility: Int = assignFacilityPart(view);
+  setTitle(`${assignFacilityName(view)}${requirementSuffix(facility)}`);
+  const count: Int = crewCount();
+  setCount(count);
+  setMax(boatCrewCapacity());
+  setExperienced(sailingKeelsOffered() ? 1 : 0);
+  setUnassignLit(facility === -1 ? 1 : 0);
+
+  let rows: Int = 0;
+  if (count !== 0) {
+    let slot: Int = 0;
+    while (rows < count && slot < 5) {
+      if (sidepanelSlotCrew(slot) !== 0) {
+        const crewId: Int = slotCrew(slot);
+        let icon: Sprite = layoutIcon(-1);
+        let dim: Int = 0;
+        let lit: Int = facility === -1 ? 1 : 0;
+        if (crewId !== 0) {
+          const position: Int = crewPosition(slot);
+          const part: Int = positionPart(position);
+          icon = layoutIcon(partLayoutOf(part));
+          dim = meetsRequirement(facility, crewId) ? 0 : 1;
+          lit = part === facility ? 1 : 0;
+        }
+        storeAssignRow(rows, crewId, icon, dim, lit);
+        rows = rows + 1;
+      }
+      slot = slot + 1;
+    }
+  }
+  setRows(rows);
+}
+
+function partLayoutOf(part: Int): Int {
+  if (part < 0) {
+    return -1;
+  }
+  const row = SidepanelParts.at(part);
+  if (row === null) {
+    return -1;
+  }
+  return row.layout;
+}
+
+function sidepanelSlotCrew(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_1);
+    case 1:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_2);
+    case 2:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_3);
+    case 3:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_4);
+    case 4:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_5);
+  }
+  return 0;
+}
+
+function storeAssignRow(index: Int, crewId: Int, icon: Sprite, dim: Int, lit: Int): void {
+  switch (index) {
+    case 0: {
+      const [, c] = useState(sidepanelAssignId0);
+      const [, i] = useState(sidepanelAssignIcon0);
+      const [, d] = useState(sidepanelAssignDim0);
+      const [, l] = useState(sidepanelAssignLit0);
+      c(crewId);
+      i(icon as Int);
+      d(dim);
+      l(lit);
+      return;
+    }
+    case 1: {
+      const [, c] = useState(sidepanelAssignId1);
+      const [, i] = useState(sidepanelAssignIcon1);
+      const [, d] = useState(sidepanelAssignDim1);
+      const [, l] = useState(sidepanelAssignLit1);
+      c(crewId);
+      i(icon as Int);
+      d(dim);
+      l(lit);
+      return;
+    }
+    case 2: {
+      const [, c] = useState(sidepanelAssignId2);
+      const [, i] = useState(sidepanelAssignIcon2);
+      const [, d] = useState(sidepanelAssignDim2);
+      const [, l] = useState(sidepanelAssignLit2);
+      c(crewId);
+      i(icon as Int);
+      d(dim);
+      l(lit);
+      return;
+    }
+    case 3: {
+      const [, c] = useState(sidepanelAssignId3);
+      const [, i] = useState(sidepanelAssignIcon3);
+      const [, d] = useState(sidepanelAssignDim3);
+      const [, l] = useState(sidepanelAssignLit3);
+      c(crewId);
+      i(icon as Int);
+      d(dim);
+      l(lit);
+      return;
+    }
+    case 4: {
+      const [, c] = useState(sidepanelAssignId4);
+      const [, i] = useState(sidepanelAssignIcon4);
+      const [, d] = useState(sidepanelAssignDim4);
+      const [, l] = useState(sidepanelAssignLit4);
+      c(crewId);
+      i(icon as Int);
+      d(dim);
+      l(lit);
+      return;
+    }
+  }
+}

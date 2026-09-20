@@ -1,0 +1,176 @@
+import { CS2, useState } from 'ts2';
+
+import {
+  autochatPause,
+  autotyper,
+  chatHighlight,
+  chatInittime,
+  chatLastbroadcastTime,
+  chatView,
+  chatinput,
+  chatout0,
+  chatout1,
+  chatout10,
+  chatout11,
+  chatout12,
+  chatout13,
+  chatout14,
+  chatout15,
+  chatout16,
+  chatout17,
+  chatout18,
+  chatout19,
+  chatout2,
+  chatout3,
+  chatout4,
+  chatout5,
+  chatout6,
+  chatout7,
+  chatout8,
+  chatout9,
+  chatoutReadpos,
+  chatoutWritepos,
+  lastPmReceivedSender,
+  tradepartner,
+} from '../lib/game/varcs';
+import { releaseCrmOverlaySlot } from '../0065_crm_surprisepopup_side/crm-overlay-reset';
+import { chatboxBackground, chatboxRelayout, redrawChatInput, settleEmptyPaneExtent } from './chatbox-chrome';
+import { chatboxRef, chatmodalRef, chatoverlayRef, line0Ref } from './chatbox.constants';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { CHAT_VIEW_COLLAPSED, ChatTab } from './chatbox.data';
+import { chatDefaultSetOnKey } from './meslayer';
+
+export function chatboxInit(): void {
+  const [, setInitTime] = useState(chatInittime);
+  setInitTime(CS2.clientclock());
+
+  chatDefaultSetOnKey(1);
+
+  const mode: Int = CS2.window_mode_get();
+  const hadModal: Boolean = CS2.if_sub_has(chatmodalRef);
+  const hadOverlay: Boolean = CS2.if_sub_has(chatoverlayRef);
+  const layout: Int = toplevelComponents();
+  CS2.if_on_sub_change_set(() => chatOnSubChange(mode, hadModal, hadOverlay, layout), chatboxRef);
+
+  const [view, setView] = useState(chatView);
+  const [, setHighlight] = useState(chatHighlight);
+  const [, setInput] = useState(chatinput);
+  setInput('');
+  setHighlight(-1);
+
+  if (!((view >= ChatTab.ALL && view <= ChatTab.TRADE) || view === CHAT_VIEW_COLLAPSED)) {
+    setView(ChatTab.ALL);
+  }
+
+  const [, setReadpos] = useState(chatoutReadpos);
+  const [, setWritepos] = useState(chatoutWritepos);
+  setReadpos(-1);
+  setWritepos(0);
+
+  const [, setOut0] = useState(chatout0);
+  const [, setOut1] = useState(chatout1);
+  const [, setOut2] = useState(chatout2);
+  const [, setOut3] = useState(chatout3);
+  const [, setOut4] = useState(chatout4);
+  const [, setOut5] = useState(chatout5);
+  const [, setOut6] = useState(chatout6);
+  const [, setOut7] = useState(chatout7);
+  const [, setOut8] = useState(chatout8);
+  const [, setOut9] = useState(chatout9);
+  const [, setOut10] = useState(chatout10);
+  const [, setOut11] = useState(chatout11);
+  const [, setOut12] = useState(chatout12);
+  const [, setOut13] = useState(chatout13);
+  const [, setOut14] = useState(chatout14);
+  const [, setOut15] = useState(chatout15);
+  const [, setOut16] = useState(chatout16);
+  const [, setOut17] = useState(chatout17);
+  const [, setOut18] = useState(chatout18);
+  const [, setOut19] = useState(chatout19);
+  setOut0('');
+  setOut1('');
+  setOut2('');
+  setOut3('');
+  setOut4('');
+  setOut5('');
+  setOut6('');
+  setOut7('');
+  setOut8('');
+  setOut9('');
+  setOut10('');
+  setOut11('');
+  setOut12('');
+  setOut13('');
+  setOut14('');
+  setOut15('');
+  setOut16('');
+  setOut17('');
+  setOut18('');
+  setOut19('');
+
+  const [, setLastPm] = useState(lastPmReceivedSender);
+  const [, setTradePartner] = useState(tradepartner);
+  setLastPm('');
+  setTradePartner('');
+
+  const [, setLastBroadcast] = useState(chatLastbroadcastTime);
+  setLastBroadcast(MIN_INT);
+
+  const [, setAutotyper] = useState(autotyper);
+  const [, setAutochatPause] = useState(autochatPause);
+  setAutotyper('');
+  setAutochatPause(0);
+
+  line0Ref.scrollY = 0;
+
+  settleEmptyPaneExtent();
+
+  CS2.chat_message_filter_set('');
+
+  chatboxBackground();
+  redrawChatInput();
+
+  releaseCrmOverlaySlot(CHATBOX_CRM_SLOT);
+}
+
+export function chatboxVarTransmit(): void {
+  chatboxRelayout();
+}
+
+export function chatOnSubChange(mode: Int, hadModal: Boolean, hadOverlay: Boolean, layout: Int): void {
+  const nowMode: Int = CS2.window_mode_get();
+  const nowModal: Boolean = CS2.if_sub_has(chatmodalRef);
+  const nowOverlay: Boolean = CS2.if_sub_has(chatoverlayRef);
+  const nowLayout: Int = toplevelComponents();
+
+  let changed: Int = 0;
+  if (nowMode !== mode) {
+    changed = 1;
+  } else if (nowLayout !== layout) {
+    changed = 1;
+  } else {
+    if (nowModal) {
+      if (!hadModal) {
+        changed = 1;
+      }
+    } else if (hadModal) {
+      changed = 1;
+    }
+    if (nowOverlay) {
+      if (!hadOverlay) {
+        changed = 1;
+      }
+    } else if (hadOverlay) {
+      changed = 1;
+    }
+  }
+
+  if (changed === 1) {
+    chatboxRelayout();
+    CS2.if_on_sub_change_set(() => chatOnSubChange(nowMode, nowModal, nowOverlay, nowLayout), chatboxRef);
+  }
+}
+
+const MIN_INT = -2147483648;
+
+const CHATBOX_CRM_SLOT = 0;

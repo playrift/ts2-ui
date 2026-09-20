@@ -1,0 +1,486 @@
+import { useOnResize, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { clientClock, playSound, textLineCount } from '../lib/lib.engine';
+import { graphicSwapper, onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { Quest } from '../lib/lib.quests';
+import { Varps } from '../lib/game/varps';
+import { combatLevel } from '../lib/game/varcs';
+import { speedrunningWorld } from '../0134_settings/settings.helpers';
+import {
+  largeParchment,
+  mobileFrameCentred,
+  mobileFrameX,
+  mobileFrameY,
+} from '../0119_questjournal/questjournal.layout';
+import {
+  Body,
+  Corner,
+  Frame,
+  HEADING_DIFFICULTY,
+  HEADING_LENGTH,
+  HEADING_QUEST_REQUIREMENTS,
+  HEADING_RECOMMENDATIONS,
+  HEADING_RELEASE_YEAR,
+  HEADING_REQUIREMENTS,
+  HEADING_SKILL_REQUIREMENTS,
+  HEADING_STORYLINE,
+  Ink,
+  Large,
+  MapButton,
+  OP_SHOW_ON_MAP,
+  OverviewBar,
+  OverviewFonts,
+  OverviewModel,
+  OverviewSounds,
+  OverviewSprites,
+  Page,
+  Small,
+} from './questjournal-overview.constants';
+import {
+  difficultyText,
+  hasStartCoord,
+  introText,
+  lengthText,
+  overviewReady,
+  questStatus,
+  recommendationsText,
+  releaseYearText,
+  requirementsMain,
+  requirementsSkills,
+  seriesText,
+} from './questjournal-overview.helpers';
+import { overviewQuest, overviewStartBy } from './questjournal-overview.state';
+
+export function QuestJournalOverview(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+
+  const mobile: Boolean = onMobile();
+  const large: Boolean = largeParchment(universe.height);
+  const speedrun: Boolean = speedrunningWorld();
+
+  const frameH: Int = large ? Large.FRAME_H : Small.FRAME_H;
+  const pageH: Int = large ? Large.PAGE_H : Small.PAGE_H;
+  const parchment: Model = large ? OverviewModel.LARGE : OverviewModel.SMALL;
+  const modelDy: Int = large ? Large.MODEL_DY : Small.MODEL_DY;
+
+  const mobileH: Int = Frame.MOBILE_H;
+  const mobileFrameLeft: Int = mobileFrameX(Frame.W, universe.width, universe.height, mobileH);
+  const centred: Boolean = mobileFrameCentred(Frame.W, universe.width, universe.height, mobileH);
+
+  const switchShown: Boolean = questStatus(useServerState(Varps.LATEST_QUEST_JOURNAL)) !== 1;
+
+  const [quest] = useState(overviewQuest);
+  const [startBy] = useState(overviewStartBy);
+  const ready: Boolean = overviewReady(quest);
+
+  const paneW: Int = Page.W - Page.PANE_W_INSET - Page.CONTENT_W_INSET;
+  const paraW: Int = paneW - Body.PARA_W_INSET;
+  const columnW: Int = paneW / 2;
+  const paneH: Int = pageH - Page.PANE_H_INSET;
+
+  const intro: String = introText(quest, startBy);
+  const mainRequirements: String = requirementsMain(quest, paneW);
+  const skillRequirements: String = requirementsSkills(quest, paneW);
+  const recommendations: String = recommendationsText(quest);
+  const split: Boolean = skillRequirements.length > 0;
+  const showMap: Boolean = hasStartCoord(quest);
+
+  const introH: Int = textLineCount(intro, paraW, OverviewFonts.BODY) * Body.LINE_H;
+  const mainH: Int = textLineCount(mainRequirements, paneW, OverviewFonts.BODY) * Body.LINE_H;
+  const skillH: Int = textLineCount(skillRequirements, paneW, OverviewFonts.BODY) * Body.LINE_H;
+  const recH: Int = textLineCount(recommendations, paneW, OverviewFonts.BODY) * Body.LINE_H;
+
+  const yMap: Int = introH - Body.MAP_LIFT;
+  const yRuleTop: Int = showMap ? introH + Body.MAP_H : introH + Body.NO_MAP_GAP;
+  const yFacts: Int = yRuleTop + Body.RULE_GAP;
+  const yFactValues: Int = yFacts + Body.ROW_H;
+  const ySeries: Int = yFactValues + Body.ROW_H + Body.PAIR_GAP;
+  const ySeriesValues: Int = ySeries + Body.ROW_H;
+  const yRuleBottom: Int = ySeriesValues + Body.ROW_H + Body.STORY_GAP;
+  const yRequirementsHead: Int = yRuleBottom + Body.RULE_GAP;
+  const yRequirements: Int = yRequirementsHead + Body.ROW_H;
+  const ySkillsHead: Int = yRequirements + mainH + Body.PARA_GAP;
+  const ySkills: Int = ySkillsHead + Body.ROW_H;
+  const yRecommendationsHead: Int = split ? ySkills + skillH + Body.PARA_GAP : ySkillsHead;
+  const yRecommendations: Int = yRecommendationsHead + Body.ROW_H;
+  const contentH: Int = yRecommendations + recH;
+
+  const extent: Int = ready && contentH > paneH ? contentH : 0;
+
+  const pane = useRef();
+  const mapButton = useRef();
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <layer
+        x={mobile ? (centred ? { center: mobileFrameLeft } : mobileFrameLeft) : 'center'}
+        y={mobile ? { center: mobileFrameY(universe.height, mobileH) } : 'center'}
+        w={Frame.W}
+        h={mobile ? mobileH : 'fill'}
+      >
+        <layer x="center" y="center" w="fill" h={frameH}>
+          <model
+            x={{ center: Small.MODEL_DX }}
+            y={{ center: modelDy }}
+            w={Page.MODEL_W}
+            h={Page.MODEL_H}
+            model={parchment}
+            zoom={OverviewModel.ZOOM}
+            pitch={OverviewModel.PITCH}
+          />
+
+          <layer x={{ center: Small.PAGE_DX }} y={{ center: Small.PAGE_DY }} w={Page.W} h={pageH} noClickThrough>
+            <text
+              x={
+                speedrun
+                  ? switchShown
+                    ? Page.TITLE_X_BOTH
+                    : Page.TITLE_X_ONE
+                  : switchShown
+                    ? Page.TITLE_X_ONE
+                    : Page.TITLE_X_NEITHER
+              }
+              y={Page.TITLE_Y}
+              w={{ fill: Page.TITLE_W_INSET }}
+              h={Page.TITLE_H}
+              font={OverviewFonts.TITLE}
+              color={Ink.BODY}
+            />
+
+            <layer
+              ref={pane}
+              x={0}
+              y="bottom"
+              w={{ fill: Page.PANE_W_INSET }}
+              h={{ fill: Page.PANE_H_INSET }}
+              scrollHeight={extent}
+            >
+              <layer x="center" y={0} w={{ fill: Page.CONTENT_W_INSET }} h={ready ? contentH : Body.ROW_H}>
+                {ready && (
+                  <>
+                    <text
+                      x="center"
+                      y={0}
+                      w={{ fill: Body.PARA_W_INSET }}
+                      h={introH}
+                      text={intro}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+
+                    {showMap && (
+                      <text
+                        ref={mapButton}
+                        x="center"
+                        y={yMap}
+                        w={Body.MAP_W}
+                        h={Body.MAP_H}
+                        text={OP_SHOW_ON_MAP}
+                        font={OverviewFonts.BODY}
+                        color={Ink.MAP}
+                        align="center"
+                        valign="middle"
+                        lineHeight={Body.LINE_H}
+                        options={[OP_SHOW_ON_MAP]}
+                        onOptionSelect={(event) => showOnMapOp(event.self, event.option)}
+                        onMouseRepeat={
+                          mobile
+                            ? null
+                            : (event) => {
+                                event.self.color = Ink.MAP_LIT;
+                              }
+                        }
+                        onMouseLeave={
+                          mobile
+                            ? null
+                            : (event) => {
+                                event.self.color = Ink.MAP;
+                              }
+                        }
+                      />
+                    )}
+
+                    <line x="center" y={yRuleTop} w={{ fill: Body.RULE_W_INSET }} h={0} color={Ink.RULE} />
+
+                    <text
+                      x={Body.COLUMN_X}
+                      y={yFacts}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={HEADING_DIFFICULTY}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={{ right: Body.COLUMN_X }}
+                      y={yFacts}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={HEADING_LENGTH}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={Body.COLUMN_X}
+                      y={yFactValues}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={difficultyText(quest)}
+                      font={OverviewFonts.BODY}
+                      color={Ink.VALUE}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={{ right: Body.COLUMN_X }}
+                      y={yFactValues}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={lengthText(quest)}
+                      font={OverviewFonts.BODY}
+                      color={Ink.VALUE}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+
+                    <text
+                      x={Body.COLUMN_X}
+                      y={ySeries}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={HEADING_STORYLINE}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={{ right: Body.COLUMN_X }}
+                      y={ySeries}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={HEADING_RELEASE_YEAR}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={Body.COLUMN_X}
+                      y={ySeriesValues}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={seriesText(quest)}
+                      font={OverviewFonts.BODY}
+                      color={Ink.VALUE}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x={{ right: Body.COLUMN_X }}
+                      y={ySeriesValues}
+                      w={columnW}
+                      h={Body.ROW_H}
+                      text={releaseYearText(quest)}
+                      font={OverviewFonts.BODY}
+                      color={Ink.VALUE}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+
+                    <line x="center" y={yRuleBottom} w={{ fill: Body.RULE_W_INSET }} h={0} color={Ink.RULE} />
+
+                    <text
+                      x="center"
+                      y={yRequirementsHead}
+                      w={{ fill: Body.FULL_W_INSET }}
+                      h={Body.ROW_H}
+                      text={split ? HEADING_QUEST_REQUIREMENTS : HEADING_REQUIREMENTS}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x="center"
+                      y={yRequirements}
+                      w={{ fill: Body.FULL_W_INSET }}
+                      h={mainH}
+                      text={mainRequirements}
+                      font={OverviewFonts.BODY}
+                      color={Ink.BODY}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+
+                    {split && (
+                      <text
+                        x="center"
+                        y={ySkillsHead}
+                        w={{ fill: Body.FULL_W_INSET }}
+                        h={Body.ROW_H}
+                        text={HEADING_SKILL_REQUIREMENTS}
+                        font={OverviewFonts.BODY}
+                        color={Ink.HEADING}
+                        align="center"
+                        valign="top"
+                        lineHeight={Body.LINE_H}
+                      />
+                    )}
+                    {split && (
+                      <text
+                        x="center"
+                        y={ySkills}
+                        w={{ fill: Body.FULL_W_INSET }}
+                        h={skillH}
+                        text={skillRequirements}
+                        font={OverviewFonts.BODY}
+                        color={Ink.BODY}
+                        align="center"
+                        valign="top"
+                        lineHeight={Body.LINE_H}
+                      />
+                    )}
+
+                    <text
+                      x="center"
+                      y={yRecommendationsHead}
+                      w={{ fill: Body.FULL_W_INSET }}
+                      h={Body.ROW_H}
+                      text={HEADING_RECOMMENDATIONS}
+                      font={OverviewFonts.BODY}
+                      color={Ink.HEADING}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                    <text
+                      x="center"
+                      y={yRecommendations}
+                      w={{ fill: Body.FULL_W_INSET }}
+                      h={recH}
+                      text={recommendations}
+                      font={OverviewFonts.BODY}
+                      color={Ink.BODY}
+                      align="center"
+                      valign="top"
+                      lineHeight={Body.LINE_H}
+                    />
+                  </>
+                )}
+              </layer>
+            </layer>
+
+            <layer x="right" y="bottom" w={Page.BAR_W} h={{ fill: Page.PANE_H_INSET }}>
+              {ready && contentH > 0 && (
+                <ScrollbarVertical
+                  content={pane}
+                  track={OverviewBar.TRACK}
+                  capTopSprite={OverviewBar.CAP_TOP}
+                  thumbSprite={OverviewBar.THUMB}
+                  capBottomSprite={OverviewBar.CAP_BOTTOM}
+                  arrowUp={OverviewBar.ARROW_UP}
+                  arrowDown={OverviewBar.ARROW_DOWN}
+                />
+              )}
+            </layer>
+
+            <sprite
+              x={{ right: Corner.CLOSE_RIGHT }}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={OverviewSprites.CLOSE}
+              options={['Close']}
+              onMouseEnter={(event) => graphicSwapper(event.self, OverviewSprites.CLOSE_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.self, OverviewSprites.CLOSE)}
+            />
+
+            <sprite
+              x={speedrun ? Corner.SWITCH_X_WITH_BACK : Corner.SWITCH_X_ALONE}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={OverviewSprites.SWITCH}
+              hide={switchShown ? false : true}
+              options={['Switch View']}
+              onMouseEnter={(event) => graphicSwapper(event.self, OverviewSprites.SWITCH_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.self, OverviewSprites.SWITCH)}
+            />
+
+            <sprite
+              x={Corner.BACK_X}
+              y={0}
+              w={Corner.W}
+              h={Corner.H}
+              sprite={OverviewSprites.BACK}
+              hide={speedrun ? false : true}
+              options={['Back']}
+              onMouseEnter={(event) => graphicSwapper(event.self, OverviewSprites.BACK_HOVER)}
+              onMouseLeave={(event) => graphicSwapper(event.self, OverviewSprites.BACK)}
+            />
+          </layer>
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+export function showOnMapOp(button: ComponentId, option: Int): void {
+  if (option !== MapButton.OP) {
+    return;
+  }
+  playSound(OverviewSounds.SELECT);
+  const resetAt: Int = clientClock() + MapButton.RESET_CYCLES;
+  button.color = Ink.MAP_LIT;
+  button.options = [];
+  button.onOptionSelect = null;
+  button.onMouseRepeat = null;
+  button.onMouseLeave = null;
+  button.onTimer = () => showOnMapReset(button, resetAt);
+}
+
+function showOnMapReset(button: ComponentId, resetAt: Int): void {
+  if (clientClock() < resetAt) {
+    return;
+  }
+  button.color = Ink.MAP;
+  button.options = [OP_SHOW_ON_MAP];
+  button.onOptionSelect = (event) => showOnMapOp(button, event.option);
+  if (!onMobile()) {
+    button.onMouseRepeat = (event) => {
+      event.self.color = Ink.MAP_LIT;
+    };
+    button.onMouseLeave = (event) => {
+      event.self.color = Ink.MAP;
+    };
+  }
+}
+
+export function questjournalOverviewSetup(quest: Quest, startBy: String, combat: Int): void {
+  const [, setCombat] = useState(combatLevel);
+  const [, setQuest] = useState(overviewQuest);
+  const [, setStartBy] = useState(overviewStartBy);
+  setCombat(combat);
+  setQuest(quest);
+  setStartBy(startBy);
+}

@@ -1,0 +1,82 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { ButtonStyle, ButtonStyles } from './button-styles.data';
+import type { ButtonStyleRow } from './button-styles.data';
+import { CappedStructBox } from './capped-struct-box.component';
+import { BuyState, UnlockColor, UnlockFonts, UnlockSounds } from './league-3-unlocks.constants';
+import { desktop } from './league-3-unlocks.helpers';
+import { confirmationOpen } from './league-3-unlocks.state';
+
+export function BuyButton({
+  state,
+  colour,
+  cost,
+  w,
+  h,
+}: {
+  state: BuyState;
+  colour: Int;
+  cost: Int;
+  w: Int;
+  h: Int;
+}): Component {
+  const [, setConfirming] = useState(confirmationOpen);
+  const [hovered, setHovered] = useState(0);
+
+  const live: Boolean = state === BuyState.READY;
+  const shown: BuyState = live && hovered === 1 ? BuyState.READY_HOVER : state;
+
+  let skin: ButtonStyleRow = ButtonStyles.at(ButtonStyle.DISABLED);
+  if (shown === BuyState.READY) {
+    skin = ButtonStyles.at(ButtonStyle.ACCEPT);
+  } else if (shown === BuyState.READY_HOVER) {
+    skin = ButtonStyles.at(ButtonStyle.ACCEPT_HOVER);
+  }
+
+  const label: String = state === BuyState.OWNED || state === BuyState.IDLE ? '„' : `„ ${stringOf(cost)}`;
+
+  const swap: Boolean = live ? desktop() : false;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={live ? ['Unlock'] : ['']}
+      onOptionSelect={
+        live
+          ? () => {
+              CS2.sound_effect(UnlockSounds.CLICK, 1, 0);
+              setConfirming(1);
+            }
+          : undefined
+      }
+      onMouseEnter={swap ? () => setHovered(1) : undefined}
+      onMouseLeave={swap ? () => setHovered(0) : undefined}
+    >
+      <CappedStructBox x={0} y={0} w={w} h={h} style={skin} />
+
+      <text
+        x={1}
+        y={2}
+        w="fill"
+        h="fill"
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={live ? UnlockColor.BUY_SHADOW_ON : UnlockColor.BUY_SHADOW_OFF}
+        text={label}
+      />
+      <text
+        x={0}
+        y={1}
+        w="fill"
+        h="fill"
+        align="center"
+        valign="middle"
+        font={UnlockFonts.BOLD}
+        color={live ? UnlockColor.BLACK : UnlockColor.MUTED}
+        text={label}
+      />
+    </layer>
+  );
+}

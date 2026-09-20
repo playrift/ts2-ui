@@ -1,0 +1,45 @@
+import { onMobile } from '../lib/lib.helpers';
+
+import { Stripe, TelenexusOrder, TelenexusTeleport, TelenexusTeleports } from './telenexus.constants';
+import { teleportRequirements } from './telenexus.requirements';
+import { isSlotted, slotCapacity, slotValue } from './telenexus.slots';
+
+export const NEXUS_MAX_ROWS = 41;
+
+export function rowHeight(): Int {
+  return onMobile() ? Stripe.H + Stripe.MOBILE_EXTRA : Stripe.H;
+}
+
+export function gripDrop(): Int {
+  return onMobile() ? Stripe.MOBILE_EXTRA / 2 : 0;
+}
+
+export function availableCount(): Int {
+  let at: Int = 0;
+  let takeable: Int = 0;
+  while (at < TelenexusOrder.length) {
+    const teleport: Int = TelenexusOrder.at(at) ?? -1;
+    const row: TelenexusTeleport | null = TelenexusTeleports.get(teleport);
+    if (row !== null && isSlotted(teleport) === false) {
+      const [met, _] = teleportRequirements(row);
+      if (met === true) {
+        takeable = takeable + 1;
+      }
+    }
+    at = at + 1;
+  }
+  return takeable;
+}
+
+export function slottedCount(): Int {
+  const capacity: Int = slotCapacity();
+  let slot: Int = 1;
+  let filled: Int = 0;
+  while (slot <= capacity) {
+    if (slotValue(slot) > 0) {
+      filled = filled + 1;
+    }
+    slot = slot + 1;
+  }
+  return filled;
+}

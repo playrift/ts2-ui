@@ -1,0 +1,91 @@
+import { useRef } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { PactSprite, pactInfoPaneRef } from './talent-tree.constants';
+
+export function InfoScrollbar({ extent, paneHeight }: { extent: Int; paneHeight: Int }): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const measured: Int = extent > 0 ? extent : paneHeight;
+
+  pactInfoPaneRef.onScrollWheel = (event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom);
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={PactSprite.BAR_TRACK}
+        noClickThrough
+        onScrollWheel={(event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom)}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = pactInfoPaneRef.scrollHeight - pactInfoPaneRef.height;
+          pactInfoPaneRef.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, pactInfoPaneRef);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, paneHeight, measured, true)) * pactInfoPaneRef.scrollY) /
+            Math.max(1, extent - paneHeight)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, paneHeight, measured, true)}
+        sprite={PactSprite.BAR_THUMB}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = pactInfoPaneRef.scrollHeight - pactInfoPaneRef.height;
+          pactInfoPaneRef.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={PactSprite.BAR_CAP_TOP} />
+      <sprite ref={capBottom} y={thumb.y + thumb.height - CAP} w="fill" h={CAP} sprite={PactSprite.BAR_CAP_BOTTOM} />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={PactSprite.BAR_UP}
+        noClickThrough
+        onHold={() => {
+          pactInfoPaneRef.scrollY = pactInfoPaneRef.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, pactInfoPaneRef);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={PactSprite.BAR_DOWN}
+        noClickThrough
+        onHold={() => {
+          pactInfoPaneRef.scrollY = pactInfoPaneRef.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, pactInfoPaneRef);
+        }}
+      />
+    </layer>
+  );
+}
+
+function wheel(delta: Int, gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref): void {
+  pactInfoPaneRef.scrollY = pactInfoPaneRef.scrollY + delta * WHEEL;
+  trackScroll(gutter, thumb, capTop, capBottom, pactInfoPaneRef);
+}

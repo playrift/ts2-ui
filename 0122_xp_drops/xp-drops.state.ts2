@@ -1,0 +1,156 @@
+import { CS2, sessionState, stopTimer, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { gameframeSlot, GameframeSlot } from '../lib/lib.gameframe';
+import { absoluteX, absoluteY, Anchor, enhancedAny, mobileGameframe, mobileSideStripMode } from '../lib/lib.overlay';
+import { Varbits } from '../lib/game/varbits';
+import { toplevelComponents } from '../lib/lib.helpers';
+import {
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipUp,
+} from '../lib/tooltip.component';
+import { XpDropsDodge, XpDropsVars, XpDropTiming } from './xp-drops.constants';
+import { durationTicks } from './xp-drops.helpers';
+import { useServerState } from 'ts2';
+
+export function xpDropsAnchor(position: Int): Int {
+  if (onMobile()) {
+    return Anchor.RIGHT;
+  }
+  if (position === 0) {
+    return Anchor.RIGHT;
+  }
+  if (position === 2) {
+    return Anchor.LEFT;
+  }
+  return Anchor.CENTRE;
+}
+
+export function xpDropsDodgeTop(anchor: Int): Int {
+  let top: Int = 0;
+  if (onMobile()) {
+    top = top + 2;
+    return top;
+  }
+  if (anchor === Anchor.LEFT || anchor === Anchor.CENTRE) {
+    if (!enhancedAny() || useServerState(Varbits.MOUSEOVER_TEXT_ENABLED) === 1) {
+      top = top + 23;
+    } else {
+      top = top + 2;
+    }
+  }
+  return top;
+}
+
+export function xpDropsDropsInset(): Int {
+  if (!mobileGameframe(toplevelComponents())) {
+    return 0;
+  }
+  const strip: Int = mobileSideStripMode();
+  if (strip === 3 || strip === 4) {
+    const side: Int = CS2.if_width_get(gameframeSlot(GameframeSlot.SIDE_CONTAINER));
+    if (useServerState(XpDropsVars.MINIMAP_TOGGLE) === 0) {
+      return side - 181;
+    }
+    return side - 84;
+  }
+  return 2;
+}
+
+export const panelHideAt = sessionState(-1);
+
+export function tickPanelVisibility(): void {
+  const [hideAt, setHideAt] = useState(panelHideAt);
+  if (hideAt !== -1) {
+    return;
+  }
+  const ticks: Int = durationTicks();
+  if (ticks > 0) {
+    setHideAt(clientClock() + ticks);
+    return;
+  }
+  setHideAt(0);
+}
+
+export function panelShown(): Boolean {
+  const [hideAt] = useState(panelHideAt);
+  if (hideAt <= 0) {
+    return true;
+  }
+  if (clientClock() < hideAt) {
+    return true;
+  }
+  return false;
+}
+
+export const tipRow = sessionState(-1);
+export const tipX = sessionState(-1);
+export const tipY = sessionState(-1);
+export const tipH = sessionState(-1);
+
+export function showXpDropsTip(row: Int, host: ComponentId, x: Int, y: Int, height: Int): void {
+  const [, setRow] = useState(tipRow);
+  const [, setX] = useState(tipX);
+  const [, setY] = useState(tipY);
+  const [, setH] = useState(tipH);
+  tooltipMark();
+  if (!tooltipDwellElapsed(0)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  setRow(row);
+  setX(absoluteX(host) + x);
+  setY(absoluteY(host) + y);
+  setH(height);
+  tooltipRaise();
+}
+
+export function hideXpDropsTip(): void {
+  const [, setRow] = useState(tipRow);
+  tooltipHide();
+  setRow(-1);
+}
+
+export function toggleXpDropsTip(
+  row: Int,
+  host: ComponentId,
+  x: Int,
+  y: Int,
+  height: Int,
+  container: ComponentId,
+): void {
+  const [, setRow] = useState(tipRow);
+  const [, setX] = useState(tipX);
+  const [, setY] = useState(tipY);
+  const [, setH] = useState(tipH);
+  if (tooltipUp()) {
+    hideXpDropsTip();
+    return;
+  }
+  setRow(row);
+  setX(absoluteX(host) + x);
+  setY(absoluteY(host) + y);
+  setH(height);
+  tooltipRaise();
+  const until: Int = clientClock() + XpDropTiming.MOBILE_TIP;
+  container.onTimer = () => xpDropsMobileTipRemove(until, container);
+}
+
+function xpDropsMobileTipRemove(until: Int, container: ComponentId): void {
+  if (!tooltipUp()) {
+    stopTimer(container);
+    return;
+  }
+  if (clientClock() < until) {
+    return;
+  }
+  hideXpDropsTip();
+  stopTimer(container);
+}

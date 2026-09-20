@@ -1,0 +1,329 @@
+import { CS2 } from 'ts2';
+
+import { areaSelected } from '../0512_trailblazer_areas/trailblazer-areas.helpers';
+import { chatDefaultStopInput } from '../0608_fossil_mushtrees/chatdefault-input';
+import { leaguesEnabled } from '../0735_league_3_fragments/league-3-fragments.helpers';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { clientClock, playSound } from '../lib/lib.engine';
+import {
+  Art,
+  Colour,
+  ComponentType,
+  Font,
+  Layout,
+  Obj,
+  PosMode,
+  SELECT_SOUND,
+  SizeMode,
+  TextAlign,
+  combatRef,
+  duelingRef,
+  frameRef,
+  gamingRef,
+  gloryRef,
+  pohJewelleryBoxRef,
+  skillsRef,
+  wealthRef,
+} from './poh-jewellery-box.constants';
+import { CURRENT_LEAGUE_GREYS_AREAS, ShortcutLower, ShortcutUpper } from './poh-jewellery-box.data';
+import { steelBorder, thinBox } from './steelborder.skins';
+
+export function pohJewelleryBoxInit(tier: Int, title: String, flags: Int): void {
+  chatDefaultStopInput();
+  steelBorder(frameRef, title, 0);
+  CS2.cc_all_delete(pohJewelleryBoxRef);
+
+  const columnW: Int = (CS2.if_width_get(pohJewelleryBoxRef) - Layout.MARGIN - Layout.MARGIN - Layout.GAP) / 2;
+  const bandsH: Int = CS2.if_height_get(pohJewelleryBoxRef) - Layout.HEIGHT_INSET;
+  const topH: Int = CS2.scale(Layout.SHARE_TOP, Layout.SHARES, bandsH);
+  const midH: Int = CS2.scale(Layout.SHARE_MID, Layout.SHARES, bandsH);
+  const bottomH: Int = CS2.scale(Layout.SHARE_BOTTOM, Layout.SHARES, bandsH);
+  const rightX: Int = Layout.MARGIN + columnW + Layout.GAP;
+  const midY: Int = Layout.TOP + topH + Layout.GAP;
+  const bottomY: Int = Layout.TOP + topH + midH + Layout.GAP + Layout.GAP;
+
+  CS2.if_size_set(columnW, topH, SizeMode.ABS, SizeMode.ABS, duelingRef);
+  CS2.if_position_set(Layout.MARGIN, Layout.TOP, PosMode.ABS_LEFT, PosMode.ABS_TOP, duelingRef);
+  CS2.if_size_set(columnW, topH, SizeMode.ABS, SizeMode.ABS, gamingRef);
+  CS2.if_position_set(rightX, Layout.TOP, PosMode.ABS_LEFT, PosMode.ABS_TOP, gamingRef);
+  CS2.if_size_set(columnW, midH, SizeMode.ABS, SizeMode.ABS, combatRef);
+  CS2.if_position_set(Layout.MARGIN, midY, PosMode.ABS_LEFT, PosMode.ABS_TOP, combatRef);
+  CS2.if_size_set(columnW, midH, SizeMode.ABS, SizeMode.ABS, skillsRef);
+  CS2.if_position_set(rightX, midY, PosMode.ABS_LEFT, PosMode.ABS_TOP, skillsRef);
+  CS2.if_size_set(columnW, bottomH, SizeMode.ABS, SizeMode.ABS, wealthRef);
+  CS2.if_position_set(Layout.MARGIN, bottomY, PosMode.ABS_LEFT, PosMode.ABS_TOP, wealthRef);
+  CS2.if_size_set(columnW, bottomH, SizeMode.ABS, SizeMode.ABS, gloryRef);
+  CS2.if_position_set(rightX, bottomY, PosMode.ABS_LEFT, PosMode.ABS_TOP, gloryRef);
+
+  const league: Boolean = leagueGreys();
+
+  columnHeader(duelingRef, 1, 'Ring of Dueling', Obj.RING_OF_DUELING, tier);
+  let top: Int = rowTop(duelingRef, 4);
+  let step: Int = rowStep(duelingRef, 4);
+  destination(duelingRef, 1, struckIf(league && !areaSelected(6), "Emir's Arena"), step, tier, 0, top, 0);
+  destination(duelingRef, 1, struckIf(league && !areaSelected(4), 'Castle Wars'), step, tier, 1, top, 1);
+  destination(duelingRef, 1, struckIf(league && !areaSelected(11), 'Ferox Enclave'), step, tier, 2, top, 2);
+  destination(
+    duelingRef,
+    1,
+    struckIf(league && !areaSelected(21), struckIf(!CS2.testbit(flags, 4), 'Fortis Colosseum')),
+    step,
+    tier,
+    3,
+    top,
+    3,
+  );
+
+  columnHeader(gamingRef, 1, 'Games Necklace', Obj.GAMES_NECKLACE, tier);
+  top = rowTop(gamingRef, 5);
+  step = rowStep(gamingRef, 5);
+  destination(gamingRef, 1, struckIf(league && !areaSelected(3), 'Burthorpe'), step, tier, 0, top, 4);
+  destination(gamingRef, 1, struckIf(league && !areaSelected(4), 'Barbarian Outpost'), step, tier, 1, top, 5);
+  destination(gamingRef, 1, struckIf(league && !areaSelected(11), 'Corporeal Beast'), step, tier, 2, top, 6);
+  destination(gamingRef, 1, struckIf(!CS2.testbit(flags, 0), 'Tears of Guthix'), step, tier, 3, top, 7);
+  destination(gamingRef, 1, kourendGated(flags, league, 'Wintertodt Camp'), step, tier, 4, top, 8);
+
+  columnHeader(combatRef, 2, 'Combat bracelet', Obj.COMBAT_BRACELET, tier);
+  top = rowTop(combatRef, 4);
+  step = rowStep(combatRef, 4);
+  destination(combatRef, 2, struckIf(league && !areaSelected(3), "Warriors' Guild"), step, tier, 0, top, 9);
+  destination(combatRef, 2, "Champions' Guild", step, tier, 1, top, 10);
+  destination(combatRef, 2, struckIf(league && !areaSelected(3), 'Monastery'), step, tier, 2, top, 11);
+  destination(combatRef, 2, struckIf(league && !areaSelected(4), 'Ranging Guild'), step, tier, 3, top, 12);
+
+  columnHeader(skillsRef, 2, 'Skills necklace', Obj.SKILLS_NECKLACE, tier);
+  top = rowTop(skillsRef, 6);
+  step = rowStep(skillsRef, 6);
+  destination(skillsRef, 2, struckIf(league && !areaSelected(4), 'Fishing Guild'), step, tier, 0, top, 13);
+  destination(skillsRef, 2, struckIf(league && !areaSelected(3), 'Mining Guild'), step, tier, 1, top, 14);
+  destination(skillsRef, 2, struckIf(league && !areaSelected(3), 'Crafting Guild'), step, tier, 2, top, 15);
+  destination(skillsRef, 2, 'Cooking Guild', step, tier, 3, top, 16);
+  destination(skillsRef, 2, kourendGated(flags, league, 'Woodcutting Guild'), step, tier, 4, top, 17);
+  destination(skillsRef, 2, kourendGated(flags, league, 'Farming Guild'), step, tier, 5, top, 18);
+
+  columnHeader(wealthRef, 3, 'Ring of Wealth', Obj.RING_OF_WEALTH, tier);
+  top = rowTop(wealthRef, 4);
+  step = rowStep(wealthRef, 4);
+  destination(wealthRef, 3, unlockGated(flags, 2, league, 8, 'Miscellania'), step, tier, 0, top, 19);
+  destination(wealthRef, 3, 'Grand Exchange', step, tier, 1, top, 20);
+  destination(wealthRef, 3, struckIf(league && !areaSelected(3), 'Falador Park'), step, tier, 2, top, 21);
+  destination(wealthRef, 3, unlockGated(flags, 3, league, 8, "Dondakan's Rock"), step, tier, 3, top, 22);
+
+  columnHeader(gloryRef, 3, 'Amulet of Glory', Obj.AMULET_OF_GLORY, tier);
+  top = rowTop(gloryRef, 4);
+  step = rowStep(gloryRef, 4);
+  destination(gloryRef, 3, 'Edgeville', step, tier, 0, top, 23);
+  destination(gloryRef, 3, 'Karamja', step, tier, 1, top, 24);
+  destination(gloryRef, 3, 'Draynor Village', step, tier, 2, top, 25);
+  destination(gloryRef, 3, struckIf(league && !areaSelected(6), 'Al Kharid'), step, tier, 3, top, 26);
+}
+
+function leagueGreys(): Boolean {
+  if (!leaguesEnabled()) {
+    return false;
+  }
+  return CURRENT_LEAGUE_GREYS_AREAS === 1;
+}
+
+function struckIf(strike: Boolean, label: String): String {
+  if (strike) {
+    return `<str>${label}</str>`;
+  }
+  return label;
+}
+
+function kourendGated(flags: Int, league: Boolean, label: String): String {
+  return unlockGated(flags, 1, league, 20, label);
+}
+
+function unlockGated(flags: Int, bit: Int, league: Boolean, region: Int, label: String): String {
+  if (!CS2.testbit(flags, bit)) {
+    return `<str>${label}</str>`;
+  }
+  if (league && !areaSelected(region)) {
+    return `<str>${label}</str>`;
+  }
+  return label;
+}
+
+function columnHeader(column: ComponentId, need: Int, name: String, obj: Item, tier: Int): void {
+  CS2.cc_all_delete(column);
+  CS2.cc_create(column, ComponentType.SPRITE, 0, false);
+  CS2.cc_size_set(2, 2, SizeMode.MINUS, SizeMode.MINUS);
+  CS2.cc_position_set(0, 0, PosMode.ABS_CENTRE, PosMode.ABS_CENTRE);
+  CS2.cc_tiling_set(true);
+  if (tier >= need) {
+    CS2.cc_sprite_set(Art.BACKING_LIGHT);
+  } else {
+    CS2.cc_sprite_set(Art.BACKING_DARK);
+  }
+  const text: Int = thinBox(column, 1);
+  CS2.cc_create(column, ComponentType.TEXT, text, false);
+  CS2.cc_size_set(Layout.HEADER_W, Layout.HEADER_H, SizeMode.ABS, SizeMode.ABS);
+  CS2.cc_position_set(Layout.HEADER_X, Layout.HEADER_Y, PosMode.ABS_LEFT, PosMode.ABS_CENTRE);
+  if (tier >= need) {
+    CS2.cc_colour_set(Colour.HEADER_LIT);
+  } else {
+    CS2.cc_colour_set(Colour.HEADER_DIM);
+  }
+  CS2.cc_text_font_set(Font.P11_FULL);
+  CS2.cc_text_align_set(TextAlign.CENTRE, TextAlign.CENTRE, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(name);
+  CS2.cc_create(column, ComponentType.SPRITE, text + 1, false);
+  CS2.cc_size_set(Layout.ITEM_W, Layout.ITEM_H, SizeMode.ABS, SizeMode.ABS);
+  CS2.cc_position_set(
+    Layout.HEADER_X + 2 + (Layout.HEADER_W - Layout.ITEM_W) / 2,
+    Layout.ITEM_Y,
+    PosMode.ABS_LEFT,
+    PosMode.ABS_CENTRE,
+  );
+  CS2.cc_sprite_shadow_set(Colour.ITEM_SHADOW);
+  CS2.cc_outline_set(1);
+  CS2.cc_item_nonum_set(obj, 1);
+}
+
+function rowTop(column: ComponentId, rows: Int): Int {
+  const count: Int = Math.max(rows, 1);
+  const step: Int = rowStep(column, rows);
+  let top: Int = 0 - step * (count / 2);
+  if (count % 2 === 0) {
+    top = top + step / 2;
+  }
+  return top;
+}
+
+function rowStep(column: ComponentId, rows: Int): Int {
+  const count: Int = Math.max(rows, 1);
+  return Math.min((CS2.if_height_get(column) - 10) / count, Layout.ROW_MAX_H);
+}
+
+function destination(
+  column: ComponentId,
+  need: Int,
+  label: String,
+  step: Int,
+  tier: Int,
+  row: Int,
+  top: Int,
+  slot: Int,
+): void {
+  CS2.cc_create(pohJewelleryBoxRef, ComponentType.RECTANGLE, slot, false);
+  CS2.cc_size_set(1, 1, SizeMode.ABS, SizeMode.ABS);
+  CS2.cc_position_set(0, 0, PosMode.ABS_LEFT, PosMode.ABS_TOP);
+  if (tier < need) {
+    return;
+  }
+  const index: Int = Layout.HEADER_CHILDREN + row;
+  CS2.cc_create(column, ComponentType.TEXT, index, false);
+  CS2.cc_size_set(Layout.ROW_W_INSET, step, SizeMode.MINUS, SizeMode.ABS);
+  CS2.cc_position_set(Layout.ROW_X, top + row * step, PosMode.ABS_RIGHT, PosMode.ABS_CENTRE);
+  CS2.cc_colour_set(Colour.ROW);
+  CS2.cc_on_mouserepeat_set((event) => recolour(event.component, event.subId, Colour.ROW_HOVER));
+  CS2.cc_on_mouseleave_set((event) => recolour(event.component, event.subId, Colour.ROW));
+  CS2.cc_text_font_set(Font.P11_FULL);
+  CS2.cc_text_align_set(TextAlign.CENTRE, TextAlign.CENTRE, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_op_set(1, CS2.tags_remove(label));
+
+  let upper: String = '';
+  let lower: String = '';
+  let shown: String = label;
+  if (slot < Layout.DIGIT_LIMIT) {
+    upper = stringOf(slot + 1);
+    shown = `<col=ccccff>${upper}:</col> ${label}`;
+  } else if (slot < Layout.LETTER_LIMIT) {
+    upper = ShortcutUpper.get(slot - Layout.LETTER_BASE) ?? '';
+    lower = ShortcutLower.get(slot - Layout.LETTER_BASE) ?? '';
+    shown = `<col=ccccff>${upper}:</col> ${label}`;
+  }
+  CS2.cc_text_set(shown);
+  CS2.cc_onop_set((event) => destinationOp(event.option, slot, column, index, shown, upper, lower));
+  if (slot < Layout.LETTER_LIMIT) {
+    if (CS2.cc_find(pohJewelleryBoxRef, slot)) {
+      CS2.cc_on_key_set((event) => destinationKey(event.keyChar, event.subId, column, index, shown, upper, lower));
+    }
+  }
+}
+
+function recolour(container: ComponentId, index: Int, colour: Int): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_colour_set(colour);
+  }
+}
+
+function destinationKey(
+  key: Char,
+  holder: Int,
+  column: ComponentId,
+  index: Int,
+  label: String,
+  upper: String,
+  lower: String,
+): void {
+  if (dialogueMayAdvance(interfaceOf(pohJewelleryBoxRef) as Interface, -1) === false) {
+    return;
+  }
+  if (key === -1) {
+    return;
+  }
+  if (CS2.string_indexof_char(upper, key) === -1 && CS2.string_indexof_char(lower, key) === -1) {
+    return;
+  }
+  if (CS2.cc_find(column, index) && CS2.cc_find(pohJewelleryBoxRef, holder)) {
+    pleaseWait(holder, column, index, label, upper, lower);
+  }
+}
+
+function destinationOp(
+  option: Int,
+  holder: Int,
+  column: ComponentId,
+  index: Int,
+  label: String,
+  upper: String,
+  lower: String,
+): void {
+  if (option !== 1) {
+    return;
+  }
+  if (CS2.cc_find(column, index) && CS2.cc_find(pohJewelleryBoxRef, holder)) {
+    pleaseWait(holder, column, index, label, upper, lower);
+  }
+}
+
+function pleaseWait(holder: Int, column: ComponentId, index: Int, label: String, upper: String, lower: String): void {
+  playSound(SELECT_SOUND);
+  if (CS2.cc_find(column, index)) {
+    CS2.cc_text_set('<col=ffffff>Please wait...</col>');
+    CS2.cc_onop_set(null);
+  }
+  if (CS2.cc_find(pohJewelleryBoxRef, holder)) {
+    CS2.cc_on_key_set(null);
+    const deadline: Int = clientClock() + Layout.WAIT_CYCLES;
+    CS2.cc_on_timer_set((event) => waitOver(event.subId, column, index, label, upper, lower, deadline));
+    CS2.cc_resume_pausebutton();
+  }
+}
+
+function waitOver(
+  holder: Int,
+  column: ComponentId,
+  index: Int,
+  label: String,
+  upper: String,
+  lower: String,
+  deadline: Int,
+): void {
+  if (clientClock() < deadline) {
+    return;
+  }
+  if (CS2.cc_find(pohJewelleryBoxRef, holder)) {
+    CS2.cc_on_timer_set(null);
+    CS2.cc_on_key_set((event) => destinationKey(event.keyChar, holder, column, index, label, upper, lower));
+  }
+  if (CS2.cc_find(column, index)) {
+    CS2.cc_text_set(label);
+    CS2.cc_onop_set((event) => destinationOp(event.option, holder, column, index, label, upper, lower));
+  }
+}

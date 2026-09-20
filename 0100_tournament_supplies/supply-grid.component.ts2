@@ -1,0 +1,115 @@
+import { CS2, useRef } from 'ts2';
+
+import { flashFor } from '../lib/lib.components';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import { specialWorld } from '../0134_settings/settings.helpers';
+import { wildwarsWorld } from '../0076_grouping/grouping.state';
+import {
+  Copy,
+  Flash,
+  Layout,
+  STACK_OPS,
+  SuppliesColour,
+  SuppliesFonts,
+  TAKE_OPS,
+} from './tournament-supplies.constants';
+import {
+  betaWorld,
+  gridExtent,
+  itemMatches,
+  specialMatchCount,
+  supplyMatchCount,
+  wildWarsMatchCount,
+} from './tournament-supplies.helpers';
+import { SpecialWorldSupplyItems } from './special-world-supply-items.data';
+import { SupplyItems } from './supply-items.data';
+import { WildWarsSupplyItems } from './wildwars-supply-items.data';
+
+const NONUM_COUNT = 10000;
+
+export function SupplyGrid({ filter }: { filter: String }): Component {
+  const pane = useRef();
+
+  const wildwars: Boolean = wildwarsWorld();
+  const special: Boolean = specialWorld() || betaWorld();
+  const main: Int = wildwars ? wildWarsMatchCount(filter) : supplyMatchCount(filter);
+  const total: Int = special ? main + specialMatchCount(filter) : main;
+  const extent: Int = gridExtent(total);
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        w={{ fill: Layout.LIST_INSET_W }}
+        h={{ fill: Layout.LIST_INSET_H }}
+        scrollHeight={extent > Layout.LIST_H ? extent : 0}
+      >
+        {SupplyItems.filter((item) => !wildwars && itemMatches(item, filter)).scan(
+          (item, index, placed) => (
+            <SupplyCell item={item} placed={placed} />
+          ),
+          (item) => 1,
+        )}
+        {WildWarsSupplyItems.filter((item) => wildwars && itemMatches(item, filter)).scan(
+          (item, index, placed) => (
+            <SupplyCell item={item} placed={placed} />
+          ),
+          (item) => 1,
+        )}
+        {SpecialWorldSupplyItems.filter((item) => special && itemMatches(item, filter)).scan(
+          (item, index, placed) => (
+            <SupplyCell item={item} placed={placed} />
+          ),
+          (item) => 1,
+          main,
+        )}
+        <text
+          x="center"
+          w="fill"
+          h={Layout.EMPTY_H}
+          font={SuppliesFonts.BODY}
+          color={SuppliesColour.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          text={Copy.NO_MATCH}
+          hide={total > 0}
+        />
+      </layer>
+
+      <layer x="right" w={Layout.SCROLLBAR_W} h={{ fill: Layout.LIST_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SupplyCell({ item, placed }: { item: ItemName; placed: Int }): Component {
+  return (
+    <sprite
+      x={(placed % Layout.COLUMNS) * (Layout.CELL_W + Layout.COLUMN_GAP)}
+      y={(placed / Layout.COLUMNS) * Layout.ROW_STEP}
+      w={Layout.CELL_W}
+      h={Layout.CELL_H}
+      item={item}
+      itemCount={NONUM_COUNT}
+      itemCountMode="never"
+      shadowColor={SuppliesColour.SHADOW}
+      outline={1}
+      options={CS2.item_stackable(item as Item) ? STACK_OPS : TAKE_OPS}
+      optionSubject={`<col=ff9040>${CS2.item_name(item as Item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Flash.PRESSED, Flash.REST);
+      }}
+    />
+  );
+}

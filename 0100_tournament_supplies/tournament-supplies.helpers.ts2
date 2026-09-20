@@ -1,0 +1,123 @@
+import { CS2, useInventory, useServerState } from 'ts2';
+
+import { hasBit } from '../lib/lib.engine';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import { worldFlagBit16 } from '../0927_event_rewards/event-rewards.helpers';
+import {
+  CARRIED_SLOTS,
+  Copy,
+  Layout,
+  SEARCH_SHOWN,
+  SuppliesInventories,
+  SuppliesVarps,
+  WORN_SLOTS,
+} from './tournament-supplies.constants';
+import { SpecialWorldSupplyItems } from './special-world-supply-items.data';
+import { SupplyItems } from './supply-items.data';
+import { WildWarsSupplyItems } from './wildwars-supply-items.data';
+
+export function tournamentWorld(): Boolean {
+  const flags: Int = useServerState(SuppliesVarps.WORLD_FLAGS);
+  if (hasBit(flags, 25) && !hasBit(flags, 23) && !hasBit(flags, 4)) {
+    return true;
+  }
+  return false;
+}
+
+export function betaWorld(): Boolean {
+  return worldFlagBit16(useServerState(SuppliesVarps.WORLD_FLAGS));
+}
+
+export function itemMatches(item: ItemName, filter: String): Boolean {
+  if (CS2.string_length(filter) <= 0) {
+    return true;
+  }
+  return CS2.string_indexof_string(CS2.lowercase(CS2.item_name(item as Item)), filter, 0) !== -1;
+}
+
+export function supplyMatchCount(filter: String): Int {
+  let count: Int = 0;
+  let index: Int = 0;
+  while (index < SupplyItems.length) {
+    if (itemMatches(SupplyItems.at(index) ?? -1, filter)) {
+      count = count + 1;
+    }
+    index = index + 1;
+  }
+  return count;
+}
+
+export function wildWarsMatchCount(filter: String): Int {
+  let count: Int = 0;
+  let index: Int = 0;
+  while (index < WildWarsSupplyItems.length) {
+    if (itemMatches(WildWarsSupplyItems.at(index) ?? -1, filter)) {
+      count = count + 1;
+    }
+    index = index + 1;
+  }
+  return count;
+}
+
+export function specialMatchCount(filter: String): Int {
+  let count: Int = 0;
+  let index: Int = 0;
+  while (index < SpecialWorldSupplyItems.length) {
+    if (itemMatches(SpecialWorldSupplyItems.at(index) ?? -1, filter)) {
+      count = count + 1;
+    }
+    index = index + 1;
+  }
+  return count;
+}
+
+export function gridExtent(total: Int): Int {
+  if (total <= 0) {
+    return Layout.CELL_H;
+  }
+  return ((total - 1) / Layout.COLUMNS) * Layout.ROW_STEP + Layout.CELL_H;
+}
+
+export function searchCaption(term: String): String {
+  const length: Int = CS2.string_length(term);
+  if (length > SEARCH_SHOWN) {
+    return CS2.substring(term, 0, SEARCH_SHOWN);
+  }
+  if (length > 0) {
+    return term;
+  }
+  return Copy.SEARCH_TERM;
+}
+
+export function previewHeld(): Boolean {
+  const inv = useInventory(SuppliesInventories.PREVIEW);
+  let slot: Int = 0;
+  while (slot < WORN_SLOTS + CARRIED_SLOTS) {
+    const held: Item = inv[slot];
+    if (held !== -1 && slot !== 6 && slot !== 8 && slot !== 11) {
+      return true;
+    }
+    slot = slot + 1;
+  }
+  return false;
+}
+
+export function loadoutCount(names: String): Int {
+  let count: Int = 0;
+  let rest: String = names;
+  while (CS2.string_length(pipeHead(rest)) > 0) {
+    count = count + 1;
+    rest = pipeTail(rest);
+  }
+  return count;
+}
+
+export function loadoutName(names: String, index: Int): String {
+  let rest: String = names;
+  let step: Int = 0;
+  while (step < index) {
+    rest = pipeTail(rest);
+    step = step + 1;
+  }
+  return pipeHead(rest);
+}

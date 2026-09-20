@@ -1,0 +1,120 @@
+import { CS2, useDerived, useInventory } from 'ts2';
+
+import { displayItemName } from '../0084_equipment/equipment.helpers';
+import { flashFor } from '../lib/lib.components';
+import { InventoryHighlights } from './inventory-highlight.component';
+import {
+  EXAMINE,
+  Fade,
+  InventoryInventories,
+  InventoryItems,
+  InventoryLayout,
+  OP_BASE_PREFIX,
+  OP_BASE_SUFFIX,
+  OpPriority,
+  SlotStyle,
+  USE,
+} from './inventory.constants';
+import { opLabel, opPriority, opSlot, shiftClickDropActive, shiftHeld, swapSlot } from './inventory.helpers';
+
+export function Inventory(): Component {
+  const carried = useInventory(InventoryInventories.CARRIED);
+  const shift: Int = useDerived(() => shiftHeld());
+  const dropSwap: Int = shiftClickDropActive(shift);
+
+  return (
+    <layer w="fill" h="fill">
+      {carried.map((item, slot) => (
+        <InventorySlot
+          item={item}
+          count={carried.count(slot)}
+          slot={slot}
+          dropSwap={dropSwap}
+          subject={item !== -1 ? `${OP_BASE_PREFIX}${displayItemName(item)}${OP_BASE_SUFFIX}` : ''}
+        />
+      ))}
+      <InventoryHighlights forEquipmentSide={0} />
+    </layer>
+  );
+}
+
+function InventorySlot({
+  item,
+  count,
+  slot,
+  dropSwap,
+  subject,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  dropSwap: Int;
+  subject: String;
+}): Component {
+  const x: Int = InventoryLayout.ORIGIN_X + (slot % InventoryLayout.COLUMNS) * InventoryLayout.COLUMN_PITCH;
+  const y: Int = InventoryLayout.ORIGIN_Y + (slot / InventoryLayout.COLUMNS) * InventoryLayout.ROW_PITCH;
+
+  if (item === -1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={InventoryLayout.SLOT_W}
+        h={InventoryLayout.SLOT_H}
+        item={InventoryItems.BLANK}
+        itemCount={1}
+        transparency={Fade.EMPTY}
+        shadowColor={SlotStyle.SHADOW}
+        outline={SlotStyle.OUTLINE}
+        dragDeadZone={SlotStyle.DRAG_DEAD_ZONE}
+        dragDeadTime={SlotStyle.DRAG_DEAD_TIME}
+        optionPriority={OpPriority.NONE}
+        hide
+      />
+    );
+  }
+
+  const swap: Int = dropSwap === 1 ? swapSlot(item) : -1;
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={InventoryLayout.SLOT_W}
+      h={InventoryLayout.SLOT_H}
+      item={item}
+      itemCount={count}
+      transparency={Fade.OPAQUE}
+      shadowColor={SlotStyle.SHADOW}
+      outline={SlotStyle.OUTLINE}
+      dragDeadZone={SlotStyle.DRAG_DEAD_ZONE}
+      dragDeadTime={SlotStyle.DRAG_DEAD_TIME}
+      targetVerb={USE}
+      optionPriority={opPriority(item)}
+      optionSubject={subject}
+      options={[
+        swap !== -1 ? opLabel(item, swap) : '',
+        swap === 1 ? '' : opLabel(item, 1),
+        swap === 2 ? '' : opLabel(item, 2),
+        swap === 3 ? '' : opLabel(item, 3),
+        '',
+        swap === 4 ? '' : opLabel(item, 4),
+        swap === 5 ? '' : opLabel(item, 5),
+        '',
+        '',
+        EXAMINE,
+      ]}
+      onTargetEnter={(event) => {
+        event.self.outline = SlotStyle.OUTLINE_TARGETED;
+      }}
+      onTargetLeave={(event) => {
+        event.self.outline = SlotStyle.OUTLINE;
+      }}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Fade.PRESSED, Fade.OPAQUE);
+        if (event.option === 1) {
+          CS2.cc_triggerop(opSlot(swapSlot(item)));
+        }
+      }}
+    />
+  );
+}

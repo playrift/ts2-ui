@@ -1,27 +1,122 @@
-import { CS2 } from 'ts2';
+import { useInterval, useState } from 'ts2';
 
-import { clientClock } from '../lib/lib.engine';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { Fade, NO_BACKDROP, PORTAL_ANIM, Wipe, backgroundRef, foregroundRef } from './overlay-portal.constants';
 import {
-  backgroundRef,
-  ComponentType,
-  Fade,
-  foregroundRef,
-  NO_BACKDROP,
-  PORTAL_ANIM,
-  PosMode,
-  SizeMode,
-  Wipe,
-  WipeChild,
-} from './overlay-portal.constants';
+  overlayPortalBackdropColour,
+  overlayPortalBackdropTransparency,
+  overlayPortalDirection,
+  overlayPortalModel,
+  overlayPortalOpen,
+  overlayPortalSheet,
+  overlayPortalSheetColour,
+  overlayPortalStartedAt,
+  overlayPortalZoom,
+} from './overlay-portal.state';
 
 export function OverlayPortal(): Component {
   return (
     <>
       <layer static ref={backgroundRef} w="fill" h="fill" x="center" y="center" />
 
-      <layer static ref={foregroundRef} w="fill" h="fill" x="center" y="center" />
+      <layer static ref={foregroundRef} w="fill" h="fill" x="center" y="center">
+        <PortalWipe />
+      </layer>
     </>
   );
+}
+
+function PortalWipe(): Component {
+  const [open] = useState(overlayPortalOpen);
+  const [model] = useState(overlayPortalModel);
+  const [zoom] = useState(overlayPortalZoom);
+  const [sheetColour] = useState(overlayPortalSheetColour);
+  const [sheet] = useState(overlayPortalSheet);
+  const [backdropColour] = useState(overlayPortalBackdropColour);
+  const [backdropTransparency] = useState(overlayPortalBackdropTransparency);
+  useInterval(() => wipeStep());
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <rect
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        color={backdropColour}
+        fill
+        transparency={backdropTransparency}
+        hide={backdropColour === NO_BACKDROP || backdropTransparency === NO_BACKDROP}
+      />
+      <model
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        model={model as Model}
+        offsetX={0}
+        offsetY={Wipe.MODEL_OFFSET_Y}
+        pitch={0}
+        yaw={0}
+        roll={0}
+        zoom={zoom}
+        anim={PORTAL_ANIM}
+        hide={open === 0}
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={sheetColour} fill transparency={sheet} hide={open === 0} />
+    </layer>
+  );
+}
+
+function wipeStep(): void {
+  const [direction, setDirection] = useState(overlayPortalDirection);
+  if (direction === Fade.IDLE) {
+    return;
+  }
+  const [startedAt] = useState(overlayPortalStartedAt);
+  const [open, setOpen] = useState(overlayPortalOpen);
+  const [zoom, setZoom] = useState(overlayPortalZoom);
+  const [sheet, setSheet] = useState(overlayPortalSheet);
+  const elapsed: Int = clientClock() - startedAt;
+
+  if (elapsed >= Wipe.CYCLES) {
+    if (direction === Fade.OUT) {
+      setOpen(0);
+    } else if (open === 1) {
+      setSheet(Wipe.OPAQUE);
+    }
+    setDirection(Fade.IDLE);
+    return;
+  }
+  if (open === 0) {
+    return;
+  }
+  if (direction === Fade.IN) {
+    setZoom(Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, zoom)));
+    setSheet(sheet - Wipe.STEP);
+  } else {
+    setZoom(Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(zoom, Wipe.MIN_ZOOM_OUT))));
+    setSheet(sheet + Wipe.STEP);
+  }
+}
+
+function paintBackdrop(colour: Int, transparency: Int): void {
+  const [, setColour] = useState(overlayPortalBackdropColour);
+  const [, setTransparency] = useState(overlayPortalBackdropTransparency);
+  if (colour !== NO_BACKDROP && transparency !== NO_BACKDROP) {
+    setColour(colour);
+    setTransparency(transparency);
+  } else {
+    setColour(NO_BACKDROP);
+    setTransparency(NO_BACKDROP);
+  }
+}
+
+function armWipe(direction: Int): void {
+  const [, setStartedAt] = useState(overlayPortalStartedAt);
+  const [, setDirection] = useState(overlayPortalDirection);
+  setStartedAt(clientClock());
+  setDirection(direction);
 }
 
 export function overlayPortalFadeIn(
@@ -29,109 +124,26 @@ export function overlayPortalFadeIn(
   sheetColour: Int,
   backdropColour: Int = NO_BACKDROP,
   backdropTransparency: Int = NO_BACKDROP,
-  background: ComponentId = backgroundRef,
-  foreground: ComponentId = foregroundRef,
 ): void {
-  CS2.cc_all_delete(background);
-  CS2.cc_all_delete(foreground);
-
-  if (backdropColour !== NO_BACKDROP && backdropTransparency !== NO_BACKDROP) {
-    CS2.cc_create(background, ComponentType.RECT, WipeChild.BACKDROP, false);
-    CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-    CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-    CS2.cc_fill_set(true);
-    CS2.cc_colour_set(backdropColour);
-    CS2.cc_transparency_set(backdropTransparency);
-  }
-
-  CS2.cc_create(foreground, ComponentType.MODEL, WipeChild.MODEL, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_hide_set(false);
-  CS2.cc_model_set(model);
-  CS2.cc_model_angle_set(0, Wipe.MODEL_OFFSET_Y, 0, 0, 0, Wipe.START_ZOOM);
-  CS2.cc_model_anim_set(PORTAL_ANIM);
-
-  CS2.cc_create(foreground, ComponentType.RECT, WipeChild.WASH, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_fill_set(true);
-  CS2.cc_colour_set(sheetColour);
-  CS2.cc_transparency_set(Wipe.CLEAR);
-
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.IN, foreground), foreground);
+  paintBackdrop(backdropColour, backdropTransparency);
+  const [, setModel] = useState(overlayPortalModel);
+  const [, setZoom] = useState(overlayPortalZoom);
+  const [, setSheetColour] = useState(overlayPortalSheetColour);
+  const [, setSheet] = useState(overlayPortalSheet);
+  const [, setOpen] = useState(overlayPortalOpen);
+  setModel(model as Int);
+  setZoom(Wipe.START_ZOOM);
+  setSheetColour(sheetColour);
+  setSheet(Wipe.CLEAR);
+  setOpen(1);
+  armWipe(Fade.IN);
 }
 
-export function overlayPortalFadeOut(
-  backdropColour: Int = NO_BACKDROP,
-  backdropTransparency: Int = NO_BACKDROP,
-  background: ComponentId = backgroundRef,
-  foreground: ComponentId = foregroundRef,
-): void {
-  CS2.cc_all_delete(background);
-
-  if (backdropColour !== NO_BACKDROP && backdropTransparency !== NO_BACKDROP) {
-    CS2.cc_create(background, ComponentType.RECT, WipeChild.BACKDROP, false);
-    CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-    CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-    CS2.cc_fill_set(true);
-    CS2.cc_colour_set(backdropColour);
-    CS2.cc_transparency_set(backdropTransparency);
-  }
-
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.OUT, foreground), foreground);
+export function overlayPortalFadeOut(backdropColour: Int = NO_BACKDROP, backdropTransparency: Int = NO_BACKDROP): void {
+  paintBackdrop(backdropColour, backdropTransparency);
+  armWipe(Fade.OUT);
 }
 
-export function overlayPortalDismiss(foreground: ComponentId = foregroundRef): void {
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => overlayPortalTick(startedAt, Fade.OUT, foreground), foreground);
-}
-
-function overlayPortalTick(start: Int, direction: Int, foreground: ComponentId): void {
-  const elapsed: Int = clientClock() - start;
-
-  if (elapsed >= Wipe.CYCLES) {
-    if (direction === Fade.OUT) {
-      CS2.cc_all_delete(foreground);
-    } else if (CS2.cc_find(foreground, WipeChild.WASH)) {
-      CS2.cc_transparency_set(Wipe.OPAQUE);
-    }
-    CS2.if_on_timer_set(null, foreground);
-    return;
-  }
-
-  if (CS2.cc_find(foreground, WipeChild.MODEL)) {
-    if (direction === Fade.IN) {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(Wipe.MIN_ZOOM, CS2.scale(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, CS2.cc_model_zoom_get())),
-      );
-    } else {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(
-          Wipe.MIN_ZOOM,
-          CS2.scale(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(CS2.cc_model_zoom_get(), Wipe.MIN_ZOOM_OUT)),
-        ),
-      );
-    }
-  }
-
-  if (CS2.cc_find(foreground, WipeChild.WASH)) {
-    if (direction === Fade.IN) {
-      CS2.cc_transparency_set(CS2.cc_trans_get() - Wipe.STEP);
-    } else {
-      CS2.cc_transparency_set(CS2.cc_trans_get() + Wipe.STEP);
-    }
-  }
+export function overlayPortalDismiss(): void {
+  armWipe(Fade.OUT);
 }

@@ -1,0 +1,64 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { textLineCount } from '../lib/lib.engine';
+import { CaFonts } from '../0717_ca_overview/ca-overview.constants';
+import { caTierStatus } from '../0717_ca_overview/ca-shared.local';
+import { CaTierRow } from '../0717_ca_overview/ca-tiers.data';
+
+import { Layout } from './ca-rewards.constants';
+import { CaRewardTextRow, CaTierExtras, CaTierRewards, CaTierUnlocks } from './ca-rewards.data';
+
+export function caTierCompletionStatus(index: Int): Int {
+  return caTierStatus(index + 1);
+}
+
+export function selectedTier(count: Int): Int {
+  const raw: Int = useServerState(Varbits.CA_LAST_REWARD_TIER_SELECTED);
+  return Math.max(0, Math.min(count - 1, raw));
+}
+
+export function selectTier(index: Int): void {
+  predictServerState(Varbits.CA_LAST_REWARD_TIER_SELECTED, index);
+}
+
+export function tabBodyHeight(name: String, tabsW: Int): Int {
+  const lines: Int = textLineCount(name, tabsW - Layout.TAB_MEASURE_INSET, CaFonts.BODY);
+  return Math.max(Layout.TAB_ICON, lines * Layout.TAB_LINE_H + Layout.TAB_LINE_PAD);
+}
+
+export function rewardRowHeight(text: String, measureW: Int, pad: Int): Int {
+  return Layout.ROW_LINE_H * textLineCount(text, measureW, CaFonts.BODY) + pad;
+}
+
+export function rewardBlockHeight(rows: List<CaRewardTextRow>, tier: Int, measureW: Int, pad: Int): Int {
+  let total: Int = 0;
+  let at: Int = 0;
+  const count: Int = rows.length;
+  while (at < count) {
+    const row = rows.at(at);
+    if (row !== null) {
+      if (row.tier === tier) {
+        total = total + rewardRowHeight(row.text, measureW, pad);
+      }
+    }
+    at = at + 1;
+  }
+  return total;
+}
+
+export function rewardsContentHeight(tier: CaTierRow, index: Int, contentW: Int): Int {
+  let y: Int = Layout.CONTENT_TOP;
+  y = y + rewardBlockHeight(CaTierRewards, index, contentW - Layout.MEASURE_INSET_FIRST, Layout.ROW_PAD) - 1;
+  y = y + rewardBlockHeight(CaTierUnlocks, index, contentW - Layout.MEASURE_INSET_REST, Layout.ROW_PAD);
+  if (tier.extraItem !== -1) {
+    y = y - 1;
+    y = y + rewardBlockHeight(CaTierExtras, index, contentW - Layout.MEASURE_INSET_REST, Layout.ROW_PAD_EXTRA);
+  }
+  return y + Layout.CONTENT_TAIL;
+}
+
+export function rewardsPanelHeight(contentH: Int, rootH: Int): Int {
+  const wanted: Int = Math.max(Layout.PANEL_MIN_H, contentH + Layout.PANEL_CONTENT_PAD);
+  return Math.min(Math.min(Layout.PANEL_MAX_H, rootH - Layout.PANEL_ROOT_INSET), wanted);
+}

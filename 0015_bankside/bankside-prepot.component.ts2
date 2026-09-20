@@ -1,0 +1,382 @@
+import { intArray, useDerived, useInventory, useServerState, useState, useUniverse } from 'ts2';
+
+import { defaultQuantityLabel } from '../0012_bankmain/bankmain.helpers';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { flashFor } from '../lib/lib.components';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import {
+  activePrepotDevice,
+  familyDoseItem,
+  potionAvailable,
+  potionFamily,
+  potionMaxDose,
+  prepotDropFromDevice,
+  prepotLoadoutCap,
+  prepotLoadoutPotion,
+  prepotStoreDoses,
+  vialHover,
+  vialHoverUnlessMobile,
+} from './bankside-prepot.helpers';
+import {
+  BanksideColor,
+  BanksideFonts,
+  BanksideInventories,
+  BanksideItems,
+  BanksideSprites,
+  BanksideVarbits,
+  Grid,
+  Prepot,
+  Wash,
+  prepotLoadoutContents0,
+  prepotLoadoutContents1,
+  prepotLoadoutContents2,
+  prepotLoadoutContents3,
+} from './bankside.constants';
+import { orangeName, prepotDeviceSlots } from './bankside.helpers';
+
+function PrepotButton({ label }: { label: String }): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      onOptionSelect={(event) => opsound(event.option, 2)}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+    >
+      <StoneButtonDraw label={label} font={BanksideFonts.BUTTON} pressed={skin} flags={1} />
+    </layer>
+  );
+}
+
+const DeviceSlots = [0, 1, 2, 3, 4] as const;
+
+function PrepotDeviceSlot({
+  item,
+  count,
+  slot,
+  x,
+  depositDefault,
+  depositOne,
+  depositRequested,
+}: {
+  item: Item;
+  count: Int;
+  slot: Int;
+  x: Int;
+  depositDefault: String;
+  depositOne: String;
+  depositRequested: String;
+}): Component {
+  const filled: Boolean = item !== -1 && count > 0;
+  const family: Int = potionFamily(item);
+  const shown: ItemName = familyDoseItem(family, Math.min(count, potionMaxDose(family)));
+  const rest: Int = filled ? Wash.CLEAR : Wash.VIAL;
+  return (
+    <sprite
+      x={x}
+      y={{ center: '0%' }}
+      w={Grid.W}
+      h={Grid.H}
+      item={filled ? shown : BanksideItems.VIAL_EMPTY}
+      itemCount={filled ? count : 1}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={rest}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={
+        filled
+          ? [
+              depositDefault,
+              depositOne,
+              'Deposit-5',
+              'Deposit-10',
+              depositRequested,
+              'Deposit-X',
+              'Deposit-All',
+              'Fill-X',
+              'Fill-All',
+              'Examine',
+            ]
+          : undefined
+      }
+      optionSubject={filled ? orangeName(item) : 'null'}
+      onOptionSelect={filled ? (event) => flashFor(event.self, Wash.FLASH, Wash.CLEAR) : undefined}
+      onMouseRepeat={(event) => vialHoverUnlessMobile(event.self, rest)}
+      onMouseLeave={(event) => vialHover(false, event.self, rest)}
+      onDragComplete={(event) => prepotDropFromDevice(event.component, event.dragTarget, slot, event.dragTargetSubId)}
+    />
+  );
+}
+
+export function PrepotContents(): Component {
+  const device: Item = activePrepotDevice();
+  if (device === -1) {
+    return null;
+  }
+  const universe = useUniverse();
+  const contents = useInventory(BanksideInventories.PREPOT_DEVICE_INV);
+  const quantityType: Int = useServerState(BanksideVarbits.QUANTITY_TYPE);
+  const requested: Int = useServerState(BanksideVarbits.REQUESTED_QUANTITY);
+  const slots: Int = prepotDeviceSlots(device);
+  const gap: Int = (universe.width - Grid.W * slots) / slots;
+  const depositDefault: String = `Deposit-${defaultQuantityLabel(quantityType, requested)}`;
+  const depositOne: String = quantityType !== 0 ? 'Deposit-1' : '';
+  const depositRequested: String = requested > 0 ? `Deposit-${requested}` : '';
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {contents
+        .filter((item, slot) => slot < slots)
+        .map((item, slot) => (
+          <PrepotDeviceSlot
+            item={item}
+            count={contents.total(item)}
+            slot={slot}
+            x={gap / 2 + slot * (Grid.W + gap)}
+            depositDefault={depositDefault}
+            depositOne={depositOne}
+            depositRequested={depositRequested}
+          />
+        ))}
+    </layer>
+  );
+}
+
+function PrepotLoadoutSlot({
+  potion,
+  cap,
+  available,
+  x,
+  y,
+}: {
+  potion: Item;
+  cap: Int;
+  available: Int;
+  x: Int;
+  y: Int;
+}): Component {
+  const filled: Boolean = potion !== -1 && cap > 0;
+  const family: Int = potionFamily(potion);
+  const shown: ItemName = familyDoseItem(family, Math.min(cap, potionMaxDose(family)));
+  let rest: Int = Wash.VIAL;
+  let flash: Int = Wash.VIAL_FLASH;
+  if (filled) {
+    flash = Wash.FLASH;
+    if (available === 1) {
+      rest = Wash.CLEAR;
+    } else {
+      rest = Wash.DIM;
+    }
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={filled ? shown : BanksideItems.VIAL_EMPTY}
+      itemCount={filled ? cap : 1}
+      outline={Grid.OUTLINE}
+      shadowColor={BanksideColor.SLOT_SHADOW}
+      transparency={rest}
+      dragDeadZone={Grid.DRAG_DEAD}
+      dragDeadTime={Grid.DRAG_DEAD}
+      options={filled ? LOADOUT_OPS : EMPTY_LOADOUT_OPS}
+      optionSubject={filled ? orangeName(potion) : '<col=ff9040>Empty slot</col>'}
+      onOptionSelect={(event) => flashFor(event.self, flash, rest)}
+      onMouseRepeat={(event) => vialHoverUnlessMobile(event.self, rest)}
+      onMouseLeave={(event) => vialHover(false, event.self, rest)}
+    />
+  );
+}
+
+const LOADOUT_OPS = ['Change', 'Clear', 'Set-doses', '', '', '', '', '', '', 'Examine'] as const;
+const EMPTY_LOADOUT_OPS = ['Set'] as const;
+
+function PrepotLoadoutLock({
+  potion,
+  cap,
+  available,
+  x,
+  y,
+}: {
+  potion: Item;
+  cap: Int;
+  available: Int;
+  x: Int;
+  y: Int;
+}): Component {
+  const filled: Boolean = potion !== -1 && cap > 0;
+  let shown: Boolean = false;
+  if (filled) {
+    if (available === 0) {
+      shown = true;
+    }
+  }
+  return (
+    <sprite
+      x={x + Grid.W - Prepot.LOCK}
+      y={y + Grid.H - Prepot.LOCK}
+      w={Prepot.LOCK}
+      h={Prepot.LOCK}
+      sprite={BanksideSprites.LOCK}
+      transparency={Wash.CLEAR}
+      hide={!shown}
+    />
+  );
+}
+
+function ceilDiv(n: Int, by: Int): Int {
+  let rows: Int = n / by;
+  if (n % by > 0) {
+    rows = rows + 1;
+  }
+  return rows;
+}
+
+export function PrepotLoadoutContents({ loadout }: { loadout: Int }): Component {
+  const device: Item = activePrepotDevice();
+  if (device === -1) {
+    return null;
+  }
+  const universe = useUniverse();
+  const slots: Int = prepotDeviceSlots(device);
+  const columns: Int = universe.width / Grid.W;
+  const rows: Int = ceilDiv(slots, columns);
+  const gapX: Int = (universe.width - Grid.W * columns) / columns;
+  const gapY: Int = (universe.height - Grid.H * rows) / rows;
+  const potions = intArray<Item>(Prepot.SLOTS, [
+    useDerived(() => prepotLoadoutPotion(loadout, 0)) as Item,
+    useDerived(() => prepotLoadoutPotion(loadout, 1)) as Item,
+    useDerived(() => prepotLoadoutPotion(loadout, 2)) as Item,
+    useDerived(() => prepotLoadoutPotion(loadout, 3)) as Item,
+    useDerived(() => prepotLoadoutPotion(loadout, 4)) as Item,
+  ]);
+  const caps = intArray(Prepot.SLOTS, [
+    capOrDefault(useDerived(() => prepotLoadoutCap(loadout, 0))),
+    capOrDefault(useDerived(() => prepotLoadoutCap(loadout, 1))),
+    capOrDefault(useDerived(() => prepotLoadoutCap(loadout, 2))),
+    capOrDefault(useDerived(() => prepotLoadoutCap(loadout, 3))),
+    capOrDefault(useDerived(() => prepotLoadoutCap(loadout, 4))),
+  ]);
+  const stores = intArray(Prepot.SLOTS, [
+    useDerived(() => prepotStoreDoses(loadout, 0)),
+    useDerived(() => prepotStoreDoses(loadout, 1)),
+    useDerived(() => prepotStoreDoses(loadout, 2)),
+    useDerived(() => prepotStoreDoses(loadout, 3)),
+    useDerived(() => prepotStoreDoses(loadout, 4)),
+  ]);
+  const availability = intArray(Prepot.SLOTS, [
+    availableAsInt(potions[0], stores[0]),
+    availableAsInt(potions[1], stores[1]),
+    availableAsInt(potions[2], stores[2]),
+    availableAsInt(potions[3], stores[3]),
+    availableAsInt(potions[4], stores[4]),
+  ]);
+
+  return (
+    <>
+      {DeviceSlots.map(
+        (slot) =>
+          slot < slots && (
+            <PrepotLoadoutSlot
+              potion={potions[slot]}
+              cap={caps[slot]}
+              available={availability[slot]}
+              x={(slot % columns) * (Grid.W + gapX) + gapX / 2}
+              y={(slot / columns) * (Grid.H + gapY) + gapY / 2}
+            />
+          ),
+      )}
+      {DeviceSlots.map(
+        (slot) =>
+          slot < slots && (
+            <PrepotLoadoutLock
+              potion={potions[slot]}
+              cap={caps[slot]}
+              available={availability[slot]}
+              x={(slot % columns) * (Grid.W + gapX) + gapX / 2}
+              y={(slot / columns) * (Grid.H + gapY) + gapY / 2}
+            />
+          ),
+      )}
+    </>
+  );
+}
+
+function availableAsInt(potion: Item, storeDoses: Int): Int {
+  if (potionAvailable(potion, potionFamily(potion), storeDoses)) {
+    return 1;
+  }
+  return 0;
+}
+
+function capOrDefault(cap: Int): Int {
+  if (cap <= 0) {
+    return Prepot.DEFAULT_CAP;
+  }
+  return cap;
+}
+
+export function PrepotLoadoutRows(): Component {
+  return (
+    <>
+      <layer x="center" y={Prepot.ROW_Y} w="fill" h={Prepot.ROW_H}>
+        <layer x={Prepot.BUTTON_X} y={Prepot.BUTTON_Y} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Load" />
+        </layer>
+        <layer x={Prepot.BUTTON_X} y={{ bottom: Prepot.BUTTON_Y }} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Save" />
+        </layer>
+        <layer static ref={prepotLoadoutContents0} x={Prepot.CONTENTS_X} y={0} w={{ fill: Prepot.CONTENTS_X }} h="fill">
+          <PrepotLoadoutContents loadout={0} />
+        </layer>
+        <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      </layer>
+      <layer x="center" y={Prepot.ROW_Y + Prepot.ROW_PITCH} w="fill" h={Prepot.ROW_H}>
+        <layer x={Prepot.BUTTON_X} y={Prepot.BUTTON_Y} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Load" />
+        </layer>
+        <layer x={Prepot.BUTTON_X} y={{ bottom: Prepot.BUTTON_Y }} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Save" />
+        </layer>
+        <layer static ref={prepotLoadoutContents1} x={Prepot.CONTENTS_X} y={0} w={{ fill: Prepot.CONTENTS_X }} h="fill">
+          <PrepotLoadoutContents loadout={1} />
+        </layer>
+        <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      </layer>
+      <layer x="center" y={Prepot.ROW_Y + Prepot.ROW_PITCH * 2} w="fill" h={Prepot.ROW_H}>
+        <layer x={Prepot.BUTTON_X} y={Prepot.BUTTON_Y} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Load" />
+        </layer>
+        <layer x={Prepot.BUTTON_X} y={{ bottom: Prepot.BUTTON_Y }} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Save" />
+        </layer>
+        <layer static ref={prepotLoadoutContents2} x={Prepot.CONTENTS_X} y={0} w={{ fill: Prepot.CONTENTS_X }} h="fill">
+          <PrepotLoadoutContents loadout={2} />
+        </layer>
+        <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      </layer>
+      <layer x="center" y={Prepot.ROW_Y + Prepot.ROW_PITCH * 3} w="fill" h={Prepot.ROW_H}>
+        <layer x={Prepot.BUTTON_X} y={Prepot.BUTTON_Y} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Load" />
+        </layer>
+        <layer x={Prepot.BUTTON_X} y={{ bottom: Prepot.BUTTON_Y }} w={Prepot.BUTTON_W} h={Prepot.BUTTON_H}>
+          <PrepotButton label="Save" />
+        </layer>
+        <layer static ref={prepotLoadoutContents3} x={Prepot.CONTENTS_X} y={0} w={{ fill: Prepot.CONTENTS_X }} h="fill">
+          <PrepotLoadoutContents loadout={3} />
+        </layer>
+        <rect x="center" y="center" w="fill" h="fill" fill color={BanksideColor.BLACK} transparency={Wash.ROW_BG} />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,250 @@
+import { CS2, Engine, useRerenderOn, useServerState, useUniverse } from 'ts2';
+import { textWidth } from '../lib/lib.engine';
+import { ChannelKindNames, ClanRankIcons } from '../0701_clans_sidepanel/tables.data';
+import { pvpaStatusText } from '../0762_pvp_arena_sidepanel/pvp-arena-sidepanel.helpers';
+import { clanSettingBadge, clanSettingFilled, clanSettingRosterSize, clanSettingVacancies } from './gim-clan-settings';
+import {
+  AFFINITY_LIVE,
+  Copy,
+  GimSidepanelColor,
+  GimSidepanelFonts,
+  GimSidepanelSprites,
+  GimSidepanelVarbits,
+  Header,
+  Roster,
+} from './gim-sidepanel.constants';
+
+export function GimTitle(): Component {
+  useRerenderOn(Engine.CLAN_SETTINGS);
+  const affinity: Int = useServerState(GimSidepanelVarbits.AFFINITY);
+  const channelTab: Int = useServerState(GimSidepanelVarbits.CHANNEL_TAB);
+
+  let live: Int = 0;
+  if (affinity === AFFINITY_LIVE) {
+    if (CS2.activeclansettings_affined_find(1)) {
+      live = 1;
+    }
+  }
+
+  let name: String = '';
+  let nameWidth: Int = 0;
+  let badged: Int = 0;
+  if (live === 1) {
+    name = CS2.activeclansettings_clan_name_get();
+    nameWidth = textWidth(name, Header.TITLE_MEASURE_W, GimSidepanelFonts.TITLE);
+    badged = clanSettingBadge();
+  }
+
+  if (live === 0) {
+    return (
+      <>
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={`<col=808080>${ChannelKindNames.get(channelTab) ?? Copy.CHANNEL_DEFAULT}</col>`}
+          font={GimSidepanelFonts.TITLE}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite w={Header.ICON} h={Header.ICON} />
+      </>
+    );
+  }
+
+  if (badged === 1) {
+    return (
+      <>
+        <text
+          x={{ center: (0 - (Header.ICON + Header.BADGE_GAP)) / 2 }}
+          y="center"
+          w={nameWidth}
+          h="fill"
+          text={name}
+          font={GimSidepanelFonts.TITLE}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={{ center: (Header.BADGE_GAP + nameWidth) / 2 }}
+          y={{ center: Header.ICON_DY }}
+          w={Header.ICON}
+          h={Header.ICON}
+          sprite={ClanRankIcons.get(Roster.BADGE_ICON_KEY) ?? -1}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <text
+        x="center"
+        y="center"
+        w={nameWidth}
+        h="fill"
+        text={name}
+        font={GimSidepanelFonts.TITLE}
+        color={GimSidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite w={Header.ICON} h={Header.ICON} />
+    </>
+  );
+}
+
+export function GimSubtitle(): Component {
+  useRerenderOn(Engine.CLAN_SETTINGS);
+  const affinity: Int = useServerState(GimSidepanelVarbits.AFFINITY);
+  const strip = useUniverse();
+
+  let live: Int = 0;
+  if (affinity === AFFINITY_LIVE) {
+    if (CS2.activeclansettings_affined_find(1)) {
+      live = 1;
+    }
+  }
+
+  let countText: String = Copy.NO_COUNT;
+  let countWidth: Int = 0;
+  let vacancyText: String = '';
+  let vacancyWidth: Int = 0;
+  let twoPairs: Int = 0;
+  if (live === 1) {
+    const rosterSize: Int = Math.min(Roster.MAX_VACANCY_ROWS, clanSettingRosterSize());
+    if (rosterSize > 0) {
+      countText = `<col=ffb83f>${stringOf(clanSettingRosterSize())}</col>`;
+    }
+    countWidth = textWidth(countText, Header.TITLE_MEASURE_W, GimSidepanelFonts.SMALL);
+    if (clanSettingVacancies() > 0 && clanSettingFilled() <= 0) {
+      twoPairs = 1;
+      vacancyText = `<col=ffb83f>${stringOf(clanSettingVacancies())}</col>`;
+      vacancyWidth = textWidth(vacancyText, Header.TITLE_MEASURE_W, GimSidepanelFonts.SMALL);
+    }
+  }
+
+  if (live === 0) {
+    return (
+      <>
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={`<col=808080>${pvpaStatusText(affinity)}</col>`}
+          font={GimSidepanelFonts.SMALL}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite w={Header.ICON} h={Header.ICON} />
+        <text
+          w="fill"
+          h="fill"
+          text=""
+          font={GimSidepanelFonts.SMALL}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite w={Header.ICON} h={Header.ICON} />
+      </>
+    );
+  }
+
+  const pairWidth: Int = countWidth + Header.ICON_GAP + Header.ICON;
+  const vacancyPairWidth: Int = vacancyWidth + Header.ICON_GAP + Header.ICON;
+  const half: Int = strip.width / 2;
+
+  if (twoPairs === 1) {
+    const leftAt: Int = (half - pairWidth) / 2;
+    const rightAt: Int = half + (half - vacancyPairWidth) / 2;
+    return (
+      <>
+        <text
+          x={leftAt + Header.ICON + Header.ICON_GAP}
+          y="center"
+          w={countWidth}
+          h="fill"
+          text={countText}
+          font={GimSidepanelFonts.SMALL}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={leftAt}
+          y={{ center: Header.ICON_DY }}
+          w={Header.ICON}
+          h={Header.ICON}
+          sprite={GimSidepanelSprites.GROUP}
+        />
+        <text
+          x={rightAt + Header.ICON + Header.ICON_GAP}
+          y="center"
+          w={vacancyWidth}
+          h="fill"
+          text={vacancyText}
+          font={GimSidepanelFonts.SMALL}
+          color={GimSidepanelColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <sprite
+          x={rightAt}
+          y={{ center: Header.ICON_DY }}
+          w={Header.ICON}
+          h={Header.ICON}
+          sprite={GimSidepanelSprites.HEART}
+        />
+      </>
+    );
+  }
+
+  const at: Int = (strip.width - pairWidth) / 2;
+  return (
+    <>
+      <text
+        x={at + Header.ICON + Header.ICON_GAP}
+        y="center"
+        w={countWidth}
+        h="fill"
+        text={countText}
+        font={GimSidepanelFonts.SMALL}
+        color={GimSidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={at}
+        y={{ center: Header.ICON_DY }}
+        w={Header.ICON}
+        h={Header.ICON}
+        sprite={GimSidepanelSprites.GROUP}
+      />
+      <text
+        w="fill"
+        h="fill"
+        text=""
+        font={GimSidepanelFonts.SMALL}
+        color={GimSidepanelColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite w={Header.ICON} h={Header.ICON} />
+    </>
+  );
+}

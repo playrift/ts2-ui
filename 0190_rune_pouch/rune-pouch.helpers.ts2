@@ -1,0 +1,108 @@
+import { predictServerState, useServerState } from 'ts2';
+
+import { pouchSlotCount, pouchSlotType } from '../0106_zmi_bank_payment/zmi-bank-payment.helpers';
+import { PouchVarbits as ZmiPouchVarbits } from '../0106_zmi_bank_payment/zmi-bank-payment.constants';
+import { RuneIndex, ZmiRunes } from '../0106_zmi_bank_payment/zmi-runes.data';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { Relic } from '../lib/league-relics.data';
+import { Varps } from '../lib/game/varps';
+import { Layout } from './rune-pouch.constants';
+
+export function pouchSlotUnlocked(slot: Int): Boolean {
+  if (slot >= 1 && slot <= 4) {
+    return useServerState(Varps.IF1) >= slot;
+  }
+  if (slot === 5 || slot === 6) {
+    return leagueRelicActive(Relic.SUPERIOR_SORCERER) === 1;
+  }
+  return false;
+}
+
+export function pouchTier(): Int {
+  return Math.max(0, Math.min(Layout.POUCH_SLOTS - 2, useServerState(Varps.IF1)));
+}
+
+export function pouchVisibleSlots(): Int {
+  const tier: Int = pouchTier();
+  if (leagueRelicActive(Relic.SUPERIOR_SORCERER) === 1) {
+    return tier + 2;
+  }
+  return tier;
+}
+
+export function setPouchSlot(slot: Int, type: Int, count: Int): void {
+  let kind: Int = type;
+  let amount: Int = count;
+  if (amount <= 0) {
+    kind = 0;
+    amount = 0;
+  }
+  if (slot === 1) {
+    writeSlot1(kind, amount);
+  }
+  if (slot === 2) {
+    writeSlot2(kind, amount);
+  }
+  if (slot === 3) {
+    writeSlot3(kind, amount);
+  }
+  if (slot === 4) {
+    writeSlot4(kind, amount);
+  }
+  if (slot === 5) {
+    writeSlot5(kind, amount);
+  }
+  if (slot === 6) {
+    writeSlot6(kind, amount);
+  }
+}
+
+function writeSlot1(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_1, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_1, amount);
+}
+
+function writeSlot2(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_2, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_2, amount);
+}
+
+function writeSlot3(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_3, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_3, amount);
+}
+
+function writeSlot4(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_4, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_4, amount);
+}
+
+function writeSlot5(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_5, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_5, amount);
+}
+
+function writeSlot6(kind: Int, amount: Int): void {
+  predictServerState(ZmiPouchVarbits.TYPE_6, kind);
+  predictServerState(ZmiPouchVarbits.QUANTITY_6, amount);
+}
+
+export function setPouchSlotItem(slot: Int, item: ItemName, count: Int): void {
+  const index: Int = RuneIndex.get(item as Item) ?? 0;
+  if (index === 0) {
+    setPouchSlot(slot, index, 0);
+    return;
+  }
+  setPouchSlot(slot, index, count);
+}
+
+export function slotRune(slot: Int): ItemName {
+  if (pouchSlotCount(slot) > 0) {
+    return ZmiRunes.get(pouchSlotType(slot)) ?? -1;
+  }
+  return -1;
+}
+
+export function slotCount(slot: Int): Int {
+  return pouchSlotCount(slot);
+}

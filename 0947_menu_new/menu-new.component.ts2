@@ -1,0 +1,597 @@
+import { CS2, intArray, onMounted, resumePauseButton, useRef, useServerState, useState } from 'ts2';
+
+import { closeOnEscape } from '../0877_wgs_rune_door/close-on-escape';
+import { ShortcutLower, ShortcutUpper } from '../0590_poh_jewellery_box/poh-jewellery-box.data';
+import { Varbits } from '../lib/game/varbits';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { clientClock, scaled, textLineCount, textWidth } from '../lib/lib.engine';
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ThinBoxOutline } from '../lib/thin-box.component';
+import { Bar, Colour, Layout, MenuArt, MenuFont, MenuNewRows } from './menu-new.constants';
+import {
+  menuNewCall,
+  menuNewIcon,
+  menuNewIconH,
+  menuNewIconW,
+  menuNewKeys,
+  menuNewOpaque,
+  menuNewOptions,
+  menuNewTitle,
+  menuNewTitleW,
+} from './menu-new.state';
+
+export function MenuNew(): Component {
+  const [call, setCall] = useState(menuNewCall);
+  const [keys] = useState(menuNewKeys);
+  const [icon] = useState(menuNewIcon);
+  const [iconW] = useState(menuNewIconW);
+  const [iconH] = useState(menuNewIconH);
+  const [titleW] = useState(menuNewTitleW);
+  const [options] = useState(menuNewOptions);
+  const [opaque] = useState(menuNewOpaque);
+  const phone: Boolean = onMobile();
+
+  onMounted(() => {
+    setCall(0);
+  });
+
+  const pane = useRef();
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capLeft = useRef();
+  const capRight = useRef();
+
+  const starts = intArray(MenuNewRows.MAX);
+  const ends = intArray(MenuNewRows.MAX);
+  const heights = intArray(MenuNewRows.MAX);
+  const xs = intArray(MenuNewRows.MAX);
+  const ys = intArray(MenuNewRows.MAX);
+  const bands = intArray(MenuNewRows.MAX);
+
+  let rows: Int = 0;
+  let column: Int = 0;
+  let right: Int = 0;
+  let overflow: Boolean = false;
+  let crashed: Boolean = false;
+  let universeW: Int = Layout.UNIVERSE_W;
+  let universeH: Int = Layout.UNIVERSE_H;
+
+  if (call > 0) {
+    let pipes: Int = 0;
+    let from: Int = 0;
+    let cut: Int = options.indexOf('|', 0);
+    while (cut !== -1) {
+      const measured: Int = textWidth(`W: ${options.substring(from, cut)}`, Layout.WRAP_W, MenuFont.ROW);
+      if (measured > column) {
+        column = measured + Layout.COLUMN_PAD;
+      }
+      pipes = pipes + 1;
+      from = cut + 1;
+      cut = options.indexOf('|', from);
+    }
+    const lastMeasured: Int = textWidth(`W: ${options.substring(from, options.length)}`, Layout.WRAP_W, MenuFont.ROW);
+    if (lastMeasured > column) {
+      column = lastMeasured + Layout.COLUMN_PAD;
+    }
+    column = Math.min(widenForTitle(titleW, column), Layout.PANE_W / 2);
+
+    let y: Int = 0;
+    let x: Int = 0;
+    let totalH: Int = 0;
+    let tallest: Int = 0;
+    let band: Int = Layout.BAND_A;
+    let bottom: Int = 0;
+    let trailingEmpty: Boolean = false;
+    let walked: Int = 0;
+    from = 0;
+    while (walked <= pipes) {
+      let end: Int = options.length;
+      if (walked < pipes) {
+        end = options.indexOf('|', from);
+      }
+      const piece: String = options.substring(from, end);
+      if (piece.length <= 0) {
+        trailingEmpty = true;
+      } else if (rows < MenuNewRows.MAX) {
+        trailingEmpty = false;
+        let rowH: Int = textLineCount(`W: ${piece}`, Layout.WRAP_W, MenuFont.ROW) * Layout.LINE_H + Layout.ROW_PAD;
+        if (phone) {
+          rowH = textLineCount(piece, Layout.WRAP_W, MenuFont.ROW) * Layout.LINE_H_MOBILE + Layout.ROW_PAD;
+        }
+        if (rowH > tallest) {
+          tallest = rowH;
+        }
+        if (y + rowH > Layout.PANE_H) {
+          x = x + column;
+          y = 0;
+          band = (x / column + 1) % 2 === 0 ? Layout.BAND_B : Layout.BAND_A;
+        }
+        band = band === Layout.BAND_B ? Layout.BAND_A : Layout.BAND_B;
+        starts[rows] = from;
+        ends[rows] = end;
+        heights[rows] = rowH;
+        xs[rows] = x;
+        ys[rows] = y;
+        bands[rows] = band;
+        rows = rows + 1;
+        y = y + rowH;
+        if (y > bottom) {
+          bottom = y;
+        }
+        totalH = totalH + rowH;
+        right = x + column;
+      }
+      from = end + 1;
+      walked = walked + 1;
+    }
+
+    let single: Boolean = false;
+    if (phone) {
+      if ((tallest - 2) / Layout.LINE_H_MOBILE <= 1) {
+        single = true;
+      }
+    } else if ((tallest - 2) / Layout.LINE_H <= 1) {
+      single = true;
+    }
+    if (pipes > 0 && (pipes + 1) % 2 === 1) {
+      totalH = totalH + tallest;
+    }
+
+    if (single && right <= Layout.PANE_W && right / column === 0) {
+      crashed = true;
+    } else if (single && fitsTwoColumns(right, column, totalH)) {
+      totalH = totalH / 2;
+      y = 0;
+      x = 0;
+      band = Layout.BAND_A;
+      let at: Int = 0;
+      while (at < rows) {
+        xs[at] = x;
+        ys[at] = y;
+        band = band === Layout.BAND_B ? Layout.BAND_A : Layout.BAND_B;
+        bands[at] = band;
+        y = y + heights[at];
+        if (y + heights[at] > totalH) {
+          x = x + column;
+          y = 0;
+          band = (x / column + 1) % 2 === 0 ? Layout.BAND_B : Layout.BAND_A;
+        }
+        at = at + 1;
+      }
+      right = 0;
+      if (!trailingEmpty && rows > 0) {
+        right = xs[rows - 1] + column;
+      }
+      universeW = Layout.UNIVERSE_W - (Layout.PANE_W - right);
+      universeH = Layout.UNIVERSE_H - (Layout.PANE_H_FULL - totalH);
+    } else if (right <= Layout.PANE_W) {
+      universeW = Layout.UNIVERSE_W - (Layout.PANE_W - right);
+      if (right / column === 1 && totalH < Layout.PANE_H + Layout.FIT_SLACK) {
+        universeH = Layout.UNIVERSE_H - (Layout.PANE_H - totalH + Layout.FRAME_PAD);
+      } else {
+        universeH = Layout.UNIVERSE_H - (Layout.PANE_H - bottom + Layout.FRAME_PAD);
+      }
+    } else {
+      overflow = true;
+    }
+  }
+
+  const closeRest: Sprite = phone ? MenuArt.CLOSE_MOBILE : MenuArt.CLOSE;
+  const closeHover: Sprite = phone ? MenuArt.CLOSE_MOBILE : MenuArt.CLOSE_HOVER;
+  const closeWH: Int = phone ? Layout.CLOSE_MOBILE_WH : Layout.CLOSE_W;
+  const closeH: Int = phone ? Layout.CLOSE_MOBILE_WH : Layout.CLOSE_H;
+
+  return (
+    <layer x="center" y="center" w={universeW} h={universeH} noClickThrough>
+      <layer x={0} y={0} w="fill" h="fill">
+        {call > 0 && (
+          <SteelBorder
+            title=""
+            titleColor={Colour.LABEL}
+            flags={opaque === 0 ? Layout.FLAGS_TRANSLUCENT : Layout.FLAGS_OPAQUE}
+          />
+        )}
+      </layer>
+
+      <layer x="center" y={Layout.TITLE_Y} w={{ fill: Layout.TITLE_W_INSET }} h={Layout.TITLE_H}>
+        {call > 0 && <ThinBoxOutline />}
+        {call > 0 && icon !== -1 && (
+          <sprite x={Layout.ICON_XY} y={Layout.ICON_XY} w={iconW} h={iconH} sprite={icon as Sprite} />
+        )}
+        {call > 0 && <MenuNewTitleText />}
+        {call > 0 && (
+          <sprite
+            x={{ right: Layout.CLOSE_X }}
+            y="center"
+            w={closeWH}
+            h={closeH}
+            sprite={closeRest}
+            options={['Close']}
+            onOptionSelect={() => closeInterface()}
+            onMouseEnter={(event) => {
+              event.self.sprite = closeHover;
+            }}
+            onMouseLeave={(event) => {
+              event.self.sprite = closeRest;
+            }}
+            onKey={(event) => closeKey(event.keyCode)}
+          />
+        )}
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.CONTENT_FRAME_BOTTOM }}
+        w={{ fill: Layout.CONTENT_FRAME_W_INSET }}
+        h={{ fill: Layout.CONTENT_FRAME_H_INSET }}
+      >
+        <layer
+          x="center"
+          y={Layout.CONTENT_Y}
+          w={{ fill: Layout.CONTENT_W_INSET }}
+          h={{ fill: Layout.CONTENT_H_INSET }}
+        >
+          <layer x={0} y={0} w={1} h={1}>
+            {call > 0 && <>{heights.map((rowH, k) => k < rows && <rect x="center" y="center" w="fill" h="fill" />)}</>}
+          </layer>
+
+          {call > 0 && (
+            <layer
+              ref={pane}
+              x={0}
+              y={0}
+              w="fill"
+              h={{ fill: overflow || crashed ? Layout.BAR_H : 0 }}
+              scrollWidth={right}
+              scrollX={0}
+              onScrollWheel={
+                overflow
+                  ? (event) => {
+                      pane.scrollX = pane.scrollX + event.mouseY * Bar.WHEEL_X;
+                      trackScrollX(gutter, thumb, capLeft, capRight, pane);
+                    }
+                  : null
+              }
+            >
+              <layer x={0} y={0} w="fill" h="fill">
+                {heights.map(
+                  (rowH, k) =>
+                    k < rows && <MenuNewBand x={xs[k]} y={ys[k]} w={column} h={rowH} rest={bands[k]} phone={phone} />,
+                )}
+              </layer>
+              <layer x={0} y={0} w="fill" h="fill">
+                {heights.map(
+                  (rowH, k) =>
+                    k < rows && (
+                      <MenuNewLabel
+                        x={xs[k]}
+                        y={ys[k]}
+                        w={column}
+                        h={rowH}
+                        label={rowLabel(options.substring(starts[k], ends[k]), k + 1, keys)}
+                        listens={keys === 1 && k + 1 < Layout.SHORTCUT_LIMIT}
+                        upper={rowUpper(k + 1)}
+                        lower={rowLower(k + 1)}
+                      />
+                    ),
+                )}
+              </layer>
+            </layer>
+          )}
+
+          <layer
+            ref={bar}
+            x="center"
+            y={{ bottom: Layout.BAR_BOTTOM }}
+            w="fill"
+            h={overflow || crashed ? Layout.BAR_H : 0}
+          >
+            {overflow && (
+              <sprite
+                ref={gutter}
+                x="center"
+                w={{ fill: Bar.ARROW * 2 }}
+                h="fill"
+                sprite={MenuArt.BAR_TRACK}
+                noClickThrough
+                onScrollWheel={(event) => {
+                  pane.scrollX = pane.scrollX + event.mouseY * Bar.WHEEL_X;
+                  trackScrollX(gutter, thumb, capLeft, capRight, pane);
+                }}
+                onClick={() => {
+                  CS2.cc_dragpickup(thumb.width / 2, 0);
+                }}
+              />
+            )}
+            {overflow && (
+              <sprite
+                ref={thumb}
+                x={
+                  Bar.ARROW +
+                  ((gutter.width - thumbWidthOf(bar.width, pane.width, right)) * pane.scrollX) /
+                    Math.max(1, pane.scrollWidth - pane.width)
+                }
+                y="center"
+                h="fill"
+                w={thumbWidthOf(bar.width, pane.width, right)}
+                sprite={MenuArt.BAR_THUMB}
+                noClickThrough
+                draggable={gutter}
+                dragMoves
+                onDrag={(event) => {
+                  const offset: Int = event.mouseX;
+                  thumb.x = offset + Bar.ARROW;
+                  capLeft.x = offset + Bar.ARROW;
+                  capRight.x = offset + Bar.ARROW + thumb.width - Bar.CAP;
+                  const travel: Int = Math.max(1, gutter.width - thumb.width);
+                  const range: Int = pane.scrollWidth - pane.width;
+                  pane.scrollX = (offset * range) / travel;
+                }}
+              />
+            )}
+            {overflow && (
+              <sprite ref={capLeft} x={thumb.x} y="center" w={Bar.CAP} h="fill" sprite={MenuArt.BAR_CAP_LEFT} />
+            )}
+            {overflow && (
+              <sprite
+                ref={capRight}
+                x={thumb.x + thumb.width - Bar.CAP}
+                y="center"
+                w={Bar.CAP}
+                h="fill"
+                sprite={MenuArt.BAR_CAP_RIGHT}
+              />
+            )}
+            {overflow && (
+              <sprite
+                x="left"
+                y="center"
+                w={Bar.ARROW}
+                h="fill"
+                sprite={MenuArt.BAR_ARROW_LEFT}
+                noClickThrough
+                onHold={() => {
+                  pane.scrollX = pane.scrollX - Bar.STEP_X;
+                  trackScrollX(gutter, thumb, capLeft, capRight, pane);
+                }}
+              />
+            )}
+            {overflow && (
+              <sprite
+                x="right"
+                y="center"
+                w={Bar.ARROW}
+                h="fill"
+                sprite={MenuArt.BAR_ARROW_RIGHT}
+                noClickThrough
+                onHold={() => {
+                  pane.scrollX = pane.scrollX + Bar.STEP_X;
+                  trackScrollX(gutter, thumb, capLeft, capRight, pane);
+                }}
+              />
+            )}
+          </layer>
+        </layer>
+        <ThinBoxOutline />
+      </layer>
+    </layer>
+  );
+}
+
+function MenuNewBand({
+  x,
+  y,
+  w,
+  h,
+  rest,
+  phone,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  rest: Int;
+  phone: Boolean;
+}): Component {
+  return (
+    <rect
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      color={Colour.BAND}
+      fill
+      transparency={rest}
+      onMouseEnter={
+        phone
+          ? null
+          : (event) => {
+              event.self.transparency = Layout.BAND_HOVER;
+            }
+      }
+      onMouseLeave={
+        phone
+          ? null
+          : (event) => {
+              event.self.transparency = rest;
+            }
+      }
+    />
+  );
+}
+
+function fitsTwoColumns(right: Int, column: Int, totalH: Int): Boolean {
+  if (right > Layout.PANE_W) {
+    return false;
+  }
+  const columns: Int = right / column;
+  if (columns > 2) {
+    return false;
+  }
+  if (columns === 1) {
+    return true;
+  }
+  return totalH / columns < Layout.PANE_H + Layout.FIT_SLACK;
+}
+
+function MenuNewTitleText(): Component {
+  const [title] = useState(menuNewTitle);
+  return (
+    <text
+      x="center"
+      y={0}
+      w={{ fill: Layout.TITLE_TEXT_W_INSET }}
+      h="fill"
+      text={title}
+      font={MenuFont.TITLE}
+      color={Colour.LABEL}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={Layout.TITLE_LINE_H}
+    />
+  );
+}
+
+function widenForTitle(titleW: Int, column: Int): Int {
+  if (titleW > column * 4) {
+    return Layout.TITLE_WIDEN_BASE + scaled(220, 100, column);
+  }
+  if (titleW > column * 3) {
+    return Layout.TITLE_WIDEN_BASE + scaled(170, 100, column);
+  }
+  if (titleW > column * 2) {
+    return Layout.TITLE_WIDEN_BASE + scaled(120, 100, column);
+  }
+  return column;
+}
+
+function rowUpper(shown: Int): String {
+  if (shown < Layout.DIGIT_LIMIT) {
+    return stringOf(shown);
+  }
+  return ShortcutUpper.get(shown - Layout.LETTER_BASE) ?? '';
+}
+
+function rowLower(shown: Int): String {
+  if (shown < Layout.DIGIT_LIMIT) {
+    return '';
+  }
+  return ShortcutLower.get(shown - Layout.LETTER_BASE) ?? '';
+}
+
+function rowLabel(piece: String, shown: Int, keys: Int): String {
+  if (keys === 1 && shown < Layout.SHORTCUT_LIMIT) {
+    return `<col=ffffff>${rowUpper(shown)}</col>: ${piece}`;
+  }
+  return piece;
+}
+
+function MenuNewLabel({
+  x,
+  y,
+  w,
+  h,
+  label,
+  listens,
+  upper,
+  lower,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  label: String;
+  listens: Boolean;
+  upper: String;
+  lower: String;
+}): Component {
+  const [armedAt, setArmedAt] = useState(0);
+  return (
+    <text
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      text={label}
+      font={MenuFont.ROW}
+      color={Colour.LABEL}
+      align="center"
+      valign="middle"
+      lineHeight={Layout.TITLE_LINE_H}
+      onMouseEnter={(event) => {
+        event.self.color = Colour.LABEL_HOVER;
+      }}
+      onMouseLeave={(event) => {
+        event.self.color = Colour.LABEL;
+      }}
+      onKey={
+        listens
+          ? (event) => {
+              if (!rowKeyMatches(event.keyChar, upper, lower)) {
+                return;
+              }
+              let due: Boolean = false;
+              if (armedAt !== 0 && clientClock() >= armedAt) {
+                due = true;
+              }
+              answerRow(event.self);
+              if (due) {
+                answerRow(event.self);
+              }
+              setArmedAt(clientClock() + Layout.KEY_REARM);
+            }
+          : null
+      }
+    />
+  );
+}
+
+function rowKeyMatches(keyChar: Char, upper: String, lower: String): Boolean {
+  if (dialogueMayAdvance(-1, CHATBOX) === false) {
+    return false;
+  }
+  if (keyChar === -1) {
+    return false;
+  }
+  if (CS2.string_indexof_char(upper, keyChar) === -1 && CS2.string_indexof_char(lower, keyChar) === -1) {
+    return false;
+  }
+  return true;
+}
+
+function answerRow(row: ComponentId): void {
+  resumePauseButton(row);
+  row.text = 'Please wait...';
+  row.color = Colour.LABEL_HOVER;
+}
+
+function closeKey(keyCode: Int): void {
+  if (closeOnEscape(keyCode)) {
+    return;
+  }
+  if (keyCode === Layout.ESCAPE && useServerState(Varbits.KEYBINDING_ESC_TO_CLOSE) === 1) {
+    closeInterface();
+  }
+}
+
+function thumbWidthOf(barWidth: Int, contentWidth: Int, extent: Int): Int {
+  const raw: Int = Math.max(
+    Bar.MIN_THUMB,
+    extent > 0 ? ((barWidth - Bar.ARROW * 2) * contentWidth) / extent : barWidth - Bar.ARROW * 2,
+  );
+  return Math.min(Math.max(Bar.MIN_THUMB, barWidth - Bar.ARROW * 2), raw);
+}
+
+function trackScrollX(gutter: Ref, thumb: Ref, capLeft: Ref, capRight: Ref, content: Ref): void {
+  const travel: Int = Math.max(1, gutter.width - thumb.width);
+  const range: Int = Math.max(1, content.scrollWidth - content.width);
+  const at: Int = Bar.ARROW + (travel * content.scrollX) / range;
+  thumb.x = at;
+  capLeft.x = at;
+  capRight.x = at + thumb.width - Bar.CAP;
+}
+
+const CHATBOX = 162;

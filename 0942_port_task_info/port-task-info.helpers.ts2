@@ -1,0 +1,85 @@
+import { CS2, useState } from 'ts2';
+import { itemName, npcName, playSound } from '../lib/lib.engine';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { PortTasks } from './port-tasks.data';
+import { dockName, isLargeBreakpoint, portTaskAcceptedSlot, portTaskIndex } from './port-tasks.helpers';
+import {
+  portTaskInfoAnswered,
+  portTaskInfoLarge,
+  portTaskInfoPhase,
+  portTaskInfoSlotH,
+  portTaskInfoSlotW,
+  portTaskInfoTask,
+} from './port-task-info.state';
+
+export function portTaskInfoShow(taskId: Int): void {
+  const index: Int = portTaskIndex(taskId);
+  if (index < 0) {
+    return;
+  }
+  const [, setTask] = useState(portTaskInfoTask);
+  const [, setPhase] = useState(portTaskInfoPhase);
+  const [, setAnswered] = useState(portTaskInfoAnswered);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const [, setLarge] = useState(portTaskInfoLarge);
+  setLarge(isLargeBreakpoint(breakpoint) ? 1 : 0);
+  setTask(index);
+  setAnswered(0);
+  setPhase(1);
+}
+
+export function portTaskInfoSlotChanged(width: Int, height: Int): void {
+  const [seenW, setSeenW] = useState(portTaskInfoSlotW);
+  const [seenH, setSeenH] = useState(portTaskInfoSlotH);
+  if (seenW === width && seenH === height) {
+    return;
+  }
+  if (seenW !== -1) {
+    const [breakpoint] = useState(responsiveCurrentBreakpoint);
+    const [, setLarge] = useState(portTaskInfoLarge);
+    setLarge(isLargeBreakpoint(breakpoint) ? 1 : 0);
+  }
+  setSeenW(width);
+  setSeenH(height);
+}
+
+export function portTaskInfoBack(): void {
+  const [, setPhase] = useState(portTaskInfoPhase);
+  playSound(PortTaskSound.SELECT);
+  setPhase(0);
+  CS2.countdialog_resume('0');
+}
+
+export function portTaskInfoAnswer(): void {
+  const [, setAnswered] = useState(portTaskInfoAnswered);
+  playSound(PortTaskSound.SELECT);
+  CS2.countdialog_resume('1');
+  setAnswered(1);
+}
+
+export const enum PortTaskSound {
+  SELECT = 8415,
+  REFUSED = 8414,
+}
+
+export function portTaskInfoAccepted(): Int {
+  const [task] = useState(portTaskInfoTask);
+  if (task < 0) {
+    return 0;
+  }
+  return portTaskAcceptedSlot(task) !== -1 ? 1 : 0;
+}
+
+export function portTaskInfoText(index: Int): String {
+  const row = PortTasks.at(index);
+  if (row === null) {
+    return '';
+  }
+  let details: String = '';
+  if (row.taskType === 0) {
+    details = `Sailing Requirement: ${row.level}<br>Cargo: ${itemName(row.cargo as Item)}<br>Location: ${dockName(row.cargoDock)}<br>Destination: ${dockName(row.endDock)}<br>Quantity: ${row.cargoCount}`;
+  } else {
+    details = `Sailing Requirement: ${row.level}<br>Port: ${dockName(row.endDock)}<br>Target: ${npcName(row.bountyNpc)}<br>Item: ${itemName(row.bountyItem as Item)}<br>Quantity: ${row.bountyCount}`;
+  }
+  return `${row.name}<br><br>${details}<br><br>${row.flavour}`;
+}

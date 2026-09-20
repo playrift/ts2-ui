@@ -1,0 +1,1095 @@
+import { CS2, param, useInventory, useServerState, useSkill, useState } from 'ts2';
+
+import {
+  SailingBoatHotspot,
+  SailingBoatHotspots,
+  SailingBoatTypes,
+} from '../0934_sailing_boat_selection/sailing-boat-selection.data';
+import { boatBrazier, boatHotspot, boatHull } from '../0934_sailing_boat_selection/sailing-boat-selection.helpers';
+import { sailingKeelsOffered } from '../0312_smithing/smithing.helpers';
+import { commas } from '../0465_ge_offers/ge-offers.helpers';
+import { sailingBoatCustomisationTab } from '../lib/game/varcs';
+import { debugMessageAlias, errorMessage } from '../lib/lib.debug';
+import { itemName } from '../lib/lib.engine';
+import {
+  CustomisationInventories,
+  CustomisationItems,
+  CustomisationSkills,
+  CustomisationVarbits,
+  CustomisationVarps,
+} from './sailing-customisation.constants';
+import {
+  BoatPartOptions,
+  BoatPartSlices,
+  CustomisationBoat,
+  CustomisationOption,
+  CustomisationOptions,
+  CustomisationTabs,
+  HotspotFacilityOptions,
+  INTRO_CARGO_HOLD,
+  NumberWords,
+  OptionAngles,
+  OptionKind,
+  OptionMaterials,
+  OptionVariants,
+  ShipwrightCoins,
+  TabSubtypes,
+} from './sailing-customisation.data';
+
+export function boatTypeOfWire(boat: Int): Int {
+  switch (boat) {
+    case CustomisationBoat.RAFT:
+      return 0;
+    case CustomisationBoat.SKIFF:
+      return 1;
+    case CustomisationBoat.SLOOP:
+      return 2;
+    case CustomisationBoat.WILL_AND_ANNE:
+      return 3;
+  }
+  return -1;
+}
+
+export function optionAt(option: Int): CustomisationOption | null {
+  if (option < 0) {
+    return null;
+  }
+  return CustomisationOptions.at(option);
+}
+
+export function optionName(option: Int): String {
+  const row = optionAt(option);
+  if (row === null) {
+    return 'Null';
+  }
+  return row.name;
+}
+
+export function sailingLevelOf(option: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return -1;
+  }
+  return row.sailingLevel;
+}
+
+export function constructionLevelOf(option: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return -1;
+  }
+  return row.constructionLevel;
+}
+
+export function shipwrightCost(option: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return 0;
+  }
+  if (!row.coinsAlternative) {
+    return 0;
+  }
+  return ShipwrightCoins.get(row.constructionLevel) ?? 0;
+}
+
+export function materialCount(option: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return 0;
+  }
+  return row.materialsCount;
+}
+
+export function materialItem(option: Int, index: Int): ItemName {
+  const row = optionAt(option);
+  if (row === null) {
+    return -1;
+  }
+  const material = OptionMaterials.at(row.materialsFirst + index);
+  if (material === null) {
+    return -1;
+  }
+  if (index >= row.materialsCount) {
+    return -1;
+  }
+  return material.item;
+}
+
+export function materialNeed(option: Int, index: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return -1;
+  }
+  const material = OptionMaterials.at(row.materialsFirst + index);
+  if (material === null) {
+    return -1;
+  }
+  if (index >= row.materialsCount) {
+    return -1;
+  }
+  return material.count;
+}
+
+export function orderOf(option: Int): Int {
+  const row = optionAt(option);
+  if (row === null) {
+    return 0;
+  }
+  return row.order;
+}
+
+export function previewLoc(option: Int): WorldObject {
+  const row = optionAt(option);
+  if (row === null) {
+    return 59660;
+  }
+  return row.loc;
+}
+
+export function previewAnim(option: Int): Animation {
+  const row = optionAt(option);
+  if (row === null) {
+    return -1;
+  }
+  return row.anim as Animation;
+}
+
+export function previewAngle(option: Int, boat: Int, field: Int): Int {
+  const row = optionAt(option);
+  let value: Int = 0;
+  if (field === 5) {
+    value = 1000;
+  }
+  if (row === null) {
+    return value;
+  }
+  const type: Int = boatTypeOfWire(boat);
+  let index: Int = 0;
+  while (index < row.anglesCount) {
+    const angle = OptionAngles.at(row.anglesFirst + index);
+    let matches: Boolean = false;
+    if (angle !== null && type !== -1) {
+      if (angle.boatType === type || angle.boatType === -1) {
+        matches = true;
+      }
+    }
+    if (angle !== null && matches) {
+      switch (field) {
+        case 0:
+          value = angle.offsetX;
+          break;
+        case 1:
+          value = angle.offsetY;
+          break;
+        case 2:
+          value = angle.pitch;
+          break;
+        case 3:
+          value = angle.yaw;
+          break;
+        case 4:
+          value = angle.roll;
+          break;
+        default:
+          value = Math.max(1, angle.zoom);
+          break;
+      }
+    }
+    index = index + 1;
+  }
+  return value;
+}
+
+export function reportMissingAngles(option: Int, boat: Int): void {
+  const row = optionAt(option);
+  let missing: Boolean = row === null || boat === -1;
+  if (row !== null) {
+    if (!row.hasAngles) {
+      missing = true;
+    }
+  }
+  if (missing) {
+    debugMessageAlias(`Customisation facility (${optionName(option)}) was not given any loc angles.`);
+  }
+}
+
+export function schematicKnown(option: Int): Boolean {
+  const row = optionAt(option);
+  if (row === null) {
+    return true;
+  }
+  let value: Int = 1;
+  switch (row.schematic) {
+    case 1:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_SALVAGING_STATION);
+      break;
+    case 2:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_GALE_CATCHER);
+      break;
+    case 3:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_ETERNAL_BRAZIER);
+      break;
+    case 4:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_DRAGON_SALVAGING_HOOK);
+      break;
+    case 5:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_ROSEWOOD_CARGO_HOLD);
+      break;
+    case 6:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_DRAGON_CANNON);
+      break;
+    case 7:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_ROSEWOOD_HULL);
+      break;
+    case 8:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_ROSEWOOD_SAIL);
+      break;
+    case 9:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_DRAGON_TILLER);
+      break;
+    case 10:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_DRAGON_KEEL);
+      break;
+    case 11:
+      value = useServerState(CustomisationVarbits.SCHEMATIC_ELEVENTH);
+      break;
+  }
+  return value >= 1;
+}
+
+function boatKeel(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(CustomisationVarbits.BOAT_1_KEEL);
+    case 2:
+      return useServerState(CustomisationVarbits.BOAT_2_KEEL);
+    case 3:
+      return useServerState(CustomisationVarbits.BOAT_3_KEEL);
+    case 4:
+      return useServerState(CustomisationVarbits.BOAT_4_KEEL);
+    case 5:
+      return useServerState(CustomisationVarbits.BOAT_5_KEEL);
+  }
+  return 0;
+}
+
+function boatSail(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(CustomisationVarbits.BOAT_1_SAIL);
+    case 2:
+      return useServerState(CustomisationVarbits.BOAT_2_SAIL);
+    case 3:
+      return useServerState(CustomisationVarbits.BOAT_3_SAIL);
+    case 4:
+      return useServerState(CustomisationVarbits.BOAT_4_SAIL);
+    case 5:
+      return useServerState(CustomisationVarbits.BOAT_5_SAIL);
+  }
+  return -1;
+}
+
+function boatSteering(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(CustomisationVarbits.BOAT_1_STEERING);
+    case 2:
+      return useServerState(CustomisationVarbits.BOAT_2_STEERING);
+    case 3:
+      return useServerState(CustomisationVarbits.BOAT_3_STEERING);
+    case 4:
+      return useServerState(CustomisationVarbits.BOAT_4_STEERING);
+    case 5:
+      return useServerState(CustomisationVarbits.BOAT_5_STEERING);
+  }
+  return -1;
+}
+
+function boatFlag(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(CustomisationVarbits.BOAT_1_FLAG);
+    case 2:
+      return useServerState(CustomisationVarbits.BOAT_2_FLAG);
+    case 3:
+      return useServerState(CustomisationVarbits.BOAT_3_FLAG);
+    case 4:
+      return useServerState(CustomisationVarbits.BOAT_4_FLAG);
+    case 5:
+      return useServerState(CustomisationVarbits.BOAT_5_FLAG);
+  }
+  return -1;
+}
+
+function boatTrim(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(CustomisationVarbits.BOAT_1_TRIM);
+    case 2:
+      return useServerState(CustomisationVarbits.BOAT_2_TRIM);
+    case 3:
+      return useServerState(CustomisationVarbits.BOAT_3_TRIM);
+    case 4:
+      return useServerState(CustomisationVarbits.BOAT_4_TRIM);
+    case 5:
+      return useServerState(CustomisationVarbits.BOAT_5_TRIM);
+  }
+  return 0;
+}
+
+export function partCount(boat: Int, facilityType: Int, hotspot: Int): Int {
+  const type: Int = boatTypeOfWire(boat);
+  if (type === -1) {
+    return 0;
+  }
+  if (facilityType === 4) {
+    const spot = hotspotAt(type, hotspot);
+    return spot === null ? 0 : spot.optionCount;
+  }
+  if (facilityType < 0 || facilityType > 7) {
+    return 0;
+  }
+  const slice = BoatPartSlices.at(type * 8 + facilityType);
+  return slice === null ? 0 : slice.count;
+}
+
+function hotspotAt(type: Int, hotspot: Int): SailingBoatHotspot | null {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null || hotspot < 0) {
+    return null;
+  }
+  if (hotspot >= boat.hotspotCount) {
+    return null;
+  }
+  return SailingBoatHotspots.at(boat.hotspotFirst + hotspot);
+}
+
+export function partOption(boat: Int, facilityType: Int, hotspot: Int, index: Int): Int {
+  const type: Int = boatTypeOfWire(boat);
+  if (type === -1 || index < 0) {
+    return -1;
+  }
+  if (facilityType === 4) {
+    const spot = hotspotAt(type, hotspot);
+    if (spot === null) {
+      return -1;
+    }
+    if (index >= spot.optionCount) {
+      return -1;
+    }
+    return HotspotFacilityOptions.at(spot.optionFirst + index) ?? -1;
+  }
+  if (facilityType < 0 || facilityType > 7) {
+    return -1;
+  }
+  const slice = BoatPartSlices.at(type * 8 + facilityType);
+  if (slice === null) {
+    return -1;
+  }
+  if (index >= slice.count) {
+    return -1;
+  }
+  return BoatPartOptions.at(slice.first + index) ?? -1;
+}
+
+export function builtOption(slot: Int, boat: Int, facilityType: Int, hotspot: Int): Int {
+  if (boatTypeOfWire(boat) === -1) {
+    return -1;
+  }
+  let index: Int = -1;
+  switch (facilityType) {
+    case 0:
+      index = boatKeel(slot);
+      break;
+    case 1:
+      index = boatHull(slot);
+      break;
+    case 2:
+      index = boatSail(slot);
+      break;
+    case 3:
+      index = boatSteering(slot);
+      break;
+    case 5:
+      index = boatFlag(slot) - 1;
+      if (index < 0) {
+        return -1;
+      }
+      break;
+    case 6:
+      index = boatBrazier(slot) - 1;
+      if (index < 0) {
+        return -1;
+      }
+      break;
+    case 7:
+      index = boatTrim(slot);
+      break;
+    case 4:
+      index = boatHotspot(slot, hotspot) - 1;
+      if (index < 0) {
+        return -1;
+      }
+      break;
+  }
+  return partOption(boat, facilityType, hotspot, index);
+}
+
+export function tabIndexOf(type: Int, tabId: Int): Int {
+  let index: Int = 0;
+  while (index < CustomisationTabs.length) {
+    const tab = CustomisationTabs.at(index);
+    if (tab !== null) {
+      if (tab.type === type && tab.tabId === tabId) {
+        return index;
+      }
+    }
+    index = index + 1;
+  }
+  return -1;
+}
+
+export function tabCountOfType(type: Int): Int {
+  let count: Int = 0;
+  let index: Int = 0;
+  while (index < CustomisationTabs.length) {
+    const tab = CustomisationTabs.at(index);
+    if (tab !== null) {
+      if (tab.type === type) {
+        count = count + 1;
+      }
+    }
+    index = index + 1;
+  }
+  return count;
+}
+
+export function hotspotMatch(tabIndex: Int, boat: Int, pick: Int): Int {
+  if (tabIndex === -1) {
+    return pick === -1 ? 0 : -1;
+  }
+  const tab = CustomisationTabs.at(tabIndex);
+  if (tab === null) {
+    return pick === -1 ? 0 : -1;
+  }
+  if (tab.subtypesCount <= 0) {
+    errorMessage(`No sub types or types defined for tab - ${tab.tabName} dbrow`);
+    return pick === -1 ? 0 : -1;
+  }
+  const type: Int = boatTypeOfWire(boat);
+  const spot = type === -1 ? null : hotspotAt(type, useServerState(CustomisationVarbits.HOTSPOT_ID));
+  let found: Int = 0;
+  let sub: Int = 0;
+  while (sub < tab.subtypesCount) {
+    const wanted: Int = (TabSubtypes.at(tab.subtypesFirst + sub) ?? 0) - 1;
+    if (spot !== null) {
+      let index: Int = 0;
+      while (index < spot.optionCount) {
+        const option: Int = HotspotFacilityOptions.at(spot.optionFirst + index) ?? -1;
+        const row = optionAt(option);
+        let matched: Boolean = false;
+        if (row !== null) {
+          if (row.subtype === wanted || wanted === -1) {
+            matched = true;
+          }
+        }
+        if (matched) {
+          if (pick !== -1 && pick === found) {
+            return option;
+          }
+          found = found + 1;
+        }
+        index = index + 1;
+      }
+    }
+    sub = sub + 1;
+  }
+  return pick === -1 ? found : -1;
+}
+
+export function heldSaw(): Item {
+  const inv = useInventory(CustomisationInventories.INV);
+  const worn = useInventory(CustomisationInventories.WORN);
+  if (inv.total(CustomisationItems.CRYSTAL_SAW) > 0) {
+    return CustomisationItems.CRYSTAL_SAW;
+  }
+  const weapon: Item = worn[3];
+  const shield: Item = worn[5];
+  if (
+    weapon === CustomisationItems.AMYS_SAW ||
+    shield === CustomisationItems.AMYS_SAW ||
+    inv.total(CustomisationItems.AMYS_SAW) > 0
+  ) {
+    return CustomisationItems.AMYS_SAW;
+  }
+  if (inv.total(CustomisationItems.SAW) > 0) {
+    return CustomisationItems.SAW;
+  }
+  return -1;
+}
+
+export function meetsConstruction(option: Int): Boolean {
+  const current: Int = useSkill(CustomisationSkills.CONSTRUCTION);
+  let level: Int = current;
+  const needed: Int = constructionLevelOf(option);
+  if (level === -1 || needed === -1) {
+    return false;
+  }
+  if (heldSaw() === CustomisationItems.CRYSTAL_SAW) {
+    level = level + 3;
+  }
+  return level >= needed;
+}
+
+export function meetsSailing(option: Int): Boolean {
+  const needed: Int = sailingLevelOf(option);
+  if (needed === -1) {
+    return false;
+  }
+  return useSkill(CustomisationSkills.SAILING) >= needed;
+}
+
+export function numberWord(value: Int): String {
+  if (value <= 10 && value >= 0) {
+    return NumberWords.at(value) ?? '';
+  }
+  return commas(value);
+}
+
+export function buildCapReached(option: Int, built: Int): Boolean {
+  const row = optionAt(option);
+  if (row === null) {
+    return false;
+  }
+  if (row.kind !== OptionKind.FACILITY) {
+    return false;
+  }
+  if (row.buildMax === -1) {
+    return false;
+  }
+  if (row.buildMax === 0) {
+    return true;
+  }
+  const boat: Int = useServerState(CustomisationVarps.BOAT);
+  const type: Int = boatTypeOfWire(boat);
+  const boatRow = type === -1 ? null : SailingBoatTypes.at(type);
+  const slot: Int = useServerState(CustomisationVarbits.BOAT_SLOT);
+  let count: Int = 0;
+  let hotspot: Int = 0;
+  const hotspots: Int = boatRow === null ? 0 : boatRow.hotspotCount;
+  while (hotspot < hotspots) {
+    const chosen: Int = boatHotspot(slot, hotspot) - 1;
+    if (chosen > -1) {
+      const other: Int = partOption(boat, 4, hotspot, chosen);
+      if (option === other && option !== built) {
+        count = count + 1;
+      } else {
+        let variant: Int = 0;
+        while (variant < row.variantsCount) {
+          if (other === (OptionVariants.at(row.variantsFirst + variant) ?? -2) && other !== built) {
+            count = count + 1;
+          }
+          variant = variant + 1;
+        }
+      }
+      if (count >= row.buildMax) {
+        return true;
+      }
+    }
+    hotspot = hotspot + 1;
+  }
+  return false;
+}
+
+export function buildCapText(option: Int): String {
+  const row = optionAt(option);
+  if (row === null) {
+    return '';
+  }
+  if (row.buildMax === 0) {
+    return 'You cannot currently build that on your boat.';
+  }
+  return `You can only build a maximum of <col=ff981f>${numberWord(row.buildMax)} ${CS2.lowercase(row.name)}</col> or related facility on your boat.`;
+}
+
+export function buildVerdict(option: Int, built: Int): Int {
+  if (!sailingKeelsOffered() && option !== INTRO_CARGO_HOLD) {
+    return 0;
+  }
+  if (!meetsSailing(option)) {
+    return 0;
+  }
+  let verdict: Int = 2;
+  if (!meetsConstruction(option)) {
+    if (shipwrightCost(option) > 0) {
+      verdict = 1;
+    } else {
+      return 0;
+    }
+  }
+  if (buildCapReached(option, built)) {
+    return 0;
+  }
+  return verdict;
+}
+
+export function buildRefusal(option: Int, built: Int): String {
+  if (!sailingKeelsOffered() && option !== INTRO_CARGO_HOLD) {
+    return 'You cannot build that at the moment.';
+  }
+  const levels: String = `That facility requires level <col=ff981f>${sailingLevelOf(option)} Sailing</col> and level <col=ff981f>${constructionLevelOf(option)} Construction</col> to build.`;
+  if (!meetsSailing(option)) {
+    return levels;
+  }
+  if (!meetsConstruction(option) && shipwrightCost(option) <= 0) {
+    return levels;
+  }
+  if (buildCapReached(option, built)) {
+    return buildCapText(option);
+  }
+  return '';
+}
+
+export function sackedPlanks(item: ItemName): Int {
+  switch (item) {
+    case 960:
+      return useServerState(CustomisationVarbits.PLANK_SACK_PLAIN);
+    case 8778:
+      return useServerState(CustomisationVarbits.PLANK_SACK_OAK);
+    case 8780:
+      return useServerState(CustomisationVarbits.PLANK_SACK_TEAK);
+    case 8782:
+      return useServerState(CustomisationVarbits.PLANK_SACK_MAHOGANY);
+    case 31432:
+      return useServerState(CustomisationVarbits.PLANK_SACK_CAMPHOR);
+    case 31435:
+      return useServerState(CustomisationVarbits.PLANK_SACK_IRONWOOD);
+    case 31438:
+      return useServerState(CustomisationVarbits.PLANK_SACK_ROSEWOOD);
+  }
+  return 0;
+}
+
+export function materialsHeld(option: Int): Boolean {
+  const row = optionAt(option);
+  if (row === null) {
+    return false;
+  }
+  if (useServerState(CustomisationVarbits.SAILING_INTRO) === 28 && option === INTRO_CARGO_HOLD) {
+    return true;
+  }
+  const inv = useInventory(CustomisationInventories.INV);
+  if (row.kind === OptionKind.FACILITY && row.bottle > 0) {
+    let slot: Int = 0;
+    while (slot < 28) {
+      const held: Item = inv[slot];
+      if (held === CustomisationItems.BOTTLED_FACILITY) {
+        return true;
+      }
+      slot = slot + 1;
+    }
+  }
+  let index: Int = 0;
+  while (index < row.materialsCount) {
+    const item: ItemName = materialItem(option, index);
+    const need: Int = materialNeed(option, index);
+    const have: Int = inv.total(item as Item);
+    if (have < need && sackedPlanks(item) + have < need) {
+      return false;
+    }
+    index = index + 1;
+  }
+  return true;
+}
+
+export function materialLit(item: ItemName, need: Int): Boolean {
+  const inv = useInventory(CustomisationInventories.INV);
+  const have: Int = inv.total(item as Item);
+  if (have >= need) {
+    return true;
+  }
+  if (param(item as Item, 2414) > 0 && inv.total(CustomisationItems.PLANK_SACK) > 0) {
+    return sackedPlanks(item) + have >= need;
+  }
+  return false;
+}
+
+export function notConsumed(item: ItemName): Boolean {
+  return param(item as Item, 2483) === 1;
+}
+
+export function trimReplaces(option: Int, built: Int): Boolean {
+  const row = optionAt(option);
+  const current = optionAt(built);
+  if (row === null || current === null) {
+    return false;
+  }
+  return current.kind === OptionKind.TRIM && row.order === 1 && !current.buildable;
+}
+
+export function listed(option: Int): Boolean {
+  const row = optionAt(option);
+  if (row === null) {
+    return true;
+  }
+  if (row.kind === OptionKind.TRIM) {
+    return row.buildable;
+  }
+  return true;
+}
+
+export function crewRequirementText(option: Int, colour: String): String {
+  const row = optionAt(option);
+  if (row === null) {
+    return '';
+  }
+  let type: Int = 0;
+  let level: Int = 0;
+  if (row.kind === OptionKind.FACILITY || row.kind === OptionKind.STEERING) {
+    type = row.crewReqType;
+    level = row.crewReqLevel;
+  }
+  switch (type) {
+    case 1:
+      return `Crew requirement: ${colour}${level} Helmsmanship</col>`;
+    case 2:
+      return `Crew requirement: ${colour}${level} Privateering</col>`;
+    case 3:
+      return `Crew requirement: ${colour}${level} Deckhandiness</col>`;
+  }
+  return '';
+}
+
+function halves(value: Int): String {
+  if (value % 128 === 64) {
+    return `${value / 128}.5`;
+  }
+  return `${value / 128}.0`;
+}
+
+export function statsText(option: Int, boat: Int): String {
+  const row = optionAt(option);
+  if (row === null) {
+    return '';
+  }
+  const col: String = '<col=ff981f>';
+  let text: String = '';
+  if (row.kind === OptionKind.FACILITY) {
+    switch (row.subtype) {
+      case 4:
+        text = cannonText(row, col);
+        break;
+      case 2:
+        if (row.hasStats && row.cargoholdSize > 0) {
+          text = `Storage capacity: ${col}${row.cargoholdSize}`;
+        }
+        break;
+      case 6:
+        if (row.hasStats && row.fetidResistant === 1) {
+          text = `Immunity: ${col}Fetid waters`;
+        }
+        break;
+      case 8:
+        if (row.hasStats && row.maxMotes > 0) {
+          text = `Max motes stored: ${col}${row.maxMotes}`;
+        }
+        break;
+      case 16:
+        if (row.hasStats && row.ammoSave > 0) {
+          text = `Ammo saving percentage: ${col}${row.ammoSave}`;
+        }
+        break;
+      case 10:
+        switch (row.netDepth) {
+          case 1:
+            text = `Max net depth: ${col}Shallow</col>`;
+            break;
+          case 2:
+            text = `Max net depth: ${col}Moderate</col>`;
+            break;
+          case 3:
+            text = `Max net depth: ${col}Deep</col>`;
+            break;
+        }
+        text = `${text}<br>Fishing level requirement: ${col}64</col>`;
+        break;
+    }
+  } else if (row.hasStats) {
+    switch (row.kind) {
+      case OptionKind.KEEL:
+        text = `Boat hitpoints: ${col}+${row.hpMax}<br>Boat armour: ${col}+${row.armour}`;
+        if (row.crystalFleckedResistant === 1) {
+          text = `${text}<br>Immunity: ${col}Crystal-flecked waters`;
+        }
+        break;
+      case OptionKind.HULL:
+        text = `Boat speed: ${col}${halves(row.baseSpeed)}<br>Boat hitpoints: ${col}+${row.hpMax}`;
+        break;
+      case OptionKind.SAIL:
+        switch (row.stormResistance) {
+          case 0:
+            text = `Storm resistance: ${col}None`;
+            break;
+          case 1:
+            text = `Storm resistance: ${col}Partial`;
+            break;
+          case 2:
+            text = `Storm resistance: ${col}Full`;
+            break;
+        }
+        text = `${text}<br>Speed boost duration: ${col}${row.boostDuration}<br>Acceleration: ${col}${halves(64 + row.acceleration)}`;
+        break;
+      case OptionKind.STEERING:
+        switch (row.rapidResistance) {
+          case 0:
+            text = `Rapid resistance: ${col}None`;
+            break;
+          case 1:
+            text = `Rapid resistance: ${col}Gentle rapids`;
+            break;
+          case 2:
+            text = `Rapid resistance: ${col}Strong rapids`;
+            break;
+          case 3:
+            text = `Rapid resistance: ${col}Powerful rapids`;
+            break;
+          case 4:
+            text = `Rapid resistance: ${col}Deadly rapids`;
+            break;
+        }
+        if (row.kelpResistant === 1) {
+          text = `${text}<br>Immunity: ${col}Tangled kelp`;
+        }
+        switch (row.crystalHelm) {
+          case 1:
+            text = `${text}<br>Crystallised helm hitpoints : ${col}66%`;
+            break;
+          case 2:
+            text = `${text}<br>Crystallised helm hitpoints : ${col}33%`;
+            break;
+          default:
+            text = `${text}<br>Crystallised helm hitpoints : ${col}100%`;
+            break;
+        }
+        break;
+      case OptionKind.BRAZIER:
+        if (row.icyResistant === 1) {
+          text = `Immunity: ${col}Icy seas`;
+        }
+        break;
+    }
+  }
+  let crew: String = '';
+  const boatType: Int = boatTypeOfWire(boat);
+  const boatRow = boatType === -1 ? null : SailingBoatTypes.at(boatType);
+  if (boatRow !== null) {
+    if (boatRow.crewCapacity > 0) {
+      crew = crewRequirementText(option, col);
+    }
+  }
+  if (text.length > 0 && crew.length > 0) {
+    return `${text}<br>${crew}`;
+  }
+  if (text.length < 1 && crew.length > 0) {
+    return crew;
+  }
+  return text;
+}
+
+function cannonText(row: CustomisationOption, col: String): String {
+  let tail: String = `<br>Ranged accuracy: ${col}${row.rangedAccuracy}<br>Ranged strength: ${col}${row.rangedStrength}`;
+  if (row.ammoItem !== -1) {
+    tail = `${tail}<br>Max ammunition tier: ${col}${itemName(row.ammoItem as Item)}s`;
+  }
+  return `Ranged level requirement: ${col}${row.rangedLevel}${tail}`;
+}
+
+export function shortName(name: String, breakpoint: Int): String {
+  let limit: Int = 27;
+  switch (breakpoint) {
+    case 1:
+      limit = 35;
+      break;
+    case 2:
+      limit = 40;
+      break;
+    case 3:
+      limit = 40;
+      break;
+  }
+  if (name.length >= limit) {
+    let cut: String = CS2.substring(name, 0, limit - 4);
+    const last: Int = cut.length - 1;
+    if (CS2.string_indexof_string(cut, ' ', last) === last) {
+      cut = CS2.substring(cut, 0, last);
+    }
+    return `${cut}...`;
+  }
+  return name;
+}
+
+export function sortKey(option: Int, built: Int): String {
+  const name: String = optionName(option);
+  const order: Int = orderOf(option);
+  const level: Int = sailingLevelOf(option);
+  if (built === option) {
+    return `000${name}`;
+  }
+  if (order < 100) {
+    return `00${order}${name}`;
+  }
+  if (level < 10) {
+    return `1000${level}${name}`;
+  }
+  return `100${level}${name}`;
+}
+
+export function tabHeight(breakpoint: Int): Int {
+  switch (breakpoint) {
+    case 1:
+      return 40;
+    case 2:
+      return 43;
+    case 3:
+      return 43;
+  }
+  return 35;
+}
+
+export function descWidth(breakpoint: Int): Int {
+  switch (breakpoint) {
+    case 1:
+      return 220;
+    case 2:
+      return 250;
+    case 3:
+      return 250;
+  }
+  return 180;
+}
+
+export function detailFont(breakpoint: Int): Font {
+  if (breakpoint === 2 || breakpoint === 3) {
+    return 495;
+  }
+  return 494;
+}
+
+export function rowBase(breakpoint: Int): Int {
+  if (breakpoint >= 1 && breakpoint <= 3) {
+    return 113;
+  }
+  return 108;
+}
+
+export function modelHeight(breakpoint: Int): Int {
+  if (breakpoint >= 1 && breakpoint <= 3) {
+    return 64;
+  }
+  return 60;
+}
+
+export function materialsPerLine(breakpoint: Int): Int {
+  switch (breakpoint) {
+    case 1:
+      return 7;
+    case 2:
+      return 8;
+    case 3:
+      return 8;
+  }
+  return 6;
+}
+
+export function panelWidth(breakpoint: Int): Int {
+  switch (breakpoint) {
+    case 1:
+      return 552;
+    case 2:
+      return 582;
+    case 3:
+      return 582;
+  }
+  return 512;
+}
+
+export function panelHeight(breakpoint: Int): Int {
+  switch (breakpoint) {
+    case 1:
+      return 400;
+    case 2:
+      return 450;
+    case 3:
+      return 450;
+  }
+  return 334;
+}
+
+export function breakpointOf(width: Int, height: Int): Int {
+  let level: Int = 0;
+  if (width > 640 && height > 480) {
+    level = 1;
+  }
+  if (width > 800 && height > 600) {
+    level = 2;
+  }
+  if (width > 1024 && height > 768) {
+    level = 3;
+  }
+  return level;
+}
+
+export function tabOptionCount(type: Int, tabId: Int, boat: Int): Int {
+  const index: Int = tabIndexOf(type, tabId);
+  if (index === -1) {
+    return 0;
+  }
+  const tab = CustomisationTabs.at(index);
+  if (tab === null) {
+    return 0;
+  }
+  if (type === 0) {
+    return partCount(boat, tab.facilityType, useServerState(CustomisationVarbits.HOTSPOT_ID));
+  }
+  if (type === 1) {
+    if (tab.facilityType !== 4) {
+      return 0;
+    }
+    return hotspotMatch(index, boat, -1);
+  }
+  return 0;
+}
+
+export function shownTab(type: Int, boat: Int): Int {
+  const [current] = useState(sailingBoatCustomisationTab);
+  const count: Int = tabCountOfType(type);
+  let first: Int = -1;
+  let id: Int = 0;
+  while (id < count) {
+    if (first === -1 && tabOptionCount(type, id, boat) > 0) {
+      first = id;
+    }
+    id = id + 1;
+  }
+  if (current < first || current > count - 1) {
+    return first;
+  }
+  return current;
+}
+
+export function listCount(type: Int, tabIndex: Int, facilityType: Int, boat: Int): Int {
+  if (type === 1) {
+    return hotspotMatch(tabIndex, boat, -1);
+  }
+  if (type === 0) {
+    return partCount(boat, facilityType, 0);
+  }
+  return 0;
+}
+
+export function tabListCount(type: Int, tab: Int, boat: Int): Int {
+  const index: Int = tabIndexOf(type, tab);
+  const row = index === -1 ? null : CustomisationTabs.at(index);
+  const facilityType: Int = row === null ? -1 : row.facilityType;
+  return listCount(type, index, facilityType, boat);
+}

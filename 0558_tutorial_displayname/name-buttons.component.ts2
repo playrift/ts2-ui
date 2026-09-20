@@ -1,0 +1,157 @@
+import { useDerived, useInterval, useRef, useServerState, useState, useWatch } from 'ts2';
+
+import { meslayermode } from '../lib/game/varcs';
+import { displaynameInputListening } from '../lib/game/varcs';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import {
+  DisplaynameColor,
+  DisplaynameFonts,
+  DisplaynameStatus,
+  DisplaynameVarbits,
+  LOOK_UP,
+  Layout,
+  MESLAYER_MODAL,
+  PLEASE_WAIT,
+  PRESS_CYCLES,
+  SET_NAME,
+} from './tutorial-displayname.constants';
+import {
+  inputUnchanged,
+  lookUpFace,
+  lookUpFaceDrawn,
+  rememberLookUpFace,
+  submitName,
+} from './tutorial-displayname.input';
+
+export function NameButtons(): Component {
+  const [listening] = useState(displaynameInputListening);
+  const status: Int = useServerState(DisplaynameVarbits.STATUS);
+  const same: Boolean = useDerived(() => inputUnchanged()) === 1;
+
+  useWatch(DisplaynameVarbits.STATUS, () => rememberLookUpFace());
+  const [remembered] = useState(lookUpFace);
+
+  let lookUp: Int = lookUpFaceDrawn(listening, status, same ? 1 : 0);
+  let setName: Int = 0;
+  let lookUpHidden: Int = 0;
+  let setNameHidden: Int = 1;
+  if (listening === 1 || status === DisplaynameStatus.READY || status === DisplaynameStatus.LOOKING_UP) {
+  } else if (status === DisplaynameStatus.AVAILABLE) {
+    if (same) {
+      setName = 1;
+      lookUpHidden = 1;
+      setNameHidden = 0;
+    }
+  } else if (status === DisplaynameStatus.SETTING) {
+    setName = 4;
+    lookUpHidden = 1;
+    setNameHidden = 0;
+  } else {
+    setName = 4;
+    lookUp = remembered;
+  }
+
+  return (
+    <>
+      <layer x="center" y={Layout.BUTTON_Y} w={Layout.BUTTON_W} h={Layout.BUTTON_H} hide={lookUpHidden === 1}>
+        <NameButton face={lookUp} label={LOOK_UP} />
+      </layer>
+      <layer x="center" y={Layout.BUTTON_Y} w={Layout.BUTTON_W} h={Layout.BUTTON_H} hide={setNameHidden === 1}>
+        <NameButton face={setName} label={SET_NAME} />
+      </layer>
+    </>
+  );
+}
+
+function NameButton({ face, label }: { face: Int; label: String }): Component {
+  const timerHost = useRef();
+
+  useInterval(() => {
+    if (clientClock() < pressedUntil || layerMode === MESLAYER_MODAL) {
+      return;
+    }
+    setPressedUntil(0);
+  }, timerHost);
+
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [layerMode] = useState(meslayermode);
+
+  if (face === 0) {
+    return <layer w="fill" h="fill" options={['*']} />;
+  }
+
+  if (face === 3 || face === 4) {
+    return (
+      <layer w="fill" h="fill">
+        <StoneButtonPressedFilled />
+        <Caption text={face === 4 ? PLEASE_WAIT : label} colour={DisplaynameColor.DISABLED} />
+      </layer>
+    );
+  }
+
+  if (face === 2) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[label]}
+        onMouseRepeat={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
+        onOptionSelect={() => submitName()}
+      >
+        {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+        <Caption text={label} colour={DisplaynameColor.LABEL} />
+      </layer>
+    );
+  }
+
+  if (pressedUntil !== 0) {
+    return (
+      <layer w="fill" h="fill" options={[label]} ref={timerHost}>
+        <StoneButtonPressedFilled />
+        <Caption text={label} colour={DisplaynameColor.LABEL} />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[label]}
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + PRESS_CYCLES);
+      }}
+    >
+      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <Caption text={label} colour={DisplaynameColor.LABEL} />
+    </layer>
+  );
+}
+
+function Caption({ text, colour }: { text: String; colour: Int }): Component {
+  return (
+    <text
+      x="center"
+      y="center"
+      w="fill"
+      h="fill"
+      text={text}
+      color={colour}
+      font={DisplaynameFonts.BODY}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}

@@ -1,0 +1,233 @@
+import { onMounted, onUpdated, useServerState, useState, useUniverse, useOnResize } from 'ts2';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { breakpointOf } from '../0654_league_info/league-info.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { onMobile, toplevelComponents } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { ChartingPage } from './charting-page.component';
+import { LOG_KEY_ESCAPE, LogColour, LogFont, LogSprite } from './sailing-log.constants';
+import { sailingLogMeasured, sailingLogPickTab, sailingLogToggleMenu } from './sailing-log.helpers';
+import {
+  logBuilt,
+  logBuiltH,
+  logMenuFace,
+  logMenuFrame,
+  logMenuHidden,
+  logMenuOverlay,
+  logTab,
+} from './sailing-log.state';
+import { TasksPage } from './log-tasks.component';
+
+export function SailingLog(): Component {
+  const root = useUniverse();
+  useOnResize(root);
+  const rootW: Int = root.width;
+  const rootH: Int = root.height;
+  const mobile: Boolean = onMobile();
+  onMounted(() => sailingLogMeasured(rootW, rootH));
+  onUpdated(() => sailingLogMeasured(rootW, rootH));
+  onMounted(() => publishBreakpoint(mobile, rootW, rootH));
+  onUpdated(() => publishBreakpoint(mobile, rootW, rootH));
+
+  const [built] = useState(logBuilt);
+  const [builtH] = useState(logBuiltH);
+  const [tab] = useState(logTab);
+  const [menuHidden] = useState(logMenuHidden);
+  const [menuFrame] = useState(logMenuFrame);
+  const [menuOverlay] = useState(logMenuOverlay);
+  const display: Boolean = toplevelComponents() === ToplevelComponents.DISPLAY;
+
+  const isBuilt: Boolean = built === 1;
+  const tasks: Boolean = isBuilt && tab === 1;
+  const chartingHidden: Boolean = tasks;
+  const tasksHidden: Boolean = !tasks;
+  const overlayHidden: Boolean = menuOverlay === 0;
+  const frameHidden: Boolean = isBuilt && menuFrame === 0;
+  const menuButtonHidden: Boolean = menuHidden === 1;
+  const menuLive: Boolean = isBuilt && menuHidden === 0;
+
+  const sized: Boolean = isBuilt && !mobile;
+  const universeH: Int = logUniverseHeight(builtH);
+  const title: String = tab === 1 ? "Captain's Log - Port Tasks" : "Captain's Log - Sea Charting";
+
+  return (
+    <layer
+      x={display && !isBuilt ? { center: 6 } : 'center'}
+      y={display && !isBuilt ? { center: 6 } : 'center'}
+      w={display && !isBuilt ? { fill: 12 } : 512}
+      h={display && !isBuilt ? { fill: 12 } : sized ? universeH : 334}
+      noClickThrough
+    >
+      <layer x="center" y="center" w="fill" h="fill">
+        {isBuilt && <SteelBorder title={title} titleColor={LogColour.ORANGE} flags={1} />}
+      </layer>
+
+      <layer x="center" y={{ bottom: 6 }} w={{ fill: 12 }} h={{ fill: 41 }}>
+        <layer x="center" y="center" w="fill" h="fill" hide={chartingHidden}>
+          <ChartingPage />
+        </layer>
+        <layer x="center" y="center" w={368} h={283} hide={tasksHidden}>
+          <TasksPage />
+        </layer>
+        <layer
+          w="fill"
+          h="fill"
+          noClickThrough
+          hide={overlayHidden}
+          onClick={menuOverlay === 1 ? () => sailingLogPickTab(-1) : null}
+        />
+      </layer>
+
+      <layer
+        x={menuLive && mobile ? 1 : 7}
+        y={menuLive && mobile ? 1 : 7}
+        w={menuLive && mobile ? 33 : 21}
+        h={menuLive && mobile ? 33 : 21}
+        hide={menuButtonHidden}
+        options={menuLive ? ['Show Menu'] : []}
+        onOptionSelect={menuLive ? () => sailingLogToggleMenu() : null}
+      >
+        {menuLive && <MenuFace />}
+      </layer>
+
+      <layer
+        x={0}
+        y={29}
+        w={isBuilt ? (mobile ? 154 : 120) : 80}
+        h={isBuilt ? (mobile ? 68 : 58) : 70}
+        hide={frameHidden}
+      >
+        {isBuilt && <LogMenu current={tab} mobile={mobile} />}
+      </layer>
+
+      <LogCloseButton />
+    </layer>
+  );
+}
+
+function logUniverseHeight(rootH: Int): Int {
+  let h: Int = rootH - 12;
+  if (h % 2 !== 0) {
+    h = h - 1;
+  }
+  if (h < 334) {
+    return 334;
+  }
+  if (h > 442) {
+    return 442;
+  }
+  return h;
+}
+
+function publishBreakpoint(mobile: Boolean, width: Int, height: Int): void {
+  if (mobile) {
+    return;
+  }
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpointOf(width, height));
+}
+
+function MenuFace(): Component {
+  const [face, setFace] = useState(logMenuFace);
+  const mobile: Boolean = onMobile();
+  return (
+    <sprite
+      x="center"
+      y="center"
+      w={21}
+      h={21}
+      sprite={face === 1 ? LogSprite.MENU_OVER : LogSprite.MENU}
+      onMouseRepeat={mobile ? null : () => setFace(1)}
+      onMouseLeave={mobile ? null : () => setFace(0)}
+    />
+  );
+}
+
+function LogMenu({ current, mobile }: { current: Int; mobile: Boolean }): Component {
+  const rowH: Int = mobile ? 28 : 23;
+  const width: Int = mobile ? 154 : 120;
+  return (
+    <>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={LogSprite.TRADEBACKING_LIGHT} />
+      <SteelFrame backdrop={false} />
+      <MenuRow label="Sea Charting" page={0} current={current} top={6} height={rowH} width={width} />
+      <MenuRow label="Port Tasks" page={1} current={current} top={6 + rowH} height={rowH} width={width} />
+    </>
+  );
+}
+
+function MenuRow({
+  label,
+  page,
+  current,
+  top,
+  height,
+  width,
+}: {
+  label: String;
+  page: Int;
+  current: Int;
+  top: Int;
+  height: Int;
+  width: Int;
+}): Component {
+  const [over, setOver] = useState(0);
+  const open: Boolean = page === current;
+  const mobile: Boolean = onMobile();
+  const hoverable: Boolean = !open && !mobile;
+  return (
+    <>
+      <rect x={6} y={top} w={width - 12} h={height} color={LogColour.WHITE} fill transparency={open ? 235 : 255} />
+      <text
+        x={6}
+        y={top}
+        w={width - 12}
+        h={height}
+        text={label}
+        font={LogFont.P12}
+        shadow
+        color={open ? 0xc8c8c8 : over === 1 ? LogColour.WHITE : LogColour.ORANGE}
+        transparency={open ? 200 : 0}
+        align="center"
+        valign="middle"
+        lineHeight={14}
+        options={[`View ${label}`]}
+        onOptionSelect={() => sailingLogPickTab(page)}
+        onMouseEnter={hoverable ? () => setOver(1) : null}
+        onMouseLeave={hoverable ? () => setOver(0) : null}
+      />
+    </>
+  );
+}
+
+function LogCloseButton(): Component {
+  const [over, setOver] = useState(0);
+  const mobile: Boolean = onMobile();
+  const esc: Int = useServerState(Varbits.KEYBINDING_ESC_TO_CLOSE);
+  const w: Int = mobile ? 33 : 26;
+  const h: Int = mobile ? 33 : 23;
+  const rest: Sprite = mobile ? LogSprite.CLOSE_MOBILE : LogSprite.CLOSE;
+  const lit: Sprite = mobile ? LogSprite.CLOSE_MOBILE : LogSprite.CLOSE_HOVER;
+  return (
+    <layer
+      x={{ right: mobile ? 1 : 3 }}
+      y={mobile ? 1 : 6}
+      w={w}
+      h={h}
+      options={esc === 1 ? [{ label: 'Close', hotkey: LOG_KEY_ESCAPE }] : ['Close']}
+    >
+      <sprite
+        x="center"
+        y="center"
+        w={w}
+        h={h}
+        tiling
+        sprite={over === 1 ? lit : rest}
+        onMouseEnter={() => setOver(1)}
+        onMouseLeave={() => setOver(0)}
+      />
+    </layer>
+  );
+}

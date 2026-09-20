@@ -1,0 +1,189 @@
+import { useServerState, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SpellFilterMenu } from './filter-menu.component';
+import {
+  FILTERS_LABEL,
+  INFO_LABEL,
+  Layout,
+  PanelMode,
+  SpellbookColour,
+  SpellbookFonts,
+  SpellbookVarbits,
+} from './magic-spellbook.constants';
+import { resetSpellbookPanel, spellbookPanelMode, toggleSpellbookPanel } from './magic-spellbook.state';
+import { SpellGrid } from './spell-grid.component';
+import { SpellTooltip } from './spell-tooltip.component';
+
+export function MagicSpellbook(): Component {
+  return (
+    <>
+      <layer w={0} h={0} onLoad={() => resetSpellbookPanel()} />
+      <SpellArea />
+      <SpellbookBar />
+      <SpellTooltip />
+    </>
+  );
+}
+
+function barHidden(mobile: Boolean): Boolean {
+  if (!mobile && useServerState(SpellbookVarbits.HIDE_FILTER_BUTTON) === 1) {
+    return true;
+  }
+  return false;
+}
+
+function SpellArea(): Component {
+  const mobile: Boolean = onMobile();
+  if (barHidden(mobile)) {
+    return (
+      <layer x="center" y="center" w="fill" h="fill">
+        <InfoGlow />
+        <SpellGrid />
+        <SpellFilterMenu />
+      </layer>
+    );
+  }
+  return (
+    <layer x="center" y={0} w={{ fill: Layout.GRID_INSET_W }} h={Layout.GRID_AREA_H}>
+      <InfoGlow />
+      <SpellGrid />
+      <SpellFilterMenu />
+    </layer>
+  );
+}
+
+function InfoGlow(): Component {
+  const [mode] = useState(spellbookPanelMode);
+  const mobile: Boolean = onMobile();
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={mode !== PanelMode.INFO}>
+      {mobile ? (
+        <rect x="center" y="center" w="fill" h="fill" fill color={SpellbookColour.WHITE} transparency={220} />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 2 }}
+          h={{ fill: 2 }}
+          fill
+          color={SpellbookColour.WHITE}
+          transparency={220}
+        />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 4 }}
+          h={{ fill: 4 }}
+          fill
+          color={SpellbookColour.WHITE}
+          transparency={220}
+        />
+      ) : null}
+      {mobile ? (
+        <rect
+          x="center"
+          y="center"
+          w={{ fill: 6 }}
+          h={{ fill: 6 }}
+          fill
+          color={SpellbookColour.WHITE}
+          transparency={220}
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function SpellbookBar(): Component {
+  const [mode] = useState(spellbookPanelMode);
+  const mobile: Boolean = onMobile();
+  const hidden: Boolean = barHidden(mobile);
+  const filtersW: Int = textWidth(FILTERS_LABEL, Layout.ROOT_W, SpellbookFonts.SMALL) + Layout.BUTTON_PAD;
+  const infoW: Int = textWidth(INFO_LABEL, Layout.ROOT_W, SpellbookFonts.SMALL) + Layout.BUTTON_PAD;
+  let buttonW: Int = filtersW;
+  if (infoW > filtersW) {
+    buttonW = infoW;
+  }
+  const gap: Int = (Layout.ROOT_W - buttonW * 2) / 3;
+
+  if (mobile) {
+    return (
+      <layer x="center" y="bottom" w="fill" h={Layout.BAR_H} hide={hidden}>
+        <layer
+          x={gap}
+          y="center"
+          w={buttonW}
+          h="fill"
+          hide={mode === PanelMode.FILTERS}
+          onClick={() => toggleSpellbookPanel(PanelMode.INFO)}
+        >
+          {mode === PanelMode.INFO ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={INFO_LABEL}
+            font={SpellbookFonts.SMALL}
+            color={SpellbookColour.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+            hover={{ color: SpellbookColour.LABEL_LIT }}
+          />
+        </layer>
+        <layer
+          x={{ right: gap }}
+          y="center"
+          w={buttonW}
+          h="fill"
+          hide={mode === PanelMode.INFO}
+          onClick={() => toggleSpellbookPanel(PanelMode.FILTERS)}
+        >
+          {mode === PanelMode.FILTERS ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={FILTERS_LABEL}
+            font={SpellbookFonts.SMALL}
+            color={SpellbookColour.LABEL}
+            shadow
+            align="center"
+            valign="middle"
+            hover={{ color: SpellbookColour.LABEL_LIT }}
+          />
+        </layer>
+      </layer>
+    );
+  }
+
+  return (
+    <layer x="center" y="bottom" w="fill" h={Layout.BAR_H} hide={hidden}>
+      <layer x="center" y="center" w={filtersW} h="fill" onClick={() => toggleSpellbookPanel(PanelMode.FILTERS)}>
+        {mode === PanelMode.FILTERS ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={FILTERS_LABEL}
+          font={SpellbookFonts.SMALL}
+          color={SpellbookColour.LABEL}
+          shadow
+          align="center"
+          valign="middle"
+          hover={{ color: SpellbookColour.LABEL_LIT }}
+        />
+      </layer>
+    </layer>
+  );
+}

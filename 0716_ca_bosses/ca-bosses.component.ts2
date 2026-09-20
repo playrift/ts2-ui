@@ -1,0 +1,200 @@
+import { useOnResize, useRef, useState, useUniverse } from 'ts2';
+
+import { caBossScrollpos, caSearchString } from '../lib/game/varcs';
+import { ARROW, CAP, STEP, WHEEL, SteelborderColor } from '../lib/lib.constants';
+import { onMobile } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+
+import { CaBossesArt, CaBossesLayout, CaBossesPanel, CaBossesText } from './ca-bosses.constants';
+import { CaBurgerMenu } from './ca-shared.burger';
+import { CaColour, CaFont, CaScrollbar, CaView } from './ca-shared.constants';
+import { CaBossCards, caBossesExtentOf, caBossesVisibleCount } from './ca-shared.list';
+import { CaSearchbar } from './ca-shared.search';
+
+export function CaBosses(): Component {
+  const root = useUniverse();
+  useOnResize(root);
+  const [query] = useState(caSearchString);
+  const mobile: Boolean = onMobile();
+
+  const visible: Int = caBossesVisibleCount(query);
+  const extent: Int = caBossesExtentOf(visible);
+
+  const panelH: Int = Math.min(
+    Math.min(CaBossesPanel.MAX_H, root.height - CaBossesPanel.ROOT_INSET),
+    Math.max(CaBossesPanel.MIN_H, extent + CaBossesPanel.CHROME_H),
+  );
+
+  return (
+    <>
+      <layer x="center" y="center" w="fill" h={panelH}>
+        <layer x="center" y="center" w="fill" h="fill">
+          <SteelBorder title={CaBossesText.TITLE} titleColor={SteelborderColor.TITLE} flags={0} />
+        </layer>
+
+        <layer x={0} y={CaBossesLayout.SEARCH_ROW_Y} w="fill" h={CaBossesLayout.SEARCH_ROW_H}>
+          <CaSearchbar />
+          <text
+            x={0}
+            y={0}
+            w={CaBossesLayout.SEARCH_CAPTION_W}
+            h="fill"
+            text={CaBossesText.SEARCH}
+            font={CaFont.BODY}
+            shadow
+            color={CaColour.AMBER}
+            align="center"
+            valign="middle"
+          />
+        </layer>
+
+        <sprite
+          x="center"
+          y={CaBossesLayout.DIVIDER_Y}
+          w={{ fill: CaBossesLayout.DIVIDER_INSET_W }}
+          h={CaBossesLayout.DIVIDER_H}
+          sprite={CaBossesArt.DIVIDER}
+          tiling
+        />
+
+        <layer
+          x={{ right: CaBossesLayout.LIST_AREA_RIGHT }}
+          y={CaBossesLayout.LIST_AREA_Y}
+          w={{ fill: CaBossesLayout.LIST_AREA_INSET_W }}
+          h={{ fill: CaBossesLayout.LIST_AREA_INSET_H }}
+        >
+          <CaBossesList extent={extent} areaH={panelH - CaBossesLayout.LIST_AREA_INSET_H}>
+            <CaBossCards query={query} visible={visible} mobile={mobile} />
+          </CaBossesList>
+        </layer>
+
+        <layer w="fill" h="fill">
+          <CaBurgerMenu current={CaView.BOSSES} />
+        </layer>
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" />
+    </>
+  );
+}
+
+function CaBossesList({ extent, areaH, children }: { extent: Int; areaH: Int; children?: Children }): Component {
+  const [remembered, setRemembered] = useState(caBossScrollpos);
+  const [drawn, setDrawn] = useState(0);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbKey, setThumbKey] = useState(-1);
+  const gutter = useRef();
+
+  const listH: Int = areaH - CaBossesLayout.LIST_INSET_H;
+  const scrolls: Boolean = extent > listH;
+  const range: Int = scrolls ? extent - listH : 0;
+  const at: Int = scrolls ? Math.clamp(0, range, remembered === -1 ? drawn : remembered) : 0;
+  setRemembered(at);
+
+  const measured: Int = scrolls ? extent : listH;
+  const thumbH: Int = thumbHeightOf(areaH, listH, measured, false);
+  const travel: Int = areaH - ARROW * 2 - thumbH;
+  const key: Int = measured * 1024 + areaH;
+  const thumbY: Int = thumbKey === key ? thumbAt : ARROW + (travel * at) / Math.max(1, range);
+
+  return (
+    <>
+      <layer
+        x={0}
+        y="center"
+        w={{ fill: CaBossesLayout.LIST_INSET_W }}
+        h={{ fill: CaBossesLayout.LIST_INSET_H }}
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={at}
+        onScrollWheel={(event) => {
+          const from: Int = remembered;
+          const next: Int = scrolls ? Math.clamp(0, range, from + event.mouseY * WHEEL) : 0;
+          setRemembered(next);
+          setDrawn(next);
+          setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+          setThumbKey(key);
+        }}
+      >
+        {children}
+      </layer>
+
+      <layer x={{ right: CaBossesLayout.SCROLLBAR_RIGHT }} y={0} w={CaBossesLayout.SCROLLBAR_W} h="fill">
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={CaScrollbar.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const from: Int = remembered;
+            const next: Int = scrolls ? Math.clamp(0, range, from + event.mouseY * WHEEL) : 0;
+            setRemembered(next);
+            setDrawn(next);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+          onClick={(event) => {
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            setRemembered(next);
+            setDrawn(next);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y={thumbY}
+          w="fill"
+          h={thumbH}
+          sprite={CaScrollbar.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setRemembered(next);
+            setDrawn(next);
+            setThumbAt(offset + ARROW);
+            setThumbKey(key);
+          }}
+        />
+        <sprite y={thumbY} w="fill" h={CAP} sprite={CaScrollbar.CAP_TOP} />
+        <sprite y={thumbY + thumbH - CAP} w="fill" h={CAP} sprite={CaScrollbar.CAP_BOTTOM} />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={CaScrollbar.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const from: Int = remembered;
+            const next: Int = scrolls ? Math.clamp(0, range, from - STEP) : 0;
+            setRemembered(next);
+            setDrawn(next);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={CaScrollbar.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const from: Int = remembered;
+            const next: Int = scrolls ? Math.clamp(0, range, from + STEP) : 0;
+            setRemembered(next);
+            setDrawn(next);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

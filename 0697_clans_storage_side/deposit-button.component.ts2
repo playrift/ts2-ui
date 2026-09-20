@@ -9,18 +9,20 @@ import { ClanStorageColors, ClanStorageFonts, ClanStorageSounds, PRESS_CYCLES } 
 export function DepositButton({ label }: { label: String }): Component {
   const timerHost = useRef();
 
-  useInterval(() => {
-    if (pressedUntil === 0) {
-      return;
-    }
-    if (clientClock() < pressedUntil) {
-      return;
-    }
-    setPressedUntil(0);
-  }, timerHost);
-
   const [pressedUntil, setPressedUntil] = useState(0);
   const caption = useRef();
+
+  useInterval(
+    pressedUntil === 0
+      ? undefined
+      : () => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        },
+    timerHost,
+  );
 
   return (
     <layer
@@ -28,13 +30,17 @@ export function DepositButton({ label }: { label: String }): Component {
       h="fill"
       options={['Deposit']}
       optionSubject={`<col=ff9040>${label}</col>`}
-      onOptionSelect={(event) => {
-        if (event.option !== 1) {
-          return;
-        }
-        playSound(ClanStorageSounds.CLICK);
-        setPressedUntil(clientClock() + PRESS_CYCLES);
-      }}
+      onOptionSelect={
+        pressedUntil === 0
+          ? (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              playSound(ClanStorageSounds.CLICK);
+              setPressedUntil(clientClock() + PRESS_CYCLES);
+            }
+          : null
+      }
       ref={timerHost}
       onMouseRepeat={() => {
         if (!onMobile()) {

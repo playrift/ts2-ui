@@ -1,0 +1,622 @@
+import { CS2, intArray, useState, useUniverse } from 'ts2';
+import { Sprites } from '../lib/game/sprites';
+import { BallotFont, BallotPage } from './ballot.constants';
+import { ballotPage } from './ballot.state';
+import { BallotQuestion } from './ballot.layout';
+import {
+  RESULTS_GRID_CELL_SLOTS,
+  RESULTS_GRID_STRIDE,
+  RESULTS_MAX_GRID_ROWS,
+  RESULTS_MAX_QUESTIONS,
+  RESULTS_MAX_ROWS,
+  RESULTS_SKIP_LABEL,
+  ResultsBandLayout,
+  ResultsColour,
+  ResultsField,
+  ResultsFont,
+  ResultsGridLayout,
+  ResultsKind,
+  ResultsRowLayout,
+  ResultsSkipRowLayout,
+  ResultsTextLayout,
+  resultsBarWidth,
+  resultsBlob,
+  resultsHeader,
+  RESULTS_SCROLL_GUTTER,
+  resultsPageBuild,
+  resultsQuestionCount,
+  resultsQuestionHeight,
+  resultsQuestionText,
+  resultsQuestionTextHeight,
+  resultsQuestionTop,
+  resultsRowColour,
+  resultsRowCount,
+  resultsRowHasBar,
+  resultsRowHeight,
+  resultsRowLabel,
+  resultsRowLabelWidth,
+  resultsRowNumber,
+  resultsRowPerMille,
+  resultsRowTop,
+  resultsGridCellText,
+  resultsGridCellWidth,
+  resultsGridCellX,
+  resultsGridColour,
+  resultsGridCols,
+  resultsGridColumns,
+  resultsGridHeader,
+  resultsGridHeaderHeight,
+  resultsGridLabelWidth,
+  resultsGridRowHeight,
+  resultsGridRowLabel,
+  resultsGridRowTop,
+  resultsGridRows,
+  resultsGridSkipColour,
+  resultsGridSlotShown,
+  resultsGridTableHeight,
+  resultsGridAlpha,
+  resultsSkipRowHeight,
+  resultsSkipRowNumber,
+  resultsTextAnswer,
+  resultsTextBoxHeight,
+  resultsTextColour,
+  resultsTextSkipColour,
+} from './results.state';
+
+function ResultsAnswerRow({
+  label,
+  number,
+  colour,
+  top,
+  height,
+  labelWidth,
+  hasBar,
+  barWidth,
+  perMille,
+}: {
+  label: String;
+  number: String;
+  colour: Int;
+  top: Int;
+  height: Int;
+  labelWidth: Int;
+  hasBar: Boolean;
+  barWidth: Int;
+  perMille: Int;
+}): Component {
+  const filled: Int =
+    (CS2.interpolate(0, ResultsRowLayout.BAR_SPAN, 0, ResultsRowLayout.BAR_PER_MILLE, perMille) * barWidth) /
+    ResultsRowLayout.BAR_SPAN;
+
+  return (
+    <layer x={0} y={top} w="fill" h={height}>
+      <text
+        x={0}
+        y="center"
+        w={labelWidth}
+        h="fill"
+        text={label}
+        font={ResultsFont.ROW}
+        color={colour}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={ResultsRowLayout.LINE_H}
+      />
+
+      <text
+        x={{ right: 0 }}
+        y="center"
+        w={ResultsRowLayout.NUMBER_W}
+        h="fill"
+        text={number}
+        font={ResultsFont.ROW}
+        color={colour}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={ResultsRowLayout.LINE_H}
+      />
+
+      {hasBar ? (
+        <layer
+          x={{ right: ResultsRowLayout.NUMBER_W + ResultsRowLayout.NUMBER_GAP }}
+          y="center"
+          w={barWidth}
+          h={ResultsRowLayout.BAR_H}
+        >
+          <sprite x={0} y="center" w={filled} h="fill" sprite={Sprites.TRADEBACKING} tiling transparency={0} />
+          <rect
+            x={0}
+            y="center"
+            w={filled}
+            h="fill"
+            color={ResultsRowLayout.BAR_WASH_COLOUR}
+            transparency={ResultsRowLayout.BAR_WASH_TRANSPARENCY}
+            fill
+          />
+          <rect x={0} y="center" w={filled} h="fill" color={ResultsRowLayout.BAR_EDGE_COLOUR} transparency={0} />
+        </layer>
+      ) : null}
+    </layer>
+  );
+}
+
+function ResultsSkipRow({
+  label,
+  number,
+  colour,
+  top,
+  height,
+}: {
+  label: String;
+  number: String;
+  colour: Int;
+  top: Int;
+  height: Int;
+}): Component {
+  return (
+    <layer x={0} y={top} w="fill" h={height}>
+      <text
+        x={0}
+        y="center"
+        w={{ fill: ResultsSkipRowLayout.LABEL_FILL }}
+        h="fill"
+        text={label}
+        font={ResultsFont.ROW}
+        color={colour}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={ResultsRowLayout.LINE_H}
+      />
+      <text
+        x={{ right: 0 }}
+        y="center"
+        w={ResultsRowLayout.NUMBER_W}
+        h="fill"
+        text={number}
+        font={ResultsFont.ROW}
+        color={colour}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={ResultsRowLayout.LINE_H}
+      />
+    </layer>
+  );
+}
+
+function ResultsTextBox({
+  text,
+  colour,
+  top,
+  height,
+}: {
+  text: String;
+  colour: Int;
+  top: Int;
+  height: Int;
+}): Component {
+  return (
+    <layer x={0} y={top} w="fill" h={height}>
+      <rect x={0} y={0} w="fill" h="fill" color={ResultsTextLayout.BACKING} fill />
+
+      <sprite
+        x={0}
+        y={0}
+        w={ResultsTextLayout.CORNER_W}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={0}
+        w={ResultsTextLayout.CORNER_W}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={{ bottom: 0 }}
+        w={ResultsTextLayout.CORNER_W}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: 0 }}
+        w={ResultsTextLayout.CORNER_W}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+
+      <sprite
+        x={0}
+        y={ResultsTextLayout.CORNER_H}
+        w={ResultsTextLayout.CORNER_H}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={ResultsTextLayout.CORNER_H}
+        w={ResultsTextLayout.CORNER_H}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={{ bottom: ResultsTextLayout.CORNER_H }}
+        w={ResultsTextLayout.CORNER_H}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={{ right: 0 }}
+        y={{ bottom: ResultsTextLayout.CORNER_H }}
+        w={ResultsTextLayout.CORNER_H}
+        h={ResultsTextLayout.CORNER_H}
+        sprite={Sprites.TRADEBACKING}
+        tiling
+      />
+
+      <text
+        x="center"
+        y="center"
+        w={{ fill: ResultsTextLayout.INSET * 2 }}
+        h={{ fill: ResultsTextLayout.INSET * 2 }}
+        text={text}
+        font={BallotFont.BODY}
+        color={colour}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={ResultsTextLayout.LINE_H}
+      />
+    </layer>
+  );
+}
+
+function ResultsGridHeaderCell({
+  x,
+  w,
+  h,
+  text,
+  colour,
+}: {
+  x: Int;
+  w: Int;
+  h: Int;
+  text: String;
+  colour: Int;
+}): Component {
+  return (
+    <layer x={x} y={0} w={w} h={h}>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={ResultsGridLayout.WASH}
+        transparency={ResultsGridLayout.FRAME_ALPHA}
+        fill
+      />
+      <text
+        x={ResultsGridLayout.INSET}
+        y={ResultsGridLayout.INSET}
+        w={{ fill: ResultsGridLayout.INSET * 2 }}
+        h={{ fill: ResultsGridLayout.INSET * 2 }}
+        text={text}
+        font={ResultsFont.ROW}
+        color={colour}
+        shadow
+        align="center"
+        valign="bottom"
+        lineHeight={ResultsGridLayout.HEADER_LINE_H}
+      />
+    </layer>
+  );
+}
+
+function ResultsGridLabelCell({ y, w, h, text }: { y: Int; w: Int; h: Int; text: String }): Component {
+  return (
+    <layer x={0} y={y} w={w} h={h}>
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={ResultsGridLayout.WASH}
+        transparency={ResultsGridLayout.FRAME_ALPHA}
+        fill
+      />
+      <text
+        x={ResultsGridLayout.INSET}
+        y={ResultsGridLayout.INSET}
+        w={{ fill: ResultsGridLayout.INSET * 2 }}
+        h={{ fill: ResultsGridLayout.INSET * 2 }}
+        text={text}
+        font={ResultsFont.ROW}
+        color={ResultsColour.ANSWER}
+        shadow
+        align="right"
+        valign="middle"
+        lineHeight={ResultsGridLayout.CELL_LINE_H}
+      />
+    </layer>
+  );
+}
+
+function ResultsGridDataCell({
+  blob,
+  index,
+  slot,
+  paneWidth,
+}: {
+  blob: String;
+  index: Int;
+  slot: Int;
+  paneWidth: Int;
+}): Component {
+  const r: Int = slot / RESULTS_GRID_STRIDE;
+  const c: Int = slot - r * RESULTS_GRID_STRIDE;
+
+  return (
+    <layer
+      x={resultsGridCellX(blob, index, c, paneWidth)}
+      y={resultsGridRowTop(blob, index, r, paneWidth)}
+      w={resultsGridCellWidth(blob, index, paneWidth)}
+      h={resultsGridRowHeight(blob, index, r, paneWidth)}
+    >
+      <sprite x={0} y={0} w="fill" h="fill" sprite={Sprites.TRADEBACKING_DARK} tiling transparency={0} />
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        color={ResultsGridLayout.WASH}
+        transparency={resultsGridAlpha(blob, index, r, c)}
+        fill
+      />
+      <text
+        x={ResultsGridLayout.INSET}
+        y={ResultsGridLayout.INSET}
+        w={{ fill: ResultsGridLayout.INSET * 2 }}
+        h={{ fill: ResultsGridLayout.INSET * 2 }}
+        text={resultsGridCellText(blob, index, r, c)}
+        font={ResultsFont.ROW}
+        color={resultsGridColour(blob, index, r, c)}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={ResultsGridLayout.CELL_LINE_H}
+      />
+    </layer>
+  );
+}
+
+function ResultsGridTable({
+  blob,
+  index,
+  top,
+  paneWidth,
+}: {
+  blob: String;
+  index: Int;
+  top: Int;
+  paneWidth: Int;
+}): Component {
+  const rows: Int = resultsGridRows(blob, index);
+  const cols: Int = resultsGridColumns(blob, index);
+  const dataCols: Int = resultsGridCols(blob, index);
+  const cellW: Int = resultsGridCellWidth(blob, index, paneWidth);
+  const headerH: Int = resultsGridHeaderHeight(blob, index, paneWidth);
+
+  const headerSlots = intArray(RESULTS_GRID_STRIDE);
+  const labelSlots = intArray(RESULTS_MAX_GRID_ROWS);
+  const cellSlots = intArray(RESULTS_GRID_CELL_SLOTS);
+
+  return (
+    <layer x={0} y={top} w="fill" h={resultsGridTableHeight(blob, index, paneWidth)}>
+      {headerSlots.map(
+        (_, c) =>
+          c < cols && (
+            <ResultsGridHeaderCell
+              x={resultsGridCellX(blob, index, c, paneWidth)}
+              w={cellW}
+              h={headerH}
+              text={resultsGridHeader(blob, index, c)}
+              colour={c >= dataCols ? ResultsColour.SKIP : ResultsColour.ANSWER}
+            />
+          ),
+      )}
+
+      {labelSlots.map(
+        (_, r) =>
+          r < rows && (
+            <ResultsGridLabelCell
+              y={resultsGridRowTop(blob, index, r, paneWidth)}
+              w={resultsGridLabelWidth(blob, index, paneWidth)}
+              h={resultsGridRowHeight(blob, index, r, paneWidth)}
+              text={resultsGridRowLabel(blob, index, r)}
+            />
+          ),
+      )}
+
+      {cellSlots.map(
+        (_, k) =>
+          resultsGridSlotShown(blob, index, k) && (
+            <ResultsGridDataCell blob={blob} index={index} slot={k} paneWidth={paneWidth} />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function ResultsQuestionRow({
+  blob,
+  index,
+  top,
+  height,
+  paneWidth,
+}: {
+  blob: String;
+  index: Int;
+  top: Int;
+  height: Int;
+  paneWidth: Int;
+}): Component {
+  const rows: Int = resultsRowCount(blob, index);
+  const answersTop: Int = resultsQuestionTextHeight(blob, index, paneWidth);
+  const barWidth: Int = resultsBarWidth(paneWidth);
+  const slots = intArray(RESULTS_MAX_ROWS);
+
+  const kind: Int = resultsHeader(blob, index, ResultsField.KIND);
+  const skipShown: Boolean = resultsHeader(blob, index, ResultsField.SKIP_COUNT) !== -1;
+  const textBoxH: Int = resultsTextBoxHeight(blob, index, paneWidth);
+
+  return (
+    <BallotQuestion
+      x="center"
+      y={top}
+      w="fill"
+      h={height}
+      index={index}
+      text={resultsQuestionText(blob, index)}
+      wide={resultsHeader(blob, index, ResultsField.WIDE) === 1}
+      answersTop={answersTop}
+      voting={false}
+    >
+      {slots.map(
+        (_, a) =>
+          a < rows && (
+            <ResultsAnswerRow
+              label={resultsRowLabel(blob, index, a)}
+              number={resultsRowNumber(blob, index, a)}
+              colour={resultsRowColour(blob, index, a)}
+              top={resultsRowTop(blob, index, a, paneWidth)}
+              height={resultsRowHeight(blob, index, a, paneWidth)}
+              labelWidth={resultsRowLabelWidth(blob, index, a, paneWidth)}
+              hasBar={resultsRowHasBar(blob, index, a)}
+              barWidth={barWidth}
+              perMille={resultsRowPerMille(blob, index, a)}
+            />
+          ),
+      )}
+
+      {kind === ResultsKind.TEXT && (
+        <ResultsTextBox
+          text={resultsTextAnswer(blob, index)}
+          colour={resultsTextColour(blob, index)}
+          top={0}
+          height={textBoxH}
+        />
+      )}
+      {kind === ResultsKind.TEXT && skipShown && (
+        <ResultsSkipRow
+          label={RESULTS_SKIP_LABEL}
+          number={resultsSkipRowNumber(blob, index)}
+          colour={resultsTextSkipColour(blob, index)}
+          top={textBoxH + ResultsTextLayout.SKIP_GAP}
+          height={resultsSkipRowHeight(blob, index, paneWidth)}
+        />
+      )}
+
+      {kind === ResultsKind.GRID && <ResultsGridTable blob={blob} index={index} top={0} paneWidth={paneWidth} />}
+      {kind === ResultsKind.GRID && skipShown && (
+        <ResultsSkipRow
+          label={RESULTS_SKIP_LABEL}
+          number={resultsSkipRowNumber(blob, index)}
+          colour={resultsGridSkipColour(blob, index)}
+          top={resultsGridTableHeight(blob, index, paneWidth) + ResultsTextLayout.SKIP_GAP}
+          height={resultsSkipRowHeight(blob, index, paneWidth)}
+        />
+      )}
+    </BallotQuestion>
+  );
+}
+
+export function ResultsPage({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const [blob] = useState(resultsBlob);
+  const [count] = useState(resultsQuestionCount);
+  const [build] = useState(resultsPageBuild);
+
+  const universe = useUniverse();
+  const paneWidth: Int = universe.width;
+
+  const slots = intArray(RESULTS_MAX_QUESTIONS);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={build} hide={page !== BallotPage.RESULTS}>
+      {slots.map(
+        (_, q) =>
+          q < count && (
+            <ResultsQuestionRow
+              blob={blob}
+              index={q}
+              top={resultsQuestionTop(blob, q, paneWidth)}
+              height={resultsQuestionHeight(blob, q, paneWidth)}
+              paneWidth={paneWidth}
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+export function ResultsBands({}: {}): Component {
+  const [page] = useState(ballotPage);
+  const [blob] = useState(resultsBlob);
+  const [count] = useState(resultsQuestionCount);
+  const [build] = useState(resultsPageBuild);
+
+  const universe = useUniverse();
+  const paneWidth: Int = universe.width - RESULTS_SCROLL_GUTTER;
+
+  const slots = intArray(RESULTS_MAX_QUESTIONS);
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={build} hide={page !== BallotPage.RESULTS}>
+      {slots.map(
+        (_, q) =>
+          q < count &&
+          resultsHeader(blob, q, ResultsField.BAND) === 1 && (
+            <layer
+              x="center"
+              y={resultsQuestionTop(blob, q, paneWidth) - ResultsBandLayout.PAD}
+              w="fill"
+              h={resultsQuestionHeight(blob, q, paneWidth) + ResultsBandLayout.PAD * 2}
+            >
+              <rect
+                x="center"
+                y="center"
+                w="fill"
+                h="fill"
+                color={ResultsBandLayout.WASH_COLOUR}
+                transparency={ResultsBandLayout.WASH_TRANSPARENCY}
+                fill
+              />
+              <rect x="center" y="center" w="fill" h="fill" color={ResultsBandLayout.OUTER_COLOUR} transparency={0} />
+              <rect
+                x="center"
+                y="center"
+                w={{ fill: ResultsBandLayout.INNER_INSET }}
+                h={{ fill: ResultsBandLayout.INNER_INSET }}
+                color={ResultsBandLayout.INNER_COLOUR}
+                transparency={0}
+              />
+            </layer>
+          ),
+      )}
+    </layer>
+  );
+}

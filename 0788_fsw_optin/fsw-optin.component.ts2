@@ -1,0 +1,664 @@
+import { useInterval, useRef, useState, useUniverse } from 'ts2';
+
+import { FswBoxFrame } from '../0784_fsw_sp_points/fsw-box-frame.component';
+import { FswBoxStyle, FswBoxes } from '../0784_fsw_sp_points/fsw-box.data';
+import { FswColor, FswFonts } from '../0784_fsw_sp_points/fsw.constants';
+import { breakpointOf, fswContentTop, fswUniverseHeight, fswUniverseWidth } from '../0784_fsw_sp_points/fsw.helpers';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { FswFreshProse } from './fsw-fresh-prose.data';
+import { FswMainProse } from './fsw-main-prose.data';
+import { FswOptinBorder } from './fsw-optin-border.component';
+import { FswOptinButton } from './fsw-optin-button.component';
+import { MoreInfoButton } from './more-info-button.component';
+import { ConfirmText, OptinAction, OptinDebug, OptinInfoProse, OptinLayout } from './fsw-optin.constants';
+import {
+  choiceName,
+  confirmInfo1,
+  confirmInfo2,
+  confirmInfo3,
+  confirmTitle,
+  freshLine,
+  freshRowHeight,
+  freshRowsThatFit,
+  fswOptinAct,
+  infoClosingHeight,
+  infoClosingText,
+  infoClosingY,
+  infoRowHeight,
+  mainLine,
+  mainRowHeight,
+  mainRowsThatFit,
+  optinFreshBanner,
+  optinFreshWidth,
+  optinImageHeight,
+  optinInfoHeight,
+  optinInfoY,
+  optinMainBanner,
+  optinMargin,
+  optinTitleFont,
+  proseFont,
+  proseGap,
+  proseLineHeight,
+  proseMargin,
+  proseStripeIsAmber,
+} from './fsw-optin.helpers';
+import {
+  fswOptinBuilt,
+  fswOptinChoice,
+  fswOptinFinding,
+  fswOptinInfo,
+  fswOptinPublishing,
+  fswOptinRemaining,
+  fswOptinTransfer,
+} from './fsw-optin.state';
+
+export function FswOptin(): Component {
+  const root = useUniverse();
+  const tick = useRef();
+  const [published, setPublished] = useState(responsiveCurrentBreakpoint);
+  const [built] = useState(fswOptinBuilt);
+  const [publishing] = useState(fswOptinPublishing);
+  const [choice] = useState(fswOptinChoice);
+  const [finding] = useState(fswOptinFinding);
+  const [info] = useState(fswOptinInfo);
+  const [transfer] = useState(fswOptinTransfer);
+
+  useInterval(() => setPublished(breakpointOf(root.width, root.height)), tick);
+
+  const bp: Int = built === 1 ? published : 0;
+  const uw: Int = fswUniverseWidth(bp);
+  const uh: Int = fswUniverseHeight(bp);
+  const top: Int = fswContentTop(bp);
+  const margin: Int = optinMargin(bp);
+  const freshW: Int = optinFreshWidth(bp);
+  const mainW: Int = OptinLayout.MAIN_W;
+  const columnH: Int = uh - (top + 6) - margin * 2;
+  const imageH: Int = optinImageHeight(bp);
+  const infoH: Int = built === 1 ? optinInfoHeight(bp) : OptinLayout.INFO_H_DEF;
+  const infoY: Int = built === 1 ? optinInfoY(bp) : OptinLayout.INFO_Y;
+  const freshInner: Int = freshW - OptinLayout.COLUMN_INSET;
+  const mainInner: Int = mainW - OptinLayout.COLUMN_INSET;
+  const proseRoom: Int = infoH - OptinLayout.INFO_INSET * 2;
+
+  const borderFlags: Int = choice > 0 || info === 1 ? 17 : 16;
+  const live: Int = choice === 0 && info === 0 ? 1 : 0;
+  const confirmUp: Boolean = built === 1 && choice > 0;
+  const infoUp: Boolean = built === 1 && info === 1;
+
+  const unlocked = FswBoxes.at(FswBoxStyle.UNLOCKED);
+
+  return (
+    <>
+      <layer ref={tick} x={0} y={0} w={1} h={1} hide={publishing === 0} />
+
+      <layer x="center" y="center" w={uw} h={uh}>
+        <layer x="center" y="center" w="fill" h="fill">
+          {built === 1 && <FswOptinBorder title="Choose your beginning" flags={borderFlags} breakpoint={bp} />}
+        </layer>
+
+        <layer x="center" y={top} w={{ fill: 12 }} h={{ fill: top + 6 }}>
+          <layer x={margin} y={margin} w={freshW} h={{ fill: margin * 2 }}>
+            <layer x={0} y={0} w="fill" h="fill">
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.RED} hide />
+              {built === 1 && (
+                <>
+                  <rect
+                    x={1}
+                    y={1}
+                    w={freshW - 2}
+                    h={columnH - OptinLayout.COLUMN_TRIM - 2}
+                    fill
+                    color={FswColor.FRAME}
+                  />
+                  <FswBoxFrame x={0} y={0} w={freshW} h={columnH - OptinLayout.COLUMN_TRIM} style={unlocked} />
+                  <rect
+                    x={0}
+                    y={0}
+                    w="fill"
+                    h={{ fill: OptinLayout.COLUMN_TRIM }}
+                    fill
+                    color={FswColor.WHITE}
+                    transparency={OptinLayout.WASH_TRANSPARENCY}
+                  />
+                </>
+              )}
+            </layer>
+
+            <layer x={OptinLayout.BOX_X} y={OptinLayout.BOX_X} w={freshInner} h={imageH}>
+              <rect x={0} y={0} w="fill" h="fill" fill color={OptinDebug.GREEN} hide />
+              {built === 1 && <sprite x={0} y={0} w="fill" h="fill" sprite={optinFreshBanner(bp)} />}
+              <text
+                x={0}
+                y={0}
+                w="fill"
+                h="fill"
+                text="Fresh Start Worlds (Graphic)"
+                font={optinTitleFont(bp)}
+                color={FswColor.WHITE}
+                shadow
+                align="center"
+                valign="middle"
+                hide
+              />
+            </layer>
+
+            <layer x={OptinLayout.BOX_X} y={infoY} w={freshInner} h={infoH} noClickThrough>
+              <layer x={0} y={0} w="fill" h={{ fill: OptinLayout.INFO_BG_TRIM }}>
+                {built === 1 && (
+                  <>
+                    <rect
+                      x={1}
+                      y={1}
+                      w={freshInner - 2}
+                      h={infoH - OptinLayout.INFO_BG_TRIM - 2}
+                      fill
+                      color={FswColor.FRAME}
+                    />
+                    <FswBoxFrame x={0} y={0} w={freshInner} h={infoH - OptinLayout.INFO_BG_TRIM} style={unlocked} />
+                    <rect
+                      x={0}
+                      y={0}
+                      w="fill"
+                      h="fill"
+                      fill
+                      color={FswColor.BLACK}
+                      transparency={OptinLayout.WASH_TRANSPARENCY}
+                    />
+                  </>
+                )}
+              </layer>
+
+              <layer x={0} y={0} w="fill" h="fill">
+                {built === 1 && <FreshColumnProse breakpoint={bp} width={freshInner} room={proseRoom} />}
+              </layer>
+
+              <layer
+                x={freshW / 2 - OptinLayout.MORE_W / 2 - OptinLayout.INFO_INSET}
+                y="bottom"
+                w={OptinLayout.MORE_W}
+                h={OptinLayout.MORE_H}
+              >
+                <MoreInfoButton built={built} live={live} />
+              </layer>
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.BLUE} hide />
+            </layer>
+
+            <layer
+              x={freshW / 2 - OptinLayout.BUTTON_W / 2}
+              y="bottom"
+              w={OptinLayout.BUTTON_W}
+              h={OptinLayout.BUTTON_H}
+              noClickThrough
+            >
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+              {built === 1 && (
+                <FswOptinButton
+                  caption="Select"
+                  label="Fresh Start Worlds"
+                  hover={FswColor.GREEN}
+                  option="Select"
+                  subject="<col=ff981f>Fresh Start Worlds</col>"
+                  action={OptinAction.SELECT_FRESH}
+                  choice={choice}
+                  live={live}
+                />
+              )}
+            </layer>
+          </layer>
+
+          <layer x={{ right: margin }} y={margin} w={mainW} h={{ fill: margin * 2 }}>
+            <layer x={0} y={0} w="fill" h="fill">
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.BLUE} hide />
+              {built === 1 && (
+                <>
+                  <rect
+                    x={1}
+                    y={1}
+                    w={mainW - 2}
+                    h={columnH - OptinLayout.COLUMN_TRIM - 2}
+                    fill
+                    color={FswColor.FRAME}
+                  />
+                  <FswBoxFrame x={0} y={0} w={mainW} h={columnH - OptinLayout.COLUMN_TRIM} style={unlocked} />
+                  <rect
+                    x={0}
+                    y={0}
+                    w="fill"
+                    h={{ fill: OptinLayout.COLUMN_TRIM }}
+                    fill
+                    color={FswColor.WHITE}
+                    transparency={OptinLayout.WASH_TRANSPARENCY}
+                  />
+                </>
+              )}
+            </layer>
+
+            <layer x={OptinLayout.BOX_X} y={OptinLayout.BOX_X} w={mainInner} h={imageH}>
+              <rect x={0} y={0} w="fill" h="fill" fill color={OptinDebug.NAVY} hide />
+              {built === 1 && <sprite x={0} y={0} w="fill" h="fill" sprite={optinMainBanner(bp)} />}
+              <text
+                x={0}
+                y={0}
+                w="fill"
+                h="fill"
+                text="Old School Main (Graphic)"
+                lineHeight={18}
+                font={optinTitleFont(bp)}
+                color={FswColor.WHITE}
+                shadow
+                align="center"
+                valign="middle"
+                hide
+              />
+            </layer>
+
+            <layer x={OptinLayout.BOX_X} y={infoY} w={mainInner} h={infoH} noClickThrough>
+              <layer x={0} y={0} w="fill" h="fill">
+                {built === 1 && (
+                  <>
+                    <rect x={1} y={1} w={mainInner - 2} h={infoH - 2} fill color={FswColor.FRAME} />
+                    <FswBoxFrame x={0} y={0} w={mainInner} h={infoH} style={unlocked} />
+                    <rect
+                      x={0}
+                      y={0}
+                      w="fill"
+                      h="fill"
+                      fill
+                      color={FswColor.BLACK}
+                      transparency={OptinLayout.WASH_TRANSPARENCY}
+                    />
+                  </>
+                )}
+              </layer>
+              <layer x={0} y={0} w="fill" h="fill">
+                {built === 1 && <MainColumnProse breakpoint={bp} width={mainInner} room={proseRoom} />}
+              </layer>
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.RED} hide />
+            </layer>
+
+            <layer
+              x={OptinLayout.BOX_X}
+              y="bottom"
+              w={{ fill: OptinLayout.COLUMN_INSET }}
+              h={OptinLayout.BUTTON_H}
+              noClickThrough
+            >
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+              {built === 1 && (
+                <FswOptinButton
+                  caption="Select"
+                  label="Old School Main"
+                  hover={FswColor.GREEN}
+                  option="Select"
+                  subject="<col=ff981f>Old School Main</col>"
+                  action={OptinAction.SELECT_MAIN}
+                  choice={choice}
+                  live={live}
+                />
+              )}
+            </layer>
+          </layer>
+        </layer>
+
+        <layer x={0} y={0} w="fill" h="fill" hide={built === 1 && choice === 0}>
+          <rect
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            fill
+            color={FswColor.BLACK}
+            transparency={OptinLayout.VEIL_TRANSPARENCY}
+          />
+          <layer
+            x={confirmUp ? uw / 2 - OptinLayout.CONFIRM_W / 2 : 0}
+            y={confirmUp ? uh / 2 - OptinLayout.CONFIRM_H / 2 : 0}
+            w={OptinLayout.CONFIRM_W}
+            h={OptinLayout.CONFIRM_H}
+          >
+            {confirmUp && (
+              <>
+                <rect
+                  x={1}
+                  y={1}
+                  w={OptinLayout.CONFIRM_W - 2}
+                  h={OptinLayout.CONFIRM_H - 2}
+                  fill
+                  color={FswColor.FRAME}
+                />
+                <FswBoxFrame x={0} y={0} w={OptinLayout.CONFIRM_W} h={OptinLayout.CONFIRM_H} style={unlocked} />
+              </>
+            )}
+          </layer>
+          <text
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            text={transfer}
+            font={FswFonts.VERDANA_15}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <text
+            x={0}
+            y={ConfirmText.TITLE_Y}
+            w="fill"
+            h="fill"
+            text={confirmUp ? confirmTitle(choice, finding) : ''}
+            font={FswFonts.VERDANA_15}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_1_Y}
+            w="fill"
+            h="fill"
+            text={confirmUp ? confirmInfo1(choice, finding) : ''}
+            font={FswFonts.VERDANA_13}
+            color={confirmUp && finding === 0 ? FswColor.CREAM : FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_2_Y}
+            w="fill"
+            h="fill"
+            text={confirmUp ? confirmInfo2(choice, finding) : ''}
+            font={FswFonts.VERDANA_13}
+            color={confirmUp && finding === 0 ? FswColor.CREAM : FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_3_Y}
+            w="fill"
+            h="fill"
+            text={confirmUp ? confirmInfo3(choice, finding) : ''}
+            font={FswFonts.VERDANA_13}
+            color={confirmUp && finding === 0 ? FswColor.CREAM : FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+          />
+          <layer
+            x={confirmUp ? uw / 2 - OptinLayout.BUTTON_W / 2 - OptinLayout.BUTTON_SPREAD : 0}
+            y={confirmUp ? uh / 2 + OptinLayout.BUTTON_DROP : 0}
+            w={OptinLayout.BUTTON_W}
+            h={OptinLayout.BUTTON_H}
+            noClickThrough
+          >
+            <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+            {confirmUp && finding === 0 && (
+              <FswOptinButton
+                caption="Confirm"
+                label={choiceName(choice)}
+                hover={FswColor.GREEN}
+                option={`Confirm <col=ff981f>${choiceName(choice)}</col>`}
+                subject=""
+                action={OptinAction.CONFIRM}
+                choice={choice}
+                live={1}
+              />
+            )}
+          </layer>
+          <layer
+            x={confirmUp ? uw / 2 - OptinLayout.BUTTON_W / 2 + OptinLayout.BUTTON_SPREAD : 0}
+            y={confirmUp ? uh / 2 + OptinLayout.BUTTON_DROP : 0}
+            w={OptinLayout.BUTTON_W}
+            h={OptinLayout.BUTTON_H}
+            noClickThrough
+          >
+            <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+            {confirmUp && finding === 0 && (
+              <FswOptinButton
+                caption="Cancel"
+                label="I've changed my mind"
+                hover={FswColor.RED}
+                option="Back"
+                subject=""
+                action={OptinAction.BACK}
+                choice={choice}
+                live={1}
+              />
+            )}
+          </layer>
+        </layer>
+
+        <layer x="center" y="center" w="fill" h="fill" hide={built === 1 && info === 0}>
+          <rect
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            fill
+            color={FswColor.BLACK}
+            transparency={OptinLayout.VEIL_TRANSPARENCY}
+          />
+          <layer x="center" y="center" w={OptinLayout.INFO_PANEL_W} h={OptinLayout.INFO_PANEL_H}>
+            <layer x={0} y={0} w="fill" h="fill">
+              {infoUp && (
+                <>
+                  <rect
+                    x={1}
+                    y={1}
+                    w={OptinLayout.INFO_PANEL_W - 2}
+                    h={OptinLayout.INFO_PANEL_H - 2}
+                    fill
+                    color={FswColor.FRAME}
+                  />
+                  <FswBoxFrame x={0} y={0} w={OptinLayout.INFO_PANEL_W} h={OptinLayout.INFO_PANEL_H} style={unlocked} />
+                </>
+              )}
+            </layer>
+            <layer x={0} y={0} w={OptinLayout.INFO_CONTENT_W} h={OptinLayout.INFO_CONTENT_H}>
+              {infoUp && <InfoPageProse />}
+            </layer>
+            <text
+              x={0}
+              y={0}
+              w="fill"
+              h={OptinLayout.INFO_TITLE_H}
+              text={infoUp ? 'What is a <col=ff981f>Fresh Start World</col>?' : ''}
+              font={FswFonts.VERDANA_15}
+              color={FswColor.WHITE}
+              shadow
+              align="center"
+              valign="middle"
+            />
+            <layer
+              x="center"
+              y={{ bottom: OptinLayout.BACK_BOTTOM }}
+              w={OptinLayout.BUTTON_W}
+              h={OptinLayout.BUTTON_H}
+              noClickThrough
+            >
+              <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+              {infoUp && (
+                <FswOptinButton
+                  caption="Back"
+                  label="Close More Info"
+                  hover={FswColor.RED}
+                  option="Back"
+                  subject=""
+                  action={OptinAction.BACK}
+                  choice={0}
+                  live={1}
+                />
+              )}
+            </layer>
+          </layer>
+          <text
+            x={0}
+            y={ConfirmText.TITLE_Y}
+            w="fill"
+            h="fill"
+            text=""
+            font={FswFonts.VERDANA_15}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+            hide
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_1_Y}
+            w="fill"
+            h="fill"
+            text=""
+            font={FswFonts.VERDANA_13}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+            hide
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_2_Y}
+            w="fill"
+            h="fill"
+            text=""
+            font={FswFonts.VERDANA_13}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+            hide
+          />
+          <text
+            x={0}
+            y={ConfirmText.INFO_3_Y}
+            w="fill"
+            h="fill"
+            text=""
+            font={FswFonts.VERDANA_13}
+            color={FswColor.WHITE}
+            shadow
+            align="center"
+            valign="middle"
+            hide
+          />
+          <layer x={0} y={0} w={OptinLayout.BUTTON_W} h={OptinLayout.BUTTON_H} noClickThrough hide>
+            <rect x={0} y={0} w="100%" h="100%" fill color={OptinDebug.YELLOW} hide />
+          </layer>
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+function FreshColumnProse({ breakpoint, width, room }: { breakpoint: Int; width: Int; room: Int }): Component {
+  const margin: Int = proseMargin(breakpoint);
+  const inner: Int = width - margin * 2;
+  const fit: Int = freshRowsThatFit(breakpoint, inner, room);
+  const lineH: Int = proseLineHeight(breakpoint);
+  const gap: Int = proseGap(breakpoint);
+  const font: Font = proseFont(breakpoint);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {FswFreshProse.filter((row, index) => index < fit).scan(
+        (row, index, y) => (
+          <text
+            x={margin}
+            y={y}
+            w={inner}
+            h={freshRowHeight(row, breakpoint, inner)}
+            text={freshLine(row, breakpoint)}
+            font={font}
+            color={proseStripeIsAmber(index) ? FswColor.AMBER : FswColor.CREAM}
+            align="center"
+            valign="top"
+            lineHeight={lineH}
+            shadow
+          />
+        ),
+        (row) => freshRowHeight(row, breakpoint, inner) + gap,
+        margin,
+      )}
+    </layer>
+  );
+}
+
+function MainColumnProse({ breakpoint, width, room }: { breakpoint: Int; width: Int; room: Int }): Component {
+  const margin: Int = proseMargin(breakpoint);
+  const inner: Int = width - margin * 2;
+  const fit: Int = mainRowsThatFit(breakpoint, inner, room);
+  const lineH: Int = proseLineHeight(breakpoint);
+  const gap: Int = proseGap(breakpoint);
+  const font: Font = proseFont(breakpoint);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {FswMainProse.filter((row, index) => index < fit).scan(
+        (row, index, y) => (
+          <text
+            x={margin}
+            y={y}
+            w={inner}
+            h={mainRowHeight(row, breakpoint, inner)}
+            text={mainLine(row, breakpoint)}
+            font={font}
+            color={proseStripeIsAmber(index) ? FswColor.AMBER : FswColor.CREAM}
+            align="center"
+            valign="top"
+            lineHeight={lineH}
+            shadow
+          />
+        ),
+        (row) => mainRowHeight(row, breakpoint, inner) + gap,
+        margin,
+      )}
+    </layer>
+  );
+}
+
+function InfoPageProse(): Component {
+  const [remaining] = useState(fswOptinRemaining);
+  const closingY: Int = infoClosingY();
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {FswFreshProse.scan(
+        (row, index, y) => (
+          <text
+            x={OptinInfoProse.X}
+            y={y}
+            w={OptinInfoProse.W}
+            h={infoRowHeight(row)}
+            text={row.large}
+            font={FswFonts.P12}
+            color={proseStripeIsAmber(index) ? FswColor.AMBER : FswColor.CREAM}
+            align="center"
+            valign="top"
+            lineHeight={OptinInfoProse.LINE_H}
+            shadow
+          />
+        ),
+        (row) => infoRowHeight(row) + OptinInfoProse.GAP,
+        OptinInfoProse.Y,
+      )}
+      <text
+        x={OptinInfoProse.X}
+        y={closingY}
+        w={OptinInfoProse.W}
+        h={infoClosingHeight(remaining)}
+        text={infoClosingText(remaining)}
+        font={FswFonts.P11}
+        color={FswColor.YELLOW}
+        align="center"
+        valign="top"
+        lineHeight={OptinInfoProse.LINE_H}
+        shadow
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,273 @@
+import { CS2, intArray, useState } from 'ts2';
+import { itemName } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { DRAG_DEAD, LoadoutColor, LoadoutFonts, LoadoutSprites, Row, Wash } from './br-loadout.constants';
+import { ellipsised, itemOf, itemOpBase, slotInfo } from './br-loadout.helpers';
+import { MAX_KEYS } from './loadout-items.data';
+import { dropZone } from './drop-zone';
+import { hideDragGhost, showDragGhost } from './br-loadout.state';
+import { addItem, insertFromList } from './loadout-edit';
+
+export function ItemList({
+  tab,
+  proxy,
+  pane,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  tab: Int;
+  proxy: Ref;
+  pane: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const order = intArray(MAX_KEYS);
+  const info = intArray(MAX_KEYS);
+
+  let filled: Int = 0;
+  let key: Int = 0;
+  while (key < MAX_KEYS) {
+    const candidate: Item = itemOf(tab, key);
+    if (candidate !== -1) {
+      order[filled] = key;
+      info[filled] = slotInfo(candidate);
+      filled = filled + 1;
+    }
+    key = key + 1;
+  }
+  const rows: Int = filled;
+  let pad: Int = filled;
+  while (pad < MAX_KEYS) {
+    order[pad] = -1;
+    pad = pad + 1;
+  }
+
+  const labelWidth: Int = pane.width - Row.LABEL_INSET;
+
+  let i: Int = 1;
+  while (i < rows) {
+    const movingKey: Int = order[i];
+    const movingInfo: Int = info[i];
+    const movingName: String = itemName(itemOf(tab, movingKey));
+    let j: Int = i - 1;
+    let placed: Int = 0;
+    while (j >= 0 && placed === 0) {
+      let after: Int = 0;
+      if (info[j] > movingInfo) {
+        after = 1;
+      }
+      if (info[j] === movingInfo && CS2.compare(itemName(itemOf(tab, order[j])), movingName) > 0) {
+        after = 1;
+      }
+      if (after === 1) {
+        order[j + 1] = order[j];
+        info[j + 1] = info[j];
+        j = j - 1;
+      } else {
+        placed = 1;
+      }
+    }
+    order[j + 1] = movingKey;
+    info[j + 1] = movingInfo;
+    i = i + 1;
+  }
+
+  return (
+    <>
+      {order.map(
+        (rowKey, rank) =>
+          rowKey !== -1 && (
+            <ItemRow
+              tab={tab}
+              rowKey={rowKey}
+              rank={rank}
+              labelWidth={labelWidth}
+              proxy={proxy}
+              bin={bin}
+              grid={grid}
+              w0={w0}
+              w1={w1}
+              w2={w2}
+              w3={w3}
+              w4={w4}
+              w5={w5}
+              w7={w7}
+              w9={w9}
+              w10={w10}
+              w12={w12}
+              w13={w13}
+            />
+          ),
+      )}
+    </>
+  );
+}
+
+function ItemRow({
+  tab,
+  rowKey,
+  rank,
+  labelWidth,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  tab: Int;
+  rowKey: Int;
+  rank: Int;
+  labelWidth: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const item: Item = itemOf(tab, rowKey);
+  const name: String = itemName(item);
+  const even: Boolean = rank % 2 === 0;
+  const stackable: Boolean = CS2.item_stackable(item);
+  const top: Int = rank * Row.HEIGHT;
+  const [hovered, setHovered] = useState(0);
+
+  return (
+    <>
+      <sprite
+        x="center"
+        y={top}
+        w="fill"
+        h={Row.HEIGHT}
+        sprite={LoadoutSprites.ROW_BACK}
+        tiling
+        transparency={Wash.ROW_EVEN}
+        options={['Add', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={itemOpBase(item)}
+        draggable={proxy}
+        dragDeadZone={DRAG_DEAD}
+        dragDeadTime={DRAG_DEAD}
+        onMouseRepeat={() => {
+          setHovered(1);
+        }}
+        onMouseLeave={() => {
+          setHovered(0);
+        }}
+        onOptionSelect={(event) => {
+          if (event.option === 1) {
+            addItem(tab, 0, rowKey);
+          }
+        }}
+        onDrag={(event) => {
+          showDragGhost(tab, rowKey, labelWidth, event.mouseX, event.mouseY);
+        }}
+        onDragComplete={(event) => {
+          hideDragGhost();
+          insertFromList(
+            tab,
+            rowKey,
+            dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13),
+          );
+        }}
+      />
+      <rect
+        x="center"
+        y={top}
+        w="fill"
+        h={Row.HEIGHT}
+        fill
+        color={hovered === 1 || even ? LoadoutColor.WHITE : LoadoutColor.BLACK}
+        transparency={hovered === 1 ? Wash.ROW_HOVER : even ? Wash.ROW_EVEN : Wash.ROW_ODD}
+      />
+      {stackable ? (
+        <sprite
+          x={Row.PAD}
+          y={top + Row.ITEM_INSET}
+          w={Row.ITEM_W}
+          h={Row.ITEM_H}
+          item={item}
+          itemCount={5000}
+          outline={1}
+          shadowColor={LoadoutColor.ITEM_SHADOW}
+        />
+      ) : (
+        <sprite
+          x={Row.PAD}
+          y={top + Row.ITEM_INSET}
+          w={Row.ITEM_W}
+          h={Row.ITEM_H}
+          item={item}
+          itemCount={1}
+          itemCountMode="never"
+          outline={1}
+          shadowColor={LoadoutColor.ITEM_SHADOW}
+        />
+      )}
+      <text
+        x={{ right: Row.PAD }}
+        y={top}
+        w={{ fill: Row.LABEL_INSET }}
+        h={Row.HEIGHT}
+        color={LoadoutColor.LABEL}
+        font={LoadoutFonts.BODY}
+        shadow
+        align="left"
+        valign="middle"
+        text={ellipsised(name, labelWidth, LoadoutFonts.BODY)}
+      />
+    </>
+  );
+}
+
+export function ItemListScrollbar({ pane }: { pane: Ref }): Component {
+  return (
+    <ScrollbarVertical
+      content={pane}
+      track={LoadoutSprites.SCROLL_TRACK}
+      capTopSprite={LoadoutSprites.SCROLL_CAP_TOP}
+      thumbSprite={LoadoutSprites.SCROLL_THUMB}
+      capBottomSprite={LoadoutSprites.SCROLL_CAP_BOTTOM}
+      arrowUp={LoadoutSprites.SCROLL_ARROW_UP}
+      arrowDown={LoadoutSprites.SCROLL_ARROW_DOWN}
+    />
+  );
+}

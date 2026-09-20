@@ -1,0 +1,595 @@
+import { CS2, intArray, useInterval, useRef, useState } from 'ts2';
+
+import { clanMembersComlevels, clanMembersSkilltotals } from '../lib/game/varcs';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { clanStatusText } from '../0696_clans_storage_main/clan-interface-title';
+import { clanRankTitle } from '../0696_clans_storage_main/clan-permission';
+import { clanRankIcon } from '../0701_clans_sidepanel/clan-settings';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { clanMembersFilterNameIn } from './clan-members-shared.search';
+import {
+  CellOp,
+  ClanMembersColor,
+  ClanMembersFonts,
+  ClanMembersOps,
+  ClanMembersSounds,
+  ClanMembersText,
+  ClanMembersWash,
+  Layout,
+  MAX_ROWS,
+  MemberColumn,
+  PRESS_CYCLES,
+} from './clans-members.constants';
+
+export function MemberListHost({
+  filter,
+  filterLength,
+  column1,
+  column2,
+  minRank,
+  maxRankPlus1,
+  loaded,
+  count,
+  mobile,
+  rowHeight,
+  asGuest,
+  guestStatus,
+  status,
+}: {
+  filter: String;
+  filterLength: Int;
+  column1: Int;
+  column2: Int;
+  minRank: Int;
+  maxRankPlus1: Int;
+  loaded: Int;
+  count: Int;
+  mobile: Int;
+  rowHeight: Int;
+  asGuest: Int;
+  guestStatus: Int;
+  status: Int;
+}): Component {
+  const [totals] = useState(clanMembersSkilltotals);
+  const skillTotals: String = totals;
+  return (
+    <MemberListLevels
+      filter={filter}
+      filterLength={filterLength}
+      column1={column1}
+      column2={column2}
+      minRank={minRank}
+      maxRankPlus1={maxRankPlus1}
+      loaded={loaded}
+      count={count}
+      mobile={mobile}
+      rowHeight={rowHeight}
+      asGuest={asGuest}
+      guestStatus={guestStatus}
+      status={status}
+      totals={skillTotals}
+    />
+  );
+}
+
+export function MemberListLevels({
+  filter,
+  filterLength,
+  column1,
+  column2,
+  minRank,
+  maxRankPlus1,
+  loaded,
+  count,
+  mobile,
+  rowHeight,
+  asGuest,
+  guestStatus,
+  status,
+  totals,
+}: {
+  filter: String;
+  filterLength: Int;
+  column1: Int;
+  column2: Int;
+  minRank: Int;
+  maxRankPlus1: Int;
+  loaded: Int;
+  count: Int;
+  mobile: Int;
+  rowHeight: Int;
+  asGuest: Int;
+  guestStatus: Int;
+  status: Int;
+  totals: String;
+}): Component {
+  const [levels] = useState(clanMembersComlevels);
+  const combatLevels: String = levels;
+  return (
+    <MemberList
+      filter={filter}
+      filterLength={filterLength}
+      column1={column1}
+      column2={column2}
+      minRank={minRank}
+      maxRankPlus1={maxRankPlus1}
+      loaded={loaded}
+      count={count}
+      mobile={mobile}
+      rowHeight={rowHeight}
+      asGuest={asGuest}
+      guestStatus={guestStatus}
+      status={status}
+      totals={totals}
+      levels={combatLevels}
+    />
+  );
+}
+
+export function MemberList({
+  filter,
+  filterLength,
+  column1,
+  column2,
+  minRank,
+  maxRankPlus1,
+  loaded,
+  count,
+  mobile,
+  rowHeight,
+  asGuest,
+  guestStatus,
+  status,
+  totals,
+  levels,
+}: {
+  filter: String;
+  filterLength: Int;
+  column1: Int;
+  column2: Int;
+  minRank: Int;
+  maxRankPlus1: Int;
+  loaded: Int;
+  count: Int;
+  mobile: Int;
+  rowHeight: Int;
+  asGuest: Int;
+  guestStatus: Int;
+  status: Int;
+  totals: String;
+  levels: String;
+}): Component {
+  const iconDy: Int = (rowHeight - Layout.ICON) / 2;
+
+  const slots = intArray(MAX_ROWS);
+  const matches = intArray(MAX_ROWS);
+  let shown: Int = 0;
+  let at: Int = 0;
+  while (at < count && shown < MAX_ROWS) {
+    const slot: Int = CS2.activeclansettings_sorted_affined_slot_get(at);
+    const match: Int = clanMembersFilterCheck(slot, minRank, maxRankPlus1, filter);
+    if (match !== -1) {
+      slots[shown] = slot;
+      matches[shown] = match;
+      shown = shown + 1;
+    }
+    at = at + 1;
+  }
+  let rest: Int = shown;
+  while (rest < MAX_ROWS) {
+    slots[rest] = -1;
+    rest = rest + 1;
+  }
+
+  const textA: String = totalsFor(column1, totals, levels);
+  const textB: String = totalsFor(column2, totals, levels);
+  const aStart = intArray(MAX_ROWS);
+  const bStart = intArray(MAX_ROWS);
+  const lengthA: Int = textA.length;
+  const lengthB: Int = textB.length;
+  let atA: Int = 0;
+  let atB: Int = 0;
+  let k: Int = 0;
+  while (k < MAX_ROWS) {
+    if (k < count && atA <= lengthA) {
+      aStart[k] = atA;
+      const pipeA: Int = textA.indexOf('|', atA);
+      if (pipeA === -1) {
+        atA = lengthA + 1;
+      } else {
+        atA = pipeA + 1;
+      }
+    } else {
+      aStart[k] = -1;
+    }
+    if (k < count && atB <= lengthB) {
+      bStart[k] = atB;
+      const pipeB: Int = textB.indexOf('|', atB);
+      if (pipeB === -1) {
+        atB = lengthB + 1;
+      } else {
+        atB = pipeB + 1;
+      }
+    } else {
+      bStart[k] = -1;
+    }
+    k = k + 1;
+  }
+
+  let overflowHeight: Int = 0;
+  if (loaded === 1 && count > 0 && shown >= MAX_ROWS) {
+    overflowHeight =
+      CS2.paraheight(ClanMembersText.OVERFLOW, PANE_W - Layout.OVERFLOW_INSET_W, ClanMembersFonts.BODY) *
+        Layout.OVERFLOW_LINE_H +
+      Layout.OVERFLOW_PAD;
+  }
+
+  return (
+    <>
+      <layer x={0} y="center" w={{ fill: Layout.NAME_COLUMN_INSET }} h="fill">
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <NameCell
+                slot={slot}
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                iconDy={iconDy}
+                stripe={index % 2 === 0 ? ClanMembersWash.STRIPE_EVEN : ClanMembersWash.STRIPE_ODD}
+                match={matches[index]}
+                filterLength={filterLength}
+              />
+            ),
+        )}
+        {loaded === 1 && count > 0 && shown <= 0 && (
+          <text
+            x="center"
+            y="center"
+            w={{ fill: Layout.EMPTY_INSET_W }}
+            h="fill"
+            text={ClanMembersText.NO_MATCH}
+            font={ClanMembersFonts.BODY}
+            color={ClanMembersColor.LABEL}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        )}
+      </layer>
+
+      <layer x={{ right: Layout.COLUMN1_RIGHT }} y="center" w={Layout.VALUE_COLUMN_W} h="fill">
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={ClanMembersColor.WHITE}
+          transparency={ClanMembersWash.STRIPE_ODD}
+        />
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <ColumnCell
+                column={column1}
+                slot={slot}
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                stripe={index % 2 === 0 ? ClanMembersWash.STRIPE_EVEN : ClanMembersWash.STRIPE_ODD}
+                values={textA}
+                valueStart={aStart[slot]}
+                mobile={mobile}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer x={{ right: 0 }} y="center" w={Layout.VALUE_COLUMN_W} h="fill">
+        {slots.map(
+          (slot, index) =>
+            slot !== -1 && (
+              <ColumnCell
+                column={column2}
+                slot={slot}
+                top={index * rowHeight}
+                rowHeight={rowHeight}
+                stripe={index % 2 === 0 ? ClanMembersWash.STRIPE_EVEN : ClanMembersWash.STRIPE_ODD}
+                values={textB}
+                valueStart={bStart[slot]}
+                mobile={mobile}
+              />
+            ),
+        )}
+      </layer>
+
+      {loaded === 1 && count > 0 && shown >= MAX_ROWS && (
+        <text
+          x="center"
+          y={shown * rowHeight}
+          w={{ fill: Layout.OVERFLOW_INSET_W }}
+          h={overflowHeight}
+          text={ClanMembersText.OVERFLOW}
+          font={ClanMembersFonts.BODY}
+          color={ClanMembersColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+
+      {loaded === 1 && count <= 0 && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={ClanMembersText.NOBODY}
+          font={ClanMembersFonts.BODY}
+          color={ClanMembersColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+
+      {loaded === 0 && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={clanStatusText(asGuest, guestStatus, status)}
+          font={ClanMembersFonts.BODY}
+          color={ClanMembersColor.LABEL}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      )}
+    </>
+  );
+}
+
+const PANE_W = 461;
+
+export function clanMembersFilterCheck(slot: Int, minRank: Int, maxRankPlus1: Int, filter: String): Int {
+  const rank: Int = CS2.activeclansettings_affined_rank_get(slot);
+  if (rank < minRank) {
+    return -1;
+  }
+  if (rank >= maxRankPlus1) {
+    return -1;
+  }
+  return clanMembersFilterNameIn(CS2.activeclansettings_affined_display_name_get(slot), filter);
+}
+
+function totalsFor(column: Int, totals: String, levels: String): String {
+  if (column === MemberColumn.SKILL_TOTAL) {
+    return totals;
+  }
+  if (column === MemberColumn.COMBAT_LEVEL) {
+    return levels;
+  }
+  return '';
+}
+
+function pipeEntry(text: String, start: Int): String {
+  if (start < 0) {
+    return '';
+  }
+  const pipe: Int = text.indexOf('|', start);
+  if (pipe === -1) {
+    return text.slice(start, text.length);
+  }
+  return text.slice(start, pipe);
+}
+
+function NameCell({
+  slot,
+  top,
+  rowHeight,
+  iconDy,
+  stripe,
+  match,
+  filterLength,
+}: {
+  slot: Int;
+  top: Int;
+  rowHeight: Int;
+  iconDy: Int;
+  stripe: Int;
+  match: Int;
+  filterLength: Int;
+}): Component {
+  const name: String = CS2.activeclansettings_affined_display_name_get(slot);
+  const rank: Int = CS2.activeclansettings_affined_rank_get(slot);
+  const length: Int = name.length;
+
+  let shown: String = name;
+  if (match < length) {
+    const end: Int = Math.min(length, match + filterLength);
+    shown = `${name.slice(0, match)}<col=ffffff>${name.slice(match, end)}</col>${name.slice(end, length)}`;
+  }
+
+  return (
+    <>
+      <rect x="center" y={top} w="fill" h={rowHeight} fill color={ClanMembersColor.WHITE} transparency={stripe} />
+      <text
+        x="center"
+        y={top}
+        w="fill"
+        h={rowHeight}
+        text={shown}
+        font={ClanMembersFonts.BODY}
+        color={ClanMembersColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+      <sprite
+        x={{ center: 0 - (textWidth(name, MEASURE_WIDTH, ClanMembersFonts.BODY) + Layout.ICON_GAP + Layout.ICON) / 2 }}
+        y={top + iconDy}
+        w={Layout.ICON}
+        h={Layout.ICON}
+        sprite={clanRankIcon(rank)}
+      />
+    </>
+  );
+}
+
+const MEASURE_WIDTH = 512;
+
+function ColumnCell({
+  column,
+  slot,
+  top,
+  rowHeight,
+  stripe,
+  values,
+  valueStart,
+  mobile,
+}: {
+  column: Int;
+  slot: Int;
+  top: Int;
+  rowHeight: Int;
+  stripe: Int;
+  values: String;
+  valueStart: Int;
+  mobile: Int;
+}): Component {
+  const name: String = CS2.activeclansettings_affined_display_name_get(slot);
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  let text: String = '';
+  let small: Int = 0;
+  let op: String = '';
+  let kind: Int = -1;
+  let argument: String = '';
+  if (column === MemberColumn.RANK) {
+    text = clanRankTitle(CS2.activeclansettings_affined_rank_get(slot));
+    op = ClanMembersOps.EDIT_RANK;
+    kind = CellOp.EDIT_RANK;
+  } else if (column === MemberColumn.JOINED) {
+    text = CS2.fromdate(CS2.activeclansettings_affined_join_runeday_get(slot));
+  } else if (column === MemberColumn.LAST_SEEN) {
+    const seen: Int = lastSeenRuneday(slot);
+    if (seen !== -1) {
+      text = CS2.fromdate(seen);
+    } else {
+      text = ClanMembersText.NOT_AVAILABLE;
+      small = 1;
+    }
+  } else if (column === MemberColumn.SKILL_TOTAL || column === MemberColumn.COMBAT_LEVEL) {
+    const entry: String = pipeEntry(values, valueStart);
+    if (entry.length > 0) {
+      text = entry;
+    } else {
+      text = ClanMembersText.NOT_AVAILABLE;
+      small = 1;
+    }
+  } else if (column === MemberColumn.HISCORES) {
+    const plain: String = CS2.tags_remove(name);
+    text = `<u=ff981f>${plain}</u>`;
+    op = ClanMembersOps.OPEN_LINK;
+    kind = CellOp.OPEN_LINK;
+    argument = stringFindAndReplace(CS2.lowercase(plain), ' ', '_');
+  } else if (column === MemberColumn.EXPEL) {
+    text = ClanMembersText.EXPEL_CELL;
+    op = ClanMembersOps.EXPEL;
+    kind = CellOp.EXPEL;
+  }
+
+  const cell = useRef();
+  const [hovered, setHovered] = useState(0);
+  const [pressedAt, setPressedAt] = useState(-1);
+  const pressed: Int = pressedAt !== -1 ? 1 : 0;
+  let wash: Int = stripe;
+  if (pressed === 1) {
+    wash = ClanMembersWash.PRESSED;
+  } else if (hovered === 1) {
+    wash = ClanMembersWash.HOVER;
+  }
+
+  useInterval(
+    pressed === 1
+      ? () => {
+          const since: Int = pressedAt;
+          if (clientClock() >= since + PRESS_CYCLES) {
+            setPressedAt(-1);
+            setHovered(0);
+          }
+        }
+      : undefined,
+    cell,
+  );
+
+  return (
+    <>
+      {kind !== -1 ? (
+        <rect
+          ref={cell}
+          x="center"
+          y={top}
+          w="fill"
+          h={rowHeight}
+          fill
+          color={ClanMembersColor.WHITE}
+          transparency={wash}
+          optionSubject={subject}
+          options={[op]}
+          onMouseRepeat={pressed === 1 || mobile === 1 ? undefined : () => setHovered(1)}
+          onMouseLeave={pressed === 1 ? undefined : () => setHovered(0)}
+          onOptionSelect={
+            pressed === 1
+              ? undefined
+              : (event) => {
+                  if (event.option !== 1) {
+                    return;
+                  }
+                  playSound(ClanMembersSounds.CLICK);
+                  setPressedAt(clientClock());
+                  if (kind === CellOp.OPEN_LINK) {
+                    playSound(ClanMembersSounds.CLICK);
+                    CS2.url_open(`${Layout.HISCORES_URL}${argument}`, true);
+                  }
+                }
+          }
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={rowHeight}
+          fill
+          color={ClanMembersColor.WHITE}
+          transparency={stripe}
+          optionSubject={subject}
+        />
+      )}
+      <text
+        x={0}
+        y={top}
+        w={{ fill: Layout.CELL_INSET_W }}
+        h={rowHeight}
+        text={text}
+        font={small === 1 ? ClanMembersFonts.SMALL : ClanMembersFonts.BODY}
+        color={ClanMembersColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+function lastSeenRuneday(slot: Int): Int {
+  const days: Int = CS2.activeclansettings_affined_extra_info_get(slot, 0, 12);
+  if (days !== 0) {
+    return LAST_SEEN_EPOCH + days;
+  }
+  return -1;
+}
+
+const LAST_SEEN_EPOCH = 6880;

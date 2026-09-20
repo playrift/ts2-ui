@@ -1,0 +1,262 @@
+import { CS2, Engine, intArray, useRerenderOn, useServerState } from 'ts2';
+import { textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ClanRankIcons } from '../0701_clans_sidepanel/tables.data';
+import { clanSettingRosterSize } from './gim-clan-settings';
+import { clanMembersHover, gimSidepanelOp } from './gim-sidepanel-op';
+import {
+  AFFINITY_LIVE,
+  Copy,
+  GimSidepanelColor,
+  GimSidepanelFonts,
+  GimSidepanelVarbits,
+  Roster,
+  RowWash,
+} from './gim-sidepanel.constants';
+
+export function GimRoster(): Component {
+  useRerenderOn(Engine.CLAN_SETTINGS);
+  useRerenderOn(Engine.CLAN_CHANNEL);
+  useRerenderOn(Engine.FRIENDS);
+  const affinity: Int = useServerState(GimSidepanelVarbits.AFFINITY);
+
+  let live: Int = 0;
+  if (affinity === AFFINITY_LIVE) {
+    if (CS2.activeclansettings_affined_find(1)) {
+      live = 1;
+    }
+  }
+
+  let members: Int = 0;
+  let owner: Int = -1;
+  let vacancies: Int = 0;
+  let ownerAt: Int = -1;
+  const slots = intArray(Roster.MAX_MEMBERS);
+  const vacancyRows = intArray(Roster.MAX_VACANCY_ROWS);
+  let at: Int = 0;
+  while (at < Roster.MAX_MEMBERS) {
+    slots[at] = -1;
+    at = at + 1;
+  }
+  at = 0;
+  while (at < Roster.MAX_VACANCY_ROWS) {
+    vacancyRows[at] = -1;
+    at = at + 1;
+  }
+
+  if (live === 1) {
+    members = CS2.activeclansettings_affined_count_get();
+    owner = CS2.activeclansettings_current_owner_slot_get();
+    vacancies = Math.min(Roster.MAX_VACANCY_ROWS, clanSettingRosterSize());
+    at = 0;
+    while (at < Roster.MAX_MEMBERS) {
+      if (at < members) {
+        slots[at] = CS2.activeclansettings_sorted_affined_slot_get(at);
+        if (slots[at] === owner) {
+          ownerAt = at;
+        }
+      }
+      at = at + 1;
+    }
+    at = 0;
+    while (at < Roster.MAX_VACANCY_ROWS) {
+      if (members + at < vacancies) {
+        vacancyRows[at] = members + at;
+      }
+      at = at + 1;
+    }
+  }
+
+  if (live === 0) {
+    return (
+      <text
+        x="center"
+        y="center"
+        w={{ fill: 10 }}
+        h={{ fill: 10 }}
+        text={Copy.LOADING}
+        font={GimSidepanelFonts.SMALL}
+        color={GimSidepanelColor.ABSENT}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    );
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {slots.map(
+        (slot, index) =>
+          slot !== -1 && <GimRosterRow slot={slot} isOwner={slot === owner ? 1 : 0} top={rowTop(index, ownerAt)} />,
+      )}
+      {vacancyRows.map(
+        (row) =>
+          row !== -1 && (
+            <text
+              x={{ right: 0 }}
+              y={row * Roster.ROW_H}
+              w={{ fill: Roster.ICON_COLUMN }}
+              h={Roster.ROW_H}
+              text={Copy.VACANCY}
+              font={GimSidepanelFonts.BODY}
+              color={GimSidepanelColor.ABSENT}
+              align="left"
+              valign="middle"
+              shadow
+            />
+          ),
+      )}
+    </layer>
+  );
+}
+
+function rowTop(index: Int, ownerAt: Int): Int {
+  if (index === ownerAt) {
+    return 0;
+  }
+  if (ownerAt === -1 || index < ownerAt) {
+    return (index + 1) * Roster.ROW_H;
+  }
+  return index * Roster.ROW_H;
+}
+
+function GimRosterRow({ slot, isOwner, top }: { slot: Int; isOwner: Int; top: Int }): Component {
+  const name: String = CS2.tags_remove(CS2.activeclansettings_affined_display_name_get(slot));
+
+  let isMe: Int = 0;
+  if (CS2.compare(name.toLowerCase(), CS2.tags_remove(CS2.chat_playername()).toLowerCase()) === 0) {
+    isMe = 1;
+  }
+
+  const here: Int = CS2.map_world();
+  let world: Int = -1;
+  let worldText: String = Copy.OFFLINE;
+  let worldColor: Int = GimSidepanelColor.ABSENT;
+  if (CS2.activeclanchannel_affined_find(1)) {
+    const channelSlot: Int = CS2.activeclanchannel_user_slot_get(name);
+    if (channelSlot !== -1) {
+      world = CS2.activeclanchannel_user_world_get(channelSlot);
+      worldText = `W${stringOf(world)}`;
+      if (world !== here) {
+        worldColor = GimSidepanelColor.WORLD_AWAY;
+      } else {
+        worldColor = GimSidepanelColor.WORLD_HERE;
+      }
+    }
+  }
+
+  let switchOp: String = '';
+  let messageOp: String = '';
+  let friendOp: String = '';
+  let ignoreOp: String = '';
+  if (isMe === 0) {
+    if (world !== -1 && world !== here) {
+      switchOp = 'Switch world';
+    }
+    if (CS2.friend_count() >= 0 && CS2.ignore_count() >= 0) {
+      if (CS2.friend_test(name)) {
+        messageOp = 'Message';
+        friendOp = 'Remove friend';
+      } else if (CS2.ignore_test(name)) {
+        ignoreOp = 'Remove ignore';
+      } else {
+        friendOp = 'Add friend';
+        ignoreOp = 'Add ignore';
+      }
+    }
+  }
+
+  const badge: Int = CS2.activeclansettings_affined_extra_info_get(
+    slot,
+    Roster.EXTRA_INFO_BADGE,
+    Roster.EXTRA_INFO_BADGE,
+  );
+
+  return (
+    <>
+      {isMe === 1 ? (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Roster.ROW_H}
+          fill
+          color={GimSidepanelColor.ROW}
+          transparency={RowWash.REST}
+          onMouseRepeat={(event) => {
+            if (!onMobile()) {
+              clanMembersHover(event.self, 1, RowWash.REST);
+            }
+          }}
+          onMouseLeave={(event) => clanMembersHover(event.self, 0, RowWash.REST)}
+        />
+      ) : (
+        <rect
+          x="center"
+          y={top}
+          w="fill"
+          h={Roster.ROW_H}
+          fill
+          color={GimSidepanelColor.ROW}
+          transparency={RowWash.REST}
+          optionSubject={`<col=ff9040>${name}</col>`}
+          options={[messageOp, friendOp, ignoreOp, '', '', '', '', '', '', switchOp]}
+          onMouseRepeat={(event) => {
+            if (!onMobile()) {
+              clanMembersHover(event.self, 1, RowWash.REST);
+            }
+          }}
+          onMouseLeave={(event) => clanMembersHover(event.self, 0, RowWash.REST)}
+          onOptionSelect={(event) => gimSidepanelOp(event.option, event.self, name, world)}
+        />
+      )}
+
+      {isOwner === 1 && (
+        <sprite
+          x={Roster.ICON_INSET}
+          y={top + (Roster.ROW_H - Roster.ICON) / 2}
+          w={Roster.ICON}
+          h={Roster.ICON}
+          sprite={ClanRankIcons.get(Roster.OWNER_ICON_KEY) ?? -1}
+        />
+      )}
+
+      <text
+        x={{ right: 0 }}
+        y={top}
+        w={{ fill: Roster.ICON_COLUMN }}
+        h={Roster.ROW_H}
+        text={name}
+        font={GimSidepanelFonts.BODY}
+        color={GimSidepanelColor.ROW}
+        align="left"
+        valign="middle"
+        shadow
+      />
+
+      <text
+        x={{ right: Roster.ICON_INSET }}
+        y={top}
+        w={{ fill: Roster.ICON_INSET }}
+        h={Roster.ROW_H}
+        text={worldText}
+        font={GimSidepanelFonts.BODY}
+        color={worldColor}
+        align="right"
+        valign="middle"
+        shadow
+      />
+
+      {badge === 1 && (
+        <sprite
+          x={Roster.ICON_COLUMN + textWidth(name, Roster.MEASURE_W, GimSidepanelFonts.BODY) + 1}
+          y={top + (Roster.ROW_H - Roster.ICON) / 2 - 1}
+          w={Roster.ICON}
+          h={Roster.ICON}
+          sprite={ClanRankIcons.get(Roster.BADGE_ICON_KEY) ?? -1}
+        />
+      )}
+    </>
+  );
+}

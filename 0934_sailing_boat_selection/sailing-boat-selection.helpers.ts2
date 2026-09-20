@@ -1,0 +1,986 @@
+import { CS2, useInventory, useServerState, useSkillBase } from 'ts2';
+
+import { debugMessageAlias } from '../lib/lib.debug';
+import { Varbits } from '../lib/game/varbits';
+import { membersWorld } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { BoatSelectionModes } from './boat-selection-modes.data';
+import type { BoatSelectionMode } from './boat-selection-modes.data';
+import {
+  BoatLocationStates,
+  BoatNameDefaults,
+  BoatNameDescriptors,
+  BoatNameNouns,
+  BoatNamePrefixCount,
+  DOCK_FALLBACK,
+  LOCATION_DEFAULT,
+  SailingBoatBraziers,
+  SailingBoatFacilities,
+  SailingBoatHotspots,
+  SailingBoatHulls,
+  SailingBoatTypes,
+  SailingDocks,
+} from './sailing-boat-selection.data';
+import {
+  COINS,
+  GREATER_TELEPORT_FOCUS_LOC,
+  SelectionInventories,
+  SelectionSkills,
+  SelectionVarbits,
+  SelectionVarps,
+  TELEPORT_FOCUS_LOC,
+} from './sailing-boat-selection.constants';
+
+export function boatOwned(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_OWNED);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_OWNED);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_OWNED);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_OWNED);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_OWNED);
+  }
+  debugMessageAlias(`Getting boat owned for invalid boat: ${slot}.`);
+  return 0;
+}
+
+export function highestOwnedSlot(): Int {
+  let slot: Int = 5;
+  while (slot > 0) {
+    if (boatOwned(slot) === 1) {
+      return slot;
+    }
+    slot = slot - 1;
+  }
+  return 0;
+}
+
+export function boatType(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_TYPE);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_TYPE);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_TYPE);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_TYPE);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_TYPE);
+  }
+  debugMessageAlias(`Getting boat type for invalid boat: ${slot}.`);
+  return -1;
+}
+
+export function boatDock(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_PORT);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_PORT);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_PORT);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_PORT);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_PORT);
+  }
+  debugMessageAlias(`Getting dock for invalid boat: ${slot}.`);
+  return -1;
+}
+
+export function boatHp(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_STORED_HP);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_STORED_HP);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_STORED_HP);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_STORED_HP);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_STORED_HP);
+  }
+  debugMessageAlias(`Getting hp for invalid boat: ${slot}.`);
+  return -1;
+}
+
+export function boatMaxHp(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_STORED_MAXHP);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_STORED_MAXHP);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_STORED_MAXHP);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_STORED_MAXHP);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_STORED_MAXHP);
+  }
+  return -1;
+}
+
+export function boatTeleportFocus(slot: Int): Int {
+  if (slot <= 0 || slot > 5) {
+    debugMessageAlias(`Invalid boat id input. $boat was: ${slot}.`);
+    return 0;
+  }
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_TELEPORT_FOCUS);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_TELEPORT_FOCUS);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_TELEPORT_FOCUS);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_TELEPORT_FOCUS);
+  }
+  return useServerState(SelectionVarbits.BOAT_5_TELEPORT_FOCUS);
+}
+
+export function boatNamePart(slot: Int, part: Int): Int {
+  switch (slot * 3 + part) {
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_1_NAME_1);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_1_NAME_2);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_1_NAME_3);
+    case 6:
+      return useServerState(SelectionVarbits.BOAT_2_NAME_1);
+    case 7:
+      return useServerState(SelectionVarbits.BOAT_2_NAME_2);
+    case 8:
+      return useServerState(SelectionVarbits.BOAT_2_NAME_3);
+    case 9:
+      return useServerState(SelectionVarbits.BOAT_3_NAME_1);
+    case 10:
+      return useServerState(SelectionVarbits.BOAT_3_NAME_2);
+    case 11:
+      return useServerState(SelectionVarbits.BOAT_3_NAME_3);
+    case 12:
+      return useServerState(SelectionVarbits.BOAT_4_NAME_1);
+    case 13:
+      return useServerState(SelectionVarbits.BOAT_4_NAME_2);
+    case 14:
+      return useServerState(SelectionVarbits.BOAT_4_NAME_3);
+    case 15:
+      return useServerState(SelectionVarbits.BOAT_5_NAME_1);
+    case 16:
+      return useServerState(SelectionVarbits.BOAT_5_NAME_2);
+    case 17:
+      return useServerState(SelectionVarbits.BOAT_5_NAME_3);
+  }
+  return 0;
+}
+
+export function boatHull(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_HULL);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_HULL);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_HULL);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_HULL);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_HULL);
+  }
+  return 0;
+}
+
+export function boatBrazier(slot: Int): Int {
+  switch (slot) {
+    case 1:
+      return useServerState(SelectionVarbits.BOAT_1_BRAZIER);
+    case 2:
+      return useServerState(SelectionVarbits.BOAT_2_BRAZIER);
+    case 3:
+      return useServerState(SelectionVarbits.BOAT_3_BRAZIER);
+    case 4:
+      return useServerState(SelectionVarbits.BOAT_4_BRAZIER);
+    case 5:
+      return useServerState(SelectionVarbits.BOAT_5_BRAZIER);
+  }
+  return -1;
+}
+
+export function boatHotspot(slot: Int, hotspot: Int): Int {
+  const key: Int = slot * 16 + hotspot;
+  switch (key) {
+    case 16:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_0);
+    case 17:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_1);
+    case 18:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_2);
+    case 19:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_3);
+    case 20:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_4);
+    case 21:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_5);
+    case 22:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_6);
+    case 23:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_7);
+    case 24:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_8);
+    case 25:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_9);
+    case 26:
+      return useServerState(Varbits.SAILING_BOAT_1_HOTSPOT_10);
+    case 27:
+      return useServerState(Varbits.VARBIT_20207);
+    case 28:
+      return useServerState(Varbits.VARBIT_20208);
+    case 32:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_0);
+    case 33:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_1);
+    case 34:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_2);
+    case 35:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_3);
+    case 36:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_4);
+    case 37:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_5);
+    case 38:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_6);
+    case 39:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_7);
+    case 40:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_8);
+    case 41:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_9);
+    case 42:
+      return useServerState(Varbits.SAILING_BOAT_2_HOTSPOT_10);
+    case 43:
+      return useServerState(Varbits.VARBIT_20211);
+    case 44:
+      return useServerState(Varbits.VARBIT_20212);
+    case 48:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_0);
+    case 49:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_1);
+    case 50:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_2);
+    case 51:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_3);
+    case 52:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_4);
+    case 53:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_5);
+    case 54:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_6);
+    case 55:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_7);
+    case 56:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_8);
+    case 57:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_9);
+    case 58:
+      return useServerState(Varbits.SAILING_BOAT_3_HOTSPOT_10);
+    case 59:
+      return useServerState(Varbits.VARBIT_20215);
+    case 60:
+      return useServerState(Varbits.VARBIT_20216);
+    case 64:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_0);
+    case 65:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_1);
+    case 66:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_2);
+    case 67:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_3);
+    case 68:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_4);
+    case 69:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_5);
+    case 70:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_6);
+    case 71:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_7);
+    case 72:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_8);
+    case 73:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_9);
+    case 74:
+      return useServerState(Varbits.SAILING_BOAT_4_HOTSPOT_10);
+    case 75:
+      return useServerState(Varbits.VARBIT_20219);
+    case 76:
+      return useServerState(Varbits.VARBIT_20220);
+    case 80:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_0);
+    case 81:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_1);
+    case 82:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_2);
+    case 83:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_3);
+    case 84:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_4);
+    case 85:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_5);
+    case 86:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_6);
+    case 87:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_7);
+    case 88:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_8);
+    case 89:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_9);
+    case 90:
+      return useServerState(Varbits.SAILING_BOAT_5_HOTSPOT_10);
+    case 91:
+      return useServerState(Varbits.VARBIT_20223);
+    case 92:
+      return useServerState(Varbits.VARBIT_20224);
+  }
+  return 0;
+}
+
+export function unlockedSlots(): Int {
+  const level: Int = useSkillBase(SelectionSkills.SAILING);
+  if (level >= 91) {
+    return 5;
+  }
+  if (level >= 78) {
+    return 4;
+  }
+  if (level >= 50) {
+    return 3;
+  }
+  if (level >= 15) {
+    return 2;
+  }
+  return 1;
+}
+
+export function sailingAvailable(): Boolean {
+  if (membersWorld() === false) {
+    return false;
+  }
+  if (useServerState(SelectionVarbits.SAILING_INTRO) < 50) {
+    return false;
+  }
+  if (useServerState(SelectionVarbits.RESTRICTED) >= 1) {
+    return false;
+  }
+  return true;
+}
+
+export function selectionMode(): BoatSelectionMode | null {
+  const type: Int = useServerState(SelectionVarbits.MODE);
+  if (type < 1) {
+    return null;
+  }
+  return BoatSelectionModes.at(type - 1);
+}
+
+export function panelTitle(): String {
+  const mode = selectionMode();
+  if (mode === null) {
+    return 'Boats';
+  }
+  return mode.title;
+}
+
+export function selectionText(): String {
+  const mode = selectionMode();
+  if (mode === null) {
+    return 'Select';
+  }
+  return mode.selectionText;
+}
+
+export function selectionEnabled(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return true;
+  }
+  return mode.selectionEnabled;
+}
+
+export function showsRecentBoat(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return true;
+  }
+  return mode.showRecentBoat;
+}
+
+export function showsBoatHealth(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return true;
+  }
+  return mode.showBoatHealth;
+}
+
+export function showsRetrievalCost(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return false;
+  }
+  return mode.showRetrievalCost;
+}
+
+export function showsEmptySlots(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return true;
+  }
+  return mode.showEmptyBoatSlots;
+}
+
+export function showsCargoHold(): Boolean {
+  const mode = selectionMode();
+  if (mode === null) {
+    return true;
+  }
+  return mode.showCargoHold;
+}
+
+export function boatName(slot: Int): String {
+  const type = SailingBoatTypes.at(boatType(slot));
+  if (type !== null) {
+    if (type.displayName.length > 0) {
+      return type.displayName;
+    }
+  }
+  const prefix: String = namePrefix(boatNamePart(slot, 0) - 1);
+  const descriptor: String = nameDescriptor(boatNamePart(slot, 1) - 1);
+  const noun: String = nameNoun(boatNamePart(slot, 2) - 1);
+  let name: String = '';
+  if (prefix.length > 0) {
+    name = prefix;
+  }
+  if (descriptor.length > 0) {
+    if (name.length > 0) {
+      name = `${name} `;
+    }
+    name = `${name}${descriptor}`;
+  }
+  if (noun.length > 0) {
+    if (name.length > 0) {
+      name = `${name} `;
+    }
+    name = `${name}${noun}`;
+  }
+  return name;
+}
+
+function namePrefix(index: Int): String {
+  if (index >= BoatNamePrefixCount) {
+    return BoatNameDefaults.prefix;
+  }
+  return BoatNameDefaults.prefix;
+}
+
+function nameDescriptor(index: Int): String {
+  if (index >= 0) {
+    return BoatNameDescriptors.at(index) ?? BoatNameDefaults.descriptor;
+  }
+  return BoatNameDefaults.descriptor;
+}
+
+function nameNoun(index: Int): String {
+  if (index >= 0) {
+    return BoatNameNouns.at(index) ?? BoatNameDefaults.noun;
+  }
+  return BoatNameDefaults.noun;
+}
+
+function locationStateIndex(dock: Int): Int {
+  let i: Int = 0;
+  while (i < LOCATION_DEFAULT) {
+    const row = BoatLocationStates.at(i);
+    if (row !== null) {
+      if (row.dock === dock) {
+        return i;
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+export function dockIndex(dock: Int): Int {
+  if (dock === 255 || dock === 254 || dock === 253) {
+    return -1;
+  }
+  if (dock < 0 || dock >= SailingDocks.length) {
+    debugMessageAlias(`Sailing: No dock found with ID ${dock}.`);
+    return DOCK_FALLBACK;
+  }
+  return dock;
+}
+
+export function locationName(slot: Int, inline: Int): String {
+  const dock: Int = boatDock(slot);
+  const state: Int = locationStateIndex(dock);
+  if (state !== -1) {
+    return locationStateName(state);
+  }
+  return dockName(dockIndex(dock), inline);
+}
+
+export function dockName(index: Int, inline: Int): String {
+  const row = SailingDocks.at(index);
+  if (row === null) {
+    return locationStateName(LOCATION_DEFAULT);
+  }
+  if (inline === 1 && row.inlineName.length > 0) {
+    return row.inlineName;
+  }
+  return row.niceName;
+}
+
+export function locationSprite(slot: Int): Sprite {
+  const dock: Int = boatDock(slot);
+  const state: Int = locationStateIndex(dock);
+  if (state !== -1) {
+    return locationStateSprite(state);
+  }
+  const row = SailingDocks.at(dockIndex(dock));
+  if (row === null) {
+    return locationStateSprite(LOCATION_DEFAULT);
+  }
+  return row.sprite;
+}
+
+export function hullName(type: Int, slot: Int): String {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return 'Standard';
+  }
+  const hull = SailingBoatHulls.at(boat.hullFirst + boatHull(slot));
+  if (hull === null) {
+    return '';
+  }
+  return hull.name;
+}
+
+export function retrievalCost(type: Int, slot: Int): Int {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return -1;
+  }
+  const base: Int = boat.retrievalCost;
+  const dock: Int = boatDock(slot);
+  let cost: Int = base;
+  if (dock === 254) {
+    cost = cost + CS2.scale(50, 100, base);
+  }
+  if (dock === 255) {
+    cost = cost + base;
+  }
+  const hull = SailingBoatHulls.at(boat.hullFirst + boatHull(slot));
+  let percent: Int = 0;
+  if (hull !== null) {
+    percent = hull.recoveryCostPercent;
+  }
+  return cost + CS2.scale(percent, 100, base);
+}
+
+export function cargoItem(slot: Int, index: Int): Item {
+  const one = useInventory(SelectionInventories.BOAT_1_CARGOHOLD);
+  const two = useInventory(SelectionInventories.BOAT_2_CARGOHOLD);
+  const three = useInventory(SelectionInventories.BOAT_3_CARGOHOLD);
+  const four = useInventory(SelectionInventories.BOAT_4_CARGOHOLD);
+  const five = useInventory(SelectionInventories.BOAT_5_CARGOHOLD);
+  switch (slot) {
+    case 1:
+      return one[index];
+    case 2:
+      return two[index];
+    case 3:
+      return three[index];
+    case 4:
+      return four[index];
+  }
+  return five[index];
+}
+
+export function cargoTotal(slot: Int, item: Item): Int {
+  const one = useInventory(SelectionInventories.BOAT_1_CARGOHOLD);
+  const two = useInventory(SelectionInventories.BOAT_2_CARGOHOLD);
+  const three = useInventory(SelectionInventories.BOAT_3_CARGOHOLD);
+  const four = useInventory(SelectionInventories.BOAT_4_CARGOHOLD);
+  const five = useInventory(SelectionInventories.BOAT_5_CARGOHOLD);
+  switch (slot) {
+    case 1:
+      return one.total(item);
+    case 2:
+      return two.total(item);
+    case 3:
+      return three.total(item);
+    case 4:
+      return four.total(item);
+  }
+  return five.total(item);
+}
+
+export function hasCargo(slot: Int): Boolean {
+  let index: Int = 0;
+  while (index < 240) {
+    if (cargoItem(slot, index) !== -1) {
+      return true;
+    }
+    index = index + 1;
+  }
+  return false;
+}
+
+export function cargoCapacity(slot: Int): Int {
+  const boat = SailingBoatTypes.at(boatType(slot));
+  if (boat === null) {
+    return 0;
+  }
+  let hotspot: Int = 0;
+  while (hotspot < boat.hotspotCount) {
+    const chosen: Int = boatHotspot(slot, hotspot);
+    const spot = SailingBoatHotspots.at(boat.hotspotFirst + hotspot);
+    if (spot !== null && chosen > 0) {
+      const facility = SailingBoatFacilities.at(spot.optionFirst + chosen - 1);
+      if (facility !== null) {
+        if (facility.subtype === 2) {
+          return facility.cargoCapacity;
+        }
+      }
+    }
+    hotspot = hotspot + 1;
+  }
+  return 0;
+}
+
+function emptyCargoSlots(slot: Int): Int {
+  let index: Int = 240;
+  let empty: Int = 0;
+  while (index > 0) {
+    index = index - 1;
+    if (cargoItem(slot, index) === -1) {
+      empty = empty + 1;
+    }
+  }
+  return empty;
+}
+
+export enum Refusal {
+  NONE = 0,
+  ALREADY_BOTTLED = 1,
+  BOTTLED = 2,
+  CAPSIZED = 3,
+  LOST = 4,
+  NOT_NOW = 5,
+  DOCKED_ELSEWHERE = 6,
+  ALREADY_NEARBY = 7,
+  COINS = 8,
+  ALREADY_AT_TELEPORT_DOCK = 9,
+  NO_FOCUS = 10,
+  NO_GREATER_FOCUS = 11,
+  CARGO = 12,
+}
+
+export function refusal(type: Int, slot: Int): Int {
+  const mode = selectionMode();
+  let bottledRefused: Boolean = false;
+  let capsizedRefused: Boolean = false;
+  let lostRefused: Boolean = false;
+  let currentPortOnly: Boolean = false;
+  let costShown: Boolean = false;
+  let focusNeeded: Boolean = false;
+  let greaterFocusNeeded: Boolean = false;
+  let emptyHoldNeeded: Boolean = false;
+  if (mode !== null) {
+    bottledRefused = mode.bottledShipsNotAllowed;
+    capsizedRefused = mode.capsizedShipsNotAllowed;
+    lostRefused = mode.lostShipsNotAllowed;
+    currentPortOnly = mode.onlyBoatsAtCurrentPort;
+    costShown = mode.showRetrievalCost;
+    focusNeeded = mode.requiresTeleportFocus;
+    greaterFocusNeeded = mode.requiresGreaterTeleportFocus;
+    emptyHoldNeeded = mode.requiresEmptyCargoHold;
+  }
+  const dock: Int = boatDock(slot);
+  const currentDock: Int = useServerState(SelectionVarps.CURRENT_DOCK);
+  let special: Int = 0;
+  if (dock === 255) {
+    if (bottledRefused) {
+      if (useServerState(SelectionVarbits.MODE) === 12) {
+        return Refusal.ALREADY_BOTTLED;
+      }
+      return Refusal.BOTTLED;
+    }
+    special = 1;
+  } else if (dock === 254) {
+    if (capsizedRefused) {
+      return Refusal.CAPSIZED;
+    }
+    special = 1;
+  } else if (dock === 253) {
+    if (lostRefused) {
+      return Refusal.LOST;
+    }
+    special = 1;
+  }
+  let dockRow: Int = -1;
+  if (special === 0) {
+    const index: Int = dockIndex(dock);
+    const row = SailingDocks.at(index);
+    if (row !== null) {
+      dockRow = row.rowId;
+    }
+    if (dockRow === -1 || currentDock === -1) {
+      return Refusal.NOT_NOW;
+    }
+    if (currentPortOnly && dockRow !== currentDock) {
+      return Refusal.DOCKED_ELSEWHERE;
+    }
+  }
+  if (costShown) {
+    if (dockRow !== -1 && dockRow === currentDock) {
+      return Refusal.ALREADY_NEARBY;
+    }
+    if (coinsHeld() < retrievalCost(type, slot)) {
+      return Refusal.COINS;
+    }
+  }
+  const focus: Int = boatTeleportFocus(slot);
+  const teleportDock: Int = useServerState(SelectionVarps.TELEPORT_DOCK);
+  if (teleportDock !== -1 && dockRow !== -1 && teleportDock === dockRow) {
+    return Refusal.ALREADY_AT_TELEPORT_DOCK;
+  }
+  if (focusNeeded && focus === 0) {
+    return Refusal.NO_FOCUS;
+  }
+  if (greaterFocusNeeded && focus < 2) {
+    return Refusal.NO_GREATER_FOCUS;
+  }
+  if (emptyHoldNeeded && emptyCargoSlots(slot) !== 240) {
+    return Refusal.CARGO;
+  }
+  return Refusal.NONE;
+}
+
+function coinsHeld(): Int {
+  const pack = useInventory(SelectionInventories.INV);
+  const bank = useInventory(SelectionInventories.BANK);
+  const held: Int = pack.total(COINS);
+  const banked: Int = bank.total(COINS);
+  if (2147483647 - banked <= held) {
+    return 2147483647;
+  }
+  return held + banked;
+}
+
+export function refusalTitle(reason: Int): String {
+  if (reason === Refusal.NONE) {
+    return '';
+  }
+  return 'Boat Unavailable';
+}
+
+export function refusalText(reason: Int, type: Int, slot: Int, verb: String): String {
+  switch (reason) {
+    case Refusal.ALREADY_BOTTLED:
+      return `<col=ff981f>You can't ${verb} that boat as it is already <col=ffffff>bottled<col=ff981f>.`;
+    case Refusal.BOTTLED:
+      return `<col=ff981f>You can't ${verb} that boat as it is <col=ffffff>bottled<col=ff981f>. You'll need to unbottle or recover it first.`;
+    case Refusal.CAPSIZED:
+      return `<col=ff981f>You can't ${verb} that boat as it has <col=ffffff>capsized<col=ff981f>. You'll need to speak to a <col=ffffff>shipwright<col=ff981f> to recover it.`;
+    case Refusal.LOST:
+      return `<col=ff981f>You can't ${verb} that boat as it is <col=ffffff>lost at sea<col=ff981f>. You'll need to speak to a <col=ffffff>shipwright<col=ff981f> to recover it.`;
+    case Refusal.NOT_NOW:
+      return "<col=ff981f>You can't choose that boat at the moment.";
+    case Refusal.DOCKED_ELSEWHERE:
+      return `<col=ff981f>You can't ${verb} that boat as it is currently docked at <col=ffffff>${locationName(slot, 1)}<col=ff981f>.`;
+    case Refusal.ALREADY_NEARBY:
+      return "<col=ff981f>That boat is already at the nearby dock. There's no need to recover it.";
+    case Refusal.COINS:
+      return `<col=ff981f>You need <col=ffffff>${CS2.tostring(retrievalCost(type, slot))} coins<col=ff981f> to do that.`;
+    case Refusal.ALREADY_AT_TELEPORT_DOCK:
+      return `<col=ff981f>That boat is already docked at <col=ffffff>${dockName(dockIndex(boatDock(slot)), 1)}<col=ff981f>.`;
+    case Refusal.NO_FOCUS:
+      return `<col=ff981f>You need to build a <col=ffffff>${CS2.lowercase(CS2.object_name(TELEPORT_FOCUS_LOC))}<col=ff981f> on that boat to be able to teleport it.`;
+    case Refusal.NO_GREATER_FOCUS:
+      return `<col=ff981f>You need to build a <col=ffffff>${CS2.lowercase(CS2.object_name(GREATER_TELEPORT_FOCUS_LOC))}<col=ff981f> on that boat to be able to teleport it.`;
+    case Refusal.CARGO:
+      return `<col=ff981f>You can't ${verb} that boat as it has items in the <col=ffffff>cargo hold<col=ff981f>. You'll need to empty it first.`;
+  }
+  return '';
+}
+
+export function rowColour(choosable: Boolean): Int {
+  if (choosable) {
+    return 0xffffff;
+  }
+  return 0x9f9f9f;
+}
+
+export function mobile(): Boolean {
+  return onMobile();
+}
+
+export function brazierIndex(type: Int, slot: Int): Int {
+  const boat = SailingBoatTypes.at(type);
+  const chosen: Int = boatBrazier(slot);
+  if (boat === null || chosen <= 0) {
+    return -1;
+  }
+  if (boat.brazierCount === 0) {
+    return -1;
+  }
+  let index: Int = chosen - 1;
+  if (index < 0) {
+    index = 0;
+  }
+  return boat.brazierFirst + index;
+}
+
+export const BrazierRows = SailingBoatBraziers;
+
+export function compactCount(value: Int, thousandsFrom: Int, millionsFrom: Int, separator: String): String {
+  let whole: Int = 0;
+  let tenth: Int = 0;
+  let unit: String = '';
+  let shortened: Int = 0;
+  if (value >= 1000000000) {
+    whole = value / 1000000000;
+    tenth = (value / 100000000) % 10;
+    unit = 'b';
+    shortened = 1;
+  } else if (value >= Math.max(1000000, millionsFrom)) {
+    whole = value / 1000000;
+    tenth = (value / 100000) % 10;
+    unit = 'm';
+    shortened = 1;
+  } else if (value >= Math.max(1000, thousandsFrom)) {
+    whole = value / 1000;
+    tenth = (value / 100) % 10;
+    unit = 'k';
+    shortened = 1;
+  }
+  if (shortened === 1) {
+    if (whole >= 100 || tenth === 0) {
+      return `${groupDigits(whole, separator)}${unit}`;
+    }
+    return `${groupDigits(whole, separator)}.${groupDigits(tenth, separator)}${unit}`;
+  }
+  return groupDigits(value, separator);
+}
+
+function locationStateName(index: Int): String {
+  const row = BoatLocationStates.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+function locationStateSprite(index: Int): Sprite {
+  const row = BoatLocationStates.at(index);
+  if (row === null) {
+    return -1;
+  }
+  return row.sprite;
+}
+
+export function boatSpriteOf(type: Int): Sprite {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return -1;
+  }
+  return boat.sprite;
+}
+
+export function boatSizeDescOf(type: Int): String {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return 'Unknown';
+  }
+  return boat.sizeDesc;
+}
+
+export function boatCrewOf(type: Int): String {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return 'null';
+  }
+  return CS2.tostring(boat.crewCapacity);
+}
+
+export function boatPlayersOf(type: Int): String {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return 'null';
+  }
+  return CS2.tostring(boat.playerCapacity);
+}
+
+export function hotspotCountOf(type: Int): Int {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return 0;
+  }
+  return boat.hotspotCount;
+}
+
+export function builtFacility(type: Int, slot: Int, hotspot: Int): Int {
+  const boat = SailingBoatTypes.at(type);
+  if (boat === null) {
+    return -1;
+  }
+  const chosen: Int = boatHotspot(slot, hotspot);
+  if (chosen <= 0) {
+    return -1;
+  }
+  const spot = SailingBoatHotspots.at(boat.hotspotFirst + hotspot);
+  if (spot === null) {
+    return -1;
+  }
+  return spot.optionFirst + chosen - 1;
+}
+
+export function facilityTypeOf(index: Int): Int {
+  const facility = SailingBoatFacilities.at(index);
+  if (facility === null) {
+    return -1;
+  }
+  return facility.facilityType;
+}
+
+export function facilitySpriteOf(index: Int): Sprite {
+  const facility = SailingBoatFacilities.at(index);
+  if (facility === null) {
+    return -1;
+  }
+  return facility.sprite;
+}
+
+export function facilityNameOf(index: Int): String {
+  const facility = SailingBoatFacilities.at(index);
+  if (facility === null) {
+    return '';
+  }
+  return facility.name;
+}
+
+export function brazierSpriteOf(index: Int): Sprite {
+  const brazier = SailingBoatBraziers.at(index);
+  if (brazier === null) {
+    return -1;
+  }
+  return brazier.sprite;
+}

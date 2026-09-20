@@ -1,0 +1,288 @@
+import { CS2, intArray, resumePauseButton, sessionState, useState } from 'ts2';
+
+import { clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { onMobile } from '../lib/lib.helpers';
+import { TelenexusTeleport, TelenexusTeleports } from '../0019_telenexus/telenexus.data';
+import { NEXUS_MAX_ROWS } from '../0019_telenexus/telenexus.lists';
+import { teleportRequirements } from '../0019_telenexus/telenexus.requirements';
+import { slotCapacity, slotValue } from '../0019_telenexus/telenexus.slots';
+import {
+  DIGIT_KEYS,
+  HOTKEY_ROWS,
+  KEY_DEBOUNCE,
+  Layout,
+  NO_CHAR,
+  Stripe,
+  TeleportColor,
+  TeleportFonts,
+  TeleportGate,
+  teleportListRef,
+  teleportScrollingRef,
+} from './telenexus-teleport.constants';
+import { TeleportKeyChars, TeleportKeyLabels, TeleportTablets } from './telenexus-teleport.data';
+
+const keyDeadline = sessionState(0);
+
+export function TeleportRows(): Component {
+  const mobile: Boolean = onMobile();
+  const desktop: Int = mobile ? 0 : 1;
+  const h: Int = mobile ? Layout.ROW_H_MOBILE : Layout.ROW_H;
+  const capacity: Int = slotCapacity();
+  const [hoveredPos, setHoveredPos] = useState(-1);
+
+  const mainTeleport = intArray(NEXUS_MAX_ROWS);
+  const mainTop = intArray(NEXUS_MAX_ROWS);
+  const mainKey = intArray(NEXUS_MAX_ROWS);
+  const mainStripe = intArray(NEXUS_MAX_ROWS);
+  const mainPos = intArray(NEXUS_MAX_ROWS);
+  const extraTeleport = intArray(NEXUS_MAX_ROWS);
+  const extraTop = intArray(NEXUS_MAX_ROWS);
+  const extraKey = intArray(NEXUS_MAX_ROWS);
+  const extraStripe = intArray(NEXUS_MAX_ROWS);
+  const extraPos = intArray(NEXUS_MAX_ROWS);
+  let slot: Int = 1;
+  let mains: Int = 0;
+  let extras: Int = 0;
+  let y: Int = 0;
+  let key: Int = 1;
+  let stripe: Int = 1;
+  let pos: Int = 0;
+  while (slot <= capacity) {
+    const teleport: Int = slotValue(slot);
+    const row: TelenexusTeleport | null = TelenexusTeleports.get(teleport);
+    if (row !== null) {
+      mainTeleport[mains] = teleport;
+      mainTop[mains] = y;
+      mainKey[mains] = key;
+      mainStripe[mains] = stripe;
+      mainPos[mains] = pos;
+      mains = mains + 1;
+      y = y + h;
+      key = key + 1;
+      stripe = 1 - stripe;
+      pos = pos + 1;
+      const scryId: Int = row.scryTarget ?? -1;
+      const scry: TelenexusTeleport | null = TelenexusTeleports.get(scryId);
+      if (scry !== null) {
+        const [met, _] = teleportRequirements(scry);
+        if (met === true) {
+          extraTeleport[extras] = scryId;
+          extraTop[extras] = y;
+          extraKey[extras] = key;
+          extraStripe[extras] = stripe;
+          extraPos[extras] = pos;
+          extras = extras + 1;
+          y = y + h;
+          key = key + 1;
+          stripe = 1 - stripe;
+          pos = pos + 1;
+        }
+      }
+    }
+    slot = slot + 1;
+  }
+  let pad: Int = mains;
+  while (pad < NEXUS_MAX_ROWS) {
+    mainTeleport[pad] = -1;
+    pad = pad + 1;
+  }
+  pad = extras;
+  while (pad < NEXUS_MAX_ROWS) {
+    extraTeleport[pad] = -1;
+    pad = pad + 1;
+  }
+
+  const listHeight: Int = heightOf(teleportListRef);
+  if (y > listHeight) {
+    teleportScrollingRef.scrollHeight = y;
+  } else {
+    teleportScrollingRef.scrollHeight = 0;
+    teleportScrollingRef.scrollY = 0;
+  }
+
+  return (
+    <>
+      <layer
+        w="fill"
+        h="fill"
+        onMouseRepeat={(event) => {
+          setHoveredPos((event.mouseY + teleportScrollingRef.scrollY) / h);
+        }}
+        onMouseLeave={() => {
+          setHoveredPos(-1);
+        }}
+      >
+        {mainTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 && (
+              <Caption
+                teleport={teleport}
+                top={mainTop[index]}
+                height={h}
+                keyIndex={desktop === 1 && mainKey[index] <= HOTKEY_ROWS ? mainKey[index] : 0}
+                hot={hoveredPos === mainPos[index] ? 1 : 0}
+              />
+            ),
+        )}
+      </layer>
+      <layer w="fill" h="fill">
+        {mainTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 && <StripeRect top={mainTop[index]} height={h} even={mainStripe[index]} />,
+        )}
+      </layer>
+      <layer w="fill" h="fill">
+        {mainTeleport.map(
+          (teleport, index) => teleport !== -1 && <TabletIcon teleport={teleport} top={mainTop[index]} height={h} />,
+        )}
+      </layer>
+      <layer w="fill" h="fill">
+        {extraTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 && (
+              <Caption
+                teleport={teleport}
+                top={extraTop[index]}
+                height={h}
+                keyIndex={desktop === 1 && extraKey[index] <= HOTKEY_ROWS ? extraKey[index] : 0}
+                hot={hoveredPos === extraPos[index] ? 1 : 0}
+              />
+            ),
+        )}
+      </layer>
+      <layer w="fill" h="fill">
+        {extraTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 && <StripeRect top={extraTop[index]} height={h} even={extraStripe[index]} />,
+        )}
+      </layer>
+      <layer w="fill" h="fill">
+        {extraTeleport.map(
+          (teleport, index) => teleport !== -1 && <TabletIcon teleport={teleport} top={extraTop[index]} height={h} />,
+        )}
+      </layer>
+      <layer x={0} y={0} w={1} h={1}>
+        {mainTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 &&
+            desktop === 1 &&
+            mainKey[index] <= HOTKEY_ROWS && <KeyListener keyIndex={mainKey[index]} />,
+        )}
+      </layer>
+      <layer x={0} y={0} w={1} h={1}>
+        {extraTeleport.map(
+          (teleport, index) =>
+            teleport !== -1 &&
+            desktop === 1 &&
+            extraKey[index] <= HOTKEY_ROWS && <KeyListener keyIndex={extraKey[index]} />,
+        )}
+      </layer>
+    </>
+  );
+}
+
+function heightOf(component: ComponentId): Int {
+  return CS2.if_height_get(component);
+}
+
+function StripeRect({ top, height, even }: { top: Int; height: Int; even: Int }): Component {
+  return (
+    <rect
+      x={0}
+      y={top}
+      w="fill"
+      h={height}
+      fill
+      color={even === 1 ? Stripe.EVEN : Stripe.ODD}
+      transparency={even === 1 ? Stripe.EVEN_TRANS : Stripe.ODD_TRANS}
+    />
+  );
+}
+
+function TabletIcon({ teleport, top, height }: { teleport: Int; top: Int; height: Int }): Component {
+  const tablet: Item | null = TeleportTablets.get(teleport);
+  if (tablet === null) {
+    return null;
+  }
+  const icon: Sprite = height >= Layout.ROW_H_MOBILE ? tablet.spellGraphic2On! : tablet.spellGraphic1On!;
+  return <sprite x={Layout.ICON_X} y={top} w={height} h={height} sprite={icon} />;
+}
+
+function Caption({
+  teleport,
+  top,
+  height,
+  keyIndex,
+  hot,
+}: {
+  teleport: Int;
+  top: Int;
+  height: Int;
+  keyIndex: Int;
+  hot: Int;
+}): Component {
+  const row: TelenexusTeleport | null = TelenexusTeleports.get(teleport);
+  const name: String = row === null ? '' : row.name;
+  const label: String = keyLabel(keyIndex);
+
+  return (
+    <text
+      x={height + Layout.LABEL_GAP}
+      y={top}
+      w="fill"
+      h={height}
+      text={keyIndex === 0 ? name : `<col=ffffff>${label}</col> :  ${name}`}
+      font={TeleportFonts.LABEL}
+      color={hot === 1 ? TeleportColor.HOT : TeleportColor.LABEL}
+      align="left"
+      valign="middle"
+      shadow
+    />
+  );
+}
+
+function keyLabel(keyIndex: Int): String {
+  return keyIndex === 0
+    ? ''
+    : keyIndex <= DIGIT_KEYS
+      ? CS2.tostring(keyIndex)
+      : (TeleportKeyLabels.get(keyIndex - DIGIT_KEYS) ?? '');
+}
+
+function keyLower(keyIndex: Int): String {
+  return keyIndex <= DIGIT_KEYS ? '' : (TeleportKeyChars.get(keyIndex - DIGIT_KEYS) ?? '');
+}
+
+function KeyListener({ keyIndex }: { keyIndex: Int }): Component {
+  const label: String = keyLabel(keyIndex);
+  const lower: String = keyLower(keyIndex);
+  return (
+    <layer
+      x={0}
+      y={0}
+      w={1}
+      h={1}
+      onKey={(event) => {
+        const [deadline, setDeadline] = useState(keyDeadline);
+        if (clientClock() < deadline) {
+          return;
+        }
+        if (dialogueMayAdvance(TeleportGate.NO_TOPLEVEL, TeleportGate.CHATBOX) === false) {
+          return;
+        }
+        if (event.keyChar === NO_CHAR) {
+          return;
+        }
+        if (
+          CS2.string_indexof_char(label, event.keyChar) === -1 &&
+          CS2.string_indexof_char(lower, event.keyChar) === -1
+        ) {
+          return;
+        }
+        resumePauseButton(event.self);
+        setDeadline(clientClock() + KEY_DEBOUNCE);
+      }}
+    />
+  );
+}

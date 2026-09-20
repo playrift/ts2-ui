@@ -1,0 +1,98 @@
+import { XpForLevel } from '../lib/skills.data';
+import { groupDigits } from '../lib/lib.format';
+import { HiscoresTypeNames, HiscoresTypeIcons } from './hiscores.data';
+import { HiscoresArt } from './hiscores.constants';
+
+export function clampType(raw: Int): Int {
+  return Math.max(0, Math.min(9, raw));
+}
+
+export function typeName(type: Int): String {
+  return HiscoresTypeNames.at(clampType(type)) ?? 'Normal';
+}
+
+export function typeIcon(type: Int): Sprite {
+  return HiscoresTypeIcons.at(clampType(type)) ?? HiscoresArt.DROP_CLOSED;
+}
+
+export function isGroupType(type: Int): Boolean {
+  return type === 7 || type === 8;
+}
+
+export function abbreviateCount(count: Int): String {
+  if (count >= 2147483647) {
+    return '*';
+  }
+  if (count >= 1000000000) {
+    return `${count / 1000000000}B`;
+  }
+  if (count >= 1000000) {
+    return `${count / 1000000}M`;
+  }
+  if (count >= 10000) {
+    return `${count / 1000}K`;
+  }
+  return `${count}`;
+}
+
+export function levelForXp(xp: Int): Int {
+  let level: Int = 2;
+  let result: Int = 1;
+  while (level < 100) {
+    if (xp >= (XpForLevel.get(level) ?? 0)) {
+      result = result + 1;
+    } else {
+      return result;
+    }
+    level = level + 1;
+  }
+  return 99;
+}
+
+export function xpIntoLevel(xp: Int): Int {
+  const level: Int = levelForXp(xp);
+  if (level === 99) {
+    return 0;
+  }
+  return xp - (XpForLevel.get(level) ?? 0);
+}
+
+export function xpAcrossLevel(xp: Int): Int {
+  const level: Int = levelForXp(xp);
+  if (level === 99) {
+    return 0;
+  }
+  return (XpForLevel.get(level + 1) ?? 0) - (XpForLevel.get(level) ?? 0);
+}
+
+export function combatHundredths(
+  prayer: Int,
+  hitpoints: Int,
+  defence: Int,
+  attack: Int,
+  strength: Int,
+  ranged: Int,
+  magic: Int,
+): Int {
+  const base: Int = ((hitpoints + defence) * 100 + (prayer / 2) * 100) / 4;
+  const melee: Int = ((attack + strength) * 100 * 13) / 40 + base;
+  const range: Int = (((ranged / 2 + ranged) * 13) / 40) * 100 + base;
+  const mage: Int = (((magic / 2 + magic) * 13) / 40) * 100 + base;
+  return Math.max(melee, Math.max(range, mage));
+}
+
+export function combatWhole(hundredths: Int): String {
+  return `${hundredths / 100}`;
+}
+
+export function combatFraction(hundredths: Int): String {
+  const rest: Int = hundredths % 100;
+  if (rest < 10) {
+    return `0${rest}`;
+  }
+  return `${rest}`;
+}
+
+export function withCommas(value: Int): String {
+  return groupDigits(value, ',');
+}

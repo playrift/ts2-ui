@@ -1,0 +1,88 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Fonts } from '../lib/game/fonts';
+import {
+  lastFriendschatjoin,
+  lastNamedialog,
+  meslayerInitlastnames,
+  meslayerinput,
+  meslayermode,
+  snapshotOpen,
+} from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { mesKeyboardRef, mesText2Ref, mesTextRef } from '../0162_chatbox/chatbox.constants';
+import { KEYBOARD_STRING, keyboardShow, meslayerEcho, meslayerOpen } from '../0162_chatbox/meslayer';
+
+const NAME_LIMIT = 12;
+const TEXT_TYPE = 4;
+const SIZE_MINUS = 1;
+const SIZE_ABS = 0;
+const POS_CENTER = 1;
+const POS_TOP = 0;
+const ALIGN_CENTER = 1;
+const BLUE = 0x0000ff;
+const WHITE = 0xffffff;
+
+export function meslayerInitLastNames(): void {
+  const [done, setDone] = useState(meslayerInitlastnames);
+  if (done === 1) {
+    return;
+  }
+  const [, setLastName] = useState(lastNamedialog);
+  const [, setLastJoin] = useState(lastFriendschatjoin);
+  setDone(1);
+  setLastName('');
+  setLastJoin('');
+}
+
+function lastNameColour(line: ComponentId, colour: Int): void {
+  line.color = colour;
+}
+
+export function meslayerDynamicButton(): void {
+  CS2.cc_create(mesKeyboardRef, TEXT_TYPE, 0, false);
+  CS2.cc_size_set(0, CS2.if_y_get(mesText2Ref), SIZE_MINUS, SIZE_ABS);
+  CS2.cc_position_set(0, 0, POS_CENTER, POS_TOP);
+  CS2.cc_text_font_set(Fonts.P12_FULL);
+  CS2.cc_text_align_set(ALIGN_CENTER, ALIGN_CENTER, 0);
+  CS2.cc_text_shadow_set(false);
+  CS2.cc_colour_set(BLUE);
+  CS2.cc_on_mouseover_set((event) => lastNameColour(event.self, WHITE));
+  CS2.cc_on_mouseleave_set((event) => lastNameColour(event.self, BLUE));
+}
+
+export function meslayerLastNameClick(mode: Int, name: String): void {
+  const [current] = useState(meslayermode);
+  if (current !== mode) {
+    return;
+  }
+  const [, setInput] = useState(meslayerinput);
+  setInput(name);
+  meslayerEcho('');
+}
+
+export function meslayerMode10(): void {
+  const [snapshot] = useState(snapshotOpen);
+  if (snapshot === 1) {
+    CS2.if_close();
+  }
+  if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 0) {
+    CS2.message('You must set a name before you can chat.');
+    return;
+  }
+  meslayerOpen(10);
+  mesTextRef.text = 'Enter the player name whose channel you wish to join:';
+  meslayerEcho('');
+  CS2.if_on_key_set(null, mesText2Ref);
+  meslayerInitLastNames();
+  const [lastJoin] = useState(lastFriendschatjoin);
+  if (lastJoin.length > 0) {
+    meslayerDynamicButton();
+    CS2.cc_text_set(`<col=000000>Last name:</col> ${lastJoin}`);
+    CS2.cc_on_click_set(() => meslayerLastNameClick(10, lastJoin));
+  }
+  if (onMobile()) {
+    keyboardShow(KEYBOARD_STRING, NAME_LIMIT);
+  }
+}

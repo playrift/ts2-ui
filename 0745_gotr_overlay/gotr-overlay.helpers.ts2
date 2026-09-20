@@ -1,0 +1,99 @@
+import { useState } from 'ts2';
+
+import { clientClock, scaled } from '../lib/lib.engine';
+import { Fade, Wipe } from './gotr-overlay.constants';
+import {
+  gotrWipeBuilt,
+  gotrWipeColour,
+  gotrWipeDirection,
+  gotrWipeModel,
+  gotrWipeStartedAt,
+  gotrWipeSteps,
+  gotrWipeWash,
+  gotrWipeZoom,
+} from './gotr-overlay.state';
+
+export function gotrOverlayFadeIn(model: Model, colour: Int): void {
+  const [built, setBuilt] = useState(gotrWipeBuilt);
+  const [, setModel] = useState(gotrWipeModel);
+  const [, setColour] = useState(gotrWipeColour);
+  const [, setZoom] = useState(gotrWipeZoom);
+  const [, setWash] = useState(gotrWipeWash);
+  setBuilt(built + 1);
+  setModel(model as Int);
+  setColour(colour);
+  setZoom(Wipe.START_ZOOM);
+  setWash(Wipe.CLEAR);
+  gotrOverlayBind(Fade.IN);
+}
+
+export function gotrOverlayFadeOut(): void {
+  gotrOverlayBind(Fade.OUT);
+}
+
+export function gotrOverlayReset(): void {
+  const [, setBuilt] = useState(gotrWipeBuilt);
+  const [, setStartedAt] = useState(gotrWipeStartedAt);
+  setBuilt(0);
+  setStartedAt(-1);
+}
+
+function gotrOverlayBind(direction: Int): void {
+  const [, setDirection] = useState(gotrWipeDirection);
+  const [, setStartedAt] = useState(gotrWipeStartedAt);
+  const [, setSteps] = useState(gotrWipeSteps);
+  const now: Int = clientClock();
+  setDirection(direction);
+  setStartedAt(now);
+  setSteps(0);
+  gotrOverlayCatchUp(direction, 1);
+}
+
+export function gotrOverlayTick(): void {
+  const [startedAt, setStartedAt] = useState(gotrWipeStartedAt);
+  if (startedAt < 0) {
+    return;
+  }
+  const [direction] = useState(gotrWipeDirection);
+  const elapsed: Int = clientClock() - startedAt;
+
+  if (elapsed >= Wipe.CYCLES) {
+    const [built, setBuilt] = useState(gotrWipeBuilt);
+    if (direction === Fade.OUT) {
+      setBuilt(0);
+    } else if (built > 0) {
+      const [, setWash] = useState(gotrWipeWash);
+      setWash(Wipe.OPAQUE);
+    }
+    setStartedAt(-1);
+    return;
+  }
+
+  gotrOverlayCatchUp(direction, elapsed + 1);
+}
+
+function gotrOverlayCatchUp(direction: Int, due: Int): void {
+  const [steps, setSteps] = useState(gotrWipeSteps);
+  const [built] = useState(gotrWipeBuilt);
+  if (built === 0 || steps >= due) {
+    return;
+  }
+  const [zoom, setZoom] = useState(gotrWipeZoom);
+  const [wash, setWash] = useState(gotrWipeWash);
+  let z: Int = zoom;
+  let t: Int = wash;
+  let n: Int = steps;
+  while (n < due) {
+    if (direction === Fade.IN) {
+      z = Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, z));
+      t = t - Wipe.STEP;
+    } else {
+      z = Math.max(Wipe.MIN_ZOOM, scaled(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(z, Wipe.MIN_ZOOM_OUT)));
+      t = t + Wipe.STEP;
+    }
+    n = n + 1;
+  }
+  setZoom(z);
+  setWash(t);
+  setSteps(n);
+}

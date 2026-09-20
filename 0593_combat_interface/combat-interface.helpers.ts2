@@ -1,0 +1,356 @@
+import { CS2, useInventory, useServerState, useSkill, useSkillBase } from 'ts2';
+
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { itemName, membersWorld } from '../lib/lib.engine';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { Relic } from '../lib/league-relics.data';
+import {
+  Category,
+  CombatInventories,
+  CombatSkills,
+  CombatVarbits,
+  CombatVarps,
+  COMBAT_LEVEL_PREFIX,
+  CombatRelic,
+  DESCENT_10,
+  DESCENT_8,
+  Layout,
+  RELIC_SPEC_CAP,
+  SpecItem,
+  UNARMED,
+  WornSlot,
+} from './combat-interface.constants';
+import { SpecialAttackCosts } from './special-attack-costs.data';
+import { SpecialAttackDescriptions } from './special-attack-descriptions.data';
+import { WeaponCategories, WeaponCategoriesButton } from './weapon-categories.data';
+
+export function relicActive(relic: Int): Int {
+  return leagueRelicActive(relic as Relic);
+}
+
+export function specCapActive(): Int {
+  if (relicActive(CombatRelic.SPEC_CAP_A) === 1 || relicActive(CombatRelic.SPEC_CAP_B) === 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function specialAttackCost(weapon: Item, capped: Int): Int {
+  let cost: Int = SpecialAttackCosts.get(weapon) ?? -1;
+  if (cost < 0) {
+    cost = 0;
+  }
+  if (capped === 1 && cost > RELIC_SPEC_CAP) {
+    cost = RELIC_SPEC_CAP;
+  }
+  return cost;
+}
+
+export function categoryRow(category: Int): Int {
+  let i: Int = 0;
+  while (i < WeaponCategories.length) {
+    const row = WeaponCategories.at(i);
+    if (row !== null) {
+      if (row.id === category) {
+        return i;
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+export function buttonTuple(row: Int, slot: Int): Int {
+  let found: Int = -1;
+  let i: Int = 0;
+  while (i < WeaponCategoriesButton.length) {
+    const tuple = WeaponCategoriesButton.at(i);
+    if (tuple !== null) {
+      if (tuple.row === row) {
+        if (tuple.slot === slot) {
+          found = i;
+        }
+      }
+    }
+    i = i + 1;
+  }
+  return found;
+}
+
+export function buttonName(tuple: Int): String {
+  if (tuple === -1) {
+    return '';
+  }
+  const t = WeaponCategoriesButton.at(tuple);
+  if (t === null) {
+    return '';
+  }
+  return t.name;
+}
+
+export function buttonTooltip(tuple: Int): String {
+  if (tuple === -1) {
+    return '';
+  }
+  const t = WeaponCategoriesButton.at(tuple);
+  if (t === null) {
+    return '';
+  }
+  return t.tooltip;
+}
+
+export function buttonSprite(tuple: Int): Sprite {
+  if (tuple === -1) {
+    return -1;
+  }
+  const t = WeaponCategoriesButton.at(tuple);
+  if (t === null) {
+    return -1;
+  }
+  return t.sprite;
+}
+
+export function staffLayout(category: Int): Boolean {
+  if (category === Category.STAFF || category === Category.STAFF_BLADED || category === Category.STAFF_SPELLBLADE) {
+    return true;
+  }
+  return false;
+}
+
+export function weaponName(weapon: Item): String {
+  if (weapon !== -1 && (CS2.item_members(weapon) === 0 || membersWorld())) {
+    return itemName(weapon);
+  }
+  return UNARMED;
+}
+
+export function combatLevelText(): String {
+  const level: Int = useServerState(CombatVarbits.COMBAT_LEVEL);
+  if (level <= 0) {
+    return '';
+  }
+  const decimalOn: Int = useServerState(CombatVarbits.LEVEL_DECIMAL_ENABLED);
+  const decimal: Int = useServerState(CombatVarbits.LEVEL_DECIMAL);
+  if (enhancedAny() && decimalOn === 1) {
+    if (decimal < 10) {
+      return `${COMBAT_LEVEL_PREFIX}${stringOf(level)}.0${stringOf(decimal)}`;
+    }
+    return `${COMBAT_LEVEL_PREFIX}${stringOf(level)}.${stringOf(decimal)}`;
+  }
+  return `${COMBAT_LEVEL_PREFIX}${stringOf(level)}`;
+}
+
+export function specCost(weapon: Item, capped: Int): Int {
+  const brIngame: Int = useServerState(CombatVarbits.BR_INGAME);
+  if (membersWorld() || brIngame === 1) {
+    return specialAttackCost(weapon, capped);
+  }
+  return 0;
+}
+
+export function specAmount(weapon: Item, cost: Int, hpSpecs: Int): Int {
+  const energy: Int = useServerState(CombatVarps.SPEC_ENERGY);
+  if (weapon === SpecItem.SOULREAPER) {
+    return useServerState(CombatVarps.SOULREAPER_STACKS);
+  }
+  if (weapon === SpecItem.SOL) {
+    return useServerState(CombatVarps.SOL_STACKS);
+  }
+  if (weapon === SpecItem.CHARGES_14) {
+    return useServerState(CombatVarbits.SPEC_CHARGES_33255);
+  }
+  let amount: Int = energy;
+  if (amount < 0) {
+    amount = 0;
+  }
+  if (hpSpecs === 1 && amount < cost && useSkill(CombatSkills.HITPOINTS) > 25) {
+    return (useSkill(CombatSkills.HITPOINTS) - 1) / 25;
+  }
+  return amount;
+}
+
+export function specScale(weapon: Item, cost: Int, hpSpecs: Int): Int {
+  const energy: Int = useServerState(CombatVarps.SPEC_ENERGY);
+  if (weapon === SpecItem.SOULREAPER) {
+    return 5;
+  }
+  if (weapon === SpecItem.SOL) {
+    return 20;
+  }
+  if (weapon === SpecItem.CHARGES_14) {
+    return 14;
+  }
+  let amount: Int = energy;
+  if (amount < 0) {
+    amount = 0;
+  }
+  if (hpSpecs === 1 && amount < cost && useSkill(CombatSkills.HITPOINTS) > 25) {
+    return (useSkillBase(CombatSkills.HITPOINTS) - 1) / 25;
+  }
+  return 1000;
+}
+
+export function specText(weapon: Item, cost: Int, hpSpecs: Int): String {
+  const amount: Int = specAmount(weapon, cost, hpSpecs);
+  if (weapon === SpecItem.SOULREAPER) {
+    return `Special Attack: ${stringOf(amount)}/5`;
+  }
+  if (weapon === SpecItem.SOL) {
+    return `Special Attack: ${stringOf(amount)}/20`;
+  }
+  if (weapon === SpecItem.CHARGES_14) {
+    return `Special Attack: ${stringOf(amount)}/14`;
+  }
+  const energy: Int = useServerState(CombatVarps.SPEC_ENERGY);
+  if (hpSpecs === 1 && Math.max(0, energy) < cost && useSkill(CombatSkills.HITPOINTS) > 25) {
+    return `Special Attack: ${stringOf(amount)}/${stringOf(specScale(weapon, cost, hpSpecs))}`;
+  }
+  return `Special Attack: ${stringOf(amount / 10)}%`;
+}
+
+export function specReady(weapon: Item, cost: Int, hpSpecs: Int): Boolean {
+  const amount: Int = specAmount(weapon, cost, hpSpecs);
+  if (weapon === SpecItem.SOULREAPER && amount > 0) {
+    return true;
+  }
+  if (amount >= cost) {
+    return true;
+  }
+  const energy: Int = useServerState(CombatVarps.SPEC_ENERGY);
+  if (
+    weapon !== SpecItem.SOULREAPER &&
+    weapon !== SpecItem.SOL &&
+    weapon !== SpecItem.CHARGES_14 &&
+    hpSpecs === 1 &&
+    Math.max(0, energy) < cost &&
+    useSkill(CombatSkills.HITPOINTS) > 25
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function dragonArrow(ammo: Item): Boolean {
+  if (
+    ammo === SpecItem.DRAGON_ARROW ||
+    ammo === SpecItem.DRAGON_ARROW_1 ||
+    ammo === SpecItem.DRAGON_ARROW_2 ||
+    ammo === SpecItem.DRAGON_ARROW_3
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function descentAmmo(): Item {
+  const worn = useInventory(CombatInventories.WORN);
+  const quiver = useInventory(CombatInventories.QUIVER);
+  const ammo: Item = worn[WornSlot.AMMO];
+  const cape: Item = worn[WornSlot.CAPE];
+  if (ammo === -1 && cape !== -1 && (cape.isQuiver ?? 0) === 1) {
+    return quiver[0];
+  }
+  return ammo;
+}
+
+export function specDescription(weapon: Item, withSol: Int, capped: Int): String {
+  const cost: Int = specialAttackCost(weapon, capped);
+  const name: String = SpecialAttackDescriptions.get(weapon) ?? 'Select to perform a special attack.';
+  let text: String = `${name} (${stringOf(cost / 10)}%)`;
+  if (
+    weapon === SpecItem.HASTA_0 ||
+    weapon === SpecItem.HASTA_1 ||
+    weapon === SpecItem.HASTA_2 ||
+    weapon === SpecItem.HASTA_3 ||
+    weapon === SpecItem.HASTA_4
+  ) {
+    text = `${name} 5-100% `;
+  } else if (weapon === SpecItem.SOULREAPER) {
+    text = `${name} 0-5`;
+  } else if (withSol === 1 && weapon === SpecItem.SOL) {
+    text = `${name} (${stringOf(useServerState(CombatVarps.SOL_STACKS))} / 20)`;
+  } else if (withSol === 1 && weapon === SpecItem.CHARGES_14) {
+    text = `${name} (${stringOf(useServerState(CombatVarbits.SPEC_CHARGES_33255))} / 14)`;
+  }
+  const tipsOff: Int = useServerState(CombatVarbits.SPEC_TOOLTIPS_OFF);
+  if (tipsOff === 0) {
+    const ammo: Item = descentAmmo();
+    if (
+      (weapon === SpecItem.DARK_BOW ||
+        weapon === SpecItem.DARK_BOW_1 ||
+        weapon === SpecItem.DARK_BOW_2 ||
+        weapon === SpecItem.DARK_BOW_3 ||
+        weapon === SpecItem.DARK_BOW_4 ||
+        (withSol === 1 && weapon === SpecItem.DARK_BOW_5)) &&
+      dragonArrow(ammo)
+    ) {
+      text = `${DESCENT_8} (${stringOf(cost / 10)}%)`;
+    }
+    if (weapon === SpecItem.DARK_BOW_10 && dragonArrow(ammo)) {
+      text = `${DESCENT_10} (${stringOf(cost / 10)}%)`;
+    }
+  }
+  return text;
+}
+
+export function buttonWidth(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_BUTTON_W : Layout.BUTTON_W;
+}
+
+export function gridX(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_GRID_X : Layout.GRID_X;
+}
+
+export function gridY(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_GRID_Y : Layout.GRID_Y;
+}
+
+export function gapX(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_GAP_X : Layout.GAP_X;
+}
+
+export function gapY(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_GAP_Y : Layout.GAP_Y;
+}
+
+export function retaliateHeight(mobile: Boolean): Int {
+  return mobile ? Layout.BUTTON_H : Layout.RETALIATE_H;
+}
+
+export function barHeight(mobile: Boolean): Int {
+  return mobile ? Layout.MOBILE_BAR_H : Layout.BAR_H;
+}
+
+export function specHeight(mobile: Boolean, category: Int): Int {
+  if (!mobile) {
+    return Layout.SPEC_H;
+  }
+  if (category === Category.STAFF || category === Category.STAFF_BLADED) {
+    return Layout.MOBILE_SPEC_H_STAFF;
+  }
+  return Layout.MOBILE_SPEC_H;
+}
+
+export function retaliateY(mobile: Boolean, category: Int): Int {
+  if (staffLayout(category)) {
+    return gridY(mobile) + 3 * (Layout.STAFF_BUTTON_H + Layout.STAFF_GAP);
+  }
+  return gridY(mobile) + 2 * (Layout.BUTTON_H + gapY(mobile));
+}
+
+export function styleX(mobile: Boolean, category: Int, p: Int): Int {
+  if (staffLayout(category) || p % 2 === 0) {
+    return gridX(mobile);
+  }
+  return gridX(mobile) + buttonWidth(mobile) + gapX(mobile);
+}
+
+export function styleY(mobile: Boolean, category: Int, p: Int): Int {
+  if (staffLayout(category)) {
+    return gridY(mobile) + p * (Layout.STAFF_BUTTON_H + Layout.STAFF_GAP);
+  }
+  if (p < 2) {
+    return gridY(mobile);
+  }
+  return gridY(mobile) + Layout.BUTTON_H + gapY(mobile);
+}

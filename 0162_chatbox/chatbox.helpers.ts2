@@ -1,0 +1,69 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { Varbits } from '../lib/game/varbits';
+import { hasBit } from '../lib/lib.engine';
+import { mobileGameframe } from '../lib/lib.overlay';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { chatView, chatboxMode } from '../lib/game/varcs';
+import { ChatTab } from './chatbox.data';
+import { leagueChatIcon } from './chatbox.strings';
+
+export function leagueWorld(): Boolean {
+  const flags: Int = useServerState(Varps.MAP_FLAGS_CACHED);
+  if (!hasBit(flags, 29) && hasBit(flags, 30)) {
+    return true;
+  }
+  return false;
+}
+
+export function speedrunWorld(): Boolean {
+  return hasBit(useServerState(Varps.MAP_FLAGS_CACHED), 8);
+}
+
+export const IronmanIcons = mapOf<Int, String>([
+  [1, '<img=2>'],
+  [2, '<img=3>'],
+  [3, '<img=10>'],
+  [4, '<img=41>'],
+  [5, '<img=42>'],
+  [6, '<img=43>'],
+]);
+
+export function accountIcon(): String {
+  if (leagueWorld()) {
+    return leagueChatIcon();
+  }
+  if (speedrunWorld()) {
+    return '<img=52>';
+  }
+  return IronmanIcons.get(useServerState(Varbits.IRONMAN)) ?? '';
+}
+
+export function groupPrefixed(typed: String): Boolean {
+  if (!isGroupIronman(useServerState(Varbits.IRONMAN))) {
+    return false;
+  }
+  const [mode] = useState(chatboxMode);
+  const [view] = useState(chatView);
+  if (
+    CS2.string_indexof_string(typed, '////', 0) === 0 ||
+    CS2.string_indexof_string(CS2.lowercase(typed), '/g ', 0) === 0 ||
+    CS2.string_indexof_string(CS2.lowercase(typed), '/@g ', 0) === 0 ||
+    mode === GROUP_CHAT_MODE ||
+    view === ChatTab.TRADE
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export const GROUP_CHAT_MODE = 4;
+
+export function mobileGameframeFlag(): Int {
+  if (mobileGameframe(toplevelComponents())) {
+    return 1;
+  }
+  return 0;
+}

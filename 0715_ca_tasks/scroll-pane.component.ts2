@@ -1,0 +1,201 @@
+import { useRef, useState } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { CaScrollbar } from './ca-tasks.constants';
+
+function paneOffset(
+  scrolls: Boolean,
+  range: Int,
+  live: Int,
+  drawn: Int,
+  drawnAt: Int,
+  drawnKey: Int,
+  pendingTop: Int,
+  pendingKey: Int,
+): Int {
+  if (!scrolls) {
+    return 0;
+  }
+  if (drawnKey !== pendingKey) {
+    return Math.clamp(0, range, pendingTop);
+  }
+  if (live === drawnAt) {
+    return Math.clamp(0, range, drawn);
+  }
+  return Math.clamp(0, range, live);
+}
+
+function thumbTop(recorded: Boolean, thumbAt: Int, travel: Int, offset: Int, range: Int): Int {
+  if (recorded) {
+    return thumbAt;
+  }
+  return ARROW + (travel * offset) / Math.max(1, range);
+}
+
+export function ScrollPane({
+  paneX,
+  paneInsetW,
+  insetH,
+  barRight,
+  extent,
+  paneH,
+  pendingTop,
+  pendingKey,
+  children,
+}: {
+  paneX: Int;
+  paneInsetW: Int;
+  insetH: Int;
+  barRight: Int;
+  extent: Int;
+  paneH: Int;
+  pendingTop: Int;
+  pendingKey: Int;
+  children?: Children;
+}): Component {
+  const [drawn, setDrawn] = useState(0);
+  const [drawnAt, setDrawnAt] = useState(-1);
+  const [drawnKey, setDrawnKey] = useState(0);
+  const [thumbAt, setThumbAt] = useState(-1);
+  const [thumbKey, setThumbKey] = useState(-1);
+  const pane = useRef();
+  const gutter = useRef();
+
+  const scrolls: Boolean = extent > 0;
+  const range: Int = scrolls ? extent - paneH : 0;
+
+  const measured: Int = scrolls ? extent : paneH;
+  const thumbH: Int = thumbHeightOf(paneH, paneH, measured, false);
+  const travel: Int = paneH - ARROW * 2 - thumbH;
+  const key: Int = measured * 1024 + paneH;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={paneX}
+        y="center"
+        w={{ fill: paneInsetW }}
+        h={{ fill: insetH }}
+        scrollHeight={scrolls ? extent : 0}
+        scrollY={paneOffset(scrolls, range, pane.scrollY, drawn, drawnAt, drawnKey, pendingTop, pendingKey)}
+        onScrollWheel={(event) => {
+          const from: Int = pane.scrollY;
+          const next: Int = scrolls ? Math.clamp(0, range, from + event.mouseY * WHEEL) : 0;
+          setDrawn(next);
+          setDrawnAt(from);
+          setDrawnKey(pendingKey);
+          setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+          setThumbKey(key);
+        }}
+      >
+        {children}
+      </layer>
+
+      <layer x={{ right: barRight }} y="center" w={ARROW} h={{ fill: insetH }}>
+        <sprite
+          ref={gutter}
+          y="center"
+          w="fill"
+          h={{ fill: ARROW * 2 }}
+          sprite={CaScrollbar.TRACK}
+          noClickThrough
+          onScrollWheel={(event) => {
+            const from: Int = pane.scrollY;
+            const next: Int = scrolls ? Math.clamp(0, range, from + event.mouseY * WHEEL) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+          onClick={(event) => {
+            const from: Int = pane.scrollY;
+            const span: Int = Math.max(1, travel);
+            const offset: Int = Math.clamp(0, span, event.mouseY - thumbH / 2);
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / span) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y={thumbTop(thumbKey === key, thumbAt, travel, pane.scrollY, range)}
+          w="fill"
+          h={thumbH}
+          sprite={CaScrollbar.THUMB}
+          noClickThrough
+          draggable={gutter}
+          dragMoves
+          onDrag={(event) => {
+            const from: Int = pane.scrollY;
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(offset + ARROW);
+            setThumbKey(key);
+          }}
+          onDragComplete={(event) => {
+            const from: Int = pane.scrollY;
+            const offset: Int = event.mouseY;
+            const next: Int = scrolls ? Math.clamp(0, range, (offset * range) / Math.max(1, travel)) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y={thumbTop(thumbKey === key, thumbAt, travel, pane.scrollY, range)}
+          w="fill"
+          h={CAP}
+          sprite={CaScrollbar.CAP_TOP}
+        />
+        <sprite
+          y={thumbTop(thumbKey === key, thumbAt, travel, pane.scrollY, range) + thumbH - CAP}
+          w="fill"
+          h={CAP}
+          sprite={CaScrollbar.CAP_BOTTOM}
+        />
+        <sprite
+          y="top"
+          w="fill"
+          h={ARROW}
+          sprite={CaScrollbar.ARROW_UP}
+          noClickThrough
+          onHold={() => {
+            const from: Int = pane.scrollY;
+            const next: Int = scrolls ? Math.clamp(0, range, from - STEP) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+        <sprite
+          y="bottom"
+          w="fill"
+          h={ARROW}
+          sprite={CaScrollbar.ARROW_DOWN}
+          noClickThrough
+          onHold={() => {
+            const from: Int = pane.scrollY;
+            const next: Int = scrolls ? Math.clamp(0, range, from + STEP) : 0;
+            setDrawn(next);
+            setDrawnAt(from);
+            setDrawnKey(pendingKey);
+            setThumbAt(ARROW + (travel * next) / Math.max(1, range));
+            setThumbKey(key);
+          }}
+        />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,381 @@
+import { useRef, useServerState, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { Sounds } from '../lib/lib.constants';
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { setTransparency } from '../lib/lib.components';
+import { groupDigits } from '../lib/lib.format';
+import {
+  BACK_PRESSED_CYCLES,
+  BankColor,
+  BankFonts,
+  BankSprites,
+  BankVarbits,
+  BankVarps,
+  ICON_HOVER,
+  ICON_REST,
+  Layout,
+  SAVE_PRESSED_CYCLES,
+} from './shared-bank.constants';
+import { mainBankRef } from './shared-bank.refs';
+import { itemNoteOp, quantityOp, swapInsertOp } from './shared-bank.state';
+
+export function SwapInsertToggle(): Component {
+  const icon = useRef();
+  const insertMode: Int = useServerState(BankVarbits.INSERT_MODE);
+  return (
+    <>
+      <sprite
+        x={Layout.CELL_INSET}
+        y={Layout.CELL_INSET}
+        w={Layout.TOOL}
+        h={Layout.TOOL}
+        sprite={BankSprites.BUTTON_OFF}
+        targetVerb="Enable"
+        options={[insertMode === 1 ? 'Enable <col=ff9040>Swap' : 'Enable <col=ff9040>Insert']}
+        onMouseEnter={() => setTransparency(icon, ICON_HOVER)}
+        onMouseLeave={() => setTransparency(icon, ICON_REST)}
+        onOptionSelect={(event) => swapInsertOp(event.option, insertMode === 1 ? 0 : 1)}
+      />
+      <sprite
+        ref={icon}
+        x={Layout.CELL_ICON_X}
+        y={Layout.CELL_ICON_Y}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        sprite={insertMode === 1 ? BankSprites.SWAP : BankSprites.INSERT}
+        shadowColor={BankColor.SHADOW}
+      />
+    </>
+  );
+}
+
+export function NotesToggle(): Component {
+  const icon = useRef();
+  const withdrawNotes: Int = useServerState(BankVarbits.WITHDRAW_NOTES);
+  return (
+    <>
+      <sprite
+        x={Layout.CELL_INSET}
+        y={Layout.CELL_INSET}
+        w={Layout.TOOL}
+        h={Layout.TOOL}
+        sprite={withdrawNotes === 1 ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[withdrawNotes === 1 ? 'Disable <col=ff9040>Notes' : 'Enable <col=ff9040>Notes']}
+        onMouseEnter={() => setTransparency(icon, ICON_HOVER)}
+        onMouseLeave={() => setTransparency(icon, ICON_REST)}
+        onOptionSelect={(event) => itemNoteOp(event.option, withdrawNotes === 1 ? 0 : 1)}
+      />
+      <sprite
+        ref={icon}
+        x={Layout.CELL_ICON_X}
+        y={Layout.CELL_ICON_Y}
+        w={Layout.ICON_W}
+        h={Layout.ICON_H}
+        sprite={BankSprites.NOTE}
+        shadowColor={BankColor.SHADOW}
+      />
+    </>
+  );
+}
+
+function QuantityButton({
+  value,
+  label,
+  x,
+  op,
+  selected,
+}: {
+  value: Int;
+  label: String;
+  x: Int;
+  op: String;
+  selected: Boolean;
+}): Component {
+  const caption = useRef();
+  return (
+    <>
+      <sprite
+        x={x}
+        y={0}
+        w={Layout.TOOL}
+        h={Layout.TOOL}
+        sprite={selected ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[op]}
+        onMouseEnter={() => {
+          caption.color = BankColor.WHITE;
+        }}
+        onMouseLeave={() => {
+          caption.color = BankColor.CAPTION;
+        }}
+        onOptionSelect={selected ? undefined : (event) => quantityOp(event.option, value)}
+      />
+      <text
+        ref={caption}
+        x={x + Layout.CAPTION_DX}
+        y={{ bottom: Layout.CAPTION_BOTTOM }}
+        w={Layout.CAPTION_W}
+        h={{ fill: Layout.CAPTION_DROP }}
+        text={label}
+        font={BankFonts.BODY}
+        color={BankColor.CAPTION}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function CustomQuantityButton({
+  value,
+  label,
+  x,
+  op,
+  extraOp,
+  selected,
+}: {
+  value: Int;
+  label: String;
+  x: Int;
+  op: String;
+  extraOp: String;
+  selected: Boolean;
+}): Component {
+  const caption = useRef();
+  return (
+    <>
+      <sprite
+        x={x}
+        y={0}
+        w={Layout.TOOL}
+        h={Layout.TOOL}
+        sprite={selected ? BankSprites.BUTTON_ON : BankSprites.BUTTON_OFF}
+        options={[op, extraOp]}
+        onMouseEnter={() => {
+          caption.color = BankColor.WHITE;
+        }}
+        onMouseLeave={() => {
+          caption.color = BankColor.CAPTION;
+        }}
+        onOptionSelect={selected ? undefined : (event) => quantityOp(event.option, value)}
+      />
+      <text
+        ref={caption}
+        x={x + Layout.CAPTION_DX}
+        y={{ bottom: Layout.CAPTION_BOTTOM }}
+        w={Layout.CAPTION_W}
+        h={{ fill: Layout.CAPTION_DROP }}
+        text={label}
+        font={BankFonts.BODY}
+        color={BankColor.CAPTION}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+export function QuantityButtons(): Component {
+  const quantityType: Int = useServerState(BankVarbits.QUANTITY_TYPE);
+  const requestedQuantity: Int = useServerState(BankVarbits.REQUESTED_QUANTITY);
+  return (
+    <>
+      <QuantityButton
+        value={0}
+        label="1"
+        x={Layout.QUANTITY_X0}
+        op="Default quantity: 1"
+        selected={quantityType === 0 ? true : false}
+      />
+      <QuantityButton
+        value={1}
+        label="5"
+        x={Layout.QUANTITY_X0 + Layout.QUANTITY_PITCH}
+        op="Default quantity: 5"
+        selected={quantityType === 1 ? true : false}
+      />
+      <QuantityButton
+        value={2}
+        label="10"
+        x={Layout.QUANTITY_X0 + Layout.QUANTITY_PITCH * 2}
+        op="Default quantity: 10"
+        selected={quantityType === 2 ? true : false}
+      />
+      <CustomQuantityButton
+        value={3}
+        label="X"
+        x={Layout.QUANTITY_X0 + Layout.QUANTITY_PITCH * 3}
+        op={requestedQuantity > 0 ? `Default quantity: ${groupDigits(requestedQuantity, ',')}` : ''}
+        extraOp="Set custom quantity"
+        selected={quantityType === 3 ? true : false}
+      />
+      <QuantityButton
+        value={4}
+        label="All"
+        x={Layout.QUANTITY_X0 + Layout.QUANTITY_PITCH * 4}
+        op="Default quantity: All"
+        selected={quantityType === 4 ? true : false}
+      />
+    </>
+  );
+}
+
+export function SaveButton(): Component {
+  const label = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={['']}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <ButtonBackgroundPressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={BankFonts.SMALL}
+          color={BankColor.PRESSED_LABEL}
+          shadow
+          align="center"
+          valign="middle"
+          text="Refresh"
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={['Save']}
+      onMouseEnter={() => {
+        label.color = BankColor.WHITE;
+      }}
+      onMouseLeave={() => {
+        label.color = BankColor.CAPTION;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + SAVE_PRESSED_CYCLES);
+      }}
+    >
+      <ButtonBackground />
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={BankFonts.BOLD}
+        color={BankColor.CAPTION}
+        shadow
+        align="center"
+        valign="middle"
+        text="Save"
+      />
+    </layer>
+  );
+}
+
+export function BackToBankButton(): Component {
+  const fromBank: Int = useServerState(BankVarps.FROM_BANK);
+  if (fromBank !== 1) {
+    return null;
+  }
+  return (
+    <layer w="fill" h="fill">
+      <BackToBankFace />
+    </layer>
+  );
+}
+
+function BackToBankFace(): Component {
+  const label = useRef();
+  const [pressedUntil, setPressedUntil] = useState(0);
+
+  const text: String = 'Back to bank';
+  mainBankRef.width = textWidth(text, Layout.BIGBUTTON_MEASURE, BankFonts.SMALL) + Layout.BIGBUTTON_PAD;
+
+  if (clientClock() < pressedUntil) {
+    return (
+      <layer
+        w="fill"
+        h="fill"
+        options={[text]}
+        onTimer={() => {
+          if (clientClock() < pressedUntil) {
+            return;
+          }
+          setPressedUntil(0);
+        }}
+      >
+        <ButtonBackgroundPressed />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={BankFonts.SMALL}
+          color={BankColor.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+          text={text}
+        />
+      </layer>
+    );
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[text]}
+      onMouseRepeat={() => {
+        label.color = BankColor.WHITE;
+      }}
+      onMouseLeave={() => {
+        label.color = BankColor.CAPTION;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(Sounds.CLICK);
+        setPressedUntil(clientClock() + BACK_PRESSED_CYCLES);
+      }}
+    >
+      <ButtonBackground />
+      <text
+        ref={label}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={BankFonts.SMALL}
+        color={BankColor.CAPTION}
+        shadow
+        align="center"
+        valign="middle"
+        text={text}
+      />
+    </layer>
+  );
+}

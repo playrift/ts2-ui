@@ -1,0 +1,71 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { BugreportColour, BugreportFonts, BugreportSounds, Layout } from './bugreport.constants';
+
+const URL_BUTTON_PAD = 28;
+
+const PRESS_CYCLES = 20;
+
+const UNBOUNDED = 2147483647;
+
+export function StonebuttonUrl({ label, url }: { label: String; url: String }): Component {
+  const host = useRef();
+  const [look, setLook] = useState(0);
+  const [until, setUntil] = useState(0);
+
+  useInterval(
+    until === 0
+      ? undefined
+      : () => {
+          if (clientClock() < until) {
+            return;
+          }
+          setUntil(0);
+          setLook(0);
+        },
+    host,
+  );
+
+  return (
+    <layer
+      ref={host}
+      x="center"
+      y={Layout.SUPPORT_Y}
+      w={textWidth(label, UNBOUNDED, BugreportFonts.SMALL) + URL_BUTTON_PAD}
+      h={Layout.SUPPORT_H}
+      onMouseEnter={() => setLook(1)}
+      onMouseLeave={() => {
+        if (look === 2) {
+          return;
+        }
+        setLook(0);
+      }}
+      onClick={() => {
+        if (look === 2) {
+          return;
+        }
+        setLook(2);
+        setUntil(clientClock() + PRESS_CYCLES);
+        playSound(BugreportSounds.SELECT);
+        CS2.url_open(url, true);
+      }}
+    >
+      {look === 0 ? <StoneButtonOutFilled /> : <StoneButtonPressedFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={label}
+        font={BugreportFonts.SMALL}
+        shadow
+        align="center"
+        valign="middle"
+        color={look === 2 ? BugreportColour.WHITE : look === 1 ? BugreportColour.AMBER_LIGHT : BugreportColour.AMBER}
+      />
+    </layer>
+  );
+}

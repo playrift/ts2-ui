@@ -1,0 +1,98 @@
+import { useOnResize, useRef, useState, useUniverse } from 'ts2';
+
+import { minmax } from '../0811_lockpicking/lockpicking.state';
+import { Build, CollectionColor, CollectionFonts, CollectionSprites, Copy } from './collection.constants';
+import { CollectionTabs } from './collection.data';
+import { collectionSearchOpen, collectionTab } from './collection.state';
+
+export function CollectionTabStrip(): Component {
+  const strip = useUniverse();
+  useOnResize(strip);
+  const [tab] = useState(collectionTab);
+  const [searchOpen] = useState(collectionSearchOpen);
+  const selected: Int = tab === -1 ? 0 : tab;
+
+  const tabW: Int = minmax(Build.TAB_MIN_W, Build.TAB_MAX_W, strip.width / Build.TAB_COUNT - Build.TAB_GAP);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={searchOpen === 1}>
+      {CollectionTabs.map((row, index) => (
+        <CollectionTab name={row.name} selected={index === selected} x={index * (tabW + Build.TAB_GAP)} w={tabW} />
+      ))}
+    </layer>
+  );
+}
+
+function CollectionTab({ name, selected, x, w }: { name: String; selected: Boolean; x: Int; w: Int }): Component {
+  const left = useRef();
+  const middle = useRef();
+  const right = useRef();
+
+  return (
+    <layer
+      x={x}
+      y={0}
+      w={w}
+      h="fill"
+      options={[Copy.VIEW]}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onMouseEnter={
+        selected
+          ? undefined
+          : () => {
+              left.sprite = CollectionSprites.TAB_CAP_LIT;
+              middle.sprite = CollectionSprites.TAB_MID_LIT;
+              right.sprite = CollectionSprites.TAB_CAP_LIT;
+            }
+      }
+      onMouseLeave={
+        selected
+          ? undefined
+          : () => {
+              left.sprite = CollectionSprites.TAB_CAP;
+              middle.sprite = CollectionSprites.TAB_MID;
+              right.sprite = CollectionSprites.TAB_CAP;
+            }
+      }
+    >
+      <sprite
+        ref={left}
+        x={0}
+        y="center"
+        w={Build.TAB_CAP}
+        h={Build.TAB_CAP}
+        sprite={selected ? CollectionSprites.TAB_CAP_LIT : CollectionSprites.TAB_CAP}
+      />
+      <sprite
+        ref={middle}
+        x="center"
+        y="center"
+        w={{ fill: Build.TAB_MID_INSET }}
+        h={Build.TAB_CAP}
+        sprite={selected ? CollectionSprites.TAB_MID_LIT : CollectionSprites.TAB_MID}
+        tiling
+      />
+      <sprite
+        ref={right}
+        x="right"
+        y="center"
+        w={Build.TAB_CAP}
+        h={Build.TAB_CAP}
+        sprite={selected ? CollectionSprites.TAB_CAP_LIT : CollectionSprites.TAB_CAP}
+        hflip
+      />
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Build.TAB_TEXT_INSET }}
+        h="fill"
+        text={name}
+        font={CollectionFonts.BODY}
+        shadow
+        color={selected ? CollectionColor.TAB_SELECTED : CollectionColor.ORANGE}
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

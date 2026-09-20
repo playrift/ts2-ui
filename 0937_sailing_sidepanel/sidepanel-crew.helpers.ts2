@@ -1,0 +1,412 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { sailingKeelsOffered } from '../0312_smithing/smithing.helpers';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { sailingSidepanelCaptainName, sailingSidepanelNavigatorName } from '../lib/game/varcs';
+import { npcName, playSound } from '../lib/lib.engine';
+import { SidepanelBoats, SidepanelHotspots, SidepanelLayouts, SidepanelParts } from './sidepanel-boats.data';
+import { SidepanelCrew } from './sidepanel-crew.data';
+import {
+  sidepanelCrewCanEdit,
+  sidepanelCrewCapCurrent,
+  sidepanelCrewCapMax,
+  sidepanelCrewCapPlayer,
+  sidepanelCrewExperienced,
+  sidepanelCrewIcon0,
+  sidepanelCrewIcon1,
+  sidepanelCrewIcon2,
+  sidepanelCrewIcon3,
+  sidepanelCrewIcon4,
+  sidepanelCrewId0,
+  sidepanelCrewId1,
+  sidepanelCrewId2,
+  sidepanelCrewId3,
+  sidepanelCrewId4,
+  sidepanelCrewRows,
+  sidepanelCrewView,
+  sidepanelCrewWhirlpool,
+} from './sailing-sidepanel.state';
+
+const CLICK = 2266;
+const NO_FACILITY_ICON = 7086;
+const NO_PORTRAIT = 7102;
+const PORTRAIT_FALLBACK = 520;
+
+export function boatIndex(): Int {
+  return useServerState(Varps.SAILING_SIDEPANEL_BOAT_TYPE);
+}
+
+export function crewSlot(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_1);
+    case 1:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_2);
+    case 2:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_3);
+    case 3:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_4);
+    case 4:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_5);
+  }
+  return 0;
+}
+
+export function crewPosition(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_1_POSITION);
+    case 1:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_2_POSITION);
+    case 2:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_3_POSITION);
+    case 3:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_4_POSITION);
+    case 4:
+      return useServerState(Varbits.SAILING_SIDEPANEL_CREW_SLOT_5_POSITION);
+  }
+  return 0;
+}
+
+export function crewCount(): Int {
+  let count: Int = 0;
+  let slot: Int = 0;
+  while (slot < 5) {
+    if (crewSlot(slot) !== 0) {
+      count = count + 1;
+    }
+    slot = slot + 1;
+  }
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return count;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat !== null) {
+    count = Math.min(count, boat.crewCapacity);
+  }
+  return count;
+}
+
+export function boatPlayerCapacity(): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return 0;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return 0;
+  }
+  return boat.playerCapacity;
+}
+
+export function boatCrewCapacity(): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return 0;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return 0;
+  }
+  return Math.min(5, boat.crewCapacity);
+}
+
+export function crewStat(which: Int, crewId: Int, whirlpool: Boolean): Int {
+  if (crewId < 1) {
+    return 1;
+  }
+  const row = SidepanelCrew.at(crewId - 1);
+  if (row === null) {
+    return 1;
+  }
+  let value: Int = 1;
+  switch (which) {
+    case 1:
+      value = row.statHelmsmanship;
+      if (whirlpool) {
+        value = Math.max(value, 2);
+      }
+      break;
+    case 2:
+      value = row.statPrivateering;
+      break;
+    case 3:
+      value = row.statDeckhandiness;
+      if (whirlpool) {
+        value = Math.max(value, 2);
+      }
+      break;
+    default:
+      return 1;
+  }
+  return Math.max(1, Math.min(5, value));
+}
+
+export function crewStatLine(crewId: Int, whirlpool: Boolean): String {
+  return `H${crewStat(1, crewId, whirlpool)} P${crewStat(2, crewId, whirlpool)} D${crewStat(3, crewId, whirlpool)}`;
+}
+
+export function crewRowText(crewId: Int, whirlpool: Boolean): String {
+  return `${crewName(crewId)}<br>${crewStatLine(crewId, whirlpool)}`;
+}
+
+export function crewName(crewId: Int): String {
+  if (crewId < 1) {
+    return 'Crewmate';
+  }
+  const row = SidepanelCrew.at(crewId - 1);
+  if (row === null) {
+    return 'Crewmate';
+  }
+  return npcName(row.cargoNpc);
+}
+
+export function crewPortrait(crewId: Int): Sprite {
+  if (crewId < 1) {
+    return PORTRAIT_FALLBACK;
+  }
+  const row = SidepanelCrew.at(crewId - 1);
+  if (row !== null) {
+    if (row.sprite !== NO_PORTRAIT) {
+      return row.sprite;
+    }
+  }
+  return PORTRAIT_FALLBACK;
+}
+
+function partLayout(first: Int, count: Int, index: Int): Int {
+  if (index < 0 || index >= count) {
+    return -1;
+  }
+  const part = SidepanelParts.at(first + index);
+  if (part === null) {
+    return -1;
+  }
+  return part.layout;
+}
+
+export function hotspotOption(hotspot: Int): Int {
+  switch (hotspot) {
+    case 0:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT0);
+    case 1:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT1);
+    case 2:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT2);
+    case 3:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT3);
+    case 4:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT4);
+    case 5:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT5);
+    case 6:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT6);
+    case 7:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT7);
+    case 8:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT8);
+    case 9:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT9);
+    case 10:
+      return useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HOTSPOT10);
+    case 11:
+      return useServerState(Varbits.VARBIT_20185);
+    case 12:
+      return useServerState(Varbits.VARBIT_20186);
+  }
+  return 0;
+}
+
+export function hotspotPart(hotspot: Int): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return -1;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return -1;
+  }
+  if (hotspot < 0 || hotspot >= boat.hotspotCount) {
+    return -1;
+  }
+  const row = SidepanelHotspots.at(boat.hotspotFirst + hotspot);
+  if (row === null) {
+    return -1;
+  }
+  const option: Int = hotspotOption(hotspot) - 1;
+  if (option < 0 || option >= row.optionCount) {
+    return -1;
+  }
+  return row.optionFirst + option;
+}
+
+export function positionLayout(position: Int): Int {
+  const b: Int = boatIndex();
+  if (b < 0) {
+    return -1;
+  }
+  const boat = SidepanelBoats.at(b);
+  if (boat === null) {
+    return -1;
+  }
+  if (position === 2) {
+    return partLayout(boat.sailFirst, boat.sailCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_SAIL));
+  }
+  if (position === 3 || position === 4) {
+    return partLayout(boat.helmFirst, boat.helmCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HELM));
+  }
+  if (position === 5) {
+    return partLayout(boat.hullFirst, boat.hullCount, useServerState(Varbits.SAILING_SIDEPANEL_FACILITY_HULL));
+  }
+  if (position >= 6 && position <= 18) {
+    const partIndex: Int = hotspotPart(position - 6);
+    if (partIndex < 0) {
+      return -1;
+    }
+    const part = SidepanelParts.at(partIndex);
+    if (part === null) {
+      return -1;
+    }
+    return part.layout;
+  }
+  return -1;
+}
+
+export function layoutIcon(layout: Int): Sprite {
+  if (layout < 0) {
+    return NO_FACILITY_ICON;
+  }
+  const row = SidepanelLayouts.at(layout);
+  if (row !== null) {
+    if (row.icon >= 0) {
+      return row.icon;
+    }
+  }
+  return NO_FACILITY_ICON;
+}
+
+export function sidepanelCrewCapture(view: Int): void {
+  const [, setView] = useState(sidepanelCrewView);
+  const [, setCapCurrent] = useState(sidepanelCrewCapCurrent);
+  const [, setCapMax] = useState(sidepanelCrewCapMax);
+  const [, setCapPlayer] = useState(sidepanelCrewCapPlayer);
+  const [, setExperienced] = useState(sidepanelCrewExperienced);
+  const [, setCanEdit] = useState(sidepanelCrewCanEdit);
+  const [, setRows] = useState(sidepanelCrewRows);
+
+  setView(view);
+  let current: Int = 0;
+  let max: Int = 0;
+  if (view === 1) {
+    current = useServerState(Varbits.SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL);
+    max = boatPlayerCapacity();
+  } else {
+    current = crewCount();
+    max = boatCrewCapacity();
+  }
+  setCapCurrent(current);
+  setCapMax(max);
+  setCapPlayer(view);
+  const experienced: Boolean = sailingKeelsOffered();
+  setExperienced(experienced ? 1 : 0);
+  setCanEdit(experienced && useServerState(Varbits.SAILING_SIDEPANEL_PLAYER_ROLE) === 10 ? 1 : 0);
+  const [, setWhirlpool] = useState(sidepanelCrewWhirlpool);
+  setWhirlpool(useServerState(Varbits.SAILING_SIDEPANEL_WHIRLPOOL_SURPRISE_ACTIVE));
+
+  let rows: Int = 0;
+  if (view === 0 && current !== 0) {
+    let slot: Int = 0;
+    while (rows < max && slot < 5) {
+      const crewId: Int = crewSlot(slot);
+      if (crewId !== 0) {
+        storeCrewRow(rows, crewId, layoutIcon(positionLayout(crewPosition(slot))));
+        rows = rows + 1;
+      }
+      slot = slot + 1;
+    }
+  }
+  setRows(rows);
+}
+
+function storeCrewRow(index: Int, crewId: Int, icon: Sprite): void {
+  switch (index) {
+    case 0: {
+      const [, c] = useState(sidepanelCrewId0);
+      const [, i] = useState(sidepanelCrewIcon0);
+      c(crewId);
+      i(icon as Int);
+      return;
+    }
+    case 1: {
+      const [, c] = useState(sidepanelCrewId1);
+      const [, i] = useState(sidepanelCrewIcon1);
+      c(crewId);
+      i(icon as Int);
+      return;
+    }
+    case 2: {
+      const [, c] = useState(sidepanelCrewId2);
+      const [, i] = useState(sidepanelCrewIcon2);
+      c(crewId);
+      i(icon as Int);
+      return;
+    }
+    case 3: {
+      const [, c] = useState(sidepanelCrewId3);
+      const [, i] = useState(sidepanelCrewIcon3);
+      c(crewId);
+      i(icon as Int);
+      return;
+    }
+    case 4: {
+      const [, c] = useState(sidepanelCrewId4);
+      const [, i] = useState(sidepanelCrewIcon4);
+      c(crewId);
+      i(icon as Int);
+      return;
+    }
+  }
+}
+
+export function sailingSidepanelCrewRedraw(): void {
+  sidepanelCrewCapture(useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW));
+}
+
+export function sailingSidepanelCrewNames(
+  setCaptain: Int,
+  setNavigator: Int,
+  captain: String,
+  navigator: String,
+): void {
+  if (setCaptain === 1) {
+    const [, setCaptainName] = useState(sailingSidepanelCaptainName);
+    setCaptainName(captain);
+  }
+  if (setNavigator === 1) {
+    const [, setNavigatorName] = useState(sailingSidepanelNavigatorName);
+    setNavigatorName(navigator);
+  }
+  if (useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW) === 1) {
+    const [, setCanEdit] = useState(sidepanelCrewCanEdit);
+    setCanEdit(sailingKeelsOffered() && useServerState(Varbits.SAILING_SIDEPANEL_PLAYER_ROLE) === 10 ? 1 : 0);
+  }
+}
+
+export function sidepanelCrewSelectView(view: Int): void {
+  playSound(CLICK);
+  predictServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW, view);
+  sidepanelCrewCapture(view);
+}
+
+export function sidepanelCrewCapacityTransmit(): void {
+  if (useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW) !== 1) {
+    return;
+  }
+  const [, setCapCurrent] = useState(sidepanelCrewCapCurrent);
+  const [, setCapMax] = useState(sidepanelCrewCapMax);
+  const [, setCapPlayer] = useState(sidepanelCrewCapPlayer);
+  setCapCurrent(useServerState(Varbits.SAILING_SIDEPANEL_PLAYERS_ON_BOARD_TOTAL));
+  setCapMax(boatPlayerCapacity());
+  setCapPlayer(1);
+}

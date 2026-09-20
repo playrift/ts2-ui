@@ -1,0 +1,392 @@
+import {
+  CHAT_BACKDROP_MOBILE,
+  CHAT_BACKDROP_OPAQUE,
+  CHAT_BACKDROP_RAMP,
+  CHAT_CLICK_FULL,
+  CHAT_CLICK_STRIP,
+  CHAT_CLICK_WIDE,
+  SCROLLBAR_OPAQUE,
+  SCROLLBAR_SEE_THROUGH,
+  SCROLLBAR_SEE_THROUGH_MOBILE,
+  chatScrollbarStyle,
+  chatboxAreaHidden,
+  chatboxBackdrop,
+  chatboxBarFlipped,
+  chatboxBlockClick,
+  chatboxClickBox,
+  chatboxRepaint,
+  chatboxStripAlpha,
+  chatboxStripPlate,
+  chatInputTransparent,
+  chatPaneExtent,
+} from './chatbox.state';
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { GameframeSlot, gameframeSlot } from '../lib/lib.gameframe';
+import { universeRef as fixedFrameRef } from '../0548_toplevel/toplevel.constants';
+import {
+  chatBackgroundInvisibleTimeout,
+  chatHighlight,
+  chatView,
+  chatinput,
+  chatboxMode,
+  crmOverlayActive,
+  osmChatboxDisabled,
+  osmChatboxFiltersDisabled,
+} from '../lib/game/varcs';
+import { graphicSwapper, onMobile, opsound, toplevelComponents } from '../lib/lib.helpers';
+import { mobileGameframe } from '../lib/lib.overlay';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { accountIcon, groupPrefixed } from './chatbox.helpers';
+import { chatButtonHover, chatAlertSet, chatSetFilter } from './chat-buttons';
+import { CHAT_VIEW_COLLAPSED, ChatTab } from './chatbox.data';
+import {
+  ChatboxAlpha,
+  ChatboxColor,
+  ChatboxFonts,
+  ChatboxSprites,
+  Layout,
+  chatareaRef,
+  chatboxAreaRef,
+  chatcrmRef,
+  chatmodalRef,
+  chatoverlayRef,
+  controlsBackgroundRef,
+  controlsGraphicRef,
+  controlsRef,
+  inputClickareaRef,
+  inputLineRef,
+  line0Ref,
+  mesLayerRef,
+  reportGraphicRef,
+  reportRef,
+  tab0Ref,
+  tab1Ref,
+  tab2Ref,
+  tab3Ref,
+  tab4Ref,
+  tab5Ref,
+  tab6Ref,
+} from './chatbox.constants';
+
+export function chatContainer(): ComponentId {
+  return gameframeSlot(GameframeSlot.CHAT_CONTAINER);
+}
+
+export const WINDOW_MODE_FIXED = 1;
+export const WINDOW_MODE_RESIZABLE = 2;
+
+export function chatboxPermitTransparent(): Boolean {
+  if (CS2.window_mode_get() === WINDOW_MODE_FIXED) {
+    return false;
+  }
+  if (CS2.if_sub_has(chatmodalRef) || CS2.if_sub_has(chatoverlayRef)) {
+    return false;
+  }
+  if (!CS2.if_hide_get(mesLayerRef)) {
+    return false;
+  }
+  const [crm] = useState(crmOverlayActive);
+  if (CS2.testbit(crm, 0) === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function chatboxMakeTransparent(): Boolean {
+  if (!chatboxPermitTransparent()) {
+    return false;
+  }
+  if (onMobile()) {
+    return true;
+  }
+  if (useServerState(Varbits.CHATBOX_TRANSPARENCY) === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function chatboxControlsTransparent(): Boolean {
+  if (onMobile()) {
+    return true;
+  }
+  if (!chatboxPermitTransparent()) {
+    return false;
+  }
+  if (useServerState(Varbits.CHATBOX_TRANSPARENCY) === 0) {
+    return false;
+  }
+  return true;
+}
+
+export function chatboxInputReachable(): Int {
+  if (CS2.if_sub_has(chatoverlayRef) || CS2.if_sub_has(chatmodalRef) || !CS2.if_hide_get(mesLayerRef)) {
+    return 0;
+  }
+  return 1;
+}
+
+export function chatBackdropVisible(): Int {
+  const [invisibleUntil] = useState(chatBackgroundInvisibleTimeout);
+  if (CS2.clientclock() < invisibleUntil && CS2.if_top_get() !== interfaceOf(fixedFrameRef)) {
+    return 0;
+  }
+  return 1;
+}
+
+export function chatboxBackground(): void {
+  const [view, setView] = useState(chatView);
+  const [chatDisabled] = useState(osmChatboxDisabled);
+  const mobileFrame: Boolean = mobileGameframe(toplevelComponents());
+
+  const [, setAreaHidden] = useState(chatboxAreaHidden);
+  const [, setBarFlipped] = useState(chatboxBarFlipped);
+  const [, setClickBox] = useState(chatboxClickBox);
+  const [, setBlockClick] = useState(chatboxBlockClick);
+  const [, setStripAlpha] = useState(chatboxStripAlpha);
+  const [, setBackdrop] = useState(chatboxBackdrop);
+  const [, setStripPlate] = useState(chatboxStripPlate);
+  const [repaint, setRepaint] = useState(chatboxRepaint);
+  const [, setBarStyle] = useState(chatScrollbarStyle);
+
+  let hideArea: Boolean = false;
+  if (
+    view === CHAT_VIEW_COLLAPSED ||
+    (useServerState(Varbits.CUTSCENE_STATUS) === 1 && CS2.window_mode_get() !== WINDOW_MODE_FIXED) ||
+    (mobileFrame && chatDisabled === 1)
+  ) {
+    if (chatboxPermitTransparent()) {
+      hideArea = true;
+    } else if (CS2.window_mode_get() === WINDOW_MODE_FIXED) {
+      setView(ChatTab.ALL);
+      chatAlertSet(ChatTab.ALL, 0);
+    }
+  }
+  setAreaHidden(hideArea ? 1 : 0);
+
+  if (useServerState(Varbits.CHATBOX_SCROLLBARSIDE) === 1 && CS2.window_mode_get() !== WINDOW_MODE_FIXED) {
+    setBarFlipped(1);
+  } else {
+    setBarFlipped(0);
+  }
+
+  let clickBox: Int = CHAT_CLICK_FULL;
+  if (chatboxInputReachable() === 1 && mobileFrame) {
+    clickBox = CHAT_CLICK_WIDE;
+  }
+
+  if (!chatboxMakeTransparent()) {
+    setBackdrop(CHAT_BACKDROP_OPAQUE);
+    setStripPlate(0);
+    setClickBox(clickBox);
+    setBlockClick(1);
+    setStripAlpha(chatboxControlsTransparent() ? ChatboxAlpha.INVISIBLE : ChatboxAlpha.OPAQUE);
+    setBarStyle(SCROLLBAR_OPAQUE);
+    setRepaint(repaint + 1);
+    return;
+  }
+
+  if (useServerState(Varbits.TRANSPARENT_CHATBOX_BLOCKCLICK) === 1) {
+    setBlockClick(1);
+  } else {
+    setBlockClick(0);
+  }
+
+  let stripPlate: Int = 0;
+  if (!onMobile()) {
+    setBackdrop(CHAT_BACKDROP_RAMP);
+  } else {
+    setBackdrop(CHAT_BACKDROP_MOBILE);
+    clickBox = CHAT_CLICK_STRIP;
+    if (!hideArea) {
+      stripPlate = 1;
+    }
+  }
+  setClickBox(clickBox);
+
+  setBarStyle(onMobile() ? SCROLLBAR_SEE_THROUGH_MOBILE : SCROLLBAR_SEE_THROUGH);
+
+  if (hideArea) {
+    setStripAlpha(ChatboxAlpha.INVISIBLE);
+  } else if (!onMobile()) {
+    setStripAlpha(STRIP_TRANSPARENT_ALPHA);
+  } else {
+    setStripAlpha(ChatboxAlpha.INVISIBLE);
+  }
+  setStripPlate(stripPlate);
+  setRepaint(repaint + 1);
+}
+
+const STRIP_TRANSPARENT_ALPHA = 155;
+
+const MOBILE_STRIP_W = 58;
+
+export function mobileChatboxResize(): void {
+  if (!onMobile()) {
+    return;
+  }
+  const was: Int = chatareaRef.height!;
+  let covered: Int = 0;
+  const [crm] = useState(crmOverlayActive);
+  if (
+    CS2.if_sub_has(chatmodalRef) ||
+    CS2.if_sub_has(chatoverlayRef) ||
+    !CS2.if_hide_get(mesLayerRef) ||
+    CS2.testbit(crm, 0) === 1
+  ) {
+    covered = 1;
+  }
+  let height: Int = MOBILE_CHATAREA_H - MOBILE_CHATAREA_INSET;
+  if (covered === 0 && !CS2.if_hide_get(controlsRef)) {
+    height = MOBILE_CHATAREA_H - MOBILE_CHATAREA_INSET - MOBILE_STRIP_H;
+  }
+  CS2.if_position_set(0, 0, 2, 2, chatareaRef);
+  CS2.if_size_set(Layout.CHATAREA_W, height, 0, 0, chatareaRef);
+  settleEmptyPaneExtent();
+}
+
+export function settleEmptyPaneExtent(): void {
+  const paneExtent: Int = Math.max(EMPTY_PANE_EXTENT, line0Ref.height!);
+  CS2.if_scroll_size_set(0, paneExtent, line0Ref);
+  const [, setPaneExtent] = useState(chatPaneExtent);
+  setPaneExtent(paneExtent);
+}
+
+const EMPTY_PANE_EXTENT = 2;
+
+const MOBILE_CHATAREA_H = 165;
+const MOBILE_CHATAREA_INSET = 20;
+const MOBILE_STRIP_H = 30;
+
+export function chatboxRelayout(): void {
+  chatboxBackground();
+
+  const [chatDisabled] = useState(osmChatboxDisabled);
+  const [filtersDisabled] = useState(osmChatboxFiltersDisabled);
+  const [, setHighlight] = useState(chatHighlight);
+  const mobileFrame: Boolean = mobileGameframe(toplevelComponents());
+
+  if (
+    (useServerState(Varbits.CUTSCENE_STATUS) === 1 && CS2.window_mode_get() !== WINDOW_MODE_FIXED) ||
+    (mobileFrame &&
+      ((chatDisabled === 1 && useServerState(Varbits.SETTINGS_MOBILE_SHOW_FILTER_STONES_ENABLED) === 0) ||
+        filtersDisabled === 1))
+  ) {
+    controlsRef.hide = true;
+  } else {
+    controlsRef.hide = false;
+  }
+
+  const container: ComponentId = chatContainer();
+  let seed: Int = 0;
+  let onPhone: Int = 0;
+
+  if (onMobile()) {
+    onPhone = 1;
+    setHighlight(-1);
+    if (container !== -1) {
+      CS2.if_size_set(Layout.CONTROLS_W, MOBILE_CHATAREA_H - MOBILE_CHATAREA_INSET, 0, 0, container);
+    }
+    CS2.if_position_set(0, 2, 2, 0, controlsRef);
+    CS2.if_size_set(Layout.CONTROLS_W - MOBILE_STRIP_W, MOBILE_STRIP_H - 2, 0, 0, controlsRef);
+    CS2.if_position_set(2, 0, 2, 0, chatboxAreaRef);
+    CS2.if_size_set(Layout.CONTROLS_W - MOBILE_STRIP_W - 4, 0, 0, 1, chatboxAreaRef);
+    mobileChatboxResize();
+    reportRef.hide = true;
+    seed = 1;
+    controlsRef.noClickThrough = false;
+    controlsBackgroundRef.noClickThrough = false;
+    controlsRef.noScrollThrough = false;
+    controlsBackgroundRef.noScrollThrough = false;
+  } else {
+    if (container !== -1) {
+      CS2.if_size_set(Layout.CONTROLS_W, MOBILE_CHATAREA_H, 0, 0, container);
+    }
+    CS2.if_position_set(0, 0, 1, 1, chatboxAreaRef);
+    CS2.if_size_set(Layout.AREA_INSET_W, Layout.AREA_INSET_H, 1, 1, chatboxAreaRef);
+    CS2.if_position_set(0, 0, 0, 2, controlsRef);
+    CS2.if_size_set(Layout.CONTROLS_W, Layout.CONTROLS_H, 0, 0, controlsRef);
+    CS2.if_position_set(0, 0, 0, 0, chatareaRef);
+    CS2.if_size_set(Layout.CHATAREA_W, Layout.CHATAREA_H_INSET, 0, 1, chatareaRef);
+    reportRef.hide = false;
+    CS2.if_size_set(Layout.REPORT_W, 0, 0, 1, reportRef);
+    reportGraphicRef.sprite = ChatboxSprites.REPORT;
+    reportRef.onMouseLeave = () => graphicSwapper(reportGraphicRef, ChatboxSprites.REPORT);
+    reportRef.onMouseEnter = () => graphicSwapper(reportGraphicRef, ChatboxSprites.REPORT_HOVER);
+    CS2.if_position_set(Layout.REPORT_RIGHT, 0, 2, 1, reportRef);
+    seed = REPORT_SEED;
+    controlsRef.noClickThrough = true;
+    controlsBackgroundRef.noClickThrough = true;
+    controlsRef.noScrollThrough = true;
+    controlsBackgroundRef.noScrollThrough = true;
+  }
+
+  let stride: Int = TAB_STRIDE;
+  let gap: Int = 0;
+  if (onPhone === 0) {
+    gap = (Layout.CONTROLS_W + 3 - (seed + TAB_STRIDE * (ChatTab.TRADE + 1))) / (ChatTab.TRADE + 2);
+  } else {
+    stride = MOBILE_TAB_STRIDE;
+    gap =
+      (Layout.CONTROLS_W - MOBILE_STRIP_W + 3 - (seed + MOBILE_TAB_STRIDE * (ChatTab.TRADE + 1))) / (ChatTab.TRADE + 2);
+  }
+
+  let x: Int = seed + gap;
+  placeTab(tab6Ref, x, ChatTab.TRADE, onPhone);
+  x = x + stride + gap;
+  placeTab(tab5Ref, x, ChatTab.CLAN, onPhone);
+  x = x + stride + gap;
+  placeTab(tab4Ref, x, ChatTab.CHANNEL, onPhone);
+  x = x + stride + gap;
+  placeTab(tab3Ref, x, ChatTab.PRIVATE, onPhone);
+  x = x + stride + gap;
+  placeTab(tab2Ref, x, ChatTab.PUBLIC, onPhone);
+  x = x + stride + gap;
+  placeTab(tab1Ref, x, ChatTab.GAME, onPhone);
+  x = x + stride + gap;
+  placeTab(tab0Ref, x, ChatTab.ALL, onPhone);
+
+  if (useServerState(Varbits.CHATMODAL_UNCLAMP) === 1 && CS2.if_sub_has(chatmodalRef)) {
+    CS2.if_size_set(0, 0, 1, 1, chatmodalRef);
+  } else {
+    CS2.if_size_set(Layout.SUB_W, Layout.SUB_H, 0, 0, chatmodalRef);
+  }
+  if (useServerState(Varbits.CHATOVERLAY_UNCLAMP) === 1 && CS2.if_sub_has(chatoverlayRef)) {
+    CS2.if_size_set(0, 0, 1, 1, chatoverlayRef);
+  } else {
+    CS2.if_size_set(Layout.SUB_W, Layout.SUB_H, 0, 0, chatoverlayRef);
+  }
+
+  if (CS2.chat_filter_private_get() !== useServerState(Varbits.CHAT_FILTER_PRIVATE)) {
+    chatSetFilter(ChatTab.PRIVATE, useServerState(Varbits.CHAT_FILTER_PRIVATE));
+  }
+
+  redrawChatInput();
+}
+
+const REPORT_SEED = 82;
+
+const TAB_STRIDE = 58;
+const MOBILE_TAB_STRIDE = 60;
+
+export function redrawChatInput(): void {
+  const [, setTransparent] = useState(chatInputTransparent);
+  setTransparent(chatboxMakeTransparent() ? 1 : 0);
+}
+
+function placeTab(button: ComponentId, x: Int, tab: Int, onPhone: Int): void {
+  CS2.if_position_set(x, 0, 2, 1, button);
+  if (onMobile()) {
+    CS2.if_size_set(Layout.TAB_W + 2, 0, 0, 1, button);
+  } else {
+    CS2.if_size_set(Layout.TAB_W, 0, 0, 1, button);
+  }
+  if (onPhone === 1) {
+    button.onMouseEnter = null;
+    button.onMouseLeave = null;
+  } else {
+    button.onMouseEnter = () => chatButtonHover(1, tab);
+    button.onMouseLeave = () => chatButtonHover(0, tab);
+  }
+}

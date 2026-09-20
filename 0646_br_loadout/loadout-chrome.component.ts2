@@ -1,0 +1,214 @@
+import { CS2, useDerived, useInterval, useRef, useState } from 'ts2';
+import { chatMessage } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { tobHudNameFlasher } from './name-flasher';
+import { DROPDOWN_ROW_H, LoadoutColor, LoadoutFonts, LoadoutSprites, Tab } from './br-loadout.constants';
+import { spellbookName, spellbookOfClamped } from './br-loadout.helpers';
+import { SpellbookOrder } from './loadout-tables.data';
+import { anyOverCap } from './loadout-edit';
+import { openDropdown, openSpellbook, releaseSpellbook, selectSpellbook, selectedTab } from './br-loadout.state';
+
+const BIN_LABEL = 'Drag items here to discard them.';
+
+export function DiscardBin(): Component {
+  const [hot, setHot] = useState(0);
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={() => {
+        setHot(1);
+      }}
+      onMouseLeave={() => {
+        setHot(0);
+      }}
+      onClick={() => {
+        chatMessage(BIN_LABEL);
+      }}
+    >
+      <sprite x="left" y="center" w={36} h={36} sprite={LoadoutSprites.SLOT_BACK} />
+      <sprite x={2} y="center" w={29} h={22} sprite={LoadoutSprites.BIN} />
+      <text
+        x="right"
+        y="center"
+        w={{ fill: 38 }}
+        h="fill"
+        color={hot === 1 ? LoadoutColor.WHITE : LoadoutColor.LABEL}
+        font={LoadoutFonts.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        text={BIN_LABEL}
+      />
+    </layer>
+  );
+}
+
+export function SpellbookControl(): Component {
+  const [tab] = useState(selectedTab);
+  const [open] = useState(openDropdown);
+  const [hot, setHot] = useState(0);
+  const menuA: Int = useDerived(() => spellbookOfClamped(Tab.MAX_MED));
+  const menuB: Int = useDerived(() => spellbookOfClamped(Tab.ZERKER));
+  const menuC: Int = useDerived(() => spellbookOfClamped(Tab.PURE));
+  const menu: Int = tab === Tab.ZERKER ? menuB : tab === Tab.PURE ? menuC : menuA;
+  const isOpen: Boolean = open >= 0;
+  const lit: Boolean = !isOpen && hot === 1;
+  const hoverable: Boolean = !isOpen && !onMobile();
+  return (
+    <layer w="fill" h="fill">
+      <sprite
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        sprite={LoadoutSprites.TRADEBACKING}
+        tiling
+        transparency={isOpen ? 255 : lit ? 100 : 0}
+        onMouseEnter={
+          hoverable
+            ? () => {
+                setHot(1);
+              }
+            : undefined
+        }
+        onMouseLeave={
+          hoverable
+            ? () => {
+                setHot(0);
+              }
+            : undefined
+        }
+        onClick={() => {
+          setHot(0);
+          openSpellbook(tab);
+        }}
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={LoadoutColor.CONTROL_OUTER} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={LoadoutColor.CONTROL_INNER} />
+      <sprite
+        x={{ right: 2 }}
+        y="center"
+        w={16}
+        h={16}
+        sprite={isOpen ? LoadoutSprites.SCROLL_ARROW_UP : LoadoutSprites.SCROLL_ARROW_DOWN}
+        transparency={lit ? 125 : 0}
+      />
+      <text
+        x={2}
+        y="center"
+        w={{ fill: 20 }}
+        h={{ fill: 4 }}
+        font={LoadoutFonts.BODY}
+        color={isOpen || lit ? LoadoutColor.LABEL_HOT : LoadoutColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={spellbookName(menu)}
+      />
+    </layer>
+  );
+}
+
+export function SpellbookSheet(): Component {
+  const [open] = useState(openDropdown);
+  const [hot, setHot] = useState(-1);
+  const hoverable: Boolean = !onMobile();
+  const rowH: Int = onMobile() ? CS2.scale(8, 5, DROPDOWN_ROW_H) : DROPDOWN_ROW_H;
+  const rows: Int = open === Tab.PURE ? 2 : 3;
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      hide={open < 0}
+      noClickThrough
+      onClick={() => {
+        releaseSpellbook();
+      }}
+    >
+      <rect x="center" y="center" w="fill" h="fill" fill transparency={180} />
+      <layer x="right" y={19} w={{ fill: 316 }} h={rows * rowH + 6}>
+        <sprite x="center" y="center" w="fill" h="fill" sprite={LoadoutSprites.TRADEBACKING} tiling />
+        <rect
+          x={0}
+          y={hot < 0 ? 0 : hot * rowH + 2}
+          w="fill"
+          h={rowH + 2}
+          fill
+          color={LoadoutColor.WHITE}
+          transparency={200}
+          hide={hot < 0}
+        />
+        <ThinStoneBox />
+        {SpellbookOrder.map((book, menu) => (
+          <text
+            x="center"
+            y={menu * rowH + 2}
+            w="fill"
+            h={rowH}
+            hide={open === Tab.PURE && book === 2}
+            color={hot === menu ? LoadoutColor.LABEL_HOT : LoadoutColor.LABEL}
+            font={LoadoutFonts.BODY}
+            shadow
+            align="center"
+            valign="middle"
+            text={spellbookName(menu)}
+            options={['Select']}
+            onMouseEnter={
+              hoverable
+                ? () => {
+                    setHot(menu);
+                  }
+                : undefined
+            }
+            onMouseLeave={
+              hoverable
+                ? () => {
+                    setHot(-1);
+                  }
+                : undefined
+            }
+            onOptionSelect={() => {
+              setHot(-1);
+              selectSpellbook(menu);
+            }}
+          />
+        ))}
+      </layer>
+    </layer>
+  );
+}
+
+const WARNING_OK = 'You will receive these items when a game begins.';
+
+const WARNING_OVER = 'Your load-out contains too many of the <img=11> items - please discard some.';
+
+export function WarningLine({ tab }: { tab: Int }): Component {
+  const over: Int = useDerived(() => anyOverCap(tab));
+  const [flash, setFlash] = useState(0);
+  const line = useRef();
+  useInterval(
+    over === 1
+      ? () => {
+          setFlash(tobHudNameFlasher());
+        }
+      : undefined,
+    line,
+  );
+  return (
+    <text
+      ref={line}
+      x="center"
+      y="bottom"
+      w="fill"
+      h={16}
+      font={over === 1 ? LoadoutFonts.WARNING : LoadoutFonts.BODY}
+      color={over === 1 ? (flash === 0 ? tobHudNameFlasher() : flash) : LoadoutColor.LABEL}
+      shadow
+      align="center"
+      valign="middle"
+      text={over === 1 ? WARNING_OVER : WARNING_OK}
+    />
+  );
+}

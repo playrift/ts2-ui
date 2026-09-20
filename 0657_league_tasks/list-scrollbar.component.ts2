@@ -1,0 +1,91 @@
+import { useRef } from 'ts2';
+
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { TaskScrollbar, tasksListRef } from './league-tasks.constants';
+
+export function ListScrollbar({ extent, paneHeight }: { extent: Int; paneHeight: Int }): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const measured: Int = extent > 0 ? extent : paneHeight;
+
+  tasksListRef.onScrollWheel = (event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom);
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={TaskScrollbar.TRACK}
+        noClickThrough
+        onScrollWheel={(event) => wheel(event.mouseY, gutter, thumb, capTop, capBottom)}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = tasksListRef.scrollHeight - tasksListRef.height;
+          tasksListRef.scrollY = (offset * range) / travel;
+          trackScroll(gutter, thumb, capTop, capBottom, tasksListRef);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, paneHeight, measured, false)) * tasksListRef.scrollY) /
+            Math.max(1, extent - paneHeight)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, paneHeight, measured, false)}
+        sprite={TaskScrollbar.THUMB}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = tasksListRef.scrollHeight - tasksListRef.height;
+          tasksListRef.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={TaskScrollbar.CAP_TOP} />
+      <sprite ref={capBottom} y={thumb.y + thumb.height - CAP} w="fill" h={CAP} sprite={TaskScrollbar.CAP_BOTTOM} />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={TaskScrollbar.ARROW_UP}
+        noClickThrough
+        onHold={() => {
+          tasksListRef.scrollY = tasksListRef.scrollY - STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, tasksListRef);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={TaskScrollbar.ARROW_DOWN}
+        noClickThrough
+        onHold={() => {
+          tasksListRef.scrollY = tasksListRef.scrollY + STEP;
+          trackScroll(gutter, thumb, capTop, capBottom, tasksListRef);
+        }}
+      />
+    </layer>
+  );
+}
+
+function wheel(delta: Int, gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref): void {
+  tasksListRef.scrollY = tasksListRef.scrollY + delta * WHEEL;
+  trackScroll(gutter, thumb, capTop, capBottom, tasksListRef);
+}

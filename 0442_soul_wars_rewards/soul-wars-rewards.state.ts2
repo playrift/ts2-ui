@@ -1,0 +1,87 @@
+import { predictServerState, sessionState, useServerState, useState } from 'ts2';
+
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { RewardsSounds, RewardsVarps, RewardTab } from './soul-wars-rewards.constants';
+
+export const rewardsTab = sessionState(-1);
+export const rewardsPick = sessionState(-1);
+export const rewardsPickSub = sessionState(-1);
+export const rewardsPickTokens = sessionState(-1);
+export const rewardsScroll = sessionState(0);
+
+export function soulWarsRewardsShow(tab: Int): void {
+  const [, setTab] = useState(rewardsTab);
+  const [, setPick] = useState(rewardsPick);
+  const [, setSub] = useState(rewardsPickSub);
+  const [, setScroll] = useState(rewardsScroll);
+  setTab(tab);
+  setPick(-1);
+  setSub(-1);
+  setScroll(0);
+  if (tab === RewardTab.OTHER) {
+    predictServerState(RewardsVarps.OTHER_QUANTITY, 0);
+  }
+}
+
+export function rewardSelect(option: Int, tab: Int, pick: Int, sub: Int, scroll: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(Sounds.CLICK);
+  const [, setPick] = useState(rewardsPick);
+  const [, setSub] = useState(rewardsPickSub);
+  const [, setTokens] = useState(rewardsPickTokens);
+  const [, setScroll] = useState(rewardsScroll);
+  if (tab === RewardTab.EXPERIENCE) {
+    const step: Int = pick % 4;
+    if (step === 0) {
+      predictServerState(RewardsVarps.XP_QUANTITY, 1);
+    } else if (step === 1) {
+      predictServerState(RewardsVarps.XP_QUANTITY, 10);
+    } else if (step === 2) {
+      predictServerState(RewardsVarps.XP_QUANTITY, 100);
+    } else {
+      predictServerState(RewardsVarps.XP_QUANTITY, 0);
+    }
+    setScroll(0);
+  } else {
+    setScroll(scroll);
+  }
+  if (tab === RewardTab.OTHER) {
+    predictServerState(RewardsVarps.OTHER_QUANTITY, sub === 0 ? 1 : 0);
+  }
+  setTokens(useServerState(RewardsVarps.TOKENS));
+  setPick(pick);
+  setSub(sub);
+}
+
+export function rewardRefuse(option: Int, tab: Int, reason: String, scroll: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(RewardsSounds.REFUSED);
+  chatMessage(reason);
+  rewardClear(tab, scroll);
+}
+
+export function rewardConfirm(option: Int, tab: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(Sounds.CLICK);
+  const [scroll] = useState(rewardsScroll);
+  rewardClear(tab, scroll);
+}
+
+function rewardClear(tab: Int, scroll: Int): void {
+  const [, setPick] = useState(rewardsPick);
+  const [, setSub] = useState(rewardsPickSub);
+  const [, setScroll] = useState(rewardsScroll);
+  setPick(-1);
+  setSub(-1);
+  setScroll(tab === RewardTab.EXPERIENCE ? 0 : scroll);
+  if (tab === RewardTab.OTHER) {
+    predictServerState(RewardsVarps.OTHER_QUANTITY, 0);
+  }
+}

@@ -1,0 +1,168 @@
+import { useServerState, useState } from 'ts2';
+
+import { SteelBorder } from '../lib/steel-border.component';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { CloseButton } from '../0735_league_3_fragments/close-button.component';
+import { LeagueMenuButton, LeagueMenuDropdown, LeagueMenuOverlay } from '../0654_league_info/league-menu.component';
+import { dropdownRows, dropdownWidth } from '../0654_league_info/league-info.helpers';
+import { onMobile } from '../lib/lib.helpers';
+
+import { AreaMap } from './area-map.component';
+import { AreaProgressBar } from './progress-bar.component';
+import { accent, inTutorial } from './trailblazer-areas.helpers';
+import {
+  AreaColor,
+  AreaFonts,
+  AreaSprites,
+  AreaText,
+  AreaVarbits,
+  Layout,
+  contentOuterRef,
+  universeRef,
+} from './trailblazer-areas.constants';
+
+export function TrailblazerAreas(): Component {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+
+  return (
+    <layer ref={universeRef} x="center" y="center" w={windowWidth(breakpoint)} h={windowHeight(breakpoint)}>
+      <layer w="fill" h="fill">
+        <SteelBorder title={AreaText.TITLE} titleColor={accent()} flags={1} />
+      </layer>
+
+      <ContentOuter />
+
+      <CloseButton />
+
+      <MenuButton />
+      <MenuFrame />
+    </layer>
+  );
+}
+
+function windowWidth(breakpoint: Int): Int {
+  if (inTutorial()) {
+    return Layout.WINDOW_W;
+  }
+  if (breakpoint === 1) {
+    return Layout.WINDOW_W_MEDIUM;
+  }
+  if (breakpoint === 2) {
+    return Layout.WINDOW_W_LARGE;
+  }
+  if (breakpoint === 3) {
+    return Layout.WINDOW_W_LARGE;
+  }
+  return Layout.WINDOW_W;
+}
+
+function windowHeight(breakpoint: Int): Int {
+  if (inTutorial()) {
+    return Layout.WINDOW_H;
+  }
+  if (breakpoint === 1) {
+    return Layout.WINDOW_H_MEDIUM;
+  }
+  if (breakpoint === 2) {
+    return Layout.WINDOW_H_LARGE;
+  }
+  if (breakpoint === 3) {
+    return Layout.WINDOW_H_LARGE;
+  }
+  return Layout.WINDOW_H;
+}
+
+function ContentOuter(): Component {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const top: Int = contentTop(breakpoint);
+
+  return (
+    <layer ref={contentOuterRef} x="center" y={top} w={{ fill: Layout.CONTENT_W_INSET }} h={{ fill: top + 6 }}>
+      <AreaProgressBar />
+
+      <sprite x="center" y={Layout.DIVIDER_Y} w="fill" h={Layout.DIVIDER_H} sprite={AreaSprites.DIVIDER} tiling />
+
+      <AreaMap />
+
+      <LeagueMenuOverlay />
+
+      <ConfirmSheet />
+
+      <layer x="center" y="center" w="fill" h="fill" hide />
+    </layer>
+  );
+}
+
+function contentTop(breakpoint: Int): Int {
+  if (breakpoint === 1) return 37;
+  if (breakpoint === 2) return 37;
+  if (breakpoint === 3) return 39;
+  return 35;
+}
+
+function MenuButton(): Component {
+  if (inTutorial()) {
+    return null;
+  }
+  const mobile: Boolean = onMobile();
+  return (
+    <layer
+      x={mobile ? 1 : Layout.MENU_X}
+      y={mobile ? 1 : Layout.MENU_Y}
+      w={mobile ? 33 : Layout.MENU_SIZE}
+      h={mobile ? 33 : Layout.MENU_SIZE}
+    >
+      <LeagueMenuButton />
+    </layer>
+  );
+}
+
+function MenuFrame(): Component {
+  return (
+    <layer x={Layout.MENU_FRAME_X} y={Layout.MENU_FRAME_Y} w={dropdownWidth()} h={dropdownRows() + 12}>
+      <LeagueMenuDropdown league={leagueOf()} accent={accent()} />
+    </layer>
+  );
+}
+
+function leagueOf(): Int {
+  return useServerState(AreaVarbits.LEAGUE);
+}
+
+function ConfirmSheet(): Component {
+  return (
+    <layer w="fill" h="fill" hide noClickThrough>
+      <rect w="fill" h="fill" fill transparency={Layout.CONFIRM_WASH_TRANSPARENCY} />
+
+      <layer x="center" y="center" w={Layout.CONFIRM_W} h={Layout.CONFIRM_H}>
+        <layer x="center" y="center" w={Layout.CONFIRM_W} h={Layout.CONFIRM_H} />
+
+        <text
+          x="center"
+          y={Layout.CONFIRM_TEXT_Y}
+          w={{ fill: Layout.CONFIRM_TEXT_W_INSET }}
+          h={Layout.CONFIRM_TEXT_H}
+          font={AreaFonts.BODY}
+          color={AreaColor.TEXT}
+          lineHeight={Layout.LINE_HEIGHT}
+          shadow
+        />
+
+        <layer
+          right={Layout.CONFIRM_BUTTON_X}
+          bottom={Layout.CONFIRM_BUTTON_Y}
+          w={Layout.CONFIRM_BUTTON_W}
+          h={Layout.CONFIRM_BUTTON_H}
+          options={['*']}
+        />
+
+        <layer
+          x={Layout.CONFIRM_BUTTON_X}
+          bottom={Layout.CONFIRM_BUTTON_Y}
+          w={Layout.CONFIRM_BUTTON_W}
+          h={Layout.CONFIRM_BUTTON_H}
+        />
+      </layer>
+    </layer>
+  );
+}

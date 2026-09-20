@@ -1,0 +1,256 @@
+import { onMounted, predictServerState, useInterval, useRef, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneButtonOutFilled } from '../lib/stone-button-out-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { ThinBoxEntrypoint } from '../lib/thin-box-entrypoint.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import {
+  APPLY_BUSY_CYCLES,
+  Copy,
+  Layout,
+  RowTrans,
+  SuppliesColour,
+  SuppliesFonts,
+  SuppliesSprites,
+  SuppliesVarps,
+} from './tournament-supplies.constants';
+import { loadoutCount, loadoutName } from './tournament-supplies.helpers';
+import { loadoutNames } from './tournament-supplies.state';
+
+const ROWS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23] as const;
+
+export function LoadoutList(): Component {
+  const [names, setNames] = useState(loadoutNames);
+  const selected: Int = useServerState(SuppliesVarps.LOADOUT) - 1;
+  const rows: Int = loadoutCount(names);
+  const list = useRef();
+
+  onMounted(() => {
+    setNames('');
+  });
+
+  return (
+    <layer x="right" w={{ fill: Layout.LIST_FRAME_INSET_W }} h={{ fill: Layout.LIST_FRAME_INSET_H }}>
+      <sprite x="center" y="center" w="fill" h="fill" sprite={SuppliesSprites.BACKING} tiling />
+      <layer
+        ref={list}
+        x={Layout.ROWS_X}
+        y="center"
+        w={{ fill: Layout.ROWS_INSET_W }}
+        h={{ fill: Layout.ROWS_INSET_H }}
+        scrollHeight={rows * Layout.ROW_H < Layout.ROWS_H ? 0 : rows * Layout.ROW_H}
+        scrollY={0}
+      >
+        {ROWS.map((row) => (
+          <LoadoutBacking row={row} rows={rows} selected={selected} name={loadoutName(names, row)} />
+        ))}
+        {ROWS.map((row) => (
+          <LoadoutCaption row={row} rows={rows} selected={selected} name={loadoutName(names, row)} />
+        ))}
+      </layer>
+      <layer x={{ right: Layout.ROWS_X }} y="center" w={Layout.SCROLLBAR_W} h={{ fill: Layout.ROWS_INSET_H }}>
+        {rows > 0 && (
+          <ScrollbarVertical
+            content={list}
+            track={ScrollbarSprites.TRACK}
+            capTopSprite={ScrollbarSprites.CAP_TOP}
+            thumbSprite={ScrollbarSprites.THUMB}
+            capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+            arrowUp={ScrollbarSprites.ARROW_UP}
+            arrowDown={ScrollbarSprites.ARROW_DOWN}
+          />
+        )}
+      </layer>
+      <ThinBoxEntrypoint />
+    </layer>
+  );
+}
+
+function LoadoutBacking({
+  row,
+  rows,
+  selected,
+  name,
+}: {
+  row: Int;
+  rows: Int;
+  selected: Int;
+  name: String;
+}): Component {
+  if (row >= rows) {
+    return null;
+  }
+  const chosen: Boolean = row === selected;
+  const rest: Int = chosen ? RowTrans.SELECTED : row % 2 === 0 ? RowTrans.EVEN : RowTrans.ODD;
+  return (
+    <rect
+      x="center"
+      y={row * Layout.ROW_H}
+      w="fill"
+      h={Layout.ROW_H}
+      color={SuppliesColour.WHITE}
+      fill
+      transparency={rest}
+      options={[Copy.PREVIEW]}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onMouseRepeat={
+        chosen
+          ? undefined
+          : (event) => {
+              event.self.transparency = RowTrans.HOVER;
+            }
+      }
+      onMouseLeave={
+        chosen
+          ? undefined
+          : (event) => {
+              event.self.transparency = rest;
+            }
+      }
+      onOptionSelect={
+        chosen
+          ? undefined
+          : (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              playSound(Sounds.CLICK);
+              predictServerState(SuppliesVarps.LOADOUT, row + 1);
+            }
+      }
+    />
+  );
+}
+
+function LoadoutCaption({
+  row,
+  rows,
+  selected,
+  name,
+}: {
+  row: Int;
+  rows: Int;
+  selected: Int;
+  name: String;
+}): Component {
+  if (row >= rows) {
+    return null;
+  }
+  return (
+    <text
+      x="center"
+      y={row * Layout.ROW_H}
+      w="fill"
+      h={Layout.ROW_H}
+      font={SuppliesFonts.SMALL}
+      shadow
+      align="center"
+      valign="middle"
+      color={row === selected ? SuppliesColour.ROW_SELECTED : SuppliesColour.ROW}
+      text={name}
+    />
+  );
+}
+
+export function ApplyButton(): Component {
+  const [names] = useState(loadoutNames);
+  const rows: Int = loadoutCount(names);
+  const selected: Int = useServerState(SuppliesVarps.LOADOUT) - 1;
+  const live: Boolean = selected >= 0 && selected < rows;
+  const [hot, setHot] = useState(0);
+  const [busyUntil, setBusyUntil] = useState(0);
+  const busy: Boolean = busyUntil > 0;
+
+  useInterval(
+    busy
+      ? () => {
+          if (clientClock() >= busyUntil) {
+            setHot(0);
+            setBusyUntil(0);
+          }
+        }
+      : undefined,
+  );
+
+  if (rows <= 0) {
+    return (
+      <layer
+        x={{ right: Layout.APPLY_RIGHT }}
+        y="bottom"
+        w={{ fill: Layout.APPLY_INSET_W }}
+        h={Layout.APPLY_H}
+        options={['*']}
+      />
+    );
+  }
+  if (!live) {
+    return (
+      <layer x={{ right: Layout.APPLY_RIGHT }} y="bottom" w={{ fill: Layout.APPLY_INSET_W }} h={Layout.APPLY_H}>
+        <StoneButtonPressedFilled />
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={SuppliesFonts.BOLD}
+          color={SuppliesColour.GREY}
+          shadow
+          align="center"
+          valign="middle"
+          text={Copy.NONE}
+        />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      x={{ right: Layout.APPLY_RIGHT }}
+      y="bottom"
+      w={{ fill: Layout.APPLY_INSET_W }}
+      h={Layout.APPLY_H}
+      options={busy ? undefined : [Copy.APPLY]}
+      onMouseRepeat={
+        busy
+          ? undefined
+          : () => {
+              setHot(1);
+            }
+      }
+      onMouseLeave={
+        busy
+          ? undefined
+          : () => {
+              setHot(0);
+            }
+      }
+      onOptionSelect={
+        busy
+          ? undefined
+          : (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              playSound(Sounds.CLICK);
+              setBusyUntil(clientClock() + APPLY_BUSY_CYCLES);
+            }
+      }
+    >
+      {hot === 1 || busy ? <StoneButtonPressedFilled /> : <StoneButtonOutFilled />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        font={SuppliesFonts.BOLD}
+        shadow
+        align="center"
+        valign="middle"
+        color={busy ? SuppliesColour.WHITE : SuppliesColour.ORANGE}
+        text={busy ? Copy.BUSY : Copy.APPLY}
+      />
+    </layer>
+  );
+}

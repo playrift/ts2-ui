@@ -1,0 +1,219 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { Varps } from '../lib/game/varps';
+import { AdventurePathCards } from './adventure-path-cards.data';
+import {
+  Art,
+  Colour,
+  Layout,
+  PosMode,
+  SizeMode,
+  Sound,
+  bannerRef,
+  extraTaskInfoRef,
+  pathMenuRef,
+  pathsRef,
+  taskListRef,
+} from './adventurepath.constants';
+import { pathAvailable, pathComplete, pathLength, pathTasksDone } from './adventurepath.helpers';
+import { createGraphic, iconButtonFree, progressBar, stoneBorderFree, stoneButtonFree } from './adventurepath.skins';
+
+export function adventurePathInit(): Int {
+  const paneW: Int = CS2.if_width_get(pathsRef);
+  const cardW: Int = paneW / 2 - Layout.UNIT * 2;
+  let column: Int = 0;
+  let row: Int = 0;
+  let index: Int = 0;
+  let cursor: Int = 0;
+
+  while (cursor < AdventurePathCards.length) {
+    const card = AdventurePathCards.at(cursor);
+    const pathId: Int = card === null ? -1 : card.pathId;
+    const name: String = card === null ? '' : card.name;
+    const art: Sprite = card === null ? -1 : card.card;
+    if (card === null) {
+      CS2.if_close();
+      CS2.message('Adventure Paths are not avaliable at this current time.');
+      return 0;
+    }
+    if (pathAvailable(pathId)) {
+      index = drawPathCard(pathsRef, index, pathId, name, art, paneW, Layout.ROW_H, cardW, column, row);
+      column = column + 1;
+      if (column >= Layout.COLUMNS) {
+        column = 0;
+        row = row + 1;
+      }
+    }
+    cursor = cursor + 1;
+  }
+  if (column === 0) {
+    row = row - 1;
+  }
+  return (Layout.ROW_H / 2) * (row + 1);
+}
+
+function drawPathCard(
+  paths: ComponentId,
+  index: Int,
+  pathId: Int,
+  name: String,
+  card: Sprite,
+  paneW: Int,
+  rowH: Int,
+  cardW: Int,
+  column: Int,
+  row: Int,
+): Int {
+  const cellX: Int = (paneW / 2) * column;
+  const cellY: Int = (rowH / 2) * row;
+  const artX: Int = cellX + (paneW / 4 - cardW / 2);
+
+  const artIndex: Int = index;
+  CS2.cc_create(paths, 5, artIndex, false);
+  CS2.cc_size_set(cardW, Layout.CARD_ART_H, SizeMode.ABS, SizeMode.ABS);
+  CS2.cc_position_set(artX, cellY + Layout.UNIT, PosMode.ABS_LEFT, PosMode.ABS_TOP);
+  CS2.cc_sprite_set(card);
+  CS2.cc_op_set(1, `Select <col=ff9040>${name}`);
+  CS2.cc_onop_set(() => selectPath(pathId));
+  if (!onMobile()) {
+    CS2.cc_on_mouserepeat_set(() => setCardTrans(paths, artIndex, Layout.TRANS_HOVER));
+    CS2.cc_on_mouseleave_set(() => setCardTrans(paths, artIndex, Layout.TRANS_OPAQUE));
+  }
+
+  let next: Int = artIndex + 1;
+  next = stoneButtonFree(
+    paths,
+    next,
+    paneW / 2 - Layout.UNIT * 2,
+    Layout.UNIT * 7,
+    cellX + Layout.UNIT,
+    (rowH / 2) * (row + 1) - Layout.UNIT * 8,
+    name,
+    Colour.CAPTION,
+    Colour.WHITE,
+    0,
+    0,
+  );
+  CS2.cc_op_set(1, `Select <col=ff9040>${name}`);
+  CS2.cc_onop_set(() => selectPath(pathId));
+
+  const total: Int = pathLength(pathId);
+  const done: Int = pathTasksDone(pathId);
+  next = progressBar(
+    paths,
+    next,
+    cardW - Layout.BAR_INSET,
+    Layout.BAR_H,
+    artX,
+    (rowH / 2) * (row + 1) - Layout.CARD_ART_H,
+    done,
+    total,
+    0,
+    ' Tasks done',
+  );
+  next = stoneBorderFree(paths, next, paneW / 2, rowH / 2, cellX, cellY);
+
+  const cornerX: Int = cellX + (paneW / 4 + cardW / 2 - 30);
+  const cornerY: Int = (rowH / 2) * (row + 1) - Layout.CARD_ART_H;
+  if (pathComplete(pathId)) {
+    return iconButtonFree(
+      paths,
+      next,
+      Layout.CORNER,
+      Layout.CORNER,
+      cornerX,
+      cornerY,
+      '',
+      Art.TICK,
+      Art.TICK,
+      Layout.TICK_INSET,
+      Layout.TICK_INSET,
+      1,
+      0,
+      0,
+    );
+  }
+  if (pathId === useServerState(Varps.ADVENTUREPATH_IN_FOCUS)) {
+    return iconButtonFree(
+      paths,
+      next,
+      Layout.CORNER,
+      Layout.CORNER,
+      cornerX,
+      cornerY,
+      'Drop<col=ff9040> Focus',
+      Art.IN_FOCUS_ON,
+      Art.IN_FOCUS_ON,
+      Layout.FOCUS_INSET,
+      Layout.FOCUS_INSET,
+      0,
+      0,
+      0,
+    );
+  }
+  return iconButtonFree(
+    paths,
+    next,
+    Layout.CORNER,
+    Layout.CORNER,
+    cornerX,
+    cornerY,
+    'Set<col=ff9040> Focus',
+    Art.IN_FOCUS_OFF,
+    Art.IN_FOCUS_OFF,
+    Layout.FOCUS_INSET,
+    Layout.FOCUS_INSET,
+    0,
+    0,
+    0,
+  );
+}
+
+function setCardTrans(paths: ComponentId, index: Int, transparency: Int): void {
+  if (CS2.cc_find(paths, index)) {
+    CS2.cc_transparency_set(transparency);
+  }
+}
+
+export function selectPath(pathId: Int): void {
+  CS2.sound_effect(Sound.SELECT, 1, 0);
+  if (useServerState(Varps.ADVENTUREPATH_SELECTED_PATH) !== pathId) {
+    predictServerState(Varps.ADVENTUREPATH_SELECTED_TASK, 0);
+  }
+  predictServerState(Varps.ADVENTUREPATH_SELECTED_PATH, pathId);
+}
+
+export function adventurePathChangePage(page: Int): void {
+  CS2.if_hide_set(true, pathMenuRef);
+  CS2.if_hide_set(true, bannerRef);
+  CS2.if_hide_set(true, taskListRef);
+  CS2.if_hide_set(true, extraTaskInfoRef);
+  if (page === 1) {
+    CS2.if_hide_set(false, taskListRef);
+    return;
+  }
+  if (page === 2) {
+    CS2.if_hide_set(false, extraTaskInfoRef);
+    return;
+  }
+  CS2.if_hide_set(false, pathMenuRef);
+  CS2.if_hide_set(false, bannerRef);
+}
+
+export function adventurePathInitEntrypoint(): void {
+  CS2.cc_all_delete(pathsRef);
+  const height: Int = adventurePathInit();
+  if (height > CS2.if_height_get(pathsRef)) {
+    CS2.if_scroll_size_set(0, height, pathsRef);
+  } else {
+    CS2.if_scroll_size_set(0, 0, pathsRef);
+  }
+  adventurePathChangePage(0);
+}
+
+export function adventurePathRebuild(): void {
+  adventurePathInitEntrypoint();
+}
+
+export function adventurePathDoNothing(): void {}

@@ -1,8 +1,7 @@
-import { CS2, useState } from 'ts2';
+import { CS2, resumePauseButton, useRef, useState } from 'ts2';
 
 import { clientClock, textWidth } from '../lib/lib.engine';
 import { dialogueMayAdvance } from '../lib/lib.dialogue';
-import { pipeHead, pipeTail } from '../lib/lib.format';
 import { onMobile } from '../lib/lib.helpers';
 import {
   ADVANCE_DEBOUNCE,
@@ -10,235 +9,53 @@ import {
   MENU_FONT,
   MenuArt,
   MenuColor,
+  PLEASE_WAIT,
   Root,
-  Rows,
   Sword,
   Title,
-  option1Ref,
-  option2Ref,
-  option3Ref,
-  option4Ref,
-  option5Ref,
-  swordLeftRef,
-  swordRightRef,
-  titleRef,
 } from './chatmenu.constants';
+import { optionAt, rowHeight, rowTop, titleTop } from './chatmenu.helpers';
+import {
+  menuArmedAt1,
+  menuArmedAt2,
+  menuArmedAt3,
+  menuArmedAt4,
+  menuArmedAt5,
+  menuCount,
+  menuOptions,
+  menuTitle,
+  menuWaiting,
+} from './chatmenu.state';
 
 export function ChatMenu(): Component {
   return (
     <>
       <layer w="fill" h="fill" />
 
-      <text
-        ref={titleRef}
-        x={0}
-        y={Title.TOP}
-        w={Root.W}
-        h={Title.H}
-        font={MENU_FONT}
-        color={MenuColor.TITLE}
-        align="center"
-        valign="middle"
-      />
-
-      <sprite
-        ref={swordLeftRef}
-        x={Sword.MIN_INSET}
-        y={Title.TOP + Sword.DY}
-        w={Sword.W}
-        h={Sword.H}
-        sprite={MenuArt.SWORD_LEFT}
-        hide
-      />
-      <sprite
-        ref={swordRightRef}
-        x={Sword.MIN_INSET}
-        y={Title.TOP + Sword.DY}
-        w={Sword.W}
-        h={Sword.H}
-        sprite={MenuArt.SWORD_RIGHT}
-        hide
-      />
-
-      <text
-        ref={option1Ref}
-        x={0}
-        y={Rows.TWO.A}
-        w={Root.W}
-        h={Rows.TWO.H}
-        font={MENU_FONT}
-        color={MenuColor.OPTION}
-        align="center"
-        valign="middle"
-        onMouseEnter={(event) => recolour(event.component, MenuColor.OPTION_HOVER)}
-        onMouseLeave={(event) => recolour(event.component, MenuColor.OPTION)}
-        hide
-      />
-      <text
-        ref={option2Ref}
-        x={0}
-        y={Rows.TWO.B}
-        w={Root.W}
-        h={Rows.TWO.H}
-        font={MENU_FONT}
-        color={MenuColor.OPTION}
-        align="center"
-        valign="middle"
-        onMouseEnter={(event) => recolour(event.component, MenuColor.OPTION_HOVER)}
-        onMouseLeave={(event) => recolour(event.component, MenuColor.OPTION)}
-        hide
-      />
-      <text
-        ref={option3Ref}
-        x={0}
-        y={Rows.THREE.C}
-        w={Root.W}
-        h={Rows.THREE.H}
-        font={MENU_FONT}
-        color={MenuColor.OPTION}
-        align="center"
-        valign="middle"
-        onMouseEnter={(event) => recolour(event.component, MenuColor.OPTION_HOVER)}
-        onMouseLeave={(event) => recolour(event.component, MenuColor.OPTION)}
-        hide
-      />
-      <text
-        ref={option4Ref}
-        x={0}
-        y={Rows.FOUR.D}
-        w={Root.W}
-        h={Rows.FOUR.H}
-        font={MENU_FONT}
-        color={MenuColor.OPTION}
-        align="center"
-        valign="middle"
-        onMouseEnter={(event) => recolour(event.component, MenuColor.OPTION_HOVER)}
-        onMouseLeave={(event) => recolour(event.component, MenuColor.OPTION)}
-        hide
-      />
-      <text
-        ref={option5Ref}
-        x={0}
-        y={Rows.FIVE.E}
-        w={Root.W}
-        h={Rows.FIVE.H}
-        font={MENU_FONT}
-        color={MenuColor.OPTION}
-        align="center"
-        valign="middle"
-        onMouseEnter={(event) => recolour(event.component, MenuColor.OPTION_HOVER)}
-        onMouseLeave={(event) => recolour(event.component, MenuColor.OPTION)}
-        hide
-      />
-
-      <ChatMenuKeys />
+      <layer w="fill" h="fill">
+        <ChatMenuTitle />
+      </layer>
+      <layer w="fill" h="fill">
+        <ChatMenuRows />
+      </layer>
     </>
   );
 }
 
-function recolour(row: ComponentId, colour: Int): void {
-  row.color = colour;
-}
-
-function placeOption(row: ComponentId, text: String, top: Int, height: Int): void {
-  row.y = top;
-  row.height = height;
-  row.text = text;
-  row.hide = false;
-}
-
-function clearOption(row: ComponentId): void {
-  row.text = '';
-  row.hide = true;
-}
-
-export function chatmenuBuild(title: String, options: String): void {
+export function ChatMenuTitle(): Component {
+  const [title] = useState(menuTitle);
+  const [count] = useState(menuCount);
   const phone: Boolean = onMobile();
 
-  const first: String = pipeHead(options);
-  const afterFirst: String = pipeTail(options);
-  const second: String = pipeHead(afterFirst);
-  const afterSecond: String = pipeTail(afterFirst);
-  const third: String = pipeHead(afterSecond);
-  const afterThird: String = pipeTail(afterSecond);
-  const fourth: String = pipeHead(afterThird);
-  const afterFourth: String = pipeTail(afterThird);
-  const fifth: String = pipeHead(afterFourth);
-
-  let count: Int = 2;
-  if (third.length > 0) {
-    count = 3;
-    if (fourth.length > 0) {
-      count = 4;
-      if (fifth.length > 0) {
-        count = 5;
-      }
-    }
-  }
-
-  let titleTop: Int = Title.TOP;
-
-  if (count === 2) {
-    placeOption(option1Ref, first, phone ? Rows.TWO.A_MOBILE : Rows.TWO.A, phone ? Rows.TWO.H_MOBILE : Rows.TWO.H);
-    placeOption(option2Ref, second, phone ? Rows.TWO.B_MOBILE : Rows.TWO.B, phone ? Rows.TWO.H_MOBILE : Rows.TWO.H);
-    clearOption(option3Ref);
-    clearOption(option4Ref);
-    clearOption(option5Ref);
-  } else if (count === 3) {
-    placeOption(
-      option1Ref,
-      first,
-      phone ? Rows.THREE.A_MOBILE : Rows.THREE.A,
-      phone ? Rows.THREE.H_MOBILE : Rows.THREE.H,
-    );
-    placeOption(
-      option2Ref,
-      second,
-      phone ? Rows.THREE.B_MOBILE : Rows.THREE.B,
-      phone ? Rows.THREE.H_MOBILE : Rows.THREE.H,
-    );
-    placeOption(
-      option3Ref,
-      third,
-      phone ? Rows.THREE.C_MOBILE : Rows.THREE.C,
-      phone ? Rows.THREE.H_MOBILE : Rows.THREE.H,
-    );
-    clearOption(option4Ref);
-    clearOption(option5Ref);
-    if (phone) {
-      titleTop = Title.TOP_MOBILE_3;
-    }
-  } else if (count === 4) {
-    placeOption(option1Ref, first, phone ? Rows.FOUR.A_MOBILE : Rows.FOUR.A, phone ? Rows.FOUR.H_MOBILE : Rows.FOUR.H);
-    placeOption(option2Ref, second, phone ? Rows.FOUR.B_MOBILE : Rows.FOUR.B, phone ? Rows.FOUR.H_MOBILE : Rows.FOUR.H);
-    placeOption(option3Ref, third, phone ? Rows.FOUR.C_MOBILE : Rows.FOUR.C, phone ? Rows.FOUR.H_MOBILE : Rows.FOUR.H);
-    placeOption(option4Ref, fourth, phone ? Rows.FOUR.D_MOBILE : Rows.FOUR.D, phone ? Rows.FOUR.H_MOBILE : Rows.FOUR.H);
-    clearOption(option5Ref);
-    if (phone) {
-      titleTop = Title.TOP_MOBILE_4;
-    }
-  } else {
-    placeOption(option1Ref, first, phone ? Rows.FIVE.A_MOBILE : Rows.FIVE.A, phone ? Rows.FIVE.H_MOBILE : Rows.FIVE.H);
-    placeOption(option2Ref, second, phone ? Rows.FIVE.B_MOBILE : Rows.FIVE.B, phone ? Rows.FIVE.H_MOBILE : Rows.FIVE.H);
-    placeOption(option3Ref, third, phone ? Rows.FIVE.C_MOBILE : Rows.FIVE.C, phone ? Rows.FIVE.H_MOBILE : Rows.FIVE.H);
-    placeOption(option4Ref, fourth, phone ? Rows.FIVE.D_MOBILE : Rows.FIVE.D, phone ? Rows.FIVE.H_MOBILE : Rows.FIVE.H);
-    placeOption(option5Ref, fifth, phone ? Rows.FIVE.E_MOBILE : Rows.FIVE.E, phone ? Rows.FIVE.H_MOBILE : Rows.FIVE.H);
-    if (phone) {
-      titleTop = Title.TOP_MOBILE_5;
-    }
-  }
-
-  titleRef.y = titleTop;
-  titleRef.text = title;
+  const top: Int = titleTop(count, phone);
 
   let measured: Int = textWidth(title, Root.W, MENU_FONT);
   if (measured < Sword.MIN_TITLE_W) {
     measured = Sword.MIN_TITLE_W;
   }
-  if (measured > Sword.MAX_TITLE_W) {
-    swordLeftRef.hide = true;
-    swordRightRef.hide = true;
-    return;
+  let swordsHidden: Boolean = true;
+  if (count > 0 && measured <= Sword.MAX_TITLE_W) {
+    swordsHidden = false;
   }
 
   let inset: Int = (Root.W - (measured + Sword.TITLE_PAD)) / 2 - Sword.W;
@@ -246,60 +63,240 @@ export function chatmenuBuild(title: String, options: String): void {
     inset = Sword.MIN_INSET;
   }
 
-  swordLeftRef.x = inset;
-  swordLeftRef.y = titleTop + Sword.DY;
-  swordLeftRef.hide = false;
-
-  swordRightRef.x = Root.W - (inset + Sword.W);
-  swordRightRef.y = titleTop + Sword.DY;
-  swordRightRef.hide = false;
-}
-
-function advanceFeedback(row: ComponentId): void {
-  if (CS2.if_text_get(row).length === 0) {
-    return;
-  }
-  CS2.if_resume_pausebutton(row);
-  row.text = 'Please wait...';
-  row.color = MenuColor.OPTION;
+  return (
+    <>
+      <text
+        x={0}
+        y={top}
+        w={Root.W}
+        h={Title.H}
+        text={title}
+        font={MENU_FONT}
+        color={MenuColor.TITLE}
+        align="center"
+        valign="middle"
+      />
+      <sprite x={inset} y={top + Sword.DY} w={Sword.W} h={Sword.H} sprite={MenuArt.SWORD_LEFT} hide={swordsHidden} />
+      <sprite
+        x={Root.W - (inset + Sword.W)}
+        y={top + Sword.DY}
+        w={Sword.W}
+        h={Sword.H}
+        sprite={MenuArt.SWORD_RIGHT}
+        hide={swordsHidden}
+      />
+    </>
+  );
 }
 
 const NO_CHAR = -1;
 
-export function ChatMenuKeys(): Component {
-  const [deadline, setDeadline] = useState(0);
+export function ChatMenuRows(): Component {
+  const [options] = useState(menuOptions);
+  const [count] = useState(menuCount);
+  const [waiting, setWaiting] = useState(menuWaiting);
+  const [hover1, setHover1] = useState(0);
+  const [hover2, setHover2] = useState(0);
+  const [hover3, setHover3] = useState(0);
+  const [hover4, setHover4] = useState(0);
+  const [hover5, setHover5] = useState(0);
+  const phone: Boolean = onMobile();
+
+  const row1 = useRef();
+  const row2 = useRef();
+  const row3 = useRef();
+  const row4 = useRef();
+  const row5 = useRef();
+
+  const height: Int = rowHeight(count, phone);
 
   return (
-    <layer
-      w="fill"
-      h="fill"
-      onKey={(event) => {
-        if (clientClock() < deadline) {
-          return;
-        }
-        if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
-          return;
-        }
-        if (event.keyChar === NO_CHAR) {
-          return;
-        }
-        if (CS2.string_indexof_char('1', event.keyChar) !== -1) {
-          advanceFeedback(option1Ref);
-          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
-        } else if (CS2.string_indexof_char('2', event.keyChar) !== -1) {
-          advanceFeedback(option2Ref);
-          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
-        } else if (CS2.string_indexof_char('3', event.keyChar) !== -1) {
-          advanceFeedback(option3Ref);
-          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
-        } else if (CS2.string_indexof_char('4', event.keyChar) !== -1) {
-          advanceFeedback(option4Ref);
-          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
-        } else if (CS2.string_indexof_char('5', event.keyChar) !== -1) {
-          advanceFeedback(option5Ref);
-          setDeadline(clientClock() + ADVANCE_DEBOUNCE);
-        }
-      }}
-    />
+    <>
+      <text
+        x={0}
+        y={rowTop(count, 1, phone)}
+        w={Root.W}
+        h={height}
+        ref={row1}
+        text={waiting === 1 ? PLEASE_WAIT : optionAt(options, 1)}
+        font={MENU_FONT}
+        color={hover1 === 1 ? MenuColor.OPTION_HOVER : MenuColor.OPTION}
+        align="center"
+        valign="middle"
+        hide={count < 1}
+        onMouseEnter={() => setHover1(1)}
+        onMouseLeave={() => setHover1(0)}
+        onKey={(event) => {
+          const [armedAt, setArmedAt] = useState(menuArmedAt1);
+          if (clientClock() < armedAt) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyChar === NO_CHAR) {
+            return;
+          }
+          if (CS2.string_indexof_char('1', event.keyChar) === -1) {
+            return;
+          }
+          const [live] = useState(menuOptions);
+          if (optionAt(live, 1).length > 0) {
+            resumePauseButton(row1);
+            setWaiting(1);
+            setHover1(0);
+          }
+          setArmedAt(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+      <text
+        x={0}
+        y={rowTop(count, 2, phone)}
+        w={Root.W}
+        h={height}
+        ref={row2}
+        text={waiting === 2 ? PLEASE_WAIT : optionAt(options, 2)}
+        font={MENU_FONT}
+        color={hover2 === 1 ? MenuColor.OPTION_HOVER : MenuColor.OPTION}
+        align="center"
+        valign="middle"
+        hide={count < 2}
+        onMouseEnter={() => setHover2(1)}
+        onMouseLeave={() => setHover2(0)}
+        onKey={(event) => {
+          const [armedAt, setArmedAt] = useState(menuArmedAt2);
+          if (clientClock() < armedAt) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyChar === NO_CHAR) {
+            return;
+          }
+          if (CS2.string_indexof_char('2', event.keyChar) === -1) {
+            return;
+          }
+          const [live] = useState(menuOptions);
+          if (optionAt(live, 2).length > 0) {
+            resumePauseButton(row2);
+            setWaiting(2);
+            setHover2(0);
+          }
+          setArmedAt(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+      <text
+        x={0}
+        y={rowTop(count, 3, phone)}
+        w={Root.W}
+        h={height}
+        ref={row3}
+        text={waiting === 3 ? PLEASE_WAIT : optionAt(options, 3)}
+        font={MENU_FONT}
+        color={hover3 === 1 ? MenuColor.OPTION_HOVER : MenuColor.OPTION}
+        align="center"
+        valign="middle"
+        hide={count < 3}
+        onMouseEnter={() => setHover3(1)}
+        onMouseLeave={() => setHover3(0)}
+        onKey={(event) => {
+          const [armedAt, setArmedAt] = useState(menuArmedAt3);
+          if (clientClock() < armedAt) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyChar === NO_CHAR) {
+            return;
+          }
+          if (CS2.string_indexof_char('3', event.keyChar) === -1) {
+            return;
+          }
+          const [live] = useState(menuOptions);
+          if (optionAt(live, 3).length > 0) {
+            resumePauseButton(row3);
+            setWaiting(3);
+            setHover3(0);
+          }
+          setArmedAt(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+      <text
+        x={0}
+        y={rowTop(count, 4, phone)}
+        w={Root.W}
+        h={height}
+        ref={row4}
+        text={waiting === 4 ? PLEASE_WAIT : optionAt(options, 4)}
+        font={MENU_FONT}
+        color={hover4 === 1 ? MenuColor.OPTION_HOVER : MenuColor.OPTION}
+        align="center"
+        valign="middle"
+        hide={count < 4}
+        onMouseEnter={() => setHover4(1)}
+        onMouseLeave={() => setHover4(0)}
+        onKey={(event) => {
+          const [armedAt, setArmedAt] = useState(menuArmedAt4);
+          if (clientClock() < armedAt) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyChar === NO_CHAR) {
+            return;
+          }
+          if (CS2.string_indexof_char('4', event.keyChar) === -1) {
+            return;
+          }
+          const [live] = useState(menuOptions);
+          if (optionAt(live, 4).length > 0) {
+            resumePauseButton(row4);
+            setWaiting(4);
+            setHover4(0);
+          }
+          setArmedAt(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+      <text
+        x={0}
+        y={rowTop(count, 5, phone)}
+        w={Root.W}
+        h={height}
+        ref={row5}
+        text={waiting === 5 ? PLEASE_WAIT : optionAt(options, 5)}
+        font={MENU_FONT}
+        color={hover5 === 1 ? MenuColor.OPTION_HOVER : MenuColor.OPTION}
+        align="center"
+        valign="middle"
+        hide={count < 5}
+        onMouseEnter={() => setHover5(1)}
+        onMouseLeave={() => setHover5(0)}
+        onKey={(event) => {
+          const [armedAt, setArmedAt] = useState(menuArmedAt5);
+          if (clientClock() < armedAt) {
+            return;
+          }
+          if (dialogueMayAdvance(DialogueGate.NO_TOPLEVEL, DialogueGate.CHATBOX) === false) {
+            return;
+          }
+          if (event.keyChar === NO_CHAR) {
+            return;
+          }
+          if (CS2.string_indexof_char('5', event.keyChar) === -1) {
+            return;
+          }
+          const [live] = useState(menuOptions);
+          if (optionAt(live, 5).length > 0) {
+            resumePauseButton(row5);
+            setWaiting(5);
+            setHover5(0);
+          }
+          setArmedAt(clientClock() + ADVANCE_DEBOUNCE);
+        }}
+      />
+    </>
   );
 }

@@ -1,0 +1,807 @@
+import { CS2, useDerived, useInventory, useServerState, useState } from 'ts2';
+
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { membersWorld, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { AutocastIcon, AutocastSkin, StyleButton, ToggleSkin } from './combat-buttons.component';
+import { ComboTooltip, hideComboTip, showAddTip, showComboTip } from './combat-tooltip.component';
+import {
+  Category,
+  CombatColors,
+  CombatFonts,
+  CombatInventories,
+  CombatSprites,
+  CombatVarbits,
+  CombatVarps,
+  CombatRelic,
+  INFO,
+  Layout,
+  RETALIATE_OFF,
+  RETALIATE_ON,
+  RETALIATE_TIP,
+  SET_EFFECT_OFF,
+  SET_EFFECT_ON,
+  SET_EFFECT_TIP,
+  WornSlot,
+} from './combat-interface.constants';
+import {
+  barHeight,
+  buttonName,
+  buttonSprite,
+  buttonTooltip,
+  buttonTuple,
+  buttonWidth,
+  categoryRow,
+  combatLevelText,
+  gapX,
+  gapY,
+  gridX,
+  gridY,
+  retaliateHeight,
+  retaliateY,
+  specAmount,
+  specCost,
+  relicActive,
+  specCapActive,
+  specDescription,
+  specHeight,
+  specReady,
+  specScale,
+  specText,
+  staffLayout,
+  styleX,
+  styleY,
+  weaponName,
+} from './combat-interface.helpers';
+
+export function CombatInterface(): Component {
+  const mobile: Boolean = onMobile();
+  const category: Int = useServerState(CombatVarbits.WEAPON_CATEGORY);
+  const style: Int = useServerState(CombatVarps.STYLE);
+  const worn = useInventory(CombatInventories.WORN);
+  const weapon: Item = worn[WornSlot.WEAPON];
+  const retaliateOff: Int = useServerState(CombatVarps.RETALIATE_OFF);
+  const setEffect: Int = useServerState(CombatVarbits.SET_EFFECT);
+  const specArmed: Int = useServerState(CombatVarps.SPEC_ARMED);
+  const specTipsOff: Int = useServerState(CombatVarbits.SPEC_TOOLTIPS_OFF);
+  const sailingPanel: Int = useServerState(CombatVarbits.SAILING_PANEL);
+  const sailingIntro: Int = useServerState(CombatVarbits.SAILING_INTRO);
+  const sailingOnlyOnBoat: Int = useServerState(CombatVarbits.SAILING_ONLY_ON_BOAT);
+
+  const [info, setInfo] = useState(0);
+  const [tip, setTip] = useState(-1);
+
+  const staff: Boolean = staffLayout(category);
+  const bw: Int = buttonWidth(mobile);
+  const bh: Int = staff ? Layout.STAFF_BUTTON_H : Layout.BUTTON_H;
+
+  const row: Int = categoryRow(category);
+  const t0: Int = buttonTuple(row, 0);
+  const t1: Int = buttonTuple(row, 1);
+  const t2: Int = buttonTuple(row, 2);
+  const t3: Int = buttonTuple(row, 3);
+  const s0: Sprite = buttonSprite(t0);
+  const s1: Sprite = buttonSprite(t1);
+  const s2: Sprite = buttonSprite(t2);
+  const s3: Sprite = buttonSprite(t3);
+  const p1: Int = s0 !== -1 ? 1 : 0;
+  const p2: Int = p1 + (s1 !== -1 ? 1 : 0);
+  const p3: Int = p2 + (s2 !== -1 ? 1 : 0);
+
+  const iconY: Int = staff ? -1 : -6;
+  const labelY: Int = staff ? 10 : 13;
+  const firstIconW: Int = staff ? 33 : category === Category.GUN ? 30 : 34;
+  const firstIconH: Int = staff ? 23 : category === Category.GUN ? 30 : 24;
+
+  const retY: Int = retaliateY(mobile, category);
+  const retH: Int = retaliateHeight(mobile);
+  const retW: Int = category === Category.STAFF_SPELLBLADE ? bw : gapX(mobile) + 2 * bw;
+  const retX: Int = category === Category.STAFF_SPELLBLADE ? -5 * gapX(mobile) : 0;
+  const specW: Int = gapX(mobile) + 2 * bw;
+  const specH: Int = specHeight(mobile, category);
+  const specY: Int = retY + retH + gapY(mobile);
+  const capped: Int = useDerived(() => specCapActive());
+  const hpSpecs: Int = useDerived(() => relicActive(CombatRelic.HP_SPECS));
+  const cost: Int = specCost(weapon, capped);
+  const troughW: Int = specW - 4;
+  const barW: Int = CS2.interpolate(0, specAmount(weapon, cost, hpSpecs), 0, specScale(weapon, cost, hpSpecs), troughW);
+
+  const name: String = weaponName(weapon);
+  const nameWidth: Int = 190 - 21;
+  const levelY: Int = textLineCount(name, nameWidth, CombatFonts.TITLE) > 1 ? Layout.LEVEL_Y_WRAPPED : Layout.LEVEL_Y;
+  const sailing: Boolean = sailingPanel === 1 || (membersWorld() && sailingIntro >= 6 && sailingOnlyOnBoat === 0);
+
+  const frameH: Int = cost > 0 ? specY + specH - 39 + 4 : retY + retH - 39 + 4;
+
+  return (
+    <>
+      {mobile ? (
+        <layer x={{ center: 0 }} y={39} w={{ fill: 2 }} h={info === 1 ? frameH : 206} hide={info === 0}>
+          <rect
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w="fill"
+            h="fill"
+            color={CombatColors.INFO_WASH}
+            fill
+            transparency={220}
+          />
+          <rect
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w={{ fill: 2 }}
+            h={{ fill: 2 }}
+            color={CombatColors.INFO_WASH}
+            fill
+            transparency={220}
+          />
+          <rect
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w={{ fill: 4 }}
+            h={{ fill: 4 }}
+            color={CombatColors.INFO_WASH}
+            fill
+            transparency={220}
+          />
+          <rect
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w={{ fill: 6 }}
+            h={{ fill: 6 }}
+            color={CombatColors.INFO_WASH}
+            fill
+            transparency={220}
+          />
+        </layer>
+      ) : (
+        <layer x={{ center: 0 }} y={39} w={{ fill: 2 }} h={206} hide />
+      )}
+
+      <layer x={{ center: sailing ? Layout.NAME_X_SAILING : 0 }} y={0} w={{ fill: 21 }} h={44}>
+        <text
+          x={{ center: 0 }}
+          y={0}
+          w="fill"
+          h={30}
+          text={name}
+          font={CombatFonts.TITLE}
+          color={CombatColors.ORANGE}
+          align="center"
+          valign="middle"
+          shadow
+        />
+        <text
+          x={{ center: 0 }}
+          y={levelY}
+          w="fill"
+          h={12}
+          text={combatLevelText()}
+          font={CombatFonts.SMALL}
+          color={CombatColors.ORANGE}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      <text
+        x={0}
+        y={{ bottom: 2 }}
+        w={Layout.TITLE_W}
+        h={mobile ? Layout.MOBILE_TITLE_H : Layout.TITLE_H}
+        text=""
+        font={CombatFonts.SMALL}
+        color={CombatColors.ORANGE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      {s0 !== -1 ? (
+        <StyleButton
+          slot={0}
+          x={styleX(mobile, category, 0)}
+          y={styleY(mobile, category, 0)}
+          w={bw}
+          h={bh}
+          name={buttonName(t0)}
+          tip={buttonTooltip(t0)}
+          sprite={s0}
+          selected={style === 0 || style === 5}
+          iconY={iconY}
+          iconW={firstIconW}
+          iconH={firstIconH}
+          labelY={labelY}
+        />
+      ) : null}
+      {s1 !== -1 ? (
+        <StyleButton
+          slot={1}
+          x={styleX(mobile, category, p1)}
+          y={styleY(mobile, category, p1)}
+          w={bw}
+          h={bh}
+          name={buttonName(t1)}
+          tip={buttonTooltip(t1)}
+          sprite={s1}
+          selected={style === 1}
+          iconY={iconY}
+          iconW={34}
+          iconH={24}
+          labelY={labelY}
+        />
+      ) : null}
+      {s2 !== -1 ? (
+        <StyleButton
+          slot={2}
+          x={styleX(mobile, category, p2)}
+          y={styleY(mobile, category, p2)}
+          w={bw}
+          h={bh}
+          name={buttonName(t2)}
+          tip={buttonTooltip(t2)}
+          sprite={s2}
+          selected={style === 2}
+          iconY={iconY}
+          iconW={34}
+          iconH={24}
+          labelY={labelY}
+        />
+      ) : null}
+      {s3 !== -1 ? (
+        <StyleButton
+          slot={3}
+          x={styleX(mobile, category, p3)}
+          y={styleY(mobile, category, p3)}
+          w={bw}
+          h={bh}
+          name={buttonName(t3)}
+          tip={buttonTooltip(t3)}
+          sprite={s3}
+          selected={style === 3}
+          iconY={iconY}
+          iconW={34}
+          iconH={24}
+          labelY={labelY}
+        />
+      ) : null}
+
+      <layer
+        x={gridX(mobile) + bw + gapX(mobile)}
+        y={gridY(mobile)}
+        w={bw}
+        h={3 * Layout.STAFF_BUTTON_H + 2 * Layout.STAFF_GAP}
+        hide={!staff}
+      >
+        <layer x={0} y={0} w={bw} h={Layout.AUTOCAST_H} options={['Choose spell']}>
+          <AutocastSkin defensive={1} />
+        </layer>
+        <layer x={0} y={0} w={bw} h={Layout.AUTOCAST_H}>
+          <AutocastIcon defensive={1} />
+          <sprite x={{ center: -16 }} y={{ center: 0 }} w={36} h={36} sprite={CombatSprites.SHIELD} />
+          <text
+            x={0}
+            y={{ center: 15 }}
+            w="fill"
+            h={16}
+            text="Spell"
+            font={CombatFonts.SMALL}
+            color={CombatColors.ORANGE}
+            align="center"
+            valign="top"
+            shadow
+          />
+        </layer>
+        <layer x={0} y={{ bottom: 0 }} w={bw} h={Layout.AUTOCAST_H} options={['Choose spell']}>
+          <AutocastSkin defensive={0} />
+        </layer>
+        <layer x={0} y={{ bottom: 0 }} w={bw} h={Layout.AUTOCAST_H}>
+          <AutocastIcon defensive={0} />
+          <text
+            x={0}
+            y={{ center: 15 }}
+            w="fill"
+            h={16}
+            text="Spell"
+            font={CombatFonts.SMALL}
+            color={CombatColors.ORANGE}
+            align="center"
+            valign="top"
+            shadow
+          />
+        </layer>
+      </layer>
+
+      <layer
+        x={{ center: retX }}
+        y={retY}
+        w={retW}
+        h={retH}
+        options={['Auto retaliate']}
+        onMouseRepeat={() => showAddTip(RETALIATE_TIP, (190 - retW) / 2 + retX, retY, retH, 25, 140)}
+        onMouseLeave={() => hideComboTip()}
+      >
+        <text x={0} y={0} w={32} h={32} text="" font={CombatFonts.SMALL} color={CombatColors.WHITE} shadow />
+        <ToggleSkin on={retaliateOff === 0} />
+        <sprite
+          x={7}
+          y={3}
+          w={26}
+          h={39}
+          sprite={retaliateOff === 0 ? CombatSprites.TOGGLE_ON : CombatSprites.TOGGLE_OFF}
+        />
+        <text
+          x={{ right: 2 }}
+          y={1}
+          w={{ fill: 38 }}
+          h={42}
+          text={retaliateOff === 0 ? RETALIATE_ON : RETALIATE_OFF}
+          font={CombatFonts.LABEL}
+          color={CombatColors.ORANGE}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      <layer
+        x={{ center: 41 }}
+        y={153}
+        w={70}
+        h={47}
+        options={['Toggle set effect']}
+        hide={category !== Category.STAFF_SPELLBLADE}
+        onMouseRepeat={() => showAddTip(SET_EFFECT_TIP, (190 - 70) / 2 + 41, 153, 47, 25, 140)}
+        onMouseLeave={() => hideComboTip()}
+      >
+        <text x={0} y={0} w={32} h={32} text="" font={CombatFonts.SMALL} color={CombatColors.WHITE} shadow />
+        <ToggleSkin on={setEffect === 1} />
+        <sprite
+          x={7}
+          y={3}
+          w={26}
+          h={39}
+          sprite={setEffect === 1 ? CombatSprites.TOGGLE_ON : CombatSprites.TOGGLE_OFF}
+        />
+        <text
+          x={{ right: 2 }}
+          y={1}
+          w={{ fill: 38 }}
+          h={42}
+          text={setEffect === 1 ? SET_EFFECT_ON : SET_EFFECT_OFF}
+          font={CombatFonts.LABEL}
+          color={CombatColors.ORANGE}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+
+      {cost > 0 ? (
+        <layer
+          x={{ center: 0 }}
+          y={specY}
+          w={specW}
+          h={specH}
+          onMouseRepeat={() =>
+            showComboTip(
+              specTipsOff === 0 ? specDescription(weapon, 1, capped) : '',
+              (190 - specW) / 2,
+              specY,
+              specH,
+              25,
+              160,
+            )
+          }
+          onMouseLeave={() => hideComboTip()}
+        >
+          <layer
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w="fill"
+            h="fill"
+            options={['Use <col=00ff00>Special Attack</col>']}
+          >
+            <ButtonBackground />
+          </layer>
+          <rect x={2} y={{ center: 0 }} w={troughW} h={barHeight(mobile)} color={CombatColors.TROUGH} fill />
+          <layer x={2} y={{ center: 0 }} w={barW} h={barHeight(mobile)}>
+            <rect
+              x={{ center: 0 }}
+              y={{ center: 0 }}
+              w="fill"
+              h="fill"
+              fill
+              color={specReady(weapon, cost, hpSpecs) ? CombatColors.BAR_READY : CombatColors.BAR_SHORT}
+            />
+          </layer>
+          <text
+            x={0}
+            y={{ center: 0 }}
+            w="fill"
+            h="fill"
+            text={specText(weapon, cost, hpSpecs)}
+            font={CombatFonts.SMALL}
+            color={specArmed > 0 ? CombatColors.SPEC_ARMED : CombatColors.SPEC_IDLE}
+            align="center"
+            valign="middle"
+          />
+          <rect x={2} y={{ center: 0 }} w={troughW} h={barHeight(mobile) + 2} color={CombatColors.BAR_EDGE} />
+        </layer>
+      ) : (
+        <layer x={{ center: 0 }} y={200} w={150} h={26} hide />
+      )}
+
+      <ComboTooltip />
+
+      <layer
+        x={0}
+        y={0}
+        w={26}
+        h={26}
+        hide={!sailing}
+        options={['View']}
+        optionSubject="Sailing Options"
+        onOptionSelect={(event) => opsound(event.option, 2)}
+      >
+        {sailing ? <SailingButton /> : null}
+      </layer>
+
+      {mobile ? (
+        <layer
+          x={{ right: 2 }}
+          y={{ center: -99 }}
+          w={46}
+          h={17}
+          onClick={() => {
+            setInfo(info === 1 ? 0 : 1);
+            setTip(-1);
+          }}
+        >
+          {info === 1 ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <text
+            x={{ center: 0 }}
+            y={{ center: 0 }}
+            w="fill"
+            h="fill"
+            text={INFO}
+            font={CombatFonts.SMALL}
+            color={CombatColors.ORANGE}
+            align="center"
+            valign="middle"
+            shadow
+          />
+        </layer>
+      ) : (
+        <layer x={{ right: 2 }} y={{ center: -99 }} w={46} h={17} hide />
+      )}
+
+      <layer x={{ center: 0 }} y={{ center: 0 }} w="fill" h="fill">
+        {mobile && info === 1 && tip !== -1 ? (
+          <InfoBox
+            index={tip}
+            category={category}
+            row={row}
+            weapon={weapon}
+            capped={capped}
+            anchorY={infoAnchorY(tip, mobile, category, p1, p2, p3, s0, s1, s2, retY, specY)}
+            anchorH={infoAnchorH(tip, mobile, bh, retH, specH)}
+          />
+        ) : null}
+      </layer>
+
+      <layer x={{ center: 0 }} y={{ center: 0 }} w="fill" h="fill">
+        {mobile && info === 1 && s0 !== -1 ? (
+          <rect
+            x={styleX(mobile, category, 0)}
+            y={styleY(mobile, category, 0)}
+            w={bw}
+            h={bh}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(0)}
+          />
+        ) : null}
+        {mobile && info === 1 && s1 !== -1 ? (
+          <rect
+            x={styleX(mobile, category, p1)}
+            y={styleY(mobile, category, p1)}
+            w={bw}
+            h={bh}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(1)}
+          />
+        ) : null}
+        {mobile && info === 1 && s2 !== -1 ? (
+          <rect
+            x={styleX(mobile, category, p2)}
+            y={styleY(mobile, category, p2)}
+            w={bw}
+            h={bh}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(2)}
+          />
+        ) : null}
+        {mobile && info === 1 && s3 !== -1 ? (
+          <rect
+            x={styleX(mobile, category, p3)}
+            y={styleY(mobile, category, p3)}
+            w={bw}
+            h={bh}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(3)}
+          />
+        ) : null}
+        {mobile && info === 1 && staff ? (
+          <rect
+            x={gridX(mobile) + bw + gapX(mobile)}
+            y={gridY(mobile)}
+            w={bw}
+            h={Layout.AUTOCAST_H}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(4)}
+          />
+        ) : null}
+        {mobile && info === 1 && staff ? (
+          <rect
+            x={gridX(mobile) + bw + gapX(mobile)}
+            y={gridY(mobile) + 3 * Layout.STAFF_BUTTON_H + 2 * Layout.STAFF_GAP - Layout.AUTOCAST_H}
+            w={bw}
+            h={Layout.AUTOCAST_H}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(5)}
+          />
+        ) : null}
+        {mobile && info === 1 ? (
+          <rect
+            x={(190 - retW) / 2 + retX}
+            y={retY}
+            w={retW}
+            h={retH}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(6)}
+          />
+        ) : null}
+        {mobile && info === 1 && category === Category.STAFF_SPELLBLADE ? (
+          <rect
+            x={(190 - 70) / 2 + 41}
+            y={153}
+            w={70}
+            h={47}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(7)}
+          />
+        ) : null}
+        {mobile && info === 1 && cost > 0 ? (
+          <rect
+            x={(190 - specW) / 2}
+            y={specY}
+            w={specW}
+            h={specH}
+            fill
+            color={0}
+            transparency={255}
+            noClickThrough
+            onClick={() => setTip(8)}
+          />
+        ) : null}
+      </layer>
+    </>
+  );
+}
+
+function infoAnchorY(
+  index: Int,
+  mobile: Boolean,
+  category: Int,
+  p1: Int,
+  p2: Int,
+  p3: Int,
+  s0: Sprite,
+  s1: Sprite,
+  s2: Sprite,
+  retY: Int,
+  specY: Int,
+): Int {
+  if (index === 0) {
+    return styleY(mobile, category, 0);
+  }
+  if (index === 1) {
+    return styleY(mobile, category, p1);
+  }
+  if (index === 2) {
+    return styleY(mobile, category, p2);
+  }
+  if (index === 3) {
+    return styleY(mobile, category, p3);
+  }
+  if (index === 4) {
+    return gridY(mobile);
+  }
+  if (index === 5) {
+    return gridY(mobile) + 3 * Layout.STAFF_BUTTON_H + 2 * Layout.STAFF_GAP - Layout.AUTOCAST_H;
+  }
+  if (index === 6) {
+    return retY;
+  }
+  if (index === 7) {
+    return 153;
+  }
+  return specY;
+}
+
+function infoAnchorH(index: Int, mobile: Boolean, bh: Int, retH: Int, specH: Int): Int {
+  if (index < 4) {
+    return bh;
+  }
+  if (index < 6) {
+    return Layout.AUTOCAST_H;
+  }
+  if (index === 6) {
+    return retH;
+  }
+  if (index === 7) {
+    return 47;
+  }
+  return specH;
+}
+
+function InfoBox({
+  index,
+  category,
+  row,
+  weapon,
+  capped,
+  anchorY,
+  anchorH,
+}: {
+  index: Int;
+  category: Int;
+  row: Int;
+  weapon: Item;
+  capped: Int;
+  anchorY: Int;
+  anchorH: Int;
+}): Component {
+  const title: String = infoTitle(index, row);
+  const body: String = infoBody(index, row, weapon, capped);
+  const w: Int = Math.max(textWidth(body, 182, CombatFonts.SMALL), textWidth(title, 182, CombatFonts.LABEL)) + 6;
+  const bodyH: Int = textLineCount(body, 182, CombatFonts.SMALL) * 14;
+  const h: Int = bodyH + 16;
+  const below: Int = anchorY + anchorH + 5;
+  const y: Int = below + h > 261 ? Math.max(0, anchorY - h - 5) : below;
+  return (
+    <>
+      <rect x={{ center: 0 }} y={y} w={w} h={h} fill color={CombatColors.INFO_FILL} transparency={42} noClickThrough />
+      <rect x={{ center: 1 }} y={y + 1} w={w - 1} h={h - 1} color={CombatColors.INFO_EDGE_DARK} />
+      <rect x={{ center: 0 }} y={y} w={w - 1} h={h - 1} color={CombatColors.INFO_EDGE_LIGHT} />
+      <text
+        x={{ center: 0 }}
+        y={y}
+        w={w - 6}
+        h={20}
+        text={title}
+        font={CombatFonts.LABEL}
+        color={CombatColors.ORANGE}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={{ center: 0 }}
+        y={y + 14}
+        w={w - 6}
+        h={bodyH}
+        text={body}
+        font={CombatFonts.SMALL}
+        color={CombatColors.INFO_BODY}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function infoTitle(index: Int, row: Int): String {
+  if (index < 4) {
+    return buttonName(buttonTuple(row, index));
+  }
+  if (index === 4) {
+    return 'Autocast (defensive)';
+  }
+  if (index === 5) {
+    return 'Autocast';
+  }
+  if (index === 6) {
+    return 'Auto-retaliate';
+  }
+  if (index === 7) {
+    return 'Set effect';
+  }
+  return 'Special attack';
+}
+
+function infoBody(index: Int, row: Int, weapon: Item, capped: Int): String {
+  if (index < 4) {
+    return buttonTooltip(buttonTuple(row, index));
+  }
+  if (index === 4) {
+    return 'Select a spell to autocast.<br>Damage provides some defensive xp.';
+  }
+  if (index === 5) {
+    return 'Select a spell to autocast.';
+  }
+  if (index === 6) {
+    return 'When active your character will automatically fight back if attacked.';
+  }
+  if (index === 7) {
+    return 'Toggles the current weapons set effect.';
+  }
+  return specDescription(weapon, 0, capped);
+}
+
+function SailingButton(): Component {
+  const [lit, setLit] = useState(0);
+  return (
+    <>
+      <sprite x={0} y={0} w={26} h={26} sprite={CombatSprites.SLICE_C} tiling />
+      <sprite x={0} y={0} w={5} h={5} sprite={lit === 1 ? CombatSprites.HOVER_NW : CombatSprites.SLICE_NW} tiling />
+      <sprite x={21} y={0} w={5} h={5} sprite={lit === 1 ? CombatSprites.HOVER_NE : CombatSprites.SLICE_NE} tiling />
+      <sprite x={0} y={21} w={5} h={5} sprite={lit === 1 ? CombatSprites.HOVER_SW : CombatSprites.SLICE_SW} tiling />
+      <sprite x={21} y={21} w={5} h={5} sprite={lit === 1 ? CombatSprites.HOVER_SE : CombatSprites.SLICE_SE} tiling />
+      <sprite x={0} y={5} w={5} h={16} sprite={lit === 1 ? CombatSprites.HOVER_W : CombatSprites.SLICE_W} tiling />
+      <sprite x={5} y={0} w={16} h={5} sprite={lit === 1 ? CombatSprites.HOVER_N : CombatSprites.SLICE_N} tiling />
+      <sprite x={21} y={5} w={5} h={16} sprite={lit === 1 ? CombatSprites.HOVER_E : CombatSprites.SLICE_E} tiling />
+      <sprite x={5} y={21} w={16} h={5} sprite={lit === 1 ? CombatSprites.HOVER_S : CombatSprites.SLICE_S} tiling />
+      <sprite x={3} y={3} w={20} h={20} sprite={CombatSprites.SAILING} transparency={0} />
+      <text
+        x={3}
+        y={3}
+        w={20}
+        h={20}
+        text=""
+        font={CombatFonts.LABEL}
+        color={0}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={20}
+      />
+      <rect
+        x={0}
+        y={0}
+        w={26}
+        h={26}
+        fill
+        color={0}
+        transparency={255}
+        onMouseEnter={onMobile() ? undefined : () => setLit(1)}
+        onMouseLeave={() => setLit(0)}
+      />
+    </>
+  );
+}

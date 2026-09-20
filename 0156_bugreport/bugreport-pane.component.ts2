@@ -1,0 +1,151 @@
+import { useRef, useState, useUniverse } from 'ts2';
+
+import { bugreportDesc, bugreportRepro } from '../lib/game/varcs';
+import { textLineCount } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import {
+  BugreportColour,
+  BugreportFonts,
+  BugreportInput,
+  BugreportScrollbar,
+  Layout,
+  STONE_TILE,
+} from './bugreport.constants';
+import {
+  bugreportActive,
+  bugreportKeypress,
+  bugreportNews,
+  bugreportNewsShown,
+  bugreportParse,
+  bugreportTextinput,
+} from './bugreport.state';
+
+export function DescriptionPane(): Component {
+  const [desc] = useState(bugreportDesc);
+  const [active] = useState(bugreportActive);
+  return <PaneBody text={desc} active={active === BugreportInput.DESCRIPTION} input={BugreportInput.DESCRIPTION} />;
+}
+
+export function ReproductionPane(): Component {
+  const [repro] = useState(bugreportRepro);
+  const [active] = useState(bugreportActive);
+  return <PaneBody text={repro} active={active === BugreportInput.REPRODUCTION} input={BugreportInput.REPRODUCTION} />;
+}
+
+function PaneBody({ text, active, input }: { text: String; active: Boolean; input: Int }): Component {
+  const universe = useUniverse();
+  const pane = useRef();
+
+  const parsed: String = bugreportParse(text, 1);
+  const shown: String = active ? parsed.concat('<col=ffffff>*</col>') : parsed;
+  const paneW: Int = universe.width - Layout.PANE_INSET_W;
+  const paneH: Int = universe.height - Layout.PANE_INSET_H;
+  const measured: Int = textLineCount(shown, paneW, BugreportFonts.BODY) * Layout.LINE_H + Layout.LINE_PAD;
+  const contentH: Int = Math.max(measured, paneH);
+  const extent: Int = contentH > paneH ? contentH : 0;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y="center"
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={extent}
+        scrollY={Math.max(Math.min(contentH, Math.max(extent - paneH, 1)), 0)}
+        onClick={() => bugreportTextinput(input)}
+        onKey={(event) => bugreportKeypress(event.keyCode, event.keyChar, input)}
+      >
+        <sprite x="center" y={0} w="fill" h={contentH} sprite={STONE_TILE} tiling transparency={active ? 0 : 255} />
+        <text
+          x="center"
+          y={0}
+          w="fill"
+          h={contentH}
+          text={shown}
+          font={BugreportFonts.BODY}
+          shadow
+          color={BugreportColour.AMBER}
+        />
+      </layer>
+      <layer x={{ right: Layout.PANE_X }} y="center" w={Layout.BAR_W} h={{ fill: Layout.PANE_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={BugreportScrollbar.TRACK}
+          capTopSprite={BugreportScrollbar.CAP_TOP}
+          thumbSprite={BugreportScrollbar.THUMB}
+          capBottomSprite={BugreportScrollbar.CAP_BOTTOM}
+          arrowUp={BugreportScrollbar.ARROW_UP}
+          arrowDown={BugreportScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+export function NewsPane(): Component {
+  const [news] = useState(bugreportNews);
+  const [shown] = useState(bugreportNewsShown);
+  const universe = useUniverse();
+  const pane = useRef();
+
+  const paneW: Int = universe.width - Layout.PANE_INSET_W;
+  const paneH: Int = universe.height - Layout.PANE_INSET_H;
+  const bodyH: Int = textLineCount(news, paneW, BugreportFonts.BODY) * Layout.LINE_H + Layout.LINE_PAD;
+  const extent: Int = bodyH + Layout.NEWS_HEADING_H;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        x={Layout.PANE_X}
+        y="center"
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        scrollHeight={shown === 1 && extent > paneH ? extent : 0}
+        scrollY={0}
+      >
+        {shown === 1 ? (
+          <text
+            x="center"
+            y={0}
+            w="fill"
+            h={Layout.NEWS_HEADING_H}
+            text="Bug News"
+            font={BugreportFonts.BOLD}
+            shadow
+            align="center"
+            valign="middle"
+            color={BugreportColour.AMBER_LIGHT}
+          />
+        ) : null}
+        {shown === 1 ? (
+          <text
+            x="center"
+            y={Layout.NEWS_HEADING_H}
+            w="fill"
+            h={bodyH}
+            text={news}
+            font={BugreportFonts.BODY}
+            shadow
+            color={BugreportColour.AMBER}
+          />
+        ) : null}
+      </layer>
+      <layer x={{ right: Layout.PANE_X }} y="center" w={Layout.BAR_W} h={{ fill: Layout.PANE_INSET_H }}>
+        {shown === 1 ? (
+          <ScrollbarVertical
+            content={pane}
+            track={BugreportScrollbar.TRACK}
+            capTopSprite={BugreportScrollbar.CAP_TOP}
+            thumbSprite={BugreportScrollbar.THUMB}
+            capBottomSprite={BugreportScrollbar.CAP_BOTTOM}
+            arrowUp={BugreportScrollbar.ARROW_UP}
+            arrowDown={BugreportScrollbar.ARROW_DOWN}
+          />
+        ) : null}
+      </layer>
+    </>
+  );
+}

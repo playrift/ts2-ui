@@ -1,0 +1,817 @@
+import { CS2, useInventory, useState } from 'ts2';
+
+import { refusalColourTag, chatOnDarkBackground } from '../0655_league_relics/league-relics.helpers';
+import { compactCount } from '../0529_league_summary/league-summary.helpers';
+import { commas } from '../0465_ge_offers/ge-offers.helpers';
+import { itemName, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ServerScript } from '../lib/server-scripts';
+import {
+  CustomisationColors,
+  CustomisationFonts,
+  CustomisationInventories,
+  CustomisationItems,
+  CustomisationSprites,
+  Layout,
+  SkillIcon,
+  UnknownModel,
+} from './sailing-customisation.constants';
+import { OptionKind } from './sailing-customisation.data';
+import {
+  buildRefusal,
+  buildVerdict,
+  constructionLevelOf,
+  descWidth,
+  detailFont,
+  materialCount,
+  materialItem,
+  materialLit,
+  materialNeed,
+  materialsHeld,
+  materialsPerLine,
+  meetsConstruction,
+  meetsSailing,
+  modelHeight,
+  notConsumed,
+  optionAt,
+  optionName,
+  previewAngle,
+  previewAnim,
+  previewLoc,
+  rowBase,
+  sailingLevelOf,
+  schematicKnown,
+  shipwrightCost,
+  shortName,
+  statsText,
+  trimReplaces,
+} from './sailing-customisation.helpers';
+import { checkMaterials, refuseBuild, startBuild } from './sailing-customisation.state';
+
+function measureLine(font: Font): Int {
+  return font === 495 ? 15 : 12;
+}
+
+function drawLine(font: Font): Int {
+  return font === 495 ? 15 : 13;
+}
+
+export function requirementsShown(option: Int): Boolean {
+  return !(sailingLevelOf(option) < 1 && constructionLevelOf(option) < 1);
+}
+
+function descBoxH(option: Int): Int {
+  if (materialCount(option) < 2) {
+    return 83;
+  }
+  return 38;
+}
+
+function descH(option: Int, breakpoint: Int): Int {
+  if (!schematicKnown(option)) {
+    return 0;
+  }
+  const font: Font = detailFont(breakpoint);
+  const row = optionAt(option);
+  const text: String = row === null ? '' : row.description;
+  return textLineCount(text, descWidth(breakpoint), font) * measureLine(font);
+}
+
+function statsH(option: Int, breakpoint: Int, boat: Int): Int {
+  const font: Font = detailFont(breakpoint);
+  return textLineCount(statsText(option, boat), descWidth(breakpoint) + 100, font) * measureLine(font);
+}
+
+export function textOverrun(option: Int, breakpoint: Int, brief: Int, boat: Int): Int {
+  if (!schematicKnown(option)) {
+    return 0;
+  }
+  const box: Int = descBoxH(option);
+  const desc: Int = descH(option, breakpoint);
+  let over: Int = 0;
+  if (desc > box) {
+    over = desc - box;
+  }
+  const stats: Int = statsH(option, breakpoint, boat);
+  if (brief === 0 && stats > 0) {
+    if (stats + desc > box) {
+      over = stats + desc - box;
+      if (detailFont(breakpoint) === 494) {
+        over = over + 3;
+      }
+    }
+  }
+  return over;
+}
+
+export function materialsRight(option: Int, breakpoint: Int): Int {
+  const count: Int = materialCount(option);
+  if (count < 1) {
+    return 0;
+  }
+  const per: Int = materialsPerLine(breakpoint);
+  return 8 + Layout.CELL_STEP_X * Math.min(count, per);
+}
+
+function materialLines(option: Int, breakpoint: Int): Int {
+  const count: Int = materialCount(option);
+  const per: Int = materialsPerLine(breakpoint);
+  return (count + per - 1) / per;
+}
+
+export function materialsOverrun(option: Int, breakpoint: Int): Int {
+  if (materialCount(option) < 1) {
+    return 0;
+  }
+  const height: Int = materialLines(option, breakpoint) * 36;
+  if (height > 36) {
+    return height - 36;
+  }
+  return 0;
+}
+
+function heightBeforeMaterials(option: Int, breakpoint: Int, brief: Int, boat: Int): Int {
+  let height: Int = rowBase(breakpoint);
+  if (!schematicKnown(option) || materialCount(option) <= 0) {
+    height = height - 40;
+  }
+  return height + textOverrun(option, breakpoint, brief, boat);
+}
+
+export function rowHeight(option: Int, breakpoint: Int, brief: Int, boat: Int): Int {
+  let height: Int = heightBeforeMaterials(option, breakpoint, brief, boat);
+  if (schematicKnown(option)) {
+    height = height + materialsOverrun(option, breakpoint);
+  }
+  return height;
+}
+
+export function FacilityRow({
+  shown,
+  option,
+  top,
+  built,
+  paneW,
+  breakpoint,
+  brief,
+  boat,
+}: {
+  shown: Boolean;
+  option: Int;
+  top: Int;
+  built: Int;
+  paneW: Int;
+  breakpoint: Int;
+  brief: Int;
+  boat: Int;
+}): Component {
+  const known: Boolean = schematicKnown(option);
+  const beforeMaterials: Int = heightBeforeMaterials(option, breakpoint, brief, boat);
+  const materialsTop: Int = top + beforeMaterials - 37;
+  const height: Int = rowHeight(option, breakpoint, brief, boat);
+  const row = optionAt(option);
+  let facility: Boolean = false;
+  if (row !== null) {
+    if (row.kind === OptionKind.FACILITY) {
+      facility = true;
+    }
+  }
+  const highlight: Boolean = built === option || trimReplaces(option, built);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <SkillBox shown={requirementsShown(option)} option={option} top={top} known={known} />
+      <RowTexts option={option} top={top} known={known} breakpoint={breakpoint} brief={brief} boat={boat} />
+      <MaterialsBox
+        shown={known && materialCount(option) > 0}
+        option={option}
+        top={materialsTop}
+        breakpoint={breakpoint}
+      />
+      <BottledCost shown={known && facility} x={materialsRight(option, breakpoint) + 5} top={materialsTop} />
+      <ModelBox option={option} top={top} known={known} breakpoint={breakpoint} boat={boat} />
+      {known && highlight && (
+        <text
+          x={paneW - (Layout.REQ_W + 2)}
+          y={top + (height - Layout.REQ_H - 2)}
+          w={Layout.REQ_W - 6}
+          h={Layout.REQ_H - 6}
+          text="Currently Built"
+          font={CustomisationFonts.BOLD}
+          align="center"
+          valign="middle"
+          lineHeight={20}
+          shadow
+          color={CustomisationColors.ORANGE}
+        />
+      )}
+      <BuildControl shown={known && !highlight} option={option} built={built} top={top} height={height} paneW={paneW} />
+    </layer>
+  );
+}
+
+function SkillBox({ shown, option, top, known }: { shown: Boolean; option: Int; top: Int; known: Boolean }): Component {
+  let construction: String = CS2.tostring(constructionLevelOf(option));
+  let sailing: String = CS2.tostring(sailingLevelOf(option));
+  let constructionColour: Int = meetsConstruction(option) ? CustomisationColors.ORANGE : CustomisationColors.GREY;
+  let sailingColour: Int = meetsSailing(option) ? CustomisationColors.ORANGE : CustomisationColors.GREY;
+  if (!known) {
+    construction = '?';
+    sailing = '?';
+    constructionColour = CustomisationColors.GREY;
+    sailingColour = CustomisationColors.GREY;
+  }
+  return shown ? (
+    <>
+      <sprite
+        x={{ right: 5 }}
+        y={top + 5}
+        w={Layout.REQ_W}
+        h={Layout.REQ_H}
+        sprite={CustomisationSprites.BACKING_DARK}
+      />
+      <rect x={{ right: 5 }} y={top + 5} w={Layout.REQ_W} h={Layout.REQ_H + 2} color={CustomisationColors.BOX_OUTER} />
+      <rect x={{ right: 6 }} y={top + 6} w={Layout.REQ_W - 2} h={Layout.REQ_H} color={CustomisationColors.BOX_INNER} />
+      <sprite x={{ right: 29 }} y={top + 8} w={25} h={25} sprite={SkillIcon.CONSTRUCTION} />
+      <text
+        x={{ right: 10 }}
+        y={top + 10}
+        w={15}
+        h={25}
+        text={construction}
+        font={CustomisationFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={constructionColour}
+      />
+      <sprite x={{ right: 77 }} y={top + 8} w={25} h={25} sprite={SkillIcon.SAILING} />
+      <text
+        x={{ right: 58 }}
+        y={top + 10}
+        w={16}
+        h={25}
+        text={sailing}
+        font={CustomisationFonts.BODY}
+        align="center"
+        valign="middle"
+        shadow
+        color={sailingColour}
+      />
+    </>
+  ) : null;
+}
+
+function RowTexts({
+  option,
+  top,
+  known,
+  breakpoint,
+  brief,
+  boat,
+}: {
+  option: Int;
+  top: Int;
+  known: Boolean;
+  breakpoint: Int;
+  brief: Int;
+  boat: Int;
+}): Component {
+  const font: Font = detailFont(breakpoint);
+  const row = optionAt(option);
+  let name: String = row === null ? '' : row.name;
+  let width: Int = descWidth(breakpoint);
+  if (requirementsShown(option)) {
+    name = shortName(name, breakpoint);
+  } else {
+    width = width + 100;
+  }
+  let description: String = row === null ? '' : row.description;
+  if (!known) {
+    name = 'Unknown';
+    description = 'You must discover the schematic for this facility before you can build it.';
+  }
+  const stats: String = statsText(option, boat);
+  const statsLines: Int = textLineCount(stats, descWidth(breakpoint) + 100, font);
+  const desc: Int = descH(option, breakpoint);
+  return (
+    <>
+      <text
+        x={Layout.TEXT_X}
+        y={top + 3}
+        w={{ fill: 5 }}
+        h={20}
+        text={name}
+        font={CustomisationFonts.BOLD}
+        align="left"
+        valign="middle"
+        shadow
+        color={CustomisationColors.ORANGE}
+      />
+      <text
+        x={Layout.TEXT_X}
+        y={top + (font === 495 ? 22 : 23)}
+        w={width}
+        h={descBoxH(option)}
+        text={description}
+        font={font}
+        align="left"
+        valign="top"
+        lineHeight={drawLine(font)}
+        shadow
+        color={CustomisationColors.WHITE}
+      />
+      {known && brief === 0 && statsLines > 0 && (
+        <text
+          x={Layout.TEXT_X}
+          y={top + desc + 20 + 5 + (font === 495 ? 0 : 2)}
+          w={descWidth(breakpoint) + 100}
+          h={descBoxH(option)}
+          text={stats}
+          font={font}
+          align="left"
+          valign="top"
+          lineHeight={drawLine(font)}
+          shadow
+          color={CustomisationColors.WHITE}
+        />
+      )}
+    </>
+  );
+}
+
+const MATERIAL_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+function MaterialsBox({
+  shown,
+  option,
+  top,
+  breakpoint,
+}: {
+  shown: Boolean;
+  option: Int;
+  top: Int;
+  breakpoint: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const count: Int = materialCount(option);
+  const per: Int = materialsPerLine(breakpoint);
+  const width: Int = materialsRight(option, breakpoint) - 3;
+  const height: Int = materialLines(option, breakpoint) * 36;
+  let list: String = '';
+  let chat: String = '';
+  let index: Int = 0;
+  while (index < count) {
+    const item: ItemName = materialItem(option, index);
+    const need: Int = materialNeed(option, index);
+    const lit: Boolean = materialLit(item, need);
+    const tag: String = lit ? '<col=ffffff>' : '<col=999999>';
+    const chatTag: String = lit ? chatConfirmTag() : refusalColourTag();
+    let line: String = `${tag}${itemName(item as Item)} x ${commas(need)}</col>`;
+    let chatLine: String = `${chatTag}${itemName(item as Item)} x ${commas(need)}</col>`;
+    if (notConsumed(item)) {
+      line = `${line} ${tag}(Not consumed)</col>`;
+      chatLine = `${chatLine} ${chatTag}(Not consumed)</col>`;
+    }
+    list = `${list}${line}<br>`;
+    if (index === 0) {
+      chat = `${chat}${chatLine}`;
+    } else {
+      chat = `${chat}, ${chatLine}`;
+    }
+    index = index + 1;
+  }
+  const name: String = optionName(option);
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <sprite x={5} y={top - 3} w={width} h={height} sprite={CustomisationSprites.BACKING_DARK} />
+      {MATERIAL_SLOTS.map((slot) => (
+        <MaterialCell
+          shown={slot < count}
+          option={option}
+          index={slot}
+          x={11 + Layout.CELL_STEP_X * (slot % per)}
+          y={top + Layout.CELL_STEP_Y * (slot / per)}
+        />
+      ))}
+      <rect
+        x={5}
+        y={top - 3}
+        w={width}
+        h={height}
+        color={hovered === 1 ? CustomisationColors.MATERIALS_HOVER : CustomisationColors.BOX_OUTER}
+        options={['Check']}
+        optionSubject="<col=ff981f>Materials</col>"
+        onOptionSelect={() => {
+          setHovered(0);
+          checkMaterials(name, list, chat, option);
+        }}
+        onMouseRepeat={() => {
+          if (!mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (!mobile) {
+            setHovered(0);
+          }
+        }}
+      />
+      <rect x={6} y={top - 2} w={width - 2} h={height - 2} color={CustomisationColors.BOX_INNER} />
+    </layer>
+  );
+}
+
+function chatConfirmTag(): String {
+  if (chatOnDarkBackground()) {
+    return '<col=229628>';
+  }
+  return '<col=06600c>';
+}
+
+function MaterialCell({
+  shown,
+  option,
+  index,
+  x,
+  y,
+}: {
+  shown: Boolean;
+  option: Int;
+  index: Int;
+  x: Int;
+  y: Int;
+}): Component {
+  const item: ItemName = materialItem(option, index);
+  const need: Int = materialNeed(option, index);
+  const lit: Boolean = materialLit(item, need);
+  return shown ? (
+    <>
+      <sprite
+        x={x}
+        y={y}
+        w={Layout.CELL_W}
+        h={Layout.CELL_H}
+        outline={1}
+        shadowColor={0x333333}
+        item={item as Item}
+        itemCount={-1}
+        transparency={lit ? 0 : 150}
+        options={['Check']}
+        optionSubject={`<col=ff9040>${itemName(item as Item)}`}
+      />
+      {!notConsumed(item) && (
+        <text
+          x={x}
+          y={y}
+          w={Layout.CELL_W}
+          h={Layout.CELL_H}
+          text={compactCount(need, 10000, 10000000, ',')}
+          font={CustomisationFonts.SMALL}
+          align="left"
+          valign="top"
+          shadow
+          color={lit ? CustomisationColors.WHITE : CustomisationColors.GREY}
+        />
+      )}
+    </>
+  ) : null;
+}
+
+function BottledCost({ shown, x, top }: { shown: Boolean; x: Int; top: Int }): Component {
+  const inv = useInventory(CustomisationInventories.INV);
+  const lit: Boolean = inv.total(CustomisationItems.BOTTLED_FACILITY) >= 1;
+  const cellX: Int = x + 6;
+  return shown ? (
+    <>
+      <sprite x={x} y={top - 3} w={Layout.CELL_W + 5} h={36} sprite={CustomisationSprites.BACKING_DARK} />
+      <sprite
+        x={cellX}
+        y={top}
+        w={Layout.CELL_W}
+        h={Layout.CELL_H}
+        outline={1}
+        shadowColor={0x333333}
+        item={CustomisationItems.BOTTLED_FACILITY}
+        itemCount={-1}
+        transparency={lit ? 0 : 150}
+        options={['Check']}
+        optionSubject={`<col=ff9040>${itemName(CustomisationItems.BOTTLED_FACILITY)}`}
+      />
+      <text
+        x={cellX}
+        y={top}
+        w={Layout.CELL_W}
+        h={Layout.CELL_H}
+        text={compactCount(1, 10000, 10000000, ',')}
+        font={CustomisationFonts.SMALL}
+        align="left"
+        valign="top"
+        shadow
+        color={lit ? CustomisationColors.WHITE : CustomisationColors.GREY}
+      />
+      <rect x={x} y={top - 3} w={Layout.CELL_W + 5} h={36} color={CustomisationColors.BOX_OUTER} />
+      <rect x={x + 1} y={top - 2} w={Layout.CELL_W + 3} h={34} color={CustomisationColors.BOX_INNER} />
+    </>
+  ) : null;
+}
+
+function ModelBox({
+  option,
+  top,
+  known,
+  breakpoint,
+  boat,
+}: {
+  option: Int;
+  top: Int;
+  known: Boolean;
+  breakpoint: Int;
+  boat: Int;
+}): Component {
+  const height: Int = modelHeight(breakpoint);
+  return (
+    <>
+      <rect x={5} y={top + 5} w={60} h={height} fill color={0x000000} transparency={150} />
+      <rect x={5} y={top + 5} w={60} h={height} color={CustomisationColors.BOX_OUTER} />
+      <rect x={6} y={top + 6} w={58} h={height - 2} color={CustomisationColors.BOX_INNER} />
+      {known ? (
+        <model
+          x={5}
+          y={top + 5}
+          w={60}
+          h={height}
+          objectHead={previewLoc(option)}
+          anim={previewAnim(option)}
+          offsetX={previewAngle(option, boat, 0)}
+          offsetY={previewAngle(option, boat, 1)}
+          pitch={previewAngle(option, boat, 2)}
+          yaw={previewAngle(option, boat, 3)}
+          roll={previewAngle(option, boat, 4)}
+          zoom={previewAngle(option, boat, 5)}
+        />
+      ) : (
+        <model
+          x={5}
+          y={top + 5}
+          w={60}
+          h={height}
+          model={UnknownModel.ID}
+          pitch={UnknownModel.PITCH}
+          yaw={UnknownModel.YAW}
+          zoom={UnknownModel.ZOOM}
+        />
+      )}
+    </>
+  );
+}
+
+function BuildControl({
+  shown,
+  option,
+  built,
+  top,
+  height,
+  paneW,
+}: {
+  shown: Boolean;
+  option: Int;
+  built: Int;
+  top: Int;
+  height: Int;
+  paneW: Int;
+}): Component {
+  const inv = useInventory(CustomisationInventories.INV);
+  const verdict: Int = buildVerdict(option, built);
+  const cost: Int = shipwrightCost(option);
+  const held: Boolean = materialsHeld(option);
+  const name: String = optionName(option);
+  const row = optionAt(option);
+  const wire: Int = row === null ? 0 : row.id;
+  let refused: Int = 0;
+  let title: String = name;
+  let message: String = '';
+  let coin: Boolean = false;
+  if (verdict === 1 && cost > 0) {
+    coin = true;
+    if (inv.total(CustomisationItems.COINS) < cost || !held) {
+      refused = 1;
+      message = `As you do not meet the <col=ff981f>Construction requirement</col> for this facility, you can pay <col=ff981f>${commas(cost)} coins</col> for the shipwrights to build it for you. However, you will still need the <col=ff981f>required materials</col>.`;
+      title = 'Shipwright assistance';
+    }
+  } else if (verdict === 0) {
+    refused = 1;
+    message = buildRefusal(option, built);
+  } else if (!held) {
+    refused = 1;
+    message = 'You are missing some of the <col=ff981f>materials</col> needed to build this facility.';
+    title = 'Missing materials';
+  }
+  const colour: Int = refused === 1 ? CustomisationColors.GREY : CustomisationColors.ORANGE;
+  const hoverColour: Int = refused === 1 ? CustomisationColors.GREY : CustomisationColors.WHITE;
+  const x: Int = paneW - (Layout.REQ_W + 5);
+  const y: Int = top + (height - Layout.REQ_H - 5);
+  return (
+    <>
+      <CoinButton
+        shown={shown && coin}
+        x={x}
+        y={y}
+        label={compactCount(cost, 100000, 1000000, ',')}
+        colour={colour}
+        hoverColour={hoverColour}
+        pressed={refused}
+        name={name}
+        title={title}
+        message={message}
+        wire={wire}
+      />
+      <StoneButton
+        shown={shown && !coin}
+        x={x}
+        y={y}
+        colour={colour}
+        hoverColour={hoverColour}
+        pressed={refused}
+        name={name}
+        title={title}
+        message={message}
+        wire={wire}
+      />
+    </>
+  );
+}
+
+function NineSlice({ x, y, w, h, pressed }: { x: Int; y: Int; w: Int; h: Int; pressed: Int }): Component {
+  const r: Int = x + w - 9;
+  const b: Int = y + h - 9;
+  if (pressed === 1) {
+    return (
+      <>
+        <sprite x={x} y={y} w={w} h={h} sprite={CustomisationSprites.BACKING_DARK} tiling />
+        <sprite x={x} y={y} w={9} h={9} sprite={CustomisationSprites.PRESSED_0} tiling />
+        <sprite x={r} y={y} w={9} h={9} sprite={CustomisationSprites.PRESSED_1} tiling />
+        <sprite x={x} y={b} w={9} h={9} sprite={CustomisationSprites.PRESSED_2} tiling />
+        <sprite x={r} y={b} w={9} h={9} sprite={CustomisationSprites.PRESSED_3} tiling />
+        <sprite x={x} y={y + 9} w={9} h={h - 18} sprite={CustomisationSprites.PRESSED_4} tiling />
+        <sprite x={x + 9} y={y} w={w - 18} h={9} sprite={CustomisationSprites.PRESSED_5} tiling />
+        <sprite x={r} y={y + 9} w={9} h={h - 18} sprite={CustomisationSprites.PRESSED_6} tiling />
+        <sprite x={x + 9} y={b} w={w - 18} h={9} sprite={CustomisationSprites.PRESSED_7} tiling />
+      </>
+    );
+  }
+  return (
+    <>
+      <sprite x={x} y={y} w={w} h={h} sprite={CustomisationSprites.BACKING} tiling />
+      <sprite x={x} y={y} w={9} h={9} sprite={CustomisationSprites.RAISED_0} tiling />
+      <sprite x={r} y={y} w={9} h={9} sprite={CustomisationSprites.RAISED_1} tiling />
+      <sprite x={x} y={b} w={9} h={9} sprite={CustomisationSprites.RAISED_2} tiling />
+      <sprite x={r} y={b} w={9} h={9} sprite={CustomisationSprites.RAISED_3} tiling />
+      <sprite x={x} y={y + 9} w={9} h={h - 18} sprite={CustomisationSprites.RAISED_4} tiling />
+      <sprite x={x + 9} y={y} w={w - 18} h={9} sprite={CustomisationSprites.RAISED_5} tiling />
+      <sprite x={r} y={y + 9} w={9} h={h - 18} sprite={CustomisationSprites.RAISED_6} tiling />
+      <sprite x={x + 9} y={b} w={w - 18} h={9} sprite={CustomisationSprites.RAISED_7} tiling />
+    </>
+  );
+}
+
+function buildOp(component: ComponentId, subId: Int, refused: Int, title: String, message: String, wire: Int): void {
+  if (refused === 1) {
+    refuseBuild(title, message);
+    return;
+  }
+  startBuild();
+  CS2.if_runscript(ServerScript.SAILING_CUSTOMISATION_BUILD, component, subId, wire, 'i');
+}
+
+function StoneButton({
+  shown,
+  x,
+  y,
+  colour,
+  hoverColour,
+  pressed,
+  name,
+  title,
+  message,
+  wire,
+}: {
+  shown: Boolean;
+  x: Int;
+  y: Int;
+  colour: Int;
+  hoverColour: Int;
+  pressed: Int;
+  name: String;
+  title: String;
+  message: String;
+  wire: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  let label: Int = colour;
+  if (hovered === 1 && !mobile) {
+    label = hoverColour;
+  }
+  return shown ? (
+    <>
+      <NineSlice x={x} y={y} w={Layout.REQ_W} h={Layout.REQ_H} pressed={pressed === 1 || hovered === 1 ? 1 : 0} />
+      <text
+        x={x + 3}
+        y={y + 3}
+        w={Layout.REQ_W - 6}
+        h={Layout.REQ_H - 6}
+        text="Build"
+        font={CustomisationFonts.BODY}
+        shadow
+        color={label}
+        align="center"
+        valign="middle"
+        lineHeight={20}
+        options={['Build']}
+        optionSubject={`<col=ff981f>${name}</col>`}
+        onOptionSelect={(event) => buildOp(event.component, event.subId, pressed, title, message, wire)}
+        onMouseEnter={() => {
+          if (pressed === 0) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (pressed === 0) {
+            setHovered(0);
+          }
+        }}
+      />
+    </>
+  ) : null;
+}
+
+function CoinButton({
+  shown,
+  x,
+  y,
+  label,
+  colour,
+  hoverColour,
+  pressed,
+  name,
+  title,
+  message,
+  wire,
+}: {
+  shown: Boolean;
+  x: Int;
+  y: Int;
+  label: String;
+  colour: Int;
+  hoverColour: Int;
+  pressed: Int;
+  name: String;
+  title: String;
+  message: String;
+  wire: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  return shown ? (
+    <>
+      <NineSlice x={x} y={y} w={Layout.REQ_W} h={Layout.REQ_H} pressed={pressed === 1 || hovered === 1 ? 1 : 0} />
+      <sprite
+        x={x + Layout.REQ_W - 40}
+        y={y + (Layout.REQ_H - 42) / 2}
+        w={35}
+        h={35}
+        outline={1}
+        shadowColor={0x333333}
+        item={CustomisationItems.COIN_PICTURE}
+        itemCount={-1}
+      />
+      <text
+        x={x + 12}
+        y={y + 1}
+        w={Layout.REQ_W}
+        h={Layout.REQ_H}
+        text={label}
+        font={CustomisationFonts.BODY}
+        shadow
+        color={hovered === 1 ? hoverColour : colour}
+        align="left"
+        valign="middle"
+        lineHeight={20}
+        options={['Build']}
+        optionSubject={`<col=ff981f>${name}</col>`}
+        onOptionSelect={(event) => buildOp(event.component, event.subId, pressed, title, message, wire)}
+        onMouseEnter={() => {
+          if (pressed === 0 && !mobile) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (pressed === 0 && !mobile) {
+            setHovered(0);
+          }
+        }}
+      />
+    </>
+  ) : null;
+}

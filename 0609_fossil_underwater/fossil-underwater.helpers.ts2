@@ -1,0 +1,74 @@
+import { useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { fossilOxygenWarning } from '../lib/game/varcs';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { Flash, Oxygen } from './fossil-underwater.constants';
+import { fossilFlashAlpha, fossilFlashNext, fossilOxygenLabel } from './fossil-underwater.state';
+
+export function oxygenBarPx(oxygen: Int, meterWidth: Int): Int {
+  if (oxygen === 0) {
+    return 0;
+  }
+  const px: Int = scaled(scaled(oxygen, Oxygen.FULL, Oxygen.PROPORTION), Oxygen.PROPORTION, meterWidth);
+  if (px === 0) {
+    return 1;
+  }
+  return px;
+}
+
+export function oxygenCaption(oxygen: Int): String {
+  const percent: Int = oxygen / 10;
+  return `Oxygen Level: ${percent}%`;
+}
+
+function minmax(low: Int, high: Int, value: Int): Int {
+  if (high <= low) {
+    return Math.max(high, Math.min(low, value));
+  }
+  return Math.max(low, Math.min(high, value));
+}
+
+function steppedAlpha(alpha: Int, oxygen: Int): Int {
+  let step: Int = Flash.STEP;
+  let period: Int = Flash.PERIOD;
+  if (oxygen < Flash.FAST_BELOW) {
+    step = Flash.FAST_STEP;
+    period = oxygen * 2;
+  }
+  if (clientClock() % period <= period / 2) {
+    step = 0 - step;
+  }
+  return minmax(Flash.MIN, Flash.MAX, alpha + step);
+}
+
+export function fossilOxygenLevel(): void {
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  if (oxygen === 0) {
+    return;
+  }
+  const [, setLabel] = useState(fossilOxygenLabel);
+  setLabel(oxygenCaption(oxygen));
+  const [warned, setWarned] = useState(fossilOxygenWarning);
+  if (oxygen <= Flash.ARM_AT && warned !== 1) {
+    const [, setAlpha] = useState(fossilFlashAlpha);
+    const [, setNext] = useState(fossilFlashNext);
+    setWarned(1);
+    setAlpha(Flash.MAX);
+    setNext(Flash.START);
+  }
+}
+
+export function flashStep(): void {
+  const oxygen: Int = useServerState(Varbits.FOSSIL_UNDERWATER_OXYGEN);
+  const [, setWarned] = useState(fossilOxygenWarning);
+  const [, setAlpha] = useState(fossilFlashAlpha);
+  const [next, setNext] = useState(fossilFlashNext);
+  if (oxygen >= Flash.ARM_AT || oxygen === 0) {
+    setAlpha(Flash.MAX);
+    setWarned(0);
+    return;
+  }
+  setAlpha(next);
+  setNext(steppedAlpha(next, oxygen));
+}

@@ -1,0 +1,230 @@
+import { CS2, useInterval, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { tooltipBuilt } from '../lib/game/varcs';
+import { clientClock, playSound, textLineCount, textWidth } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  TooltipBox,
+  TooltipChrome,
+  tooltipDown,
+  tooltipDwellElapsed,
+  tooltipHide,
+  tooltipMark,
+  tooltipRaise,
+  tooltipStale,
+} from '../lib/tooltip.component';
+import { SkinPieces } from '../0945_reusable_floater/floater-button.component';
+import { normalSkin, pressedSkin, wornHoverSkin, wornStyle } from '../0945_reusable_floater/floater-styles';
+import { FloaterSounds } from '../0945_reusable_floater/reusable-floater.constants';
+import { enhancedAny, featureFlag } from '../0134_settings/settings.helpers';
+import { GridFlash, GridMasterBox, GridMasterStyle, OrbArt, OrbText, TooltipTimes } from './orbs.constants';
+import { noFrame, onFixedFrame, onMobileFrame, storeButtonShown } from './orbs.helpers';
+import { mapTipH, mapTipRight, mapTipText, mapTipY } from './orbs.state';
+
+function tooltipsSuppressed(): Boolean {
+  const client: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1 && (client === 4 || client === 5 || client === 10)) {
+    return true;
+  }
+  if (client === 7 || client === 8) {
+    return true;
+  }
+  return false;
+}
+
+export function showMapTip(text: String, right: Int, top: Int, height: Int): void {
+  if (tooltipsSuppressed()) {
+    return;
+  }
+  if (enhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(TooltipTimes.DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const [, setText] = useState(mapTipText);
+  const [, setRight] = useState(mapTipRight);
+  const [, setTop] = useState(mapTipY);
+  const [, setHeight] = useState(mapTipH);
+  setText(text);
+  setRight(right);
+  setTop(top);
+  setHeight(height);
+  tooltipRaise();
+}
+
+export function hideMapTip(): void {
+  const [, setText] = useState(mapTipText);
+  tooltipHide();
+  setText('');
+}
+
+export function MapTooltip(): Component {
+  const [built] = useState(tooltipBuilt);
+  const [text] = useState(mapTipText);
+  const [right] = useState(mapTipRight);
+  const [anchorY] = useState(mapTipY);
+  const [anchorH] = useState(mapTipH);
+  const up: Boolean = built === 1 && text.length > 0;
+
+  useInterval(
+    up
+      ? () => {
+          if (tooltipStale()) {
+            hideMapTip();
+          }
+        }
+      : undefined,
+  );
+
+  const universe = useUniverse();
+  const hostW: Int = universe.width;
+  const hostH: Int = universe.height;
+  let measure: Int = TooltipTimes.WRAP;
+  if (measure > hostW) {
+    measure = hostW;
+  }
+  measure = measure - TooltipBox.padX;
+  const boxW: Int = TooltipBox.padX + textWidth(text, measure, TooltipBox.font);
+  const boxH: Int = TooltipBox.padY + TooltipBox.line * textLineCount(text, measure, TooltipBox.font);
+  let x: Int = hostW - right + TooltipBox.nudge;
+  if (x > hostW - boxW) {
+    x = hostW - boxW;
+  }
+  let y: Int = anchorY + anchorH + TooltipBox.nudge;
+  if (y > hostH - boxH) {
+    y = anchorY - boxH - TooltipBox.nudge;
+  }
+
+  if (!up) {
+    return <layer x={0} y={0} w={1} h={1} />;
+  }
+  return (
+    <layer x={x} y={y} w={boxW} h={boxH}>
+      <TooltipChrome text={text} font={TooltipBox.font} lineHeight={0} />
+    </layer>
+  );
+}
+
+export function GridMasterButton({ mount, script }: { mount: ComponentId; script: Int }): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const [glyphHidden, setGlyphHidden] = useState(0);
+
+  const shown: Boolean = featureFlag(3);
+  const mobile: Boolean = onMobile();
+  const style: Int = mobile ? GridMasterStyle.MOBILE : GridMasterStyle.DESKTOP;
+  const worn: Int = wornStyle(style, 0);
+
+  let x: Int = 0;
+  let y: Int = 0;
+  let fromRight: Boolean = false;
+  if (!noFrame()) {
+    if (onMobileFrame()) {
+      if (useServerState(Varbits.OSM_MINIMAP_TOGGLE) === 1) {
+        x = storeButtonShown() ? 79 : 44;
+        y = 144;
+        fromRight = true;
+      } else {
+        x = 101;
+        y = 156;
+      }
+    } else if (onFixedFrame()) {
+      x = 0;
+      y = 50;
+      fromRight = true;
+    } else if (!mobile && useServerState(Varbits.MINIMAP_TOGGLE) === 1) {
+      x = 0;
+      y = 106;
+      fromRight = true;
+    } else if (!storeButtonShown()) {
+      x = 85;
+      y = 143;
+    } else {
+      x = 55;
+      y = 162;
+    }
+  }
+
+  useInterval(
+    shown
+      ? () => {
+          let hide: Int = 0;
+          if (useServerState(Varbits.BINGO_ICON_FLASH) === 1 && clientClock() % GridFlash.PERIOD <= GridFlash.HIDDEN) {
+            hide = 1;
+          }
+          setGlyphHidden(hide);
+        }
+      : undefined,
+  );
+
+  if (!shown) {
+    return null;
+  }
+  return (
+    <layer
+      x={fromRight ? { right: x } : x}
+      y={y}
+      w={GridMasterBox.SIZE}
+      h={GridMasterBox.SIZE}
+      noClickThrough
+      optionSubject={OrbText.GRID_MASTER}
+      options={[OrbText.TOGGLE]}
+      onOptionSelect={() => {
+        if (!onMobile() && soundAt < clientClock()) {
+          playSound(FloaterSounds.SELECT);
+          setSoundAt(clientClock());
+        }
+        CS2.if_runscript(script, mount, 0, 0, 'i');
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onMouseEnter={() => {
+          if (!onMobile()) {
+            hoverLayer.hide = false;
+          }
+        }}
+        onMouseLeave={() => {
+          hoverLayer.hide = true;
+        }}
+        onClick={() => {
+          if (onMobile()) {
+            return;
+          }
+          pressedLayer.hide = false;
+          if (soundAt < clientClock()) {
+            playSound(FloaterSounds.SELECT);
+            setSoundAt(clientClock());
+          }
+        }}
+        onRelease={() => {
+          pressedLayer.hide = true;
+        }}
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      <layer ref={hoverLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={wornHoverSkin(style, 0)} />
+      </layer>
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      <sprite
+        x="center"
+        y="center"
+        w={GridMasterBox.GLYPH_W}
+        h={GridMasterBox.GLYPH_H}
+        sprite={OrbArt.GRID_MASTER}
+        hide={glyphHidden === 1}
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,103 @@
+import { predictServerState, sessionState, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { playSound } from '../lib/lib.engine';
+import { CaFilter, CaSound, Filter } from './ca-tasks.constants';
+import { CaFilterEntry, CompletedFilter, MonsterFilter, TierFilter, TypeFilter } from './ca-tasks.data';
+
+export const selectedTask = sessionState(-1);
+
+export const openFilter = sessionState(-1);
+
+export const filterOpens = sessionState(0);
+
+export function filterValue(filter: Int): Int {
+  switch (filter) {
+    case CaFilter.TIER:
+      return useServerState(Varbits.CA_TASK_FILTER_TIER);
+    case CaFilter.COMPLETED:
+      return useServerState(Varbits.CA_TASK_FILTER_COMPLETED);
+    case CaFilter.TYPE:
+      return useServerState(Varbits.CA_TASK_FILTER_TYPE);
+    case CaFilter.MONSTER:
+      return useServerState(Varbits.CA_TASK_FILTER_MONSTER);
+    default:
+      return 0;
+  }
+}
+
+export function setFilterValue(filter: Int, value: Int): void {
+  switch (filter) {
+    case CaFilter.TIER:
+      predictServerState(Varbits.CA_TASK_FILTER_TIER, value);
+      break;
+    case CaFilter.COMPLETED:
+      predictServerState(Varbits.CA_TASK_FILTER_COMPLETED, value);
+      break;
+    case CaFilter.TYPE:
+      predictServerState(Varbits.CA_TASK_FILTER_TYPE, value);
+      break;
+    case CaFilter.MONSTER:
+      predictServerState(Varbits.CA_TASK_FILTER_MONSTER, value);
+      break;
+    default:
+      break;
+  }
+}
+
+export function filterTable(filter: Int): List<CaFilterEntry> {
+  switch (filter) {
+    case CaFilter.TYPE:
+      return TypeFilter;
+    case CaFilter.MONSTER:
+      return MonsterFilter;
+    case CaFilter.COMPLETED:
+      return CompletedFilter;
+    default:
+      return TierFilter;
+  }
+}
+
+export function filterLabel(filter: Int, value: Int): String {
+  const entry: CaFilterEntry | null = filterTable(filter).at(value);
+  if (entry === null) {
+    return '';
+  }
+  return entry.label;
+}
+
+export function dropdownEntryHeight(mobile: Boolean): Int {
+  if (mobile) {
+    return Filter.entry.mobileH;
+  }
+  return Filter.entry.h;
+}
+
+export function caTaskFilterOpen(filter: Int): void {
+  playSound(CaSound.SELECT);
+  const [opens, setOpens] = useState(filterOpens);
+  setOpens(opens + 1);
+  const [, setOpen] = useState(openFilter);
+  setOpen(filter);
+}
+
+export function caTaskFilterClose(option: Int, index: Int, filter: Int): void {
+  if (option === 1 && filter !== -1 && (index === -1 || (index >= 0 && index < filterTable(filter).length))) {
+    playSound(CaSound.SELECT);
+    if (index !== -1) {
+      setFilterValue(filter, index);
+    }
+    const [, setOpen] = useState(openFilter);
+    setOpen(-1);
+  }
+}
+
+export function caTaskFilterCancel(): void {
+  const [open] = useState(openFilter);
+  caTaskFilterClose(1, -1, open);
+}
+
+export function selectTask(id: Int): void {
+  const [, setSelected] = useState(selectedTask);
+  setSelected(id);
+}

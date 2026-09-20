@@ -1,0 +1,161 @@
+import { onMounted, onUpdated, useDerived, useOnResize, useState, useUniverse } from 'ts2';
+import { PortTasks } from './port-tasks.data';
+import {
+  INFO_TEXT_INSET_H,
+  PortTaskModel,
+  dockIcon,
+  infoButtonBottom,
+  infoButtonDx,
+  infoIconBountyDx,
+  infoIconBountyDy,
+  infoIconX,
+  infoIconY,
+  infoIconZoom,
+  infoModelZoom,
+  infoTextInsetW,
+  infoTextX,
+  infoTextY,
+  infoTickY,
+  taskBackingBoard,
+  taskTextFont,
+  taskTextLineHeight,
+} from './port-tasks.helpers';
+import { portTaskInfoAccepted, portTaskInfoSlotChanged, portTaskInfoText } from './port-task-info.helpers';
+import { portTaskInfoAnswered, portTaskInfoLarge, portTaskInfoPhase, portTaskInfoTask } from './port-task-info.state';
+import { TaskButton, TaskButtonAnswer } from './task-button.component';
+
+export function PortTaskInfo(): Component {
+  const [phase] = useState(portTaskInfoPhase);
+  const [task] = useState(portTaskInfoTask);
+  const [answered] = useState(portTaskInfoAnswered);
+  const [captured] = useState(portTaskInfoLarge);
+  const accepted: Int = useDerived(() => portTaskInfoAccepted());
+
+  const slot = useUniverse();
+  useOnResize(slot);
+  const slotW: Int = slot.width;
+  const slotH: Int = slot.height;
+  onMounted(() => portTaskInfoSlotChanged(slotW, slotH));
+  onUpdated(() => portTaskInfoSlotChanged(slotW, slotH));
+
+  const large: Boolean = captured === 1;
+  const shown: Boolean = phase !== -1;
+  const row = PortTasks.at(task);
+  const zoom: Int = infoModelZoom(large);
+
+  let iconDock: Int = -1;
+  let iconDx: Int = 0;
+  let iconDy: Int = 0;
+  let graphic: Model = -1;
+  let backing: Model = -1;
+  if (row !== null) {
+    graphic = row.graphic;
+    backing = taskBackingBoard(row.graphic);
+    if (row.taskType === 1) {
+      iconDock = row.startDock;
+      iconDx = infoIconBountyDx(large);
+      iconDy = infoIconBountyDy(large);
+    } else {
+      iconDock = row.cargoDock;
+    }
+  }
+
+  return (
+    <>
+      <layer
+        x="center"
+        y={shown ? { bottom: 6 } : 'center'}
+        w={shown ? { fill: 12 } : 495}
+        h={shown ? { fill: 41 } : 305}
+        noClickThrough={phase === 1}
+      >
+        <rect x="center" y="center" w="fill" h="fill" fill transparency={phase === 1 ? 150 : 255} />
+
+        <layer x="center" y="center" w={{ fill: 16 }} h={{ fill: 6 }} hide={phase === 0}>
+          <layer x={6} y="center" w="48%" h="fill">
+            {row !== null && (
+              <>
+                <model x="center" y="center" w={2} h={2} model={graphic} pitch={512} zoom={zoom} />
+                {accepted === 1 && (
+                  <model
+                    x="center"
+                    y={{ center: infoTickY(large) }}
+                    w={2}
+                    h={2}
+                    model={PortTaskModel.ACCEPTED}
+                    pitch={512}
+                    yaw={100}
+                    zoom={zoom}
+                    orthogonal
+                  />
+                )}
+                <model
+                  x={infoIconX(large) + iconDx}
+                  y={infoIconY(large) + iconDy}
+                  w={1}
+                  h={1}
+                  model={dockIcon(iconDock)}
+                  pitch={512}
+                  zoom={infoIconZoom(large)}
+                />
+              </>
+            )}
+          </layer>
+
+          <layer x={{ right: 6 }} y="center" w="48%" h="fill">
+            <layer x="center" y="center" w="fill" h="fill">
+              {row !== null && (
+                <model x="center" y={{ center: 2 }} w={2} h={2} model={backing} pitch={512} zoom={zoom} />
+              )}
+            </layer>
+
+            {row !== null ? (
+              <text
+                x={infoTextX(large)}
+                y={infoTextY(large)}
+                w={{ fill: infoTextInsetW(large) }}
+                h={{ fill: INFO_TEXT_INSET_H }}
+                text={portTaskInfoText(task)}
+                font={taskTextFont(large)}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+                lineHeight={taskTextLineHeight(large)}
+              />
+            ) : (
+              <text x="center" y={70} w={{ fill: 80 }} h={{ fill: 193 }} font={494} color={0xffffff} shadow />
+            )}
+
+            <layer
+              x={{ center: row !== null ? -infoButtonDx(large) : -43 }}
+              y={{ bottom: row !== null ? infoButtonBottom(large) : 50 }}
+              w={82}
+              h={30}
+            >
+              <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={297} tiling transparency={100} />
+              {row !== null && <TaskButton label="Back" font={495} answer={TaskButtonAnswer.BACK} />}
+            </layer>
+
+            <layer
+              x={{ center: row !== null ? infoButtonDx(large) : 44 }}
+              y={{ bottom: row !== null ? infoButtonBottom(large) : 50 }}
+              w={82}
+              h={30}
+            >
+              <sprite x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={297} tiling transparency={100} />
+              {row !== null && (
+                <TaskButton
+                  label={accepted === 1 ? 'Cancel task' : '<col=0dc10d>Accept task</col>'}
+                  font={495}
+                  answer={TaskButtonAnswer.ACCEPT}
+                  live={answered === 1 ? 0 : 1}
+                />
+              )}
+            </layer>
+          </layer>
+        </layer>
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,211 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+
+import { Sprites } from '../lib/game/sprites';
+import { onMobile } from '../lib/lib.helpers';
+
+import {
+  Layout,
+  SCRY_OFFSET,
+  TelenexusColor,
+  TelenexusFonts,
+  TelenexusModels,
+  TelenexusTeleport,
+  TelenexusTeleports,
+  TelenexusVarbits,
+  leftClickLayerRef,
+  leftClickOptionsRef,
+  leftClickSetRef,
+  leftClickTickRef,
+  leftTextRef,
+} from './telenexus.constants';
+import { teleportRequirements } from './telenexus.requirements';
+
+export function LeftClickPanel(): Component {
+  const selected: Int = useServerState(TelenexusVarbits.LEFT_CLICK_TEMP);
+  const base: TelenexusTeleport | null = TelenexusTeleports.get(
+    selected > SCRY_OFFSET ? selected - SCRY_OFFSET : selected,
+  );
+  const row: TelenexusTeleport | null =
+    base === null ? null : (TelenexusTeleports.get(base.baseTeleport ?? -1) ?? base);
+
+  const radio: Boolean = row !== null && isRadio(selected);
+
+  return (
+    <layer
+      ref={leftClickLayerRef}
+      x={{ right: 0 }}
+      y={Layout.LEFT_CLICK_Y}
+      w={Layout.LEFT_CLICK_W}
+      h={{ fill: Layout.LEFT_CLICK_H_INSET }}
+      dragTarget
+    >
+      <TickBox radio={radio} chosen={row !== null && selected > 0} />
+
+      <PortalModel />
+
+      <LeftText selected={selected} />
+
+      <text
+        ref={leftClickSetRef}
+        x={{ right: 0 }}
+        y={{ center: Layout.LEFT_CLICK_SET_Y }}
+        w={Layout.LEFT_CLICK_W}
+        h={Layout.LABEL_H}
+        text={row === null ? 'None set' : captionOf(row)}
+        font={TelenexusFonts.LABEL}
+        color={TelenexusColor.LABEL}
+        align="center"
+        valign="middle"
+        shadow
+        hide={radio}
+      />
+
+      <layer
+        ref={leftClickOptionsRef}
+        x={0}
+        y={{ center: Layout.LEFT_CLICK_OPTIONS_Y }}
+        w={Layout.LEFT_CLICK_W}
+        h={Layout.LEFT_CLICK_OPTIONS_H}
+        hide={!radio}
+      >
+        {radio && row !== null && <RadioPair row={row} selected={selected} />}
+      </layer>
+    </layer>
+  );
+}
+
+function isRadio(selected: Int): Boolean {
+  if (selected === 0) {
+    return false;
+  }
+  if (selected > SCRY_OFFSET) {
+    return true;
+  }
+  return selected === 1 || selected === 4 || selected === 6;
+}
+
+function captionOf(row: TelenexusTeleport): String {
+  return row.name;
+}
+
+function TickBox({ radio, chosen }: { radio: Boolean; chosen: Boolean }): Component {
+  const [hovered, setHovered] = useState(0);
+  const set: Boolean = radio || chosen;
+  return (
+    <sprite
+      ref={leftClickTickRef}
+      x={Layout.TICK_X}
+      y={Layout.TICK_Y}
+      w={Layout.TICK_SIZE}
+      h={Layout.TICK_SIZE}
+      sprite={
+        hovered === 1 ? (set ? Sprites.CHECKBOX_5 : Sprites.CHECKBOX_3) : set ? Sprites.CHECKBOX_2 : Sprites.CHECKBOX_0
+      }
+      onMouseRepeat={() => setHovered(1)}
+      onMouseLeave={() => setHovered(0)}
+    />
+  );
+}
+
+function LeftText({ selected }: { selected: Int }): Component {
+  return (
+    <text
+      ref={leftTextRef}
+      x={{ right: 0 }}
+      y={Layout.LEFT_TEXT_Y}
+      w={Layout.LABEL_W}
+      h={Layout.LABEL_H}
+      text={onMobile() ? 'Tap' : 'Left Click'}
+      font={TelenexusFonts.LABEL}
+      color={TelenexusColor.LABEL}
+      align="center"
+      valign="middle"
+      shadow
+      options={['Select']}
+      onOptionSelect={() => {
+        if (selected > 0) {
+          predictServerState(TelenexusVarbits.LEFT_CLICK_TEMP, 0);
+        }
+      }}
+    />
+  );
+}
+
+function PortalModel(): Component {
+  const id: Int = useServerState(TelenexusVarbits.NEXUS_ID);
+  return (
+    <model
+      x={{ right: 0 }}
+      y={0}
+      w={Layout.MODEL_W}
+      h={Layout.MODEL_H}
+      model={id === 2 ? TelenexusModels.GILDED : id === 3 ? TelenexusModels.CRYSTAL : TelenexusModels.MARBLE}
+      zoom={Layout.MODEL_ZOOM}
+      offsetY={Layout.MODEL_OFFSET_Y}
+    />
+  );
+}
+
+function RadioPair({ row, selected }: { row: TelenexusTeleport; selected: Int }): Component {
+  const scry: TelenexusTeleport | null = TelenexusTeleports.get(row.scryTarget ?? -1);
+  const [baseMet, _] = teleportRequirements(row);
+  const scryMet: Boolean = scry === null ? false : requirementsOf(scry);
+  const plain: Boolean = selected < SCRY_OFFSET;
+
+  return (
+    <>
+      <sprite
+        x={0}
+        y={3}
+        w={17}
+        h={17}
+        sprite={plain ? Sprites.OPTIONS_RADIO_BUTTONS_2 : Sprites.OPTIONS_RADIO_BUTTONS_0}
+      />
+      <sprite
+        x={0}
+        y={33}
+        w={17}
+        h={17}
+        sprite={plain ? Sprites.OPTIONS_RADIO_BUTTONS_0 : Sprites.OPTIONS_RADIO_BUTTONS_2}
+      />
+      <RadioLabel
+        label={row.name}
+        top={5}
+        met={baseMet}
+        pick={selected > SCRY_OFFSET ? selected - SCRY_OFFSET : selected}
+      />
+      <RadioLabel
+        label={scry === null ? '' : scry.name}
+        top={35}
+        met={scryMet}
+        pick={selected > SCRY_OFFSET ? selected : selected + SCRY_OFFSET}
+      />
+    </>
+  );
+}
+
+function requirementsOf(row: TelenexusTeleport): Boolean {
+  const [met, _] = teleportRequirements(row);
+  return met;
+}
+
+function RadioLabel({ label, top, met, pick }: { label: String; top: Int; met: Boolean; pick: Int }): Component {
+  return (
+    <text
+      x={5}
+      y={top}
+      w={{ fill: 10 }}
+      h={20}
+      text={label}
+      font={TelenexusFonts.LABEL}
+      color={met ? TelenexusColor.BUTTON : RADIO_LOCKED}
+      align="center"
+      shadow
+      optionSubject={`<col=ff9040>${label}`}
+      options={met ? ['Select'] : []}
+      onOptionSelect={() => predictServerState(TelenexusVarbits.LEFT_CLICK_TEMP, pick)}
+    />
+  );
+}
+
+const RADIO_LOCKED = 0xbbbbbb;

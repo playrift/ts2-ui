@@ -1,0 +1,397 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Sounds } from '../lib/game/sounds';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { timeConvertOption } from '../0512_trailblazer_areas/time.shared';
+import { wikiSearch } from '../0733_league_3_unlocks/league-3-unlocks.helpers';
+import { CaArt, CaColour, CaFont } from '../0716_ca_bosses/ca-shared.constants';
+import { caSpecificKillcount } from '../0716_ca_bosses/ca-shared.counts';
+import { CaBosses } from '../0716_ca_bosses/ca-shared.data';
+
+import { CaBossColour, CaBossLayout, CaBossText } from './ca-boss.constants';
+
+export const enum CaBossButtonKind {
+  WIKI = 0,
+  MAP = 1,
+  COLLECTION = 2,
+}
+
+export function CaBossIconButton({ kind }: { kind: Int }): Component {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  const name: String = row === null ? '0' : row.name;
+  const mobile: Boolean = onMobile();
+  const [lit, setLit] = useState(0);
+  const w: Int = CaBossLayout.BUTTON_W;
+  const h: Int = CaBossLayout.BUTTON_H;
+  const corner: Int = CaBossLayout.CORNER;
+  const rectW: Int = mobile ? Math.max(w, CaBossLayout.TOUCH_MIN) : w;
+  const rectH: Int = mobile ? Math.max(h, CaBossLayout.TOUCH_MIN) : h;
+  const rectX: Int = mobile ? 0 - (Math.max(w, CaBossLayout.TOUCH_MIN) - w) / 2 : 0;
+  const rectY: Int = mobile ? 0 - (Math.max(h, CaBossLayout.TOUCH_MIN) - h) / 2 : 0;
+
+  return (
+    <>
+      <layer
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        options={[
+          kind === CaBossButtonKind.WIKI ? 'Lookup-boss' : kind === CaBossButtonKind.MAP ? 'Locate' : 'Collection-log',
+        ]}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onOptionSelect={(event) => caBossButtonOp(kind, event.option)}
+      >
+        <sprite x={0} y={0} w={w} h={h} sprite={lit === 1 ? CaArt.BUTTON_BACKDROP_LIT : CaArt.BUTTON_BACKDROP} tiling />
+        <sprite
+          x={0}
+          y={0}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_0 : Sprites.V2_STONE_BUTTON_0}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={0}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_1 : Sprites.V2_STONE_BUTTON_1}
+          tiling
+        />
+        <sprite
+          x={0}
+          y={h - corner}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_2 : Sprites.V2_STONE_BUTTON_2}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={h - corner}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_3 : Sprites.V2_STONE_BUTTON_3}
+          tiling
+        />
+        <sprite
+          x={0}
+          y={corner}
+          w={corner}
+          h={h - corner * 2}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_4 : Sprites.V2_STONE_BUTTON_4}
+          tiling
+        />
+        <sprite
+          x={corner}
+          y={0}
+          w={w - corner * 2}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_5 : Sprites.V2_STONE_BUTTON_5}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={corner}
+          w={corner}
+          h={h - corner * 2}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_6 : Sprites.V2_STONE_BUTTON_6}
+          tiling
+        />
+        <sprite
+          x={corner}
+          y={h - corner}
+          w={w - corner * 2}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_7 : Sprites.V2_STONE_BUTTON_7}
+          tiling
+        />
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        <rect
+          x={rectX}
+          y={rectY}
+          w={rectW}
+          h={rectH}
+          transparency={255}
+          onMouseEnter={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(1);
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(0);
+                }
+          }
+        />
+      </layer>
+    </>
+  );
+}
+
+function caBossButtonOp(kind: Int, option: Int): void {
+  if (kind === CaBossButtonKind.WIKI) {
+    caBossLookup();
+    return;
+  }
+  opsound(option, 2);
+}
+
+function caBossLookup(): void {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  if (row === null) {
+    wikiSearch('0');
+    return;
+  }
+  const url: String = row.wikiUrl ?? '';
+  if (url.length > 0) {
+    CS2.sound_effect(Sounds.INTERFACE_SELECT1, 1, 0);
+    CS2.url_open(url, true);
+    return;
+  }
+  wikiSearch(row.name);
+}
+
+export function CaBossStats(): Component {
+  const row = CaBosses.get(useServerState(Varbits.CA_BOSS_SELECTED));
+  const name: String = row === null ? '0' : row.name;
+  const bossId: Int = row === null ? 0 : row.bossId;
+  const level: Int = row === null ? 0 : row.combatLevel;
+  const personalBest: Int = useServerState(Varps.IF1);
+  const mobile: Boolean = onMobile();
+  const killCount: Int = caSpecificKillcount(bossId);
+  const firstY: Int = personalBest > -1 ? CaBossLayout.STAT_Y_WITH_PB : CaBossLayout.STAT_Y_WITHOUT_PB;
+
+  return (
+    <>
+      {personalBest > -1 ? (
+        <text
+          x="center"
+          y={firstY}
+          w="fill"
+          h={CaBossLayout.STAT_H}
+          text={`Personal Best: <col=ffffff>${personalBest > 0 ? timeConvertOption(personalBest) : 'N/A'}</col>`}
+          font={CaFont.BODY}
+          shadow
+          align="center"
+          valign="middle"
+          color={CaColour.AMBER}
+        />
+      ) : null}
+      <text
+        x="center"
+        y={personalBest > -1 ? firstY - CaBossLayout.STAT_H : firstY}
+        w="fill"
+        h={CaBossLayout.STAT_H}
+        text={`Kill Count: <col=ffffff>${stringOf(killCount)}</col>`}
+        font={CaFont.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        color={CaColour.AMBER}
+      />
+      <text
+        x="center"
+        y={personalBest > -1 ? firstY - CaBossLayout.STAT_H * 2 : firstY - CaBossLayout.STAT_H}
+        w="fill"
+        h={CaBossLayout.STAT_H}
+        text={
+          level === 0 ? 'Combat Level: <col=ffffff>N/A</col>' : `Combat Level: <col=ffffff>${stringOf(level)}</col>`
+        }
+        font={CaFont.BODY}
+        shadow
+        align="center"
+        valign="middle"
+        color={CaColour.AMBER}
+      />
+      <CaBossStoneButton
+        label={CaBossText.BOSS_LIST}
+        op={CaBossText.BOSS_LIST}
+        subject=""
+        x={CaBossLayout.BOSS_LIST_X}
+        y={CaBossLayout.STAT_BUTTON_Y}
+        live
+        mobile={mobile}
+      />
+      {personalBest > 0 ? (
+        <layer x={0} y={0} w="fill" h="fill">
+          <CaBossStoneButton
+            label={CaBossText.RESET_TIME}
+            op={CaBossText.RESET_TIME}
+            subject={`<col=ff9040>${name}</col>`}
+            x={CaBossLayout.RESET_TIME_X}
+            y={CaBossLayout.STAT_BUTTON_Y}
+            live
+            mobile={mobile}
+          />
+        </layer>
+      ) : (
+        <layer x={0} y={0} w="fill" h="fill">
+          <CaBossStoneButton
+            label={CaBossText.RESET_TIME}
+            op=""
+            subject=""
+            x={CaBossLayout.RESET_TIME_X}
+            y={CaBossLayout.STAT_BUTTON_Y}
+            live={false}
+            mobile={mobile}
+          />
+        </layer>
+      )}
+    </>
+  );
+}
+
+function CaBossStoneButton({
+  label,
+  op,
+  subject,
+  x,
+  y,
+  live,
+  mobile,
+}: {
+  label: String;
+  op: String;
+  subject: String;
+  x: Int;
+  y: Int;
+  live: Boolean;
+  mobile: Boolean;
+}): Component {
+  const [lit, setLit] = useState(0);
+  const w: Int = CaBossLayout.STAT_BUTTON_W;
+  const h: Int = CaBossLayout.STAT_BUTTON_H;
+  const corner: Int = CaBossLayout.CORNER;
+  const rectW: Int = mobile ? Math.max(w, CaBossLayout.TOUCH_MIN) : w;
+  const rectH: Int = mobile ? Math.max(h, CaBossLayout.TOUCH_MIN) : h;
+  const rectX: Int = mobile ? x - (Math.max(w, CaBossLayout.TOUCH_MIN) - w) / 2 : x;
+  const rectY: Int = mobile ? y - (Math.max(h, CaBossLayout.TOUCH_MIN) - h) / 2 : y;
+
+  return (
+    <>
+      {live ? (
+        <layer x={0} y={0} w="fill" h="fill">
+          <rect
+            x={rectX}
+            y={rectY}
+            w={rectW}
+            h={rectH}
+            transparency={255}
+            options={[op]}
+            optionSubject={subject}
+            onOptionSelect={(event) => opsound(event.option, 2)}
+            onMouseEnter={
+              mobile
+                ? undefined
+                : () => {
+                    setLit(1);
+                  }
+            }
+            onMouseLeave={
+              mobile
+                ? undefined
+                : () => {
+                    setLit(0);
+                  }
+            }
+          />
+        </layer>
+      ) : null}
+      <layer x={x} y={y} w={w} h={h}>
+        <sprite x={0} y={0} w={w} h={h} sprite={lit === 1 ? CaArt.BUTTON_BACKDROP_LIT : CaArt.BUTTON_BACKDROP} tiling />
+        <sprite
+          x={0}
+          y={0}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_0 : Sprites.V2_STONE_BUTTON_0}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={0}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_1 : Sprites.V2_STONE_BUTTON_1}
+          tiling
+        />
+        <sprite
+          x={0}
+          y={h - corner}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_2 : Sprites.V2_STONE_BUTTON_2}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={h - corner}
+          w={corner}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_3 : Sprites.V2_STONE_BUTTON_3}
+          tiling
+        />
+        <sprite
+          x={0}
+          y={corner}
+          w={corner}
+          h={h - corner * 2}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_4 : Sprites.V2_STONE_BUTTON_4}
+          tiling
+        />
+        <sprite
+          x={corner}
+          y={0}
+          w={w - corner * 2}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_5 : Sprites.V2_STONE_BUTTON_5}
+          tiling
+        />
+        <sprite
+          x={w - corner}
+          y={corner}
+          w={corner}
+          h={h - corner * 2}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_6 : Sprites.V2_STONE_BUTTON_6}
+          tiling
+        />
+        <sprite
+          x={corner}
+          y={h - corner}
+          w={w - corner * 2}
+          h={corner}
+          sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_7 : Sprites.V2_STONE_BUTTON_7}
+          tiling
+        />
+        <text
+          x={0}
+          y={0}
+          w={w}
+          h={h}
+          text={label}
+          font={CaFont.SMALL}
+          shadow
+          align="center"
+          valign="middle"
+          color={
+            live
+              ? lit === 1
+                ? CaBossColour.BUTTON_LABEL_LIT
+                : CaBossColour.BUTTON_LABEL
+              : CaBossColour.BUTTON_LABEL_DISABLED
+          }
+        />
+      </layer>
+    </>
+  );
+}

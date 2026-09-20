@@ -1,0 +1,746 @@
+import { onMounted, onUpdated, sessionState, useDerived, useRef, useState, useUniverse } from 'ts2';
+
+import { clientClock, textWidth } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { onMobile } from '../lib/lib.helpers';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { SkillByIndex, SkillIcons, SkillNames, XpForLevel } from '../lib/skills.data';
+import { Fonts } from '../lib/game/fonts';
+import { Sprites } from '../lib/game/sprites';
+import {
+  osmPopoutScrollposXptracker,
+  xptrackerCurrentId,
+  xptrackerLastxpOverall,
+  xptrackerPausedOverall,
+  xptrackerStartxpOverall,
+  xptrackerTimetrainedOverall,
+} from '../lib/game/varcs';
+import { onEnhancedDesktop, onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { LevelForXp } from '../0137_xpdrops_setup/xpdrops-setup.data';
+import { clearPopoutTip, showPopoutTip } from '../0728_popout/popout-tooltip.state';
+import { trackerLastXp, trackerPaused, trackerPosition } from './xptracker.cells';
+import { xptrackerPaneRef } from './xptracker.refs';
+import {
+  TrackerMode,
+  XP_CAP,
+  trackerActsLeft,
+  trackerBarWidth,
+  trackerBase,
+  trackerDropAverage,
+  trackerGained,
+  trackerGoal,
+  trackerGoalEnd,
+  trackerGoalStart,
+  trackerKillsLeft,
+  trackerLeftText,
+  trackerLevel,
+  trackerMode,
+  trackerNumber,
+  trackerPercentText,
+  trackerRightText,
+  trackerTarget,
+  trackerXp,
+  trackerXpPerHour,
+  xpPerHourOf,
+} from './xptracker.helpers';
+import {
+  TRACKER_ROW_STEP,
+  dropTracker,
+  selectOverallOption,
+  selectTrackerOption,
+  trackerDropRow,
+} from './xptracker.state';
+
+export function Xptracker(): Component {
+  return (
+    <>
+      <layer static x={{ right: 0 }} y={{ bottom: 0 }} w={Layout.COLUMN_W} h="fill">
+        <layer x={0} y={0} w="fill" h="fill">
+          <XptrackerPaneExtent />
+        </layer>
+        <layer static x={{ right: 1 }} y={1} w={Layout.BAR_W} h={{ fill: 2 }}>
+          <XptrackerScrollbar />
+        </layer>
+        <layer
+          static
+          ref={xptrackerPaneRef}
+          x={Layout.PANE_X}
+          y="center"
+          w={{ fill: Layout.PANE_INSET_W }}
+          h={{ fill: Layout.PANE_INSET }}
+        >
+          <layer x={0} y={0} w="fill" h="fill">
+            <TrackerBacks />
+          </layer>
+          <layer static x={Layout.INSET} y={Layout.INSET} w={{ fill: Layout.INSET * 2 }} h={{ fill: Layout.INSET * 2 }}>
+            <layer x={0} y={0} w="fill" h="fill">
+              <TrackerBars />
+            </layer>
+          </layer>
+          <layer
+            static
+            x={Layout.INSET}
+            y={Layout.INSET}
+            w={{ fill: Layout.INSET * 2 }}
+            h={{ fill: Layout.INSET * 2 }}
+          />
+          <layer
+            static
+            x={Layout.INSET}
+            y={Layout.INSET}
+            w={{ fill: Layout.INSET * 2 }}
+            h={{ fill: Layout.INSET * 2 }}
+          />
+          <layer
+            static
+            x={Layout.INSET}
+            y={Layout.INSET}
+            w={{ fill: Layout.INSET * 2 }}
+            h={{ fill: Layout.INSET * 2 }}
+          />
+          <layer
+            static
+            x={Layout.INSET}
+            y={Layout.INSET}
+            w={{ fill: Layout.INSET * 2 }}
+            h={{ fill: Layout.INSET * 2 }}
+          />
+          <layer x={0} y={0} w="fill" h="fill">
+            <TrackerTexts />
+          </layer>
+          <layer x={0} y={0} w="fill" h="fill">
+            <TrackerGhost />
+          </layer>
+        </layer>
+      </layer>
+    </>
+  );
+}
+
+export function XptrackerPaneExtent(): Component {
+  const universe = useUniverse();
+  const [count] = useState(xptrackerCurrentId);
+  const [savedScroll] = useState(osmPopoutScrollposXptracker);
+  const content: Int = count * TRACKER_ROW_STEP;
+  const paneH: Int = universe.height - Layout.PANE_INSET;
+  const extent: Int = content > paneH ? content : 0;
+  const offset: Int = savedScroll > 0 ? savedScroll : 0;
+  onMounted(() => placePane(extent, offset));
+  onUpdated(() => placePane(extent, offset));
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placePane(extent: Int, offset: Int): void {
+  xptrackerPaneRef.props = { scrollHeight: extent, scrollY: offset };
+}
+
+export function XptrackerScrollbar(): Component {
+  const [count] = useState(xptrackerCurrentId);
+  const rows: Int = count;
+
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const scrollExtent: Int = xptrackerPaneRef.scrollHeight;
+  const extent: Int = scrollExtent > 0 ? scrollExtent : xptrackerPaneRef.height;
+
+  xptrackerPaneRef.onScrollWheel = (event) => {
+    xptrackerPaneRef.scrollY = xptrackerPaneRef.scrollY + event.mouseY * WHEEL;
+    trackPaneScroll(gutter, thumb, capTop, capBottom);
+  };
+
+  return (
+    <layer ref={bar} w="fill" h="fill" hide={rows < -1}>
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_3}
+        noClickThrough
+        onScrollWheel={(event) => {
+          xptrackerPaneRef.scrollY = xptrackerPaneRef.scrollY + event.mouseY * WHEEL;
+          trackPaneScroll(gutter, thumb, capTop, capBottom);
+        }}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const range: Int = xptrackerPaneRef.scrollHeight - xptrackerPaneRef.height;
+          xptrackerPaneRef.scrollY = (offset * range) / travel;
+          trackPaneScroll(gutter, thumb, capTop, capBottom);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={
+          ARROW +
+          ((gutter.height - thumbHeightOf(bar.height, xptrackerPaneRef.height, extent, false)) *
+            xptrackerPaneRef.scrollY) /
+            Math.max(1, xptrackerPaneRef.scrollHeight - xptrackerPaneRef.height)
+        }
+        w="fill"
+        h={thumbHeightOf(bar.height, xptrackerPaneRef.height, extent, false)}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_1}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const range: Int = xptrackerPaneRef.scrollHeight - xptrackerPaneRef.height;
+          xptrackerPaneRef.scrollY = (offset * range) / travel;
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={Sprites.SCROLLBAR_DRAGGER_V2_0} />
+      <sprite
+        ref={capBottom}
+        y={thumb.y + thumb.height - CAP}
+        w="fill"
+        h={CAP}
+        sprite={Sprites.SCROLLBAR_DRAGGER_V2_2}
+      />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_0}
+        noClickThrough
+        onHold={() => {
+          xptrackerPaneRef.scrollY = xptrackerPaneRef.scrollY - STEP;
+          trackPaneScroll(gutter, thumb, capTop, capBottom);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={Sprites.SCROLLBAR_V2_1}
+        noClickThrough
+        onHold={() => {
+          xptrackerPaneRef.scrollY = xptrackerPaneRef.scrollY + STEP;
+          trackPaneScroll(gutter, thumb, capTop, capBottom);
+        }}
+      />
+    </layer>
+  );
+}
+
+function trackPaneScroll(gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref): void {
+  const range: Int = Math.max(1, xptrackerPaneRef.scrollHeight - xptrackerPaneRef.height);
+  const travel: Int = gutter.height - thumb.height;
+  const y: Int = ARROW + (travel * xptrackerPaneRef.scrollY) / range;
+
+  thumb.y = y;
+  capTop.y = y;
+  capBottom.y = y + thumb.height - CAP;
+}
+
+const enum Layout {
+  COLUMN_W = 264,
+  PANE_X = 2,
+  PANE_INSET_W = 20,
+  PANE_INSET = 4,
+  BAR_W = 16,
+  ROW_H = 48,
+  ICON = 25,
+  ICON_X = 3,
+  ICON_Y = 3,
+  OVERALL_ICON_Y = 12,
+  INSET = 3,
+  BAR_PARENT_W = 238,
+  BAR_Y = 27,
+  BAR_H = 15,
+  BAR_TEXT_Y = 28,
+  LEFT_LABEL_X = 1,
+  RIGHT_LABEL_X = 3,
+  TEXT_INSET = 4,
+  TEXT_H = 28,
+  LINE_H = 12,
+  OVERALL_TEXT_X = 31,
+}
+
+const enum Colour {
+  BAR_BACK = 0x002200,
+  BAR = 0x006600,
+  BAR_DONE = 0x885500,
+  LABEL = 0xcccccc,
+  VALUE = 0xffffff,
+  GHOST_TARGET = 0xffffff,
+}
+
+const enum Trans {
+  ROW = 128,
+  GHOST_TARGET = 160,
+}
+
+function OverallBack(): Component {
+  const [paused] = useState(xptrackerPausedOverall);
+  return (
+    <>
+      <rect x={0} y={0} w="fill" h={Layout.ROW_H} fill transparency={Trans.ROW} />
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h={Layout.ROW_H}
+        options={['', '', '', '', '', '', 'Close', paused === 1 ? 'Unpause' : 'Pause']}
+        optionSubject="<col=ff9040>All Trackers</col>"
+        onOptionSelect={(event) => selectOverallOption(event.option)}
+      />
+      <sprite
+        x={Layout.ICON_X}
+        y={Layout.OVERALL_ICON_Y}
+        w={Layout.ICON}
+        h={Layout.ICON}
+        sprite={Sprites.STATICONS2_7}
+      />
+    </>
+  );
+}
+
+function OverallText(): Component {
+  const [start] = useState(xptrackerStartxpOverall);
+  const [last] = useState(xptrackerLastxpOverall);
+  const [trained] = useState(xptrackerTimetrainedOverall);
+  const [paused] = useState(xptrackerPausedOverall);
+  const labelW: Int = textWidth('Total XP Gained: ', 512, Fonts.P11_FULL);
+  const valueW: Int = textWidth('88.888M', 512, Fonts.P11_FULL);
+  const perHour: String = paused === 1 ? 'Paused.' : trackerNumber(xpPerHourOf(last - start, trained));
+
+  return (
+    <>
+      <text
+        x={Layout.OVERALL_TEXT_X}
+        y={0}
+        w={labelW}
+        h={Layout.ROW_H}
+        font={Fonts.P11_FULL}
+        color={Colour.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={Layout.LINE_H}
+        text="Total XP/Hr: <br>Total XP Gained: "
+      />
+      <text
+        x={Layout.OVERALL_TEXT_X + labelW}
+        y={0}
+        w={valueW}
+        h={Layout.ROW_H}
+        font={Fonts.P11_FULL}
+        color={Colour.VALUE}
+        shadow
+        align="right"
+        valign="middle"
+        lineHeight={Layout.LINE_H}
+        text={`${perHour}<br>${trackerNumber(last - start)}`}
+      />
+    </>
+  );
+}
+
+const trackerDragging = sessionState(-1);
+const trackerDragY = sessionState(0);
+
+export function TrackerBacks(): Component {
+  const [count] = useState(xptrackerCurrentId);
+  const [dragging, setDragging] = useState(trackerDragging);
+  const [, setDragY] = useState(trackerDragY);
+  const [scrollAt, setScrollAt] = useState(0);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <OverallBack />
+      {SkillByIndex.filter((skill) => trackerShown(skill as Int, count)).map((skill) => (
+        <>
+          <rect
+            x={0}
+            y={trackerPosition(skill as Int) * TRACKER_ROW_STEP}
+            w="fill"
+            h={Layout.ROW_H}
+            fill
+            transparency={Trans.ROW}
+            hide={dragging === (skill as Int)}
+          />
+          <rect
+            x={0}
+            y={trackerPosition(skill as Int) * TRACKER_ROW_STEP}
+            w="fill"
+            h={Layout.ROW_H}
+            options={[
+              '',
+              '',
+              '',
+              '',
+              '',
+              'Set Goal',
+              '',
+              'Close',
+              'Close all but',
+              trackerPaused(skill as Int) === 1 ? 'Unpause' : 'Pause',
+            ]}
+            optionSubject={`<col=ff9040>${SkillNames.get(skill) ?? 'Skill'} Tracker</col>`}
+            onOptionSelect={(event) => selectTrackerOption(event.option, skill as Int)}
+            draggable={xptrackerPaneRef}
+            dragMoves
+            onDrag={(event) => {
+              setDragging(skill as Int);
+              setDragY(event.mouseY);
+              setScrollAt(dragAutoscroll(xptrackerPaneRef, event.mouseY, scrollAt));
+            }}
+            onDragComplete={(event) => {
+              setDragging(-1);
+              dropTracker(event.mouseY, trackerPosition(skill as Int), skill as Int);
+            }}
+          />
+          <sprite
+            x={Layout.ICON_X}
+            y={trackerPosition(skill as Int) * TRACKER_ROW_STEP + Layout.ICON_Y}
+            w={Layout.ICON}
+            h={Layout.ICON}
+            sprite={SkillIcons.get(skill) ?? -1}
+            hide={dragging === (skill as Int)}
+          />
+        </>
+      ))}
+    </layer>
+  );
+}
+
+export function TrackerBars(): Component {
+  const [count] = useState(xptrackerCurrentId);
+  const [dragging] = useState(trackerDragging);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {SkillByIndex.filter((skill) => trackerShown(skill as Int, count)).map((skill) => (
+        <RowBar
+          skill={skill as Int}
+          y={trackerPosition(skill as Int) * TRACKER_ROW_STEP}
+          hidden={dragging === (skill as Int) ? 1 : 0}
+          ghost={0}
+        />
+      ))}
+    </layer>
+  );
+}
+
+export function TrackerTexts(): Component {
+  const [count] = useState(xptrackerCurrentId);
+  const [dragging] = useState(trackerDragging);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <OverallText />
+      {SkillByIndex.filter((skill) => trackerShown(skill as Int, count)).map((skill) => (
+        <RowText
+          skill={skill as Int}
+          y={trackerPosition(skill as Int) * TRACKER_ROW_STEP}
+          hidden={dragging === (skill as Int) ? 1 : 0}
+          ghost={0}
+        />
+      ))}
+    </layer>
+  );
+}
+
+export function TrackerGhost(): Component {
+  const [dragging] = useState(trackerDragging);
+  const [dragY] = useState(trackerDragY);
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      {dragging >= 0 && (
+        <>
+          <rect
+            x={0}
+            y={trackerDropRow(dragY) * TRACKER_ROW_STEP}
+            w="fill"
+            h={Layout.ROW_H}
+            fill
+            color={Colour.GHOST_TARGET}
+            transparency={Trans.GHOST_TARGET}
+          />
+          <rect x={0} y={dragY} w="fill" h={Layout.ROW_H} fill transparency={Trans.ROW} />
+          <sprite
+            x={Layout.ICON_X}
+            y={dragY + Layout.ICON_Y}
+            w={Layout.ICON}
+            h={Layout.ICON}
+            sprite={SkillIcons.get(dragging as Skill) ?? -1}
+          />
+          <RowBar skill={dragging} y={dragY} hidden={0} ghost={1} />
+          <RowText skill={dragging} y={dragY} hidden={0} ghost={1} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+function trackerShown(skill: Int, count: Int): Boolean {
+  const row: Int = trackerPosition(skill);
+  return row >= 1 && row < count;
+}
+
+function RowBar({ skill, y, hidden, ghost }: { skill: Int; y: Int; hidden: Int; ghost: Int }): Component {
+  const isGhost: Boolean = ghost === 1;
+  const hide: Boolean = hidden === 1;
+  const xp: Int = trackerXp(skill);
+  const goalStart: Int = useDerived(() => trackerGoalStart(skill));
+  const goalEnd: Int = useDerived(() => trackerGoalEnd(skill));
+  const paused: Int = useDerived(() => trackerPaused(skill));
+  const lastXp: Int = useDerived(() => trackerLastXp(skill));
+  const level: Int = lastXp === lastXp ? trackerLevel(xp) : 0;
+  const mode: Int = trackerMode(xp, goalEnd);
+  const target: Int = trackerTarget(mode, level, goalEnd);
+  const base: Int = trackerBase(mode, level, goalStart);
+  const done: Boolean = mode === TrackerMode.DONE;
+  const barW: Int = (trackerBarWidth(xp, base, target) * Layout.BAR_PARENT_W) / 16384;
+
+  const shift: Int = isGhost ? Layout.INSET : 0;
+  const boxW: Int = Layout.BAR_PARENT_W;
+  const barY: Int = y + Layout.BAR_Y + shift;
+  const textY: Int = y + Layout.BAR_TEXT_Y + shift;
+
+  const mobile: Boolean = onMobile();
+  const enhancedDesktop: Boolean = onEnhancedDesktop();
+  const enhancedMobile: Boolean = onEnhancedMobile();
+  const blocksClicks: Boolean = !isGhost && mobile;
+  const tipOnRepeat: Boolean = !isGhost && enhancedDesktop;
+  const tipOnClick: Boolean = !isGhost && !enhancedDesktop && enhancedMobile;
+
+  return (
+    <>
+      <rect
+        x={shift}
+        y={barY}
+        w={isGhost ? boxW : 'fill'}
+        h={Layout.BAR_H}
+        fill
+        color={Colour.BAR_BACK}
+        hide={hide}
+        noClickThrough={blocksClicks}
+        onMouseLeave={isGhost || mobile ? null : () => clearPopoutTip()}
+        onMouseRepeat={tipOnRepeat ? () => showGoalTip(skill, y) : null}
+        onClick={tipOnClick ? () => showGoalTip(skill, y) : null}
+      />
+      <rect
+        x={shift}
+        y={barY}
+        w={done ? (isGhost ? boxW : 'fill') : barW}
+        h={Layout.BAR_H}
+        fill
+        color={done ? Colour.BAR_DONE : Colour.BAR}
+        hide={hide}
+      />
+      <text
+        x="center"
+        y={textY + (isGhost ? 0 : 0)}
+        w={isGhost ? boxW : 'fill'}
+        h={Layout.BAR_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.VALUE}
+        shadow
+        align="center"
+        valign="middle"
+        text={trackerPercentText(paused, mode, xp, base, target)}
+      />
+      <text
+        x={Layout.LEFT_LABEL_X + shift}
+        y={textY}
+        w={isGhost ? boxW : 'fill'}
+        h={Layout.BAR_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.LABEL}
+        shadow
+        align="left"
+        valign="middle"
+        text={trackerLeftText(mode, level, goalStart)}
+      />
+      <text
+        x={isGhost ? Layout.RIGHT_LABEL_X + Layout.INSET : { right: Layout.RIGHT_LABEL_X }}
+        y={textY}
+        w={isGhost ? boxW : 'fill'}
+        h={Layout.BAR_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.LABEL}
+        shadow
+        align="right"
+        valign="middle"
+        text={trackerRightText(mode, level, goalEnd)}
+      />
+    </>
+  );
+}
+
+function RowText({ skill, y, hidden, ghost }: { skill: Int; y: Int; hidden: Int; ghost: Int }): Component {
+  const isGhost: Boolean = ghost === 1;
+  const hide: Boolean = hidden === 1;
+  const xp: Int = trackerXp(skill);
+  const goalEnd: Int = useDerived(() => trackerGoalEnd(skill));
+  const gained: Int = useDerived(() => trackerGained(skill));
+  const perHour: Int = useDerived(() => trackerXpPerHour(skill));
+  const average: Int = useDerived(() => trackerDropAverage(skill));
+  const level: Int = trackerLevel(xp);
+  const mode: Int = trackerMode(xp, goalEnd);
+  const target: Int = trackerTarget(mode, level, goalEnd);
+  const kills: Int = useDerived(() => trackerKillsLeft(skill, target));
+  const acts: Int = trackerActsLeft(xp, target, average);
+
+  const toTarget: String = target !== 0 ? trackerNumber(target - xp) : 'Done!';
+  let remaining: String = '';
+  if (kills >= 0) {
+    remaining = trackerNumber(kills);
+  } else if (kills !== -2 && acts >= 0) {
+    remaining = trackerNumber(acts);
+  }
+
+  const valueW: Int = textWidth('88.888M', 512, Fonts.P11_FULL);
+  const rateLabelW: Int = textWidth('XP>Goal: ', 512, Fonts.P11_FULL);
+  const gainedLabelW: Int = textWidth('  XP Gained: ', 512, Fonts.P11_FULL);
+  const col12: Int = Layout.TEXT_INSET + valueW + gainedLabelW + valueW;
+  const col13: Int = Layout.TEXT_INSET + valueW + gainedLabelW;
+  const col14: Int = Layout.TEXT_INSET + valueW;
+  const col15: Int = Layout.TEXT_INSET;
+  const top: Int = y + Layout.TEXT_INSET;
+
+  return (
+    <>
+      <text
+        x={isGhost ? col12 : { right: col12 }}
+        y={top}
+        w={rateLabelW}
+        h={Layout.TEXT_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.LABEL}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={Layout.LINE_H}
+        text={mode === TrackerMode.LEVEL ? 'XP/Hr: <br>XP>Lvl: ' : 'XP/Hr: <br>XP>Goal: '}
+      />
+      <text
+        x={isGhost ? col13 : { right: col13 }}
+        y={top}
+        w={valueW}
+        h={Layout.TEXT_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.VALUE}
+        shadow
+        align="right"
+        valign="top"
+        lineHeight={Layout.LINE_H}
+        text={`${trackerNumber(perHour)}<br>${toTarget}`}
+      />
+      <text
+        x={isGhost ? col14 : { right: col14 }}
+        y={top}
+        w={gainedLabelW}
+        h={Layout.TEXT_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.LABEL}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={Layout.LINE_H}
+        text={`  XP Gained: <br>${kills === -1 ? '  Acts>' : '  Kills>'}${mode === TrackerMode.LEVEL ? 'Lvl: ' : 'Goal: '}`}
+      />
+      <text
+        x={isGhost ? col15 : { right: col15 }}
+        y={top}
+        w={valueW}
+        h={Layout.TEXT_H}
+        hide={hide}
+        font={Fonts.P11_FULL}
+        color={Colour.VALUE}
+        shadow
+        align="right"
+        valign="top"
+        lineHeight={Layout.LINE_H}
+        text={`${trackerNumber(gained)}<br>${remaining}`}
+      />
+    </>
+  );
+}
+
+function dragAutoscroll(pane: ComponentId, mouseY: Int, scrollAt: Int): Int {
+  const scroll: Int = pane.scrollY!;
+  const y: Int = mouseY - scroll;
+  const edge: Int = pane.height!;
+  let step: Int = 0;
+  if (y < 5) {
+    step = -5;
+  } else if (y < 15) {
+    step = -2;
+  } else if (y >= edge - (5 + Layout.ROW_H)) {
+    step = 5;
+  } else if (y >= edge - (15 + Layout.ROW_H)) {
+    step = 2;
+  } else {
+    return scrollAt;
+  }
+  if (scrollAt - clientClock() < 5) {
+    return Math.max(clientClock(), scrollAt) + 2;
+  }
+  pane.scrollY = Math.min(pane.scrollHeight! - edge, Math.max(0, scroll + step));
+  return scrollAt + 1;
+}
+
+export function showGoalTip(skill: Int, rowY: Int): void {
+  const xp: Int = trackerXp(skill);
+  const [start, end] = trackerGoal(skill);
+  if (trackerMode(xp, end) !== TrackerMode.GOAL) {
+    return;
+  }
+  let left: String = '';
+  let right: String = '';
+  if (start !== 0 && (LevelForXp.get(start) ?? -1) === -1) {
+    left = 'Start:';
+    right = `${groupDigits(start, ',')} XP (${goalLevelText(start)})`;
+  }
+  if (end !== 0 && (LevelForXp.get(end) ?? -1) === -1) {
+    if (left.length > 0) {
+      left = `${left}|`;
+      right = `${right}|`;
+    }
+    left = `${left}Goal:`;
+    right = `${right}${groupDigits(end, ',')} XP (${goalLevelText(end)})`;
+  }
+  if (left.length === 0 || right.length === 0) {
+    return;
+  }
+  showPopoutTip(left, right, rowY);
+}
+
+function goalLevelText(xp: Int): String {
+  if (xp === XP_CAP) {
+    return 'max';
+  }
+  return `${levelAtOrBelow(xp)}`;
+}
+
+function levelAtOrBelow(xp: Int): Int {
+  let level: Int = 1;
+  while (level <= 126) {
+    const need: Int = XpForLevel.get(level) ?? 0;
+    if (xp === need) {
+      return level;
+    }
+    if (xp < need) {
+      return Math.max(level - 1, 1);
+    }
+    level = level + 1;
+  }
+  return 126;
+}

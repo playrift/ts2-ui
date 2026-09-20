@@ -1,0 +1,696 @@
+import { CS2, onMounted, onUpdated, sessionState, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { onMobile, opsound, openUrlRaw } from '../lib/lib.helpers';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import { STONEBUTTON_OP_SOUND_MASK } from '../0765_pvp_arena_choosebuild/pvp-arena-choosebuild.constants';
+import { FloaterKind, floaterPlaced, floaterRect } from '../0372_cr_ui/floater';
+import {
+  BALLOT_IMAGE_MODAL_CLOSE,
+  BallotColour,
+  BallotFont,
+  BallotLayout,
+  BallotLinkVerb,
+  BallotModal,
+  BallotPage,
+  BallotRowKind,
+  BallotRowLayout,
+  BallotSound,
+  BallotSprite,
+  ballotModalBoxRef,
+  ballotModalButton1Ref,
+  ballotModalButton2Ref,
+} from './ballot.constants';
+import { ballotShowPage, ballotSubmitOp } from './ballot.entry';
+import {
+  ballotLinkRowWidth,
+  ballotQuestionLabel,
+  ballotQuestionLabelWidth,
+  ballotQuestionMarkerHeight,
+} from './ballot.helpers';
+import {
+  ballotMarkerIndex,
+  ballotMarkerText,
+  ballotModalShown,
+  ballotSubmitShown,
+  voteContentTotal,
+} from './ballot.state';
+
+export function BallotQuestion({
+  index,
+  text,
+  wide,
+  voting,
+  answersTop = 0,
+  markerTop = 0,
+  paneWidth = 0,
+  children,
+}: {
+  index: Int;
+  text: String;
+  answersTop?: Int;
+  markerTop?: Int;
+  paneWidth?: Int;
+  wide: Boolean;
+  voting: Boolean;
+  children?: Children;
+}): Component {
+  const labelWidth: Int = ballotQuestionLabelWidth(index);
+  const [markerIndex] = useState(ballotMarkerIndex);
+  const [markerText] = useState(ballotMarkerText);
+  const marked: Boolean = voting && markerIndex === index && paneWidth > 0;
+  const markerBox: Int = ballotQuestionMarkerHeight(index, text, wide, marked, markerText, paneWidth);
+  const markerHeight: Int = marked ? markerBox - BallotRowLayout.QUESTION_PAD : 0;
+  const answersY: Int = answersTop + markerBox;
+
+  return (
+    <layer w="fill" h="fill">
+      <text
+        x={0}
+        y={0}
+        w={labelWidth}
+        h={BallotRowLayout.QUESTION_LABEL_H}
+        text={ballotQuestionLabel(index)}
+        font={BallotFont.TITLE}
+        color={BallotColour.TITLE}
+        shadow
+        align="left"
+        valign="top"
+      />
+
+      <text
+        x={wide ? 0 : labelWidth}
+        y={wide ? BallotRowLayout.QUESTION_LABEL_H : 0}
+        w={{ fill: wide ? 0 : labelWidth }}
+        h={{ fill: wide ? BallotRowLayout.QUESTION_LABEL_H : 0 }}
+        text={text}
+        font={BallotFont.BODY}
+        color={0xffffff}
+        shadow
+        align="left"
+        valign="top"
+        lineHeight={BallotRowLayout.LINE_H}
+      />
+
+      {voting ? (
+        <layer x={0} y={markerTop} w="fill" h={markerHeight} hide={markerIndex !== index}>
+          <rect x={0} y={0} w="fill" h="fill" color={BallotRowLayout.VOTE_MARK_COLOUR} />
+          <text
+            x="center"
+            y="center"
+            w={{ fill: BallotRowLayout.VOTE_MARK_INSET * 2 }}
+            h={{ fill: BallotRowLayout.VOTE_MARK_INSET * 2 }}
+            text={markerText}
+            font={BallotFont.BODY}
+            color={0xffffff}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={BallotRowLayout.LINE_H}
+          />
+        </layer>
+      ) : null}
+
+      <layer x={0} y={answersY} w="fill" h={{ fill: answersY }}>
+        {children}
+      </layer>
+    </layer>
+  );
+}
+
+export function BallotHeading({ title }: { title: String }): Component {
+  const fade: Int = BallotRowLayout.HEADING_FADE;
+  const span: Int = 255 - BallotRowLayout.HEADING_RULE_TRANSPARENCY;
+
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        x="center"
+        y="center"
+        w={{ fill: fade * 2 }}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={BallotRowLayout.HEADING_RULE_TRANSPARENCY}
+        fill
+      />
+
+      <rect
+        x={3}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(4, 5, span)}
+        fill
+      />
+      <rect
+        x={{ right: 3 }}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(4, 5, span)}
+        fill
+      />
+      <rect
+        x={2}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(3, 5, span)}
+        fill
+      />
+      <rect
+        x={{ right: 2 }}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(3, 5, span)}
+        fill
+      />
+      <rect
+        x={1}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(2, 5, span)}
+        fill
+      />
+      <rect
+        x={{ right: 1 }}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(2, 5, span)}
+        fill
+      />
+      <rect
+        x={0}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(1, 5, span)}
+        fill
+      />
+      <rect
+        x={{ right: 0 }}
+        y={0}
+        w={1}
+        h="fill"
+        color={BallotRowLayout.HEADING_RULE_COLOUR}
+        transparency={255 - CS2.scale(1, 5, span)}
+        fill
+      />
+
+      <text
+        x="center"
+        y="center"
+        w={{ fill: BallotRowLayout.HEADING_INSET }}
+        h="fill"
+        text={title}
+        font={BallotFont.TITLE}
+        color={BallotColour.TITLE}
+        shadow
+        align="center"
+        valign="middle"
+        lineHeight={BallotRowLayout.LINE_H}
+      />
+    </layer>
+  );
+}
+
+export function BallotSeparator(): Component {
+  return (
+    <layer w="fill" h={BallotRowLayout.SEPARATOR_H}>
+      <rect
+        x="center"
+        y={0}
+        w={{ fill: BallotRowLayout.SEPARATOR_INSET }}
+        h={1}
+        color={BallotRowLayout.SEPARATOR_TOP_COLOUR}
+        fill
+      />
+      <rect
+        x="center"
+        y="bottom"
+        w={{ fill: BallotRowLayout.SEPARATOR_INSET }}
+        h={1}
+        color={BallotRowLayout.SEPARATOR_BOTTOM_COLOUR}
+        fill
+      />
+    </layer>
+  );
+}
+
+export function BallotImageRow({
+  url,
+  width,
+  height,
+  imageWidth,
+  imageHeight,
+  link,
+}: {
+  url: String;
+  width: Int;
+  height: Int;
+  imageWidth: Int;
+  imageHeight: Int;
+  link: String;
+}): Component {
+  return (
+    <layer w="fill" h="fill">
+      <sprite x="center" y={0} w={width} h={height} />
+
+      {CS2.string_length(link) > 0 ? (
+        <BallotImageOverlay
+          url={link}
+          width={width}
+          height={height}
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function BallotImageOverlay({
+  url,
+  width,
+  height,
+  imageWidth,
+  imageHeight,
+}: {
+  url: String;
+  width: Int;
+  height: Int;
+  imageWidth: Int;
+  imageHeight: Int;
+}): Component {
+  const embedded: Boolean = imageWidth > 0 && imageHeight > 0;
+
+  return (
+    <rect
+      x="center"
+      y={0}
+      w={width}
+      h={height}
+      color={0xffffff}
+      fill
+      transparency={BallotRowLayout.IMAGE_OVERLAY_TRANSPARENCY}
+      options={
+        embedded
+          ? [BallotLinkVerb.EMBEDDED]
+          : onMobile()
+            ? ['', '', '', '', '', '', '', '', '', BallotLinkVerb.BROWSER]
+            : [BallotLinkVerb.BROWSER]
+      }
+      onMouseEnter={(event) => {
+        if (!onMobile()) {
+          event.self.transparency = BallotRowLayout.IMAGE_OVERLAY_HOVER_TRANSPARENCY;
+        }
+      }}
+      onMouseLeave={(event) => {
+        if (!onMobile()) {
+          event.self.transparency = BallotRowLayout.IMAGE_OVERLAY_TRANSPARENCY;
+        }
+      }}
+      onOptionSelect={() => {
+        if (embedded) {
+          ballotShowImageModal(url, imageWidth, imageHeight);
+          return;
+        }
+        openUrlRaw(url, true, true);
+      }}
+    />
+  );
+}
+
+export function BallotButtonRow({
+  kind,
+  label,
+  verb,
+  url,
+  imageWidth,
+  imageHeight,
+  submit = false,
+}: {
+  kind: Int;
+  label: String;
+  verb: String;
+  url: String;
+  imageWidth: Int;
+  imageHeight: Int;
+  submit?: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const linkRow: Boolean = kind === BallotRowKind.LINK;
+  const icon: Int = BallotRowLayout.LINK_ICON_GUTTER * 2 + BallotRowLayout.LINK_ICON + BallotRowLayout.LINK_ICON_GAP;
+
+  return (
+    <layer w="fill" h="fill">
+      <layer
+        x="center"
+        y={0}
+        w={linkRow ? ballotLinkRowWidth(label, BallotRowLayout.BUTTON_ROW_W * 4) : BallotRowLayout.BUTTON_ROW_W}
+        h="fill"
+        options={[verb]}
+        onMouseEnter={() => {
+          if (!onMobile()) {
+            setHovered(1);
+          }
+        }}
+        onMouseLeave={() => {
+          if (!onMobile()) {
+            setHovered(0);
+          }
+        }}
+        onOptionSelect={
+          submit || CS2.string_length(url) > 0
+            ? () => {
+                if (submit) {
+                  ballotSubmitOp();
+                  return;
+                }
+                if (imageWidth > 0 && imageHeight > 0) {
+                  ballotShowImageModal(url, imageWidth, imageHeight);
+                  return;
+                }
+                openUrlRaw(url, true, true);
+              }
+            : null
+        }
+      >
+        {hovered === 0 ? <StoneButtonFilled /> : <StoneButtonPressedFilled />}
+
+        {linkRow ? (
+          <sprite
+            x={BallotRowLayout.LINK_ICON_GUTTER}
+            y="center"
+            w={BallotRowLayout.LINK_ICON}
+            h={BallotRowLayout.LINK_ICON}
+            sprite={BallotSprite.INFO_ICON}
+          />
+        ) : null}
+
+        <text
+          x={linkRow ? { right: BallotRowLayout.LINK_ICON_GUTTER } : 'center'}
+          y="center"
+          w={{ fill: linkRow ? icon : 0 }}
+          h="fill"
+          text={label}
+          font={BallotFont.BODY}
+          color={BallotColour.TITLE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={BallotRowLayout.BUTTON_ROW_LINE_H}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+export function BallotLinkRow({
+  label,
+  url,
+  imageWidth,
+  imageHeight,
+}: {
+  label: String;
+  url: String;
+  imageWidth: Int;
+  imageHeight: Int;
+}): Component {
+  const embedded: Boolean = imageWidth > 0 && imageHeight > 0;
+
+  return (
+    <BallotButtonRow
+      kind={BallotRowKind.LINK}
+      label={label}
+      verb={embedded ? BallotLinkVerb.EMBEDDED : BallotLinkVerb.BROWSER}
+      url={url}
+      imageWidth={imageWidth}
+      imageHeight={imageHeight}
+    />
+  );
+}
+
+export function BallotScrollbar({ content, rebuilt = false }: { content: Ref; rebuilt?: Boolean }): Component {
+  return (
+    <ScrollbarVertical
+      content={content}
+      track={ScrollbarSprites.TRACK}
+      capTopSprite={ScrollbarSprites.CAP_TOP}
+      thumbSprite={ScrollbarSprites.THUMB}
+      capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+      arrowUp={ScrollbarSprites.ARROW_UP}
+      arrowDown={ScrollbarSprites.ARROW_DOWN}
+      rebuilt={rebuilt}
+    />
+  );
+}
+
+const ballotModalCaption = sessionState('');
+const ballotModalImageWidth = sessionState(0);
+const ballotModalImageHeight = sessionState(0);
+const ballotModalButton1 = sessionState('');
+const ballotModalButton2 = sessionState('');
+const ballotModalButtonWidth = sessionState(0);
+const ballotModalTwoButtons = sessionState(0);
+
+export function ballotShowModal(
+  caption: String,
+  imageWidth: Int,
+  imageHeight: Int,
+  button1: String,
+  button2: String,
+): void {
+  const [, setShown] = useState(ballotModalShown);
+  const [, setCaption] = useState(ballotModalCaption);
+  const [, setImageWidth] = useState(ballotModalImageWidth);
+  const [, setImageHeight] = useState(ballotModalImageHeight);
+  const [, setButton1] = useState(ballotModalButton1);
+  const [, setButton2] = useState(ballotModalButton2);
+  const [, setButtonWidth] = useState(ballotModalButtonWidth);
+  const [, setTwoButtons] = useState(ballotModalTwoButtons);
+
+  playSound(BallotSound.SELECT);
+  setCaption(caption);
+  setImageWidth(imageWidth);
+  setImageHeight(imageHeight);
+  setButton1(button1);
+  setButton2(button2);
+
+  const twoButtons: Boolean = CS2.string_length(button2) > 0;
+  setTwoButtons(twoButtons ? 1 : 0);
+  setButtonWidth(
+    BallotModal.BUTTON_PAD +
+      (twoButtons
+        ? Math.max(
+            CS2.parawidth(button1, BallotModal.BUTTON_WRAP, BallotFont.BODY),
+            CS2.parawidth(button2, BallotModal.BUTTON_WRAP, BallotFont.BODY),
+          )
+        : CS2.parawidth(button1, BallotModal.BUTTON_WRAP, BallotFont.BODY)),
+  );
+
+  setShown(1);
+}
+
+export function ballotShowImageModal(url: String, imageWidth: Int, imageHeight: Int): void {
+  ballotShowModal(url, imageWidth, imageHeight, BALLOT_IMAGE_MODAL_CLOSE, '');
+}
+
+export function ballotDismissModal(): void {
+  playSound(BallotSound.SELECT);
+  ballotHideModal();
+}
+
+export function ballotHideModal(): void {
+  const [, setShown] = useState(ballotModalShown);
+  setShown(0);
+}
+
+export function ballotShowLoadingPage(): void {
+  ballotShowPage(BallotPage.LOADING);
+}
+
+export function BallotSubmitRow({ y }: { y: Int }): Component {
+  return (
+    <layer x={0} y={y} w="fill" h={BallotRowLayout.BUTTON_ROW_H}>
+      <BallotButtonRow
+        kind={BallotRowKind.BACK}
+        label={BALLOT_SUBMIT_LABEL}
+        verb={BALLOT_SUBMIT_LABEL}
+        url=""
+        imageWidth={0}
+        imageHeight={0}
+        submit
+      />
+    </layer>
+  );
+}
+
+const BALLOT_SUBMIT_LABEL = 'Submit';
+
+export function ballotVoteContentHeight(): Int {
+  const [submitShown] = useState(ballotSubmitShown);
+  const [voteRows] = useState(voteContentTotal);
+
+  return voteRows + (submitShown === 1 ? BallotRowLayout.BUTTON_ROW_H : 0);
+}
+
+function BallotModalContent(): Component {
+  const [caption] = useState(ballotModalCaption);
+  const [imageWidth] = useState(ballotModalImageWidth);
+  const [imageHeight] = useState(ballotModalImageHeight);
+  const [buttonWidth] = useState(ballotModalButtonWidth);
+  const [twoButtonsCell] = useState(ballotModalTwoButtons);
+
+  const [rx, ry, rw, rh] = floaterRect(FloaterKind.BALLOT);
+  const [px, py, pw, ph] = floaterPlaced(FloaterKind.BALLOT, rx, ry, rw, rh);
+  const hostW: Int = pw - BallotLayout.MODAL_HOST_W_INSET;
+  const hostH: Int = ph - BallotLayout.MODAL_HOST_H_INSET;
+
+  const image: Boolean = imageWidth > 0 && imageHeight > 0;
+  const pad: Int = image ? BallotModal.CAPTION_PAD_IMAGE : BallotModal.CAPTION_PAD;
+  const boxExtra: Int = image ? BallotModal.BOX_EXTRA_H_IMAGE : BallotModal.BOX_EXTRA_H;
+
+  const wrap: Int = hostW - BallotModal.BOX_PAD;
+  const ceiling: Int = hostH - boxExtra;
+
+  const contentW: Int = image
+    ? Math.min(wrap, imageWidth)
+    : Math.min(CS2.parawidth(caption, wrap, BallotFont.BODY), wrap);
+  const contentH: Int = image
+    ? Math.min(ceiling, imageHeight)
+    : Math.min(
+        CS2.paraheight(caption, wrap, BallotFont.BODY) * BallotModal.CAPTION_LINE_H + BallotModal.CAPTION_EXTRA,
+        ceiling,
+      );
+
+  const twoButtons: Boolean = twoButtonsCell === 1;
+  const buttonW: Int = buttonWidth;
+  const buttonDx: Int = buttonW / 2 + BallotModal.BUTTON_GAP;
+
+  onMounted(() => {
+    ballotModalBoxRef.props = {
+      w: contentW + BallotModal.BOX_PAD,
+      h: contentH + boxExtra,
+    };
+    ballotModalButton1Ref.props = {
+      x: { center: twoButtons ? 0 - buttonDx : 0 },
+      y: { bottom: BallotModal.BUTTON_BOTTOM },
+      w: buttonW,
+      h: BallotModal.BUTTON_H,
+    };
+    ballotModalButton2Ref.props = {
+      x: { center: buttonDx },
+      y: { bottom: BallotModal.BUTTON_BOTTOM },
+      w: buttonW,
+      h: BallotModal.BUTTON_H,
+      hide: !twoButtons,
+    };
+  });
+  onUpdated(() => {
+    ballotModalBoxRef.props = {
+      w: contentW + BallotModal.BOX_PAD,
+      h: contentH + boxExtra,
+    };
+    ballotModalButton1Ref.props = {
+      x: { center: twoButtons ? 0 - buttonDx : 0 },
+      y: { bottom: BallotModal.BUTTON_BOTTOM },
+      w: buttonW,
+      h: BallotModal.BUTTON_H,
+    };
+    ballotModalButton2Ref.props = {
+      x: { center: buttonDx },
+      y: { bottom: BallotModal.BUTTON_BOTTOM },
+      w: buttonW,
+      h: BallotModal.BUTTON_H,
+      hide: !twoButtons,
+    };
+  });
+
+  return (
+    <text
+      x="center"
+      y={pad}
+      w={contentW}
+      h={contentH}
+      text={image ? '' : caption}
+      font={BallotFont.BODY}
+      color={BallotModal.CAPTION_COLOUR}
+      shadow
+      align="center"
+      valign="middle"
+      lineHeight={BallotModal.CAPTION_LINE_H}
+    />
+  );
+}
+
+function BallotModalButton({ label, dismiss }: { label: String; dismiss: Boolean }): Component {
+  const [pressed, setPressed] = useState(0);
+  const skin: Int = pressed;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[CS2.tags_remove(label)]}
+      onMouseRepeat={() => {
+        if (!onMobile()) {
+          setPressed(1);
+        }
+      }}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={(event) => {
+        if (dismiss) {
+          ballotDismissModal();
+          return;
+        }
+        opsound(event.option, STONEBUTTON_OP_SOUND_MASK);
+      }}
+    >
+      <StoneButtonDraw label={label} font={BallotFont.BODY} pressed={skin} flags={BallotModal.BUTTON_SKIN_FLAGS} />
+    </layer>
+  );
+}
+
+export function BallotModalCaption(): Component {
+  const [shown] = useState(ballotModalShown);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown === 1 ? <BallotModalContent /> : null}
+    </layer>
+  );
+}
+
+export function BallotModalPrimaryButton(): Component {
+  const [shown] = useState(ballotModalShown);
+  const [label] = useState(ballotModalButton1);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown === 1 ? <BallotModalButton label={label} dismiss /> : null}
+    </layer>
+  );
+}
+
+export function BallotModalSecondaryButton(): Component {
+  const [shown] = useState(ballotModalShown);
+  const [label] = useState(ballotModalButton2);
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      {shown === 1 && CS2.string_length(label) > 0 ? <BallotModalButton label={label} dismiss={false} /> : null}
+    </layer>
+  );
+}

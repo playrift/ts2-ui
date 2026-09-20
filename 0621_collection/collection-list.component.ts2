@@ -1,0 +1,121 @@
+import { useDerived, useState } from 'ts2';
+
+import { ccSetTrans } from '../0332_thormac/cc-settrans';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { onMobile } from '../lib/lib.helpers';
+import { categoryCompleted } from './collection-counts';
+import { Build, CollectionColor, CollectionFonts, CollectionScrollbar, Copy } from './collection.constants';
+import { CollectionCategories } from './collection.data';
+import { collectionListTab, collectionSelected, collectionSearchOpen, collectionTab } from './collection.state';
+
+export function CategoryList({ tab }: { tab: Int }): Component {
+  const [listTab] = useState(collectionListTab);
+  const [selected] = useState(collectionSelected);
+  if (listTab !== tab || !paneShown(tab)) {
+    return null;
+  }
+  const mobile: Boolean = onMobile();
+  const rowH: Int = mobile ? Build.ROW_H_MOBILE : Build.ROW_H;
+
+  return (
+    <>
+      <layer x={0} y={0} w="fill" h="fill">
+        {CollectionCategories.filter((row, key) => row.tab === tab).map((row, key, index) => (
+          <CategoryPlate
+            name={row.name}
+            index={index}
+            y={index * rowH}
+            h={rowH}
+            selected={index === selected}
+            mobile={mobile}
+          />
+        ))}
+      </layer>
+      <layer x={0} y={0} w="fill" h="fill">
+        {CollectionCategories.filter((row, key) => row.tab === tab).map((row, key, index) => (
+          <CategoryName name={row.name} category={key} y={index * rowH} h={rowH} />
+        ))}
+      </layer>
+    </>
+  );
+}
+
+function CategoryPlate({
+  name,
+  index,
+  y,
+  h,
+  selected,
+  mobile,
+}: {
+  name: String;
+  index: Int;
+  y: Int;
+  h: Int;
+  selected: Boolean;
+  mobile: Boolean;
+}): Component {
+  const rest: Int = index % 2 === 0 ? Build.ROW_EVEN : Build.ROW_ODD;
+  return (
+    <rect
+      x="center"
+      y={y}
+      w="fill"
+      h={h}
+      color={CollectionColor.WHITE}
+      fill
+      transparency={selected ? Build.ROW_SELECTED : rest}
+      options={[Copy.CHECK]}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onMouseEnter={selected || mobile ? undefined : (event) => ccSetTrans(event.self, rest - Build.ROW_HOVER_LIFT)}
+      onMouseLeave={selected || mobile ? undefined : (event) => ccSetTrans(event.self, rest)}
+    />
+  );
+}
+
+function CategoryName({ name, category, y, h }: { name: String; category: Int; y: Int; h: Int }): Component {
+  const done: Int = useDerived(() => categoryCompleted(category));
+  return (
+    <text
+      x="center"
+      y={y}
+      w="fill"
+      h={h}
+      text={name}
+      font={CollectionFonts.BODY}
+      shadow
+      color={done === 1 ? CollectionColor.GREEN : CollectionColor.ORANGE}
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+export function CategoryScrollbar({ tab, content }: { tab: Int; content: Ref }): Component {
+  const [listTab] = useState(collectionListTab);
+  if (listTab !== tab || !paneShown(tab)) {
+    return null;
+  }
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <ScrollbarVertical
+        content={content}
+        track={CollectionScrollbar.TRACK}
+        capTopSprite={CollectionScrollbar.CAP_TOP}
+        thumbSprite={CollectionScrollbar.THUMB}
+        capBottomSprite={CollectionScrollbar.CAP_BOTTOM}
+        arrowUp={CollectionScrollbar.ARROW_UP}
+        arrowDown={CollectionScrollbar.ARROW_DOWN}
+      />
+    </layer>
+  );
+}
+
+function paneShown(tab: Int): Boolean {
+  const [shown] = useState(collectionTab);
+  const [searchOpen] = useState(collectionSearchOpen);
+  if (searchOpen === 1) {
+    return false;
+  }
+  return (shown === -1 ? 0 : shown) === tab;
+}

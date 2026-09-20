@@ -1,0 +1,386 @@
+import { useRef, useState, useUniverse } from 'ts2';
+import { sailingChartingOceanFilter, sailingChartingSeaFilter } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { CompletionFilterLabels, LevelFilterLabels, SeasByUniqueId } from './sailing-log-filters.data';
+import { SailingSeas } from './sailing-seas.data';
+import { LogColour, LogDropdown, LogFont, LogSprite } from './sailing-log.constants';
+import { oceanEntryCount, sailingLogCollapse, sailingLogPick, seaEntryCount, seaListed } from './sailing-log.helpers';
+import { logBuiltH, logDropdown } from './sailing-log.state';
+
+export function LogDropdownOverlay(): Component {
+  const [open] = useState(logDropdown);
+  const [builtH] = useState(logBuiltH);
+  const [oceanFilter] = useState(sailingChartingOceanFilter);
+  const [seaFilter] = useState(sailingChartingSeaFilter);
+  const root = useUniverse();
+  const mobile: Boolean = onMobile();
+  const shown: Boolean = open !== LogDropdown.NONE;
+  const hidden: Boolean = !shown;
+
+  const universeH: Int = mobile ? 334 : dropdownUniverseHeight(builtH);
+  const buttonX: Int = (root.width - 512) / 2 + 6 + 5 + 9;
+  const buttonY: Int = (root.height - universeH) / 2 + 35 + 5 + buttonTop(open);
+  const buttonW: Int = 142;
+  const buttonH: Int = 20;
+
+  const enumKind: Boolean = open === LogDropdown.COMPLETION || open === LogDropdown.LEVEL;
+  const count: Int = entryCount(open);
+  const rowH: Int = mobile ? 26 : 14;
+
+  let listH: Int = rowH * count + 4;
+  let scrollSpace: Boolean = false;
+  let inset: Int = 0;
+  if (enumKind) {
+    if (listH > 212) {
+      listH = 212;
+    }
+    scrollSpace = !mobile;
+  } else {
+    const cap: Int = root.height / 3;
+    if (listH > cap) {
+      listH = cap - buttonH + 1;
+      scrollSpace = !mobile;
+    } else if (open === LogDropdown.OCEAN) {
+      scrollSpace = !mobile;
+    } else {
+      inset = buttonH;
+    }
+  }
+  const below: Boolean = buttonY + buttonH + listH <= root.height;
+  const contentH: Int = listH - 4;
+  const wide: Boolean = mobile && rowH * count > contentH;
+  const boxW: Int = wide ? buttonW * 2 : buttonW;
+  const contentW: Int = boxW - (scrollSpace ? 20 : 0);
+  const perColumn: Int = contentH / rowH < 1 ? 1 : contentH / rowH;
+  const scrollH: Int = mobile ? 0 : count * rowH;
+  const arrowX: Int = mobile ? contentW - buttonH + 2 : 2;
+  const content = useRef();
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      hide={hidden}
+      onMouseRepeat={shown && !mobile ? () => sailingLogCollapse() : null}
+      onClick={shown && mobile ? () => sailingLogCollapse() : null}
+    >
+      {shown && (
+        <layer x={buttonX} y={below ? buttonY : buttonY - listH + 1} w={boxW} h={listH + buttonH - 1} noClickThrough>
+          <layer
+            ref={content}
+            x={2}
+            y={below ? { bottom: 2 } : 2}
+            w={{ fill: scrollSpace ? 20 : 0 }}
+            h={contentH}
+            scrollHeight={scrollH}
+            scrollY={0}
+          >
+            <sprite x={0} y={0} w="fill" h="fill" sprite={LogSprite.TRADEBACKING} tiling />
+            {CompletionFilterLabels.map(
+              (label, i) =>
+                open === LogDropdown.COMPLETION && (
+                  <DropdownRow
+                    which={open}
+                    value={i}
+                    label={label}
+                    colour={LogColour.ORANGE}
+                    x={mobile ? (i / perColumn) * contentW : 0}
+                    y={mobile ? (i % perColumn) * rowH : i * rowH}
+                    w={contentW}
+                    h={rowH}
+                    textW={contentW - inset}
+                    hover={!mobile}
+                  />
+                ),
+            )}
+            {LevelFilterLabels.map(
+              (label, i) =>
+                open === LogDropdown.LEVEL && (
+                  <DropdownRow
+                    which={open}
+                    value={i}
+                    label={label}
+                    colour={LogColour.ORANGE}
+                    x={mobile ? (i / perColumn) * contentW : 0}
+                    y={mobile ? (i % perColumn) * rowH : i * rowH}
+                    w={contentW}
+                    h={rowH}
+                    textW={contentW - inset}
+                    hover={!mobile}
+                  />
+                ),
+            )}
+            {(open === LogDropdown.OCEAN || open === LogDropdown.SEA) && (
+              <>
+                <DropdownRow
+                  which={open}
+                  value={-1}
+                  label="All"
+                  colour={
+                    (open === LogDropdown.OCEAN ? oceanFilter : seaFilter) === -1 ? LogColour.WHITE : LogColour.ORANGE
+                  }
+                  x={0}
+                  y={0}
+                  w={contentW}
+                  h={rowH}
+                  textW={contentW - inset}
+                  hover={!mobile}
+                />
+                <DropdownRow
+                  which={open}
+                  value={-2}
+                  label="Nearest"
+                  colour={
+                    (open === LogDropdown.OCEAN ? oceanFilter : seaFilter) === -2 ? LogColour.WHITE : LogColour.ORANGE
+                  }
+                  x={mobile ? (1 / perColumn) * contentW : 0}
+                  y={mobile ? (1 % perColumn) * rowH : rowH}
+                  w={contentW}
+                  h={rowH}
+                  textW={contentW - inset}
+                  hover={!mobile}
+                />
+              </>
+            )}
+            {SailingSeas.filter((sea) => sea.ocean === -1).map(
+              (sea, i) =>
+                open === LogDropdown.OCEAN && (
+                  <DropdownRow
+                    which={open}
+                    value={sea.uniqueId}
+                    label={sea.name}
+                    colour={oceanFilter === sea.uniqueId ? LogColour.WHITE : LogColour.ORANGE}
+                    x={mobile ? ((i + 2) / perColumn) * contentW : 0}
+                    y={mobile ? ((i + 2) % perColumn) * rowH : (i + 2) * rowH}
+                    w={contentW}
+                    h={rowH}
+                    textW={contentW - inset}
+                    hover={!mobile}
+                  />
+                ),
+            )}
+            {SeasByUniqueId.filter((index) => seaListed(index)).map(
+              (index, i) =>
+                open === LogDropdown.SEA && (
+                  <SeaDropdownRow
+                    index={index}
+                    selected={seaFilter}
+                    x={mobile ? ((i + 2) / perColumn) * contentW : 0}
+                    y={mobile ? ((i + 2) % perColumn) * rowH : (i + 2) * rowH}
+                    w={contentW}
+                    h={rowH}
+                    textW={contentW - inset}
+                    hover={!mobile}
+                  />
+                ),
+            )}
+          </layer>
+          <layer x={{ right: 2 }} y={below ? { bottom: 2 } : 2} w={16} h={contentH}>
+            {scrollSpace && (
+              <ScrollbarVertical
+                content={content}
+                track={LogSprite.SCROLL_TRACK}
+                capTopSprite={LogSprite.SCROLL_CAP_TOP}
+                thumbSprite={LogSprite.SCROLL_THUMB}
+                capBottomSprite={LogSprite.SCROLL_CAP_BOTTOM}
+                arrowUp={LogSprite.SCROLL_UP}
+                arrowDown={LogSprite.SCROLL_DOWN}
+              />
+            )}
+          </layer>
+          <rect x={0} y={below ? buttonH - 1 : 0} w={boxW} h={listH} color={LogColour.THIN_OUTER} />
+          <rect x={1} y={below ? buttonH : 1} w={boxW - 2} h={listH - 2} color={LogColour.THIN_INNER} />
+          <CloseStrip below={below} height={buttonH} arrowX={arrowX} mobile={mobile} />
+        </layer>
+      )}
+    </layer>
+  );
+}
+
+function dropdownUniverseHeight(rootH: Int): Int {
+  let h: Int = rootH - 12;
+  if (h % 2 !== 0) {
+    h = h - 1;
+  }
+  if (h < 334) {
+    return 334;
+  }
+  if (h > 442) {
+    return 442;
+  }
+  return h;
+}
+
+function buttonTop(which: Int): Int {
+  switch (which) {
+    case LogDropdown.COMPLETION:
+      return 19;
+    case LogDropdown.SEA:
+      return 55;
+    case LogDropdown.OCEAN:
+      return 91;
+    case LogDropdown.LEVEL:
+      return 127;
+  }
+  return 19;
+}
+
+function entryCount(which: Int): Int {
+  switch (which) {
+    case LogDropdown.COMPLETION:
+      return CompletionFilterLabels.length;
+    case LogDropdown.LEVEL:
+      return LevelFilterLabels.length;
+    case LogDropdown.OCEAN:
+      return oceanEntryCount();
+    case LogDropdown.SEA:
+      return seaEntryCount();
+  }
+  return 0;
+}
+
+function CloseStrip({
+  below,
+  height,
+  arrowX,
+  mobile,
+}: {
+  below: Boolean;
+  height: Int;
+  arrowX: Int;
+  mobile: Boolean;
+}): Component {
+  const [over, setOver] = useState(0);
+  const inset: Int = (height - 16) / 2;
+  return (
+    <>
+      <rect
+        x={0}
+        y={below ? 0 : { bottom: 0 }}
+        w="fill"
+        h={height + 1}
+        color={LogColour.WHITE}
+        fill
+        transparency={255}
+        noClickThrough
+        options={['Close']}
+        onOptionSelect={() => sailingLogCollapse()}
+        onMouseEnter={mobile ? null : () => setOver(1)}
+        onMouseLeave={mobile ? null : () => setOver(0)}
+      />
+      <sprite
+        x={mobile ? arrowX : { right: inset }}
+        y={below ? inset : { bottom: inset }}
+        w={16}
+        h={16}
+        sprite={LogSprite.TRADEBACKING}
+        tiling
+      />
+      <sprite
+        x={mobile ? arrowX : { right: inset }}
+        y={below ? inset : { bottom: inset }}
+        w={16}
+        h={16}
+        sprite={LogSprite.SCROLL_UP}
+        tiling
+        transparency={over === 1 ? 125 : 0}
+      />
+    </>
+  );
+}
+
+function DropdownRow({
+  which,
+  value,
+  label,
+  colour,
+  x,
+  y,
+  w,
+  h,
+  textW,
+  hover,
+}: {
+  which: Int;
+  value: Int;
+  label: String;
+  colour: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  textW: Int;
+  hover: Boolean;
+}): Component {
+  const [lit, setLit] = useState(0);
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        w={w}
+        h={h}
+        color={LogColour.WHITE}
+        fill
+        transparency={lit === 1 ? 220 : 255}
+        options={['Select']}
+        optionSubject={`<col=ff9040>${label}</col>`}
+        onOptionSelect={() => sailingLogPick(which, value)}
+        onMouseEnter={hover ? () => setLit(1) : null}
+        onMouseLeave={hover ? () => setLit(0) : null}
+      />
+      <text
+        x={x}
+        y={y}
+        w={textW}
+        h={h}
+        text={label}
+        font={LogFont.P11}
+        color={colour}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function SeaDropdownRow({
+  index,
+  selected,
+  x,
+  y,
+  w,
+  h,
+  textW,
+  hover,
+}: {
+  index: Int;
+  selected: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  textW: Int;
+  hover: Boolean;
+}): Component {
+  const row = SailingSeas.at(index);
+  if (row === null) {
+    return null;
+  }
+  return (
+    <DropdownRow
+      which={LogDropdown.SEA}
+      value={row.uniqueId}
+      label={row.name}
+      colour={selected === row.uniqueId ? LogColour.WHITE : LogColour.ORANGE}
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      textW={textW}
+      hover={hover}
+    />
+  );
+}

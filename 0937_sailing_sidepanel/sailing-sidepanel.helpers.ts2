@@ -1,0 +1,242 @@
+import { predictServerState, useServerState, useState } from 'ts2';
+import { HealthBar, HealthBarAnim } from '../0399_questlist/questlist.constants';
+import {
+  BoatNameDefaults,
+  BoatNameDescriptors,
+  BoatNameNouns,
+  SailingBoatTypes,
+} from '../0934_sailing_boat_selection/sailing-boat-selection.data';
+import { Varbits } from '../lib/game/varbits';
+import { sailingLastBoatHp } from '../lib/game/varcs';
+import { clientClock, scaled } from '../lib/lib.engine';
+import { HP_BOX_W, SidepanelVarbits } from './sailing-sidepanel.constants';
+import {
+  sidepanelBoardedType,
+  sidepanelCombatLit,
+  sidepanelHpAnim,
+  sidepanelHpBoundAt,
+  sidepanelHpCurrent,
+  sidepanelHpFillPx,
+  sidepanelHpFrameLit,
+  sidepanelHpMax,
+  sidepanelHpOverlayPx,
+  sidepanelHpShown,
+  sidepanelTab,
+} from './sailing-sidepanel.state';
+import { sidepanelAssignCapture } from './sidepanel-assign.helpers';
+import { sidepanelCrewCapture } from './sidepanel-crew.helpers';
+
+export function sailingSidepanelBuild(): void {
+  const [, setCombatLit] = useState(sidepanelCombatLit);
+  const [, setBoardedType] = useState(sidepanelBoardedType);
+  const [, setLastHp] = useState(sailingLastBoatHp);
+  const [, setTab] = useState(sidepanelTab);
+  setCombatLit(0);
+  setBoardedType(useServerState(SidepanelVarbits.BOARDED_TYPE));
+  setLastHp(useServerState(SidepanelVarbits.HP));
+  sidepanelHpRedraw();
+  setTab(useServerState(SidepanelVarbits.TAB));
+  sidepanelCrewCapture(useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW));
+  sidepanelAssignCapture();
+}
+
+export function sailingSidepanelRefreshName(): void {
+  const [, setBoardedType] = useState(sidepanelBoardedType);
+  setBoardedType(useServerState(SidepanelVarbits.BOARDED_TYPE));
+}
+
+export function sailingSidepanelCombatButton(lit: Int): void {
+  const [, setCombatLit] = useState(sidepanelCombatLit);
+  setCombatLit(lit);
+}
+
+export function sailingSidepanelRedraw(): void {
+  const [, setTab] = useState(sidepanelTab);
+  setTab(useServerState(SidepanelVarbits.TAB));
+  sidepanelCrewCapture(useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW));
+  sidepanelAssignCapture();
+}
+
+export function sidepanelSelectTab(op: Int, tab: Int): void {
+  if (op !== 1) {
+    return;
+  }
+  const [, setTab] = useState(sidepanelTab);
+  predictServerState(SidepanelVarbits.TAB, tab);
+  setTab(tab);
+  sidepanelCrewCapture(useServerState(Varbits.SAILING_SIDEPANEL_CREW_PLAYER_VIEW));
+  sidepanelAssignCapture();
+}
+
+export function sidepanelHpRedraw(): void {
+  const [previous, setLastHp] = useState(sailingLastBoatHp);
+  const liveMax: Int = useServerState(SidepanelVarbits.HP_MAX);
+  const liveHp: Int = useServerState(SidepanelVarbits.HP);
+  const blank: Boolean =
+    useServerState(SidepanelVarbits.ON_BOAT) === 0 && useServerState(SidepanelVarbits.SHIPYARD) === 0;
+  const hpMax: Int = blank ? 0 : liveMax;
+  const hp: Int = blank ? 0 : liveHp;
+  const before: Int = blank ? 0 : previous;
+  sidepanelHpDraw(hp, hpMax, before);
+  setLastHp(hp);
+}
+
+function sidepanelHpDraw(current: Int, max: Int, previous: Int): void {
+  const [, setShown] = useState(sidepanelHpShown);
+  const [, setCurrent] = useState(sidepanelHpCurrent);
+  const [, setMax] = useState(sidepanelHpMax);
+  const [, setAnim] = useState(sidepanelHpAnim);
+  const [, setBoundAt] = useState(sidepanelHpBoundAt);
+  const [, setOverlay] = useState(sidepanelHpOverlayPx);
+  const [, setFill] = useState(sidepanelHpFillPx);
+  const [, setFrameLit] = useState(sidepanelHpFrameLit);
+
+  setShown(1);
+  setCurrent(current);
+  setMax(max);
+  setAnim(HealthBarAnim.NONE);
+  setOverlay(0);
+  setFill(0);
+  setFrameLit(0);
+
+  const fillWidth: Int = HP_BOX_W - HealthBar.FILL_MARGIN;
+  const delta: Int = previous - current;
+
+  if (current > 0 && current >= max) {
+    return;
+  }
+
+  if (current <= 0) {
+    if (delta > 0) {
+      const ghost: Int = scaled(delta, max, fillWidth);
+      if (ghost > 0) {
+        setOverlay(ghost);
+        setBoundAt(clientClock());
+        setAnim(HealthBarAnim.FADE);
+      }
+    }
+    return;
+  }
+
+  const fill: Int = scaled(current, max, fillWidth);
+  setFill(fill);
+  if (delta > 0) {
+    const ghost: Int = scaled(previous, max, fillWidth);
+    if (ghost > 0 && ghost > fill) {
+      setOverlay(ghost - fill);
+      setBoundAt(clientClock());
+      setAnim(HealthBarAnim.DAMAGE);
+    }
+  } else if (delta < 0) {
+    const old: Int = scaled(previous, max, fillWidth);
+    if (old > 0 && old < fill) {
+      setFill(old);
+      setOverlay(fill - old);
+      setBoundAt(clientClock());
+      setAnim(HealthBarAnim.HEAL);
+    }
+  }
+}
+
+export function sidepanelHpStep(): void {
+  const [anim, setAnim] = useState(sidepanelHpAnim);
+  const [boundAt] = useState(sidepanelHpBoundAt);
+  const [overlay, setOverlay] = useState(sidepanelHpOverlayPx);
+
+  if (anim === HealthBarAnim.NONE) {
+    return;
+  }
+  if (anim === HealthBarAnim.FADE_DONE) {
+    const [, setFrameLit] = useState(sidepanelHpFrameLit);
+    setFrameLit(1);
+    setAnim(HealthBarAnim.NONE);
+    return;
+  }
+
+  let hold: Int = HealthBar.GHOST_HOLD;
+  if (anim === HealthBarAnim.HEAL) {
+    hold = HealthBar.HEAL_HOLD;
+  }
+  if (clientClock() - boundAt < hold) {
+    return;
+  }
+
+  const left: Int = overlay - HealthBar.TICK;
+  if (anim === HealthBarAnim.HEAL) {
+    const [fill, setFill] = useState(sidepanelHpFillPx);
+    if (left <= 0) {
+      setFill(fill + overlay);
+      setOverlay(0);
+      setAnim(HealthBarAnim.NONE);
+    } else {
+      setFill(fill + HealthBar.TICK);
+      setOverlay(left);
+    }
+    return;
+  }
+  if (left <= 0) {
+    setOverlay(0);
+    if (anim === HealthBarAnim.FADE) {
+      setAnim(HealthBarAnim.FADE_DONE);
+    } else {
+      setAnim(HealthBarAnim.NONE);
+    }
+    return;
+  }
+  setOverlay(left);
+}
+
+export function sidepanelBoatName(type: Int): String {
+  if (useServerState(SidepanelVarbits.ON_BOAT) === 0 && useServerState(SidepanelVarbits.SHIPYARD) === 0) {
+    return 'Not on boat';
+  }
+  const row = SailingBoatTypes.at(type);
+  if (row === null) {
+    return 'Boat';
+  }
+  let name: String = row.displayName;
+  if (name.length <= 0) {
+    name = boardedBoatName();
+  }
+  if (name.length > 0) {
+    return name;
+  }
+  return 'Boat';
+}
+
+function boardedBoatName(): String {
+  const prefix: String = BoatNameDefaults.prefix;
+  const descriptor: String = nameDescriptor(useServerState(SidepanelVarbits.NAME_2) - 1);
+  const noun: String = nameNoun(useServerState(SidepanelVarbits.NAME_3) - 1);
+  let name: String = '';
+  if (prefix.length > 0) {
+    name = prefix;
+  }
+  if (descriptor.length > 0) {
+    if (name.length > 0) {
+      name = `${name} `;
+    }
+    name = `${name}${descriptor}`;
+  }
+  if (noun.length > 0) {
+    if (name.length > 0) {
+      name = `${name} `;
+    }
+    name = `${name}${noun}`;
+  }
+  return name;
+}
+
+function nameDescriptor(index: Int): String {
+  if (index >= 0) {
+    return BoatNameDescriptors.at(index) ?? BoatNameDefaults.descriptor;
+  }
+  return BoatNameDefaults.descriptor;
+}
+
+function nameNoun(index: Int): String {
+  if (index >= 0) {
+    return BoatNameNouns.at(index) ?? BoatNameDefaults.noun;
+  }
+  return BoatNameDefaults.noun;
+}

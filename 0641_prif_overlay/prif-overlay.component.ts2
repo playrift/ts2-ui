@@ -1,93 +1,47 @@
-import { CS2 } from 'ts2';
+import { useInterval, useRef, useState } from 'ts2';
 
-import { clientClock } from '../lib/lib.engine';
-import {
-  atmosphericRef,
-  ComponentType,
-  Fade,
-  PORTAL_ANIM,
-  PORTAL_MODEL,
-  PosMode,
-  SizeMode,
-  WASH_COLOR,
-  Wipe,
-  WipeChild,
-} from './prif-overlay.constants';
+import { atmosphericRef, PORTAL_ANIM, PORTAL_MODEL, WASH_COLOR, Wipe } from './prif-overlay.constants';
+import { prifOverlayReset, prifOverlayTick } from './prif-overlay.helpers';
+import { prifWipeBuilt, prifWipeStartedAt, prifWipeWash, prifWipeZoom } from './prif-overlay.state';
 
 export function PrifOverlay(): Component {
-  return <layer static ref={atmosphericRef} w="fill" h="fill" x="center" y="center" />;
+  return (
+    <layer ref={atmosphericRef} w="fill" h="fill" x="center" y="center" onLoad={() => prifOverlayReset()}>
+      <PrifWipe />
+    </layer>
+  );
 }
 
-export function prifOverlayFadeIn(container: ComponentId = atmosphericRef): void {
-  CS2.cc_all_delete(container);
+function PrifWipe(): Component {
+  const [built] = useState(prifWipeBuilt);
+  const [zoom] = useState(prifWipeZoom);
+  const [wash] = useState(prifWipeWash);
+  const [startedAt] = useState(prifWipeStartedAt);
+  const host = useRef();
+  useInterval(() => prifOverlayTick(), host);
 
-  CS2.cc_create(container, ComponentType.MODEL, WipeChild.MODEL, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_hide_set(false);
-  CS2.cc_model_set(PORTAL_MODEL);
-  CS2.cc_model_angle_set(0, Wipe.MODEL_OFFSET_Y, 0, 0, 0, Wipe.START_ZOOM);
-  CS2.cc_model_anim_set(PORTAL_ANIM);
-
-  CS2.cc_create(container, ComponentType.RECT, WipeChild.WASH, false);
-  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
-  CS2.cc_position_set(0, 0, PosMode.CENTER, PosMode.CENTER);
-  CS2.cc_fill_set(true);
-  CS2.cc_colour_set(WASH_COLOR);
-  CS2.cc_transparency_set(Wipe.CLEAR);
-
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => prifOverlayTick(startedAt, Fade.IN, container), container);
+  return (
+    <layer x="center" y="center" w="fill" h="fill" rebuildOn={built}>
+      <layer ref={host} x={0} y={0} w={1} h={1} hide={startedAt < 0} />
+      {built > 0 && <WipeArt zoom={zoom} wash={wash} />}
+    </layer>
+  );
 }
 
-export function prifOverlayFadeOut(container: ComponentId = atmosphericRef): void {
-  const startedAt: Int = clientClock();
-  CS2.if_on_timer_set(() => prifOverlayTick(startedAt, Fade.OUT, container), container);
-}
-
-function prifOverlayTick(start: Int, direction: Int, container: ComponentId): void {
-  const elapsed: Int = clientClock() - start;
-
-  if (elapsed >= Wipe.CYCLES) {
-    if (direction === Fade.OUT) {
-      CS2.cc_all_delete(container);
-    } else if (CS2.cc_find(container, WipeChild.WASH)) {
-      CS2.cc_transparency_set(Wipe.OPAQUE);
-    }
-    CS2.if_on_timer_set(null, container);
-    return;
-  }
-
-  if (CS2.cc_find(container, WipeChild.MODEL)) {
-    if (direction === Fade.IN) {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(Wipe.MIN_ZOOM, CS2.scale(Wipe.ZOOM_NUM, Wipe.ZOOM_DEN, CS2.cc_model_zoom_get())),
-      );
-    } else {
-      CS2.cc_model_angle_set(
-        0,
-        Wipe.MODEL_OFFSET_Y,
-        0,
-        0,
-        0,
-        Math.max(
-          Wipe.MIN_ZOOM,
-          CS2.scale(Wipe.ZOOM_DEN, Wipe.ZOOM_NUM, Math.max(CS2.cc_model_zoom_get(), Wipe.MIN_ZOOM_OUT)),
-        ),
-      );
-    }
-  }
-
-  if (CS2.cc_find(container, WipeChild.WASH)) {
-    if (direction === Fade.IN) {
-      CS2.cc_transparency_set(CS2.cc_trans_get() - Wipe.STEP);
-    } else {
-      CS2.cc_transparency_set(CS2.cc_trans_get() + Wipe.STEP);
-    }
-  }
+function WipeArt({ zoom, wash }: { zoom: Int; wash: Int }): Component {
+  return (
+    <>
+      <model
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        model={PORTAL_MODEL}
+        anim={PORTAL_ANIM}
+        offsetY={Wipe.MODEL_OFFSET_Y}
+        zoom={zoom}
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={WASH_COLOR} fill transparency={wash} />
+    </>
+  );
 }

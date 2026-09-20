@@ -1,47 +1,54 @@
-import { createRef, useInterval } from 'ts2';
+import { onMounted, onUpdated, useOnResize, useServerState, useState, useUniverse } from 'ts2';
 
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
 import { CompletionSections } from './completion-sections.component';
 import {
   BACKDROP_WASH,
   COVER_WASH,
   FoundryColor,
+  FoundryHud,
   FoundrySprites,
+  FoundryVarbits,
   GrindPlate,
   HammerPlate,
   Layout,
+  METER_MAX,
   PolishPlate,
+  QUALITY_MAX,
+  ROW_GAP,
   TrackPlate,
 } from './giants-foundry-hud.constants';
-import { foundryLayout, foundryPointers, foundrySweetSpots } from './giants-foundry-hud.helpers';
 import {
-  completionBar,
-  completionCover,
-  completionHighlight,
-  completionIcon,
-  completionLayer,
-  completionPointer,
-  grindBar,
-  grindHighlight,
-  hammerBar,
-  hammerHighlight,
-  infinity,
-  polishBar,
-  polishHighlight,
-  qualityBar,
-  qualityFill,
-  qualityFillBg,
-  qualityIcon,
-  qualityLayer,
-  qualityLost,
-  qualityPointer,
-  temperatureBar,
-  temperatureIcon,
-  temperatureLayer,
-  temperaturePointer,
-  universe,
-} from './giants-foundry-hud.refs';
-
-const timerHost1 = createRef('0754_giants_foundry_hud_timer_host1');
+  breakpointOf,
+  halfInset,
+  highlightX,
+  iconY,
+  pointerX,
+  rowHeight,
+  sectionCount,
+  sectionRemainder,
+  sectionW,
+  spotLit,
+  spotStart,
+  spotWidth,
+  stripHeight,
+  stripWidth,
+  tallRowHeight,
+  trackWidth,
+} from './giants-foundry-hud.helpers';
+import { dodger, universe } from './giants-foundry-hud.refs';
+import {
+  foundryLaidOutDifficulty,
+  foundrySeed1,
+  foundrySeed2,
+  foundrySeed3,
+  foundrySeed4,
+  foundrySeed5,
+  foundrySeed6,
+} from './giants-foundry-hud.state';
 
 function TrackFrame(): Component {
   return (
@@ -164,252 +171,300 @@ function SpotFrame({
 }
 
 export function GiantsFoundryHud(): Component {
-  useInterval(
-    () =>
-      foundryLayout(
-        timerHost1,
-        infinity,
-        universe,
-        qualityIcon,
-        temperatureIcon,
-        completionIcon,
-        qualityLayer,
-        temperatureLayer,
-        completionLayer,
-        qualityBar,
-        qualityFillBg,
-      ),
-    timerHost1,
-  );
-  useInterval(
-    () =>
-      foundryPointers(
-        qualityBar,
-        qualityPointer,
-        qualityFill,
-        qualityLost,
-        temperaturePointer,
-        completionPointer,
-        completionHighlight,
-        completionCover,
-        hammerHighlight,
-        grindHighlight,
-        polishHighlight,
-      ),
-    universe,
-  );
-  useInterval(() => foundrySweetSpots(temperatureBar, polishBar, grindBar, hammerBar), temperatureBar);
-
   return (
-    <layer ref={infinity} w="fill" h="fill">
-      <layer w="fill" h="fill" ref={timerHost1}>
-        <layer ref={universe} x="center" y={Layout.STRIP_Y} w={Layout.STRIP_W} h={Layout.STRIP_H}>
+    <layer w="fill" h="fill">
+      <FoundryLayout />
+
+      <layer
+        ref={dodger}
+        w="fill"
+        h="fill"
+        onLoad={() => overlayInit(dodger, universe, FoundryHud.DODGE, Anchor.CENTRE, Anchor.TOP, 0)}
+      >
+        <layer static ref={universe} x="center" y={Layout.STRIP_Y} w={Layout.STRIP_W} h={Layout.STRIP_H}>
           <layer w="fill" h="fill">
             <rect w="fill" h="fill" fill color={FoundryColor.BACKDROP} transparency={BACKDROP_WASH} />
-
-            <sprite
-              ref={qualityIcon}
-              x={Layout.ICON_X}
-              y={Layout.ICON_QUALITY_Y}
-              w={Layout.POINTER}
-              h={Layout.POINTER}
-              sprite={FoundrySprites.ICON_QUALITY}
-            />
-            <sprite
-              ref={temperatureIcon}
-              x={Layout.ICON_X}
-              y={Layout.ICON_TEMPERATURE_Y}
-              w={Layout.POINTER}
-              h={Layout.POINTER}
-              sprite={FoundrySprites.ICON_TEMPERATURE}
-            />
-            <sprite
-              ref={completionIcon}
-              x={Layout.ICON_X}
-              y={Layout.ICON_COMPLETION_Y}
-              w={Layout.POINTER}
-              h={Layout.POINTER}
-              sprite={FoundrySprites.ICON_COMPLETION}
-            />
-
-            <layer w="fill" h="fill" />
-
-            <layer
-              ref={qualityLayer}
-              x="right"
-              y={Layout.ROW_QUALITY_Y}
-              w={{ fill: Layout.ROW_INSET_W }}
-              h={Layout.ROW_H}
-            >
-              <layer ref={qualityBar} x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
-                <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
-                <TrackFrame />
-                <rect
-                  ref={qualityLost}
-                  x={Layout.BAR_INSET}
-                  y={Layout.BAR_INSET}
-                  w={Layout.QUALITY_LOST_W}
-                  h={{ fill: Layout.BAR_INSET_H }}
-                  fill
-                  color={FoundryColor.QUALITY_LOST}
-                  transparency={BACKDROP_WASH}
-                />
-                <layer
-                  ref={qualityFill}
-                  x={Layout.BAR_INSET}
-                  y={Layout.BAR_INSET}
-                  w={Layout.QUALITY_FILL_W}
-                  h={{ fill: Layout.BAR_INSET_H }}
-                >
-                  <sprite ref={qualityFillBg} w={Layout.GRADIENT_W} h="fill" sprite={FoundrySprites.QUALITY_GRADIENT} />
-                </layer>
-              </layer>
-
-              <sprite
-                ref={qualityPointer}
-                y={{ bottom: Layout.POINTER_Y }}
-                w={Layout.POINTER}
-                h={Layout.POINTER}
-                sprite={FoundrySprites.POINTER}
-              />
-            </layer>
-
-            <layer
-              ref={temperatureLayer}
-              x="right"
-              y={Layout.ROW_TEMPERATURE_Y}
-              w={{ fill: Layout.ROW_INSET_W }}
-              h={Layout.ROW_H}
-            >
-              <layer ref={temperatureBar} x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
-                <rect x="center" w="fill" h="fill" fill color={FoundryColor.TRACK} />
-                <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
-                <TrackFrame />
-
-                <layer
-                  ref={polishBar}
-                  x={Layout.SPOT_POLISH_X}
-                  y="center"
-                  w={Layout.SPOT_W}
-                  h={{ fill: Layout.BAR_INSET_H }}
-                >
-                  <SpotFrame
-                    tl={PolishPlate.TL}
-                    top={PolishPlate.TOP}
-                    tr={PolishPlate.TR}
-                    left={PolishPlate.LEFT}
-                    fill={PolishPlate.FILL}
-                    right={PolishPlate.RIGHT}
-                    bl={PolishPlate.BL}
-                    bottom={PolishPlate.BOTTOM}
-                    br={PolishPlate.BR}
-                  />
-                  <layer ref={polishHighlight} w="fill" h="fill" hide>
-                    <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
-                  </layer>
-                </layer>
-
-                <layer
-                  ref={grindBar}
-                  x={Layout.SPOT_GRIND_X}
-                  y="center"
-                  w={Layout.SPOT_W}
-                  h={{ fill: Layout.BAR_INSET_H }}
-                >
-                  <SpotFrame
-                    tl={GrindPlate.TL}
-                    top={GrindPlate.TOP}
-                    tr={GrindPlate.TR}
-                    left={GrindPlate.LEFT}
-                    fill={GrindPlate.FILL}
-                    right={GrindPlate.RIGHT}
-                    bl={GrindPlate.BL}
-                    bottom={GrindPlate.BOTTOM}
-                    br={GrindPlate.BR}
-                  />
-                  <layer ref={grindHighlight} w="fill" h="fill" hide>
-                    <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
-                  </layer>
-                </layer>
-
-                <layer
-                  ref={hammerBar}
-                  x={Layout.SPOT_HAMMER_X}
-                  y="center"
-                  w={Layout.SPOT_W}
-                  h={{ fill: Layout.BAR_INSET_H }}
-                >
-                  <SpotFrame
-                    tl={HammerPlate.TL}
-                    top={HammerPlate.TOP}
-                    tr={HammerPlate.TR}
-                    left={HammerPlate.LEFT}
-                    fill={HammerPlate.FILL}
-                    right={HammerPlate.RIGHT}
-                    bl={HammerPlate.BL}
-                    bottom={HammerPlate.BOTTOM}
-                    br={HammerPlate.BR}
-                  />
-                  <layer ref={hammerHighlight} w="fill" h="fill" hide>
-                    <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
-                  </layer>
-                </layer>
-              </layer>
-
-              <sprite
-                ref={temperaturePointer}
-                y={{ bottom: Layout.POINTER_Y }}
-                w={Layout.POINTER}
-                h={Layout.POINTER}
-                sprite={FoundrySprites.POINTER}
-              />
-            </layer>
-
-            <layer
-              ref={completionLayer}
-              x="right"
-              y={Layout.ROW_COMPLETION_Y}
-              w={{ fill: Layout.ROW_INSET_W }}
-              h={Layout.ROW_TALL_H}
-            >
-              <layer ref={completionBar} x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
-                <rect x="center" w="fill" h="fill" fill color={FoundryColor.TRACK} />
-                <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
-                <CompletionSections />
-              </layer>
-
-              <layer
-                ref={completionHighlight}
-                x={Layout.HIGHLIGHT_X}
-                y={Layout.BAR_INSET}
-                w={Layout.HIGHLIGHT_W}
-                h={{ fill: Layout.BAR_INSET_H }}
-              >
-                <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
-              </layer>
-
-              <rect
-                ref={completionCover}
-                x={{ center: Layout.BAR_INSET }}
-                y={Layout.BAR_INSET}
-                w={{ fill: Layout.TRACK_INSET_W }}
-                h={{ fill: Layout.BAR_INSET_H }}
-                fill
-                color={FoundryColor.BACKDROP}
-                transparency={COVER_WASH}
-              />
-
-              <sprite
-                ref={completionPointer}
-                y={{ bottom: Layout.POINTER_Y }}
-                w={Layout.POINTER}
-                h={Layout.POINTER}
-                sprite={FoundrySprites.POINTER}
-              />
-            </layer>
+            <FoundryMeters />
           </layer>
         </layer>
       </layer>
     </layer>
+  );
+}
+
+function FoundryLayout(): Component {
+  const stage = useUniverse();
+  useOnResize(stage);
+
+  const breakpoint: Int = breakpointOf(stage.width, stage.height);
+  const width: Int = stripWidth(breakpoint);
+  const height: Int = stripHeight(breakpoint);
+  const mobile: Boolean = onMobile();
+
+  onMounted(() => placeStrip(mobile, width, height, breakpoint));
+  onUpdated(() => placeStrip(mobile, width, height, breakpoint));
+
+  return <layer x={0} y={0} w={0} h={0} />;
+}
+
+function placeStrip(mobile: Boolean, width: Int, height: Int, breakpoint: Int): void {
+  universe.props = {
+    x: 'center',
+    y: mobile ? { bottom: Layout.STRIP_Y } : Layout.STRIP_Y,
+    w: width,
+    h: height,
+  };
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpoint);
+
+  const [, setDifficulty] = useState(foundryLaidOutDifficulty);
+  const [, setSeed1] = useState(foundrySeed1);
+  const [, setSeed2] = useState(foundrySeed2);
+  const [, setSeed3] = useState(foundrySeed3);
+  const [, setSeed4] = useState(foundrySeed4);
+  const [, setSeed5] = useState(foundrySeed5);
+  const [, setSeed6] = useState(foundrySeed6);
+  setDifficulty(useServerState(FoundryVarbits.DIFFICULTY));
+  setSeed1(useServerState(FoundryVarbits.SEED_1));
+  setSeed2(useServerState(FoundryVarbits.SEED_2));
+  setSeed3(useServerState(FoundryVarbits.SEED_3));
+  setSeed4(useServerState(FoundryVarbits.SEED_4));
+  setSeed5(useServerState(FoundryVarbits.SEED_5));
+  setSeed6(useServerState(FoundryVarbits.SEED_6));
+}
+
+function FoundryMeters(): Component {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const [laidOut] = useState(foundryLaidOutDifficulty);
+  const [seed1] = useState(foundrySeed1);
+  const [seed2] = useState(foundrySeed2);
+  const [seed3] = useState(foundrySeed3);
+  const [seed4] = useState(foundrySeed4);
+  const [seed5] = useState(foundrySeed5);
+  const [seed6] = useState(foundrySeed6);
+
+  const difficulty: Int = useServerState(FoundryVarbits.DIFFICULTY);
+  const quality: Int = useServerState(FoundryVarbits.QUALITY);
+  const startQuality: Int = useServerState(FoundryVarbits.START_QUALITY);
+  const temperature: Int = useServerState(FoundryVarbits.TEMPERATURE);
+  const completion: Int = useServerState(FoundryVarbits.COMPLETION);
+
+  const row: Int = rowHeight(breakpoint);
+  const tall: Int = tallRowHeight(breakpoint);
+  const inset: Int = halfInset(breakpoint);
+  const track: Int = trackWidth(breakpoint);
+  const span: Int = track - Layout.BAR_INSET_H;
+
+  const qualityAt: Int = pointerX(quality, QUALITY_MAX, span);
+  const startAt: Int = pointerX(startQuality, QUALITY_MAX, span);
+  const temperatureAt: Int = pointerX(temperature, METER_MAX, span);
+  const completionAt: Int = pointerX(completion, METER_MAX, span);
+  let qualityEmpty: Boolean = false;
+  if (quality === 0) {
+    qualityEmpty = true;
+  }
+  let finished: Boolean = false;
+  if (completion >= METER_MAX) {
+    finished = true;
+  }
+  const unfinished: Boolean = !finished;
+  const liveCount: Int = sectionCount(difficulty);
+  const reached: Int = scaled(completion, METER_MAX, liveCount);
+  const liveCell: Int = span / liveCount;
+  const liveRemainder: Int = sectionRemainder(span, liveCount);
+
+  const spotSpan: Int = scaled(track, METER_MAX, spotWidth(laidOut));
+  const polishDark: Boolean = !spotLit(temperature, 2, difficulty);
+  const grindDark: Boolean = !spotLit(temperature, 1, difficulty);
+  const hammerDark: Boolean = !spotLit(temperature, 0, difficulty);
+
+  return (
+    <>
+      <sprite
+        x={Layout.ICON_X}
+        y={iconY(ROW_GAP, row)}
+        w={Layout.POINTER}
+        h={Layout.POINTER}
+        sprite={FoundrySprites.ICON_QUALITY}
+      />
+      <sprite
+        x={Layout.ICON_X}
+        y={iconY(ROW_GAP * 2 + row, row)}
+        w={Layout.POINTER}
+        h={Layout.POINTER}
+        sprite={FoundrySprites.ICON_TEMPERATURE}
+      />
+      <sprite
+        x={Layout.ICON_X}
+        y={iconY(ROW_GAP * 3 + row * 2, tall)}
+        w={Layout.POINTER}
+        h={Layout.POINTER}
+        sprite={FoundrySprites.ICON_COMPLETION}
+      />
+
+      <layer w="fill" h="fill" />
+
+      <layer x="right" y={ROW_GAP} w={{ fill: inset * 2 }} h={row}>
+        <layer x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
+          <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
+          <TrackFrame />
+          <rect
+            x={Layout.BAR_INSET}
+            y={Layout.BAR_INSET}
+            w={startAt + Layout.BAR_INSET}
+            h={{ fill: Layout.BAR_INSET_H }}
+            fill
+            color={FoundryColor.QUALITY_LOST}
+            transparency={BACKDROP_WASH}
+          />
+          <layer
+            x={Layout.BAR_INSET}
+            y={Layout.BAR_INSET}
+            w={qualityAt + Layout.BAR_INSET}
+            h={{ fill: Layout.BAR_INSET_H }}
+            hide={qualityEmpty}
+          >
+            <sprite w={span} h="fill" sprite={FoundrySprites.QUALITY_GRADIENT} />
+          </layer>
+        </layer>
+
+        <sprite
+          x={qualityAt}
+          y={{ bottom: Layout.POINTER_Y }}
+          w={Layout.POINTER}
+          h={Layout.POINTER}
+          sprite={FoundrySprites.POINTER}
+        />
+      </layer>
+
+      <layer x="right" y={ROW_GAP * 2 + row} w={{ fill: inset * 2 }} h={row}>
+        <layer x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
+          <rect x="center" w="fill" h="fill" fill color={FoundryColor.TRACK} />
+          <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
+          <TrackFrame />
+
+          <layer
+            x={scaled(track, METER_MAX, spotStart(2, laidOut))}
+            y="center"
+            w={spotSpan}
+            h={{ fill: Layout.BAR_INSET_H }}
+          >
+            <SpotFrame
+              tl={PolishPlate.TL}
+              top={PolishPlate.TOP}
+              tr={PolishPlate.TR}
+              left={PolishPlate.LEFT}
+              fill={PolishPlate.FILL}
+              right={PolishPlate.RIGHT}
+              bl={PolishPlate.BL}
+              bottom={PolishPlate.BOTTOM}
+              br={PolishPlate.BR}
+            />
+            <layer w="fill" h="fill" hide={polishDark}>
+              <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
+            </layer>
+          </layer>
+
+          <layer
+            x={scaled(track, METER_MAX, spotStart(1, laidOut))}
+            y="center"
+            w={spotSpan}
+            h={{ fill: Layout.BAR_INSET_H }}
+          >
+            <SpotFrame
+              tl={GrindPlate.TL}
+              top={GrindPlate.TOP}
+              tr={GrindPlate.TR}
+              left={GrindPlate.LEFT}
+              fill={GrindPlate.FILL}
+              right={GrindPlate.RIGHT}
+              bl={GrindPlate.BL}
+              bottom={GrindPlate.BOTTOM}
+              br={GrindPlate.BR}
+            />
+            <layer w="fill" h="fill" hide={grindDark}>
+              <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
+            </layer>
+          </layer>
+
+          <layer
+            x={scaled(track, METER_MAX, spotStart(0, laidOut))}
+            y="center"
+            w={spotSpan}
+            h={{ fill: Layout.BAR_INSET_H }}
+          >
+            <SpotFrame
+              tl={HammerPlate.TL}
+              top={HammerPlate.TOP}
+              tr={HammerPlate.TR}
+              left={HammerPlate.LEFT}
+              fill={HammerPlate.FILL}
+              right={HammerPlate.RIGHT}
+              bl={HammerPlate.BL}
+              bottom={HammerPlate.BOTTOM}
+              br={HammerPlate.BR}
+            />
+            <layer w="fill" h="fill" hide={hammerDark}>
+              <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
+            </layer>
+          </layer>
+        </layer>
+
+        <sprite
+          x={temperatureAt}
+          y={{ bottom: Layout.POINTER_Y }}
+          w={Layout.POINTER}
+          h={Layout.POINTER}
+          sprite={FoundrySprites.POINTER}
+        />
+      </layer>
+
+      <layer x="right" y={ROW_GAP * 3 + row * 2} w={{ fill: inset * 2 }} h={tall}>
+        <layer x="center" w={{ fill: Layout.TRACK_INSET_W }} h="fill">
+          <rect x="center" w="fill" h="fill" fill color={FoundryColor.TRACK} />
+          <rect x="center" w="fill" h="fill" color={FoundryColor.OUTLINE} />
+          <CompletionSections
+            span={span}
+            height={tall - Layout.BAR_INSET_H}
+            count={sectionCount(laidOut)}
+            seed1={seed1}
+            seed2={seed2}
+            seed3={seed3}
+            seed4={seed4}
+            seed5={seed5}
+            seed6={seed6}
+          />
+        </layer>
+
+        <layer
+          x={highlightX(liveCell, reached, liveRemainder)}
+          y={Layout.BAR_INSET}
+          w={sectionW(liveCell, reached, liveRemainder)}
+          h={{ fill: Layout.BAR_INSET_H }}
+          hide={finished}
+        >
+          <rect y="bottom" w="fill" h="fill" color={FoundryColor.HIGHLIGHT} />
+        </layer>
+
+        <rect
+          x={{ center: Layout.BAR_INSET }}
+          y={Layout.BAR_INSET}
+          w={{ fill: Layout.TRACK_INSET_W }}
+          h={{ fill: Layout.BAR_INSET_H }}
+          fill
+          color={FoundryColor.BACKDROP}
+          transparency={COVER_WASH}
+          hide={unfinished}
+        />
+
+        <sprite
+          x={completionAt}
+          y={{ bottom: Layout.POINTER_Y }}
+          w={Layout.POINTER}
+          h={Layout.POINTER}
+          sprite={FoundrySprites.POINTER}
+        />
+      </layer>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { CS2 } from 'ts2';
+import { useState } from 'ts2';
 
 import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
 import { buttonSelectSound } from '../0736_league_3_side_panel/league-3-side-panel.state';
@@ -13,10 +13,9 @@ import {
   OverviewFonts,
   OverviewSprites,
   burgerButtonRef,
-  burgerFrameRef,
   burgerGlyphRef,
-  burgerOverlayRef,
 } from './collection-overview.constants';
+import { collectionOverviewBurgerOpen } from './collection-overview.state';
 
 export function BurgerButton(): Component {
   return (
@@ -29,48 +28,51 @@ export function BurgerButton(): Component {
       options={[BuiltCopy.BURGER_OP]}
       onOptionSelect={() => toggleBurgerMenu()}
     >
-      <sprite
-        ref={burgerGlyphRef}
-        x="center"
-        y="center"
-        w={Build.BURGER_GLYPH}
-        h={Build.BURGER_GLYPH}
-        sprite={OverviewSprites.BURGER}
-        onMouseRepeat={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER_LIT)}
-        onMouseLeave={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER)}
-      />
+      <BurgerGlyph />
     </layer>
   );
 }
 
 function toggleBurgerMenu(): void {
-  if (CS2.if_hide_get(burgerFrameRef) === false) {
-    burgerFrameRef.hide = true;
-    burgerOverlayRef.hide = true;
-    burgerFrameRef.noClickThrough = false;
-    burgerGlyphRef.sprite = OverviewSprites.BURGER;
-    return;
-  }
-  burgerFrameRef.hide = false;
-  burgerOverlayRef.hide = false;
-  burgerFrameRef.noClickThrough = true;
-  burgerGlyphRef.sprite = OverviewSprites.BURGER_LIT;
+  const [open, setOpen] = useState(collectionOverviewBurgerOpen);
+  setOpen(open === 1 ? 0 : 1);
+}
+
+function BurgerGlyph(): Component {
+  const [open] = useState(collectionOverviewBurgerOpen);
+  return (
+    <sprite
+      ref={burgerGlyphRef}
+      x="center"
+      y="center"
+      w={Build.BURGER_GLYPH}
+      h={Build.BURGER_GLYPH}
+      sprite={open === 1 ? OverviewSprites.BURGER_LIT : OverviewSprites.BURGER}
+      onMouseRepeat={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER_LIT)}
+      onMouseLeave={(event) => graphicSwapperUnlessMobile(event.self, OverviewSprites.BURGER)}
+    />
+  );
+}
+
+export function BurgerClickAway(): Component {
+  const [open] = useState(collectionOverviewBurgerOpen);
+  return <layer x={0} y={0} w="fill" h="fill" noClickThrough hide={open === 0} onClick={() => closeBurgerMenu()} />;
 }
 
 export function closeBurgerMenu(): void {
+  const [, setOpen] = useState(collectionOverviewBurgerOpen);
   buttonSelectSound();
-  burgerFrameRef.hide = true;
-  burgerOverlayRef.hide = true;
-  burgerGlyphRef.sprite = OverviewSprites.BURGER;
+  setOpen(0);
 }
 
 export function BurgerMenu(): Component {
+  const [open] = useState(collectionOverviewBurgerOpen);
   const rowH: Int = (onMobile() ? Build.MENU_ROWS_H_MOBILE : Build.MENU_ROWS_H) / 2;
   const rowW: Int = (onMobile() ? Build.MENU_W_MOBILE : Build.MENU_W) - Build.MENU_PAD;
 
   return (
-    <>
-      <sprite x={0} y={0} w="fill" h="fill" sprite={OverviewSprites.BACKDROP_LIGHT} tiling />
+    <layer x={0} y={0} w="fill" h="fill" noClickThrough hide={open === 0}>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={OverviewSprites.BACKDROP_LIGHT} />
 
       <SteelFrame backdrop={false} />
 
@@ -124,7 +126,7 @@ export function BurgerMenu(): Component {
         options={[BuiltCopy.MENU_OVERVIEW_OP]}
         onOptionSelect={() => closeBurgerMenu()}
       />
-    </>
+    </layer>
   );
 }
 

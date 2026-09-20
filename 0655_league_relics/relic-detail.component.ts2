@@ -1,0 +1,220 @@
+import { CS2, useState } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { colourTag } from '../0889_nps/colour-tag';
+
+import { RelicFonts } from './league-relics.constants';
+import { Relics } from './league-relics.data';
+import { lockedMessage, relicAccent, relicDetailPageRoom, windowHeight } from './league-relics.helpers';
+import {
+  confirmOpen,
+  detailCollapsed,
+  detailDescription,
+  detailEffectsH,
+  detailOverflow,
+  detailPassive,
+  detailPassiveFlag,
+  detailPassiveH,
+  detailRelic,
+  detailState,
+  detailWindowH,
+  passiveOpen,
+  relicsDrawn,
+  relicsLoading,
+} from './league-relics.state';
+import {
+  detailWindowHeightOf,
+  effectsContentOf,
+  effectsOverflowOf,
+  passiveBoxHeightOf,
+  passiveCollapsedOf,
+} from './relic-effects.component';
+
+const enum DetailColour {
+  SELECT = 0x53d93c,
+  LOCKED = 0xaaaaaa,
+  HOVER = 11184810,
+  WHITE = 0xffffff,
+}
+
+export function leagueRelicsShowDetail(
+  state: Int,
+  relic: Int,
+  passive: Int,
+  description: String,
+  passiveText: String,
+): void {
+  const [open, setRelic] = useState(detailRelic);
+  const [, setState] = useState(detailState);
+  const [, setPassiveFlag] = useState(detailPassiveFlag);
+  const [, setDescription] = useState(detailDescription);
+  const [, setPassive] = useState(detailPassive);
+  const [, setEffectsH] = useState(detailEffectsH);
+  const [, setOverflow] = useState(detailOverflow);
+  const [, setPassiveH] = useState(detailPassiveH);
+  const [, setCollapsed] = useState(detailCollapsed);
+  const [written, setWindowH] = useState(detailWindowH);
+  const [, setLoading] = useState(relicsLoading);
+  const [, setPassiveOpen] = useState(passiveOpen);
+  const [bp] = useState(responsiveCurrentBreakpoint);
+  const windowNow: Int = open === -1 ? windowHeight(bp, 1) : written;
+  const room: Int = relicDetailPageRoom(windowNow, bp);
+  setState(state);
+  setPassiveFlag(passive);
+  setDescription(description);
+  setPassive(passiveText);
+  setEffectsH(effectsContentOf(relic, description));
+  setOverflow(effectsOverflowOf(relic, description, room) ? 1 : 0);
+  setPassiveH(passiveBoxHeightOf(relic, description, passiveText, passive, room));
+  setCollapsed(passiveCollapsedOf(relic, description, passiveText, room) ? 1 : 0);
+  setWindowH(detailWindowHeightOf(relic, description, passiveText, passive, room, windowNow));
+  setLoading(0);
+  setPassiveOpen(0);
+  setRelic(relic);
+}
+
+export function relicDetailBack(): void {
+  CS2.sound_effect(2266, 1, 0);
+  const [, setRelic] = useState(detailRelic);
+  const [, setLoading] = useState(relicsLoading);
+  const [, setPassiveOpen] = useState(passiveOpen);
+  setLoading(0);
+  setPassiveOpen(0);
+  setRelic(-1);
+}
+
+export function RelicDetail(): Component {
+  const [relic] = useState(detailRelic);
+  if (relic === -1) {
+    return null;
+  }
+  const [state] = useState(detailState);
+  const row = Relics.get(relic);
+  const name: String = row === null ? '' : row.name;
+  const art: Sprite = row === null ? (-1 as Sprite) : row.art;
+  const accent: Int = relicAccent();
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <text
+        x={10}
+        y={9}
+        w={{ fill: 150 }}
+        h={16}
+        text={`${colourTag(accent, 'u')}${name}</u>`}
+        font={RelicFonts.HEADING}
+        color={accent}
+        align="center"
+        valign="top"
+        shadow
+      />
+      <layer x={{ right: 10 }} y={28} w={120} h={{ fill: 39 }}>
+        <sprite x={{ right: 0 }} y={{ center: -36 }} w={120} h={120} sprite={art} />
+        <layer x={{ right: 0 }} y={{ center: 51 }} w={120} h={25}>
+          <SelectButton state={state} name={name} />
+        </layer>
+        <layer x={{ right: 0 }} y={{ center: 83 }} w={120} h={25}>
+          <BackButton />
+        </layer>
+      </layer>
+    </layer>
+  );
+}
+
+function SelectButton({ state, name }: { state: Int; name: String }): Component {
+  const [hovered, setHovered] = useState(0);
+  const [, setConfirm] = useState(confirmOpen);
+  const mobile: Boolean = onMobile();
+  if (state === 2 || state === 5) {
+    return (
+      <layer
+        x={0}
+        y={0}
+        w="fill"
+        h="fill"
+        options={['Select']}
+        optionSubject={`<col=ff981f>${name}</col>`}
+        onMouseRepeat={mobile ? undefined : () => setHovered(1)}
+        onMouseLeave={mobile ? undefined : () => setHovered(0)}
+        onOptionSelect={() => {
+          CS2.sound_effect(2266, 1, 0);
+          setConfirm(1);
+        }}
+      >
+        {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text="Select"
+          font={RelicFonts.BODY}
+          color={hovered === 1 ? DetailColour.HOVER : DetailColour.SELECT}
+          align="center"
+          valign="middle"
+          shadow
+        />
+      </layer>
+    );
+  }
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      options={[state === 1 ? 'Unlocked' : 'Locked']}
+      onOptionSelect={() => {
+        CS2.sound_effect(2277, 1, 0);
+        CS2.message(lockedMessage(state));
+      }}
+    >
+      <StoneButtonPressed />
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text={state === 1 ? 'Unlocked' : 'Locked'}
+        font={RelicFonts.BODY}
+        color={DetailColour.LOCKED}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}
+
+function BackButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  return (
+    <layer
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      options={['Back']}
+      onMouseRepeat={mobile ? undefined : () => setHovered(1)}
+      onMouseLeave={mobile ? undefined : () => setHovered(0)}
+      onOptionSelect={() => relicDetailBack()}
+    >
+      {hovered === 1 ? <StoneButtonPressed /> : <StoneButton />}
+      <text
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        text="Back"
+        font={RelicFonts.BODY}
+        color={hovered === 1 ? DetailColour.HOVER : DetailColour.WHITE}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </layer>
+  );
+}

@@ -1,0 +1,138 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { hexToRgb, rgbToHex } from '../0259_area_task/area-task.helpers';
+import { clientClock, playerCoord } from '../lib/lib.engine';
+import { Anchor, OVERLAY_THROTTLE_CYCLES, overlayInit } from '../lib/lib.overlay';
+import {
+  BrDodge,
+  BrFog,
+  BrTimerText,
+  BrTimerTransmit,
+  BrVarbits,
+  dodgerRef,
+  plateRef,
+  timerRef,
+} from './br-overlay.constants';
+import { brTimerLoadedAt } from './br-overlay.state';
+
+export function brHudInit(): void {
+  const [, setLoadedAt] = useState(brTimerLoadedAt);
+  setLoadedAt(clientClock());
+  overlayInit(dodgerRef, plateRef, BrDodge.PLATE, Anchor.RIGHT, Anchor.TOP, 0);
+  overlayInit(timerRef, timerRef, BrDodge.TIMER, Anchor.RIGHT, Anchor.BOTTOM, 0);
+}
+
+export function timerTransmit(loadedAt: Int, now: Int): Int {
+  if (loadedAt < 0) {
+    return BrTimerTransmit.HUD;
+  }
+  const replacedAt: Int =
+    loadedAt + ((OVERLAY_THROTTLE_CYCLES - (loadedAt % OVERLAY_THROTTLE_CYCLES)) % OVERLAY_THROTTLE_CYCLES);
+  if (now <= replacedAt) {
+    return BrTimerTransmit.HUD;
+  }
+  return BrTimerTransmit.DODGER;
+}
+
+export function timerText(display: Int): String {
+  if (display <= 0) {
+    return '';
+  }
+  const minutes: Int = (display - 1) / 2;
+  if (display <= 1) {
+    return BrTimerText.EXPIRED;
+  }
+  if (minutes === 1) {
+    return BrTimerText.ONE;
+  }
+  return `${minutes} mins`;
+}
+
+export function brFogStep(colour: Int, wash: Int): [Int, Int] {
+  let target: Int = BrFog.DEFAULT;
+  const custom: Int = useServerState(BrVarbits.CUSTOM_FOG_COLOUR);
+  if (custom === 0) {
+    const map: Int = useServerState(BrVarbits.ACTIVE_MAP);
+    if (map === 1) {
+      target = BrFog.DEFAULT;
+    } else if (map === 2) {
+      target = BrFog.PALE;
+    }
+  } else if (custom === 1) {
+    target = BrFog.GREEN;
+  } else if (custom === 2) {
+    target = BrFog.PALE;
+  } else if (custom === 3) {
+    target = BrFog.DEFAULT;
+  } else if (custom === 4) {
+    target = BrFog.BLUE;
+  } else if (custom === 5) {
+    target = BrFog.WHITE;
+  }
+  const current: Int = target;
+  const safeX: Int = useServerState(BrVarbits.SAFE_X);
+  const safeZ: Int = useServerState(BrVarbits.SAFE_Z);
+  if (safeX <= 0 && safeZ <= 0) {
+    let kept: Int = colour;
+    if (current !== target) {
+      kept = target;
+    }
+    return [kept, BrFog.CLEAR];
+  }
+
+  const [targetR, targetG, targetB] = hexToRgb(target);
+  let [red, green, blue] = hexToRgb(current);
+  const here = playerCoord();
+  const dx: Int = CS2.invpow(CS2.pow(here.x - safeX, 2), 2);
+  const dz: Int = CS2.invpow(CS2.pow(here.z - safeZ, 2), 2);
+  let distance: Int = dz;
+  if (dx > dz) {
+    distance = dx;
+  }
+  const radius: Int = useServerState(BrVarbits.SAFE_RADIUS);
+  const inner: Int = radius - BrFog.BAND;
+  const outer: Int = radius + BrFog.BAND;
+  let wantR: Int = 0;
+  let wantG: Int = 0;
+  let wantB: Int = 0;
+  let wantWash: Int = 0;
+  if (distance <= inner) {
+    wantR = red;
+    wantG = green;
+    wantB = blue;
+    wantWash = BrFog.CLEAR;
+  } else if (distance >= outer) {
+    wantR = targetR;
+    wantG = targetG;
+    wantB = targetB;
+    wantWash = BrFog.THICK;
+  } else {
+    distance = distance - inner;
+    wantR = CS2.interpolate(0, distance, 0, BrFog.RAMP, targetR);
+    wantG = CS2.interpolate(0, distance, 0, BrFog.RAMP, targetG);
+    wantB = CS2.interpolate(0, distance, 0, BrFog.RAMP, targetB);
+    wantWash = BrFog.THICK;
+  }
+  if (red < wantR) {
+    red = red + 1;
+  } else if (red > wantR) {
+    red = red - 1;
+  }
+  if (green < wantG) {
+    green = green + 1;
+  } else if (green > wantG) {
+    green = green - 1;
+  }
+  if (blue < wantB) {
+    blue = blue + 1;
+  } else if (blue > wantB) {
+    blue = blue - 1;
+  }
+  let nextWash: Int = wash;
+  if (nextWash < wantWash) {
+    nextWash = nextWash + 1;
+  } else if (nextWash > wantWash) {
+    nextWash = nextWash - 1;
+  }
+  return [rgbToHex(red, green, blue), nextWash];
+}

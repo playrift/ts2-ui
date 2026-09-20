@@ -1,0 +1,219 @@
+import { CS2, onMounted, onUpdated, useRef, useState } from 'ts2';
+
+import { meslayermode } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ChatboxColor,
+  ChatboxFonts,
+  Layout,
+  mesCloseRef,
+  mesKeyboardRef,
+  mesText2Ref,
+  mesTextRef,
+} from './chatbox.constants';
+import {
+  MESLAYER_ARM_CENTRED,
+  MESLAYER_ARM_NONE,
+  MESLAYER_ARM_TOP_LEFT,
+  MESLAYER_ARM_UNDER_PROMPT,
+  meslayerEchoOverflow,
+  meslayerEchoText,
+  meslayerKeyboardArm,
+  meslayerPromptText,
+} from './chatbox.state';
+
+export function MeslayerPromptRow(): Component {
+  const host = useRef();
+
+  const [mode] = useState(meslayermode);
+  const [prompt] = useState(meslayerPromptText);
+  const [arm] = useState(meslayerKeyboardArm);
+
+  let mesbox: Boolean = false;
+  if (mode === MESLAYER_MODE_MESBOX) {
+    mesbox = true;
+  }
+  let promptText: String = '';
+  if (prompt.length > 0) {
+    promptText = prompt;
+  }
+
+  let leading: Int = 0;
+  if (mesbox) {
+    const lines: Int = CS2.paraheight(promptText, MESBOX_W, ChatboxFonts.DIALOGUE);
+    if (lines === 2) {
+      leading = MESBOX_LEADING_2;
+    } else if (lines === 3) {
+      leading = MESBOX_LEADING_3;
+    } else if (lines === 4) {
+      leading = MESBOX_LEADING_4;
+    }
+  }
+
+  let promptY: Int = 0;
+  if (arm === MESLAYER_ARM_UNDER_PROMPT) {
+    promptY = mesTextRef.y!;
+  }
+
+  let closeHidden: Boolean = true;
+  if (onMobile() && mode > 0 && !mesbox) {
+    closeHidden = false;
+  }
+
+  onMounted(() => meslayerPromptApply(mesbox, promptText, leading, closeHidden, arm, promptY));
+  onUpdated(() => meslayerPromptApply(mesbox, promptText, leading, closeHidden, arm, promptY));
+
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+function meslayerPromptApply(
+  mesbox: Boolean,
+  prompt: String,
+  leading: Int,
+  closeHidden: Boolean,
+  arm: Int,
+  promptY: Int,
+): void {
+  if (mesbox) {
+    mesTextRef.props = {
+      text: prompt,
+      hide: false,
+      x: 'center',
+      y: MESBOX_TEXT_Y,
+      w: MESBOX_W,
+      h: MESBOX_TEXT_H,
+      font: ChatboxFonts.DIALOGUE,
+      align: 'center',
+      valign: 'middle',
+      lineHeight: leading,
+    };
+  } else {
+    mesTextRef.props = {
+      text: prompt,
+      hide: false,
+      x: 'center',
+      y: { center: Layout.MES_TEXT_Y },
+      w: 'fill',
+      h: Layout.MES_TEXT_H,
+      font: ChatboxFonts.PROMPT,
+      align: 'center',
+      valign: 'middle',
+      lineHeight: 0,
+    };
+  }
+
+  mesCloseRef.props = { hide: closeHidden };
+
+  if (arm === MESLAYER_ARM_NONE) {
+    mesKeyboardRef.props = { hide: true };
+  } else if (arm === MESLAYER_ARM_UNDER_PROMPT) {
+    mesKeyboardRef.props = {
+      hide: false,
+      x: 'center',
+      y: promptY,
+      w: { fill: KEYBOARD_TAP_W },
+      h: { fill: promptY },
+    };
+  } else if (arm === MESLAYER_ARM_TOP_LEFT) {
+    mesKeyboardRef.props = {
+      hide: false,
+      x: 'center',
+      y: 0,
+      w: { fill: KEYBOARD_TAP_W },
+      h: KEYBOARD_TAP_W,
+    };
+  } else if (arm === MESLAYER_ARM_CENTRED) {
+    mesKeyboardRef.props = {
+      hide: false,
+      x: 'center',
+      y: 'center',
+      w: { fill: KEYBOARD_TAP_W },
+      h: { fill: KEYBOARD_TAP_W },
+    };
+  }
+}
+
+export function MeslayerEchoRow(): Component {
+  const host = useRef();
+
+  const [mode] = useState(meslayermode);
+  const [echo] = useState(meslayerEchoText);
+  const [overflow] = useState(meslayerEchoOverflow);
+
+  let mesbox: Boolean = false;
+  if (mode === MESLAYER_MODE_MESBOX) {
+    mesbox = true;
+  }
+  let text: String = '';
+  if (echo.length > 0) {
+    text = echo;
+  }
+  let rightAligned: Boolean = false;
+  if (!mesbox && overflow === 1) {
+    rightAligned = true;
+  }
+
+  onMounted(() => meslayerEchoApply(mesbox, text, rightAligned));
+  onUpdated(() => meslayerEchoApply(mesbox, text, rightAligned));
+
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+function meslayerEchoApply(mesbox: Boolean, echo: String, rightAligned: Boolean): void {
+  if (mesbox) {
+    mesText2Ref.props = {
+      text: echo,
+      hide: false,
+      x: 'center',
+      y: MESBOX_CONTINUE_Y,
+      w: MESBOX_W,
+      h: MESBOX_CONTINUE_H,
+      font: ChatboxFonts.DIALOGUE,
+      color: ChatboxColor.MESLAYER_TYPED,
+      align: 'center',
+      valign: 'top',
+      lineHeight: 0,
+    };
+  } else if (rightAligned) {
+    mesText2Ref.props = {
+      text: echo,
+      hide: false,
+      x: 'center',
+      y: { center: Layout.MES_TEXT2_Y },
+      w: 'fill',
+      h: Layout.MES_TEXT2_H,
+      font: ChatboxFonts.PROMPT,
+      color: ChatboxColor.MESLAYER_ECHO,
+      align: 'right',
+      valign: 'middle',
+      lineHeight: 0,
+    };
+  } else {
+    mesText2Ref.props = {
+      text: echo,
+      hide: false,
+      x: 'center',
+      y: { center: Layout.MES_TEXT2_Y },
+      w: 'fill',
+      h: Layout.MES_TEXT2_H,
+      font: ChatboxFonts.PROMPT,
+      color: ChatboxColor.MESLAYER_ECHO,
+      align: 'center',
+      valign: 'middle',
+      lineHeight: 0,
+    };
+  }
+}
+
+export const MESLAYER_MODE_MESBOX = 1;
+
+export const MESBOX_W = 479;
+const MESBOX_TEXT_Y = 20;
+const MESBOX_TEXT_H = 72;
+const MESBOX_CONTINUE_Y = 96;
+const MESBOX_CONTINUE_H = 17;
+const MESBOX_LEADING_2 = 31;
+const MESBOX_LEADING_3 = 24;
+const MESBOX_LEADING_4 = 17;
+
+const KEYBOARD_TAP_W = 20;

@@ -1,23 +1,24 @@
-import { CS2, useServerState, useState } from 'ts2';
+import { useServerState, useState } from 'ts2';
 
 import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
 import { scaled } from '../lib/lib.engine';
-import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
   BreakpointGates,
   INSANE_TEXT,
   Layout,
   OverlayWidths,
-  Sanity,
-  SanityColor,
   SANITY_MAX,
   SanityVarbits,
+  universe,
 } from './sanity.constants';
+import { sanityBarPx, sanityGlyphAlpha, sanityMeasuredPx, sanityWalkTarget, sanityWalkTrackPx } from './sanity.state';
 
-const enum SizeMode {
-  ABS = 0,
-  MINUS = 1,
+export const enum Snap {
+  WALK = 0,
+  NOW = 1,
 }
+
+const CLEAR = 255;
 
 export function breakpointOf(width: Int, height: Int): Int {
   let level: Int = 0;
@@ -46,61 +47,105 @@ export function overlayWidth(breakpoint: Int): Int {
   return OverlayWidths.BASE;
 }
 
-export function sanityRelayout(dodger: ComponentId, root: ComponentId, card: ComponentId): void {
-  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
-  const breakpoint: Int = breakpointOf(CS2.if_width_get(root), CS2.if_height_get(root));
-  setBreakpoint(breakpoint);
-
-  CS2.if_size_set(overlayWidth(breakpoint), Layout.CARD_H, SizeMode.ABS, SizeMode.ABS, card);
-  overlayRelayout(dodger, card, Sanity.DODGE, Anchor.LEFT, Anchor.TOP, 1);
+export function cardWidth(): Int {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  return overlayWidth(breakpoint);
 }
 
-export function sanityBar(track: ComponentId, percent: ComponentId, bar: ComponentId, icon: ComponentId): void {
-  const sanity: Int = useServerState(SanityVarbits.SANITY);
+export function trackWidth(): Int {
+  return cardWidth() - Layout.BAR_INSET_W;
+}
 
+export function barTarget(sanity: Int, trackW: Int): Int {
   if (sanity === 0) {
-    percent.text = INSANE_TEXT;
-    percent.color = SanityColor.INSANE;
-    CS2.if_size_set(0, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-    icon.transparency = 255;
-    return;
+    return 0;
   }
-
-  const trackW: Int = CS2.if_width_get(track);
-  let target: Int = scaled(sanity, SANITY_MAX, trackW);
+  const target: Int = scaled(sanity, SANITY_MAX, trackW);
   if (target < 1) {
-    target = 1;
+    return 1;
   }
-  const shown: Int = CS2.if_width_get(bar);
+  return target;
+}
 
-  if (shown <= 0) {
-    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+export function glyphAlphaFor(px: Int, trackW: Int): Int {
+  return CLEAR - scaled(px, trackW, CLEAR);
+}
+
+export function sanityCaption(sanity: Int): String {
+  if (sanity === 0) {
+    return INSANE_TEXT;
   }
-
-  percent.color = SanityColor.TEXT;
   let pct: Int = scaled(sanity, SANITY_MAX, 100);
   if (pct < 1) {
     pct = 1;
   }
-  percent.text = `Sanity: ${stringOf(pct)}%`;
+  return `Sanity: ${pct}%`;
+}
 
-  if (shown <= 0) {
+export function publishBreakpoint(): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpointOf(universe.width, universe.height));
+}
+
+export function sanityBar(snap: Int): void {
+  const sanity: Int = useServerState(SanityVarbits.SANITY);
+  const [barPx, setBarPx] = useState(sanityBarPx);
+  const [, setAlpha] = useState(sanityGlyphAlpha);
+  const [, setWalkTarget] = useState(sanityWalkTarget);
+  const [, setWalkTrackPx] = useState(sanityWalkTrackPx);
+
+  if (sanity === 0) {
+    setBarPx(0);
+    setAlpha(CLEAR);
     return;
   }
 
+  const trackW: Int = trackWidth();
+  const target: Int = barTarget(sanity, trackW);
+  if (barPx <= 0) {
+    setBarPx(1);
+  }
+  setWalkTarget(target);
+  setWalkTrackPx(trackW);
+  if (snap === Snap.NOW) {
+    sanityBarWalk(snap);
+  }
+}
+
+export function sanityBarWalk(snap: Int): void {
+  const [walkTarget, setWalkTarget] = useState(sanityWalkTarget);
+  if (walkTarget === -1) {
+    return;
+  }
+  const [walkTrackPx] = useState(sanityWalkTrackPx);
+  const [shown, setBarPx] = useState(sanityBarPx);
+  const [, setAlpha] = useState(sanityGlyphAlpha);
+  const trackW: Int = trackWidth();
+
   let next: Int = shown;
-  if (shown === 0) {
-    next = target;
-  } else if (shown < target) {
+  if (walkTrackPx !== trackW) {
+    next = walkTarget;
+  } else if (snap === Snap.NOW || shown === 0) {
+    next = walkTarget;
+  } else if (shown < walkTarget) {
     next = shown + 1;
-  } else if (shown > target) {
+  } else if (shown > walkTarget) {
     next = shown - 1;
   }
 
-  if (next === trackW) {
-    CS2.if_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS, bar);
-  } else {
-    CS2.if_size_set(next, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  setBarPx(next);
+  setAlpha(glyphAlphaFor(next, trackW));
+  if (next === walkTarget) {
+    setWalkTarget(-1);
   }
-  icon.transparency = 255 - scaled(next, trackW, 255);
+}
+
+export function sanityTick(): void {
+  const trackW: Int = trackWidth();
+  const [measured, setMeasured] = useState(sanityMeasuredPx);
+  if (measured !== trackW) {
+    setMeasured(trackW);
+    sanityBar(Snap.NOW);
+  }
+  sanityBarWalk(Snap.WALK);
 }

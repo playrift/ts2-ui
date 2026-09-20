@@ -1,0 +1,340 @@
+import { intArray, useServerState, useState, useUniverse } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { leagueProgressBarTooltip } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { tooltipDwellElapsed, tooltipDown, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { onEnhancedMobile } from '../0134_settings/settings.helpers';
+import { onEnhancedAny } from '../0091_clanwars_setup/clanwars-setup.helpers';
+import { buttonSelectSound } from '../0656_league_side_panel/league-side-panel.state';
+
+import { CaArt, CaColour, CaFont, CaProgress, CaTierBar } from './ca-shared.constants';
+import { CaTierNames } from './ca-shared.data';
+import { caSpecificTaskcount, caTasksBossTotal, caTierStatus } from './ca-shared.counts';
+
+function progressRemaining(filled: Int, segment: Int, i: Int): Int {
+  return Math.max(0, filled - segment * i);
+}
+
+export function CaSetupProgressBar({
+  total,
+  done,
+  x,
+  y,
+  w,
+  color,
+  captionDy,
+}: {
+  total: Int;
+  done: Int;
+  x: Int;
+  y: Int;
+  w: Int;
+  color: Int;
+  captionDy: Int;
+}): Component {
+  const segment: Int = w / CaProgress.SEGMENTS;
+  const filled: Int = 1 + scaled(done, Math.max(1, total), w - 1);
+  const colour: Int = total === done ? color : done > 0 ? CaColour.PROGRESS_PARTIAL : CaColour.PROGRESS_NONE;
+  const trackY: Int = y + CaProgress.TRACK_DY;
+  const fillY: Int = y + CaProgress.FILL_DY;
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={y + CaProgress.PLATE_DY}
+        w={w}
+        h={CaProgress.PLATE_H}
+        fill
+        color={CaColour.WHITE}
+        transparency={255}
+      />
+      <text
+        x={x}
+        y={y + captionDy}
+        w={w}
+        h={CaProgress.CAPTION_H}
+        text={`${stringOf(done)}/${stringOf(total)}`}
+        font={CaFont.BODY}
+        color={colour}
+        shadow
+        align="center"
+        valign="top"
+      />
+      <rect
+        x={x}
+        y={trackY}
+        w={w}
+        h={CaProgress.TRACK_H}
+        fill
+        color={CaColour.BLACK}
+        transparency={CaProgress.TRACK_ALPHA}
+      />
+      {ProgressSegments.map((i) => (
+        <rect x={x + i * segment} y={trackY} w={segment + 1} h={CaProgress.TRACK_H} color={CaColour.BLACK} />
+      ))}
+      {ProgressSegments.map((i) => (
+        <rect
+          x={x + i * segment + 1}
+          y={fillY}
+          w={progressRemaining(filled, segment, i) > segment ? segment - 1 : progressRemaining(filled, segment, i) - 1}
+          h={CaProgress.FILL_H}
+          fill
+          color={colour}
+        />
+      ))}
+    </>
+  );
+}
+
+const ProgressSegments = [0, 1, 2, 3] as const;
+
+export const enum CaTierBarMode {
+  TIER = 0,
+  BOSS = 1,
+  LADDER = 2,
+}
+
+export function CaTasksProgressBar({ mode }: { mode: Int }): Component {
+  const points: Int = useServerState(Varbits.CA_POINTS);
+  const thresholds = intArray(7, [
+    0,
+    useServerState(Varbits.CA_THRESHOLD_EASY),
+    useServerState(Varbits.CA_THRESHOLD_MEDIUM),
+    useServerState(Varbits.CA_THRESHOLD_HARD),
+    useServerState(Varbits.CA_THRESHOLD_ELITE),
+    useServerState(Varbits.CA_THRESHOLD_MASTER),
+    useServerState(Varbits.CA_THRESHOLD_GRANDMASTER),
+  ]);
+
+  let tier: Int = 0;
+  let shortBy: Int = 0;
+  let found: Int = 0;
+  let at: Int = 0;
+  while (at < 6 && found === 0) {
+    if (points < thresholds[1 + at]) {
+      shortBy = thresholds[1 + at] - points;
+      found = 1;
+    } else {
+      tier = tier + 1;
+    }
+    at = at + 1;
+  }
+
+  let rewardsWaiting: Int = 0;
+  at = 0;
+  while (at < 6) {
+    if (caTierStatus(at) === 1) {
+      rewardsWaiting = 1;
+    }
+    at = at + 1;
+  }
+
+  const top: Int = Math.max(1, thresholds[6]);
+  const mobile: Boolean = onMobile();
+  const universe = useUniverse();
+  const width: Int = universe.width;
+  const fullFill: Int = width - CaTierBar.INSET;
+
+  let caption: String = '';
+  if (rewardsWaiting === 1) {
+    caption =
+      useServerState(Varbits.WGS_HERO_PART_2_VIS) !== 0
+        ? 'You have rewards to collect from Laidee Gnonock!'
+        : 'You have rewards to collect from Ghommal!';
+  } else if (tier >= 6) {
+    caption = `Total Points: ${stringOf(points)}`;
+  } else {
+    caption = `Total Points: ${stringOf(points)} - Next unlock in ${stringOf(shortBy)} points`;
+  }
+
+  let fill: Int = 0;
+  let bossTotal: Int = 0;
+  if (mode === CaTierBarMode.LADDER) {
+    fill = scaled(Math.min(points, top), top, fullFill);
+  } else if (mode === CaTierBarMode.BOSS) {
+    const boss: Int = useServerState(Varbits.CA_BOSS_SELECTED);
+    bossTotal = caTasksBossTotal(boss);
+    let bossDone: Int = caSpecificTaskcount(boss);
+    if (bossDone > bossTotal) {
+      bossDone = bossTotal;
+    }
+    fill = scaled(bossDone, Math.max(bossTotal, 1), fullFill);
+    caption = bossTotal <= 0 ? 'No Tasks Available' : `Tasks Completed: ${stringOf(bossDone)}/${stringOf(bossTotal)}`;
+  } else if (rewardsWaiting === 1 || tier >= 6) {
+    fill = fullFill;
+  } else {
+    const from: Int = thresholds[tier];
+    const to: Int = thresholds[1 + tier];
+    fill = scaled(Math.max(0, points - from), Math.max(1, to - from), fullFill);
+  }
+  if (fill > fullFill) {
+    fill = fullFill;
+  }
+
+  const hasPlate: Boolean = mode === CaTierBarMode.BOSS && bossTotal > 0;
+  const captionHovers: Boolean = hasPlate || (mode === CaTierBarMode.LADDER && mobile);
+
+  return (
+    <>
+      {hasPlate ? (
+        <sprite
+          x={CaTierBar.BAR_XY}
+          y={CaTierBar.BAR_XY}
+          w={fullFill}
+          h={CaTierBar.BAR_H}
+          transparency={CaTierBar.PLATE_ALPHA}
+          options={['View Tasks']}
+          onOptionSelect={() => buttonSelectSound()}
+        />
+      ) : null}
+      <rect
+        x={CaTierBar.INNER_XY}
+        y={CaTierBar.INNER_XY}
+        w={width - CaTierBar.INNER_INSET}
+        h={CaTierBar.INNER_H}
+        color={CaColour.TIER_BAR_INNER}
+      />
+      <sprite
+        x={CaTierBar.BAR_XY}
+        y={CaTierBar.BAR_XY}
+        w={fullFill}
+        h={CaTierBar.BAR_H}
+        sprite={CaArt.TIER_BAR_TRACK}
+        tiling
+      />
+      <sprite
+        x={CaTierBar.BAR_XY}
+        y={CaTierBar.BAR_XY}
+        w={fill}
+        h={CaTierBar.BAR_H}
+        sprite={CaArt.TIER_BAR_FILL}
+        tiling
+      />
+      {mode === CaTierBarMode.LADDER
+        ? LadderPins.map((i) => (
+            <sprite
+              x={pinX(scaled(thresholds[1 + i], top, fullFill), fullFill) + CaTierBar.PIN_DX}
+              y={0}
+              w={CaTierBar.PIN_W}
+              h={CaTierBar.PIN_H}
+              sprite={CaArt.TIER_PIN}
+              options={mobile ? ['Show Threshold'] : ['']}
+              onOptionSelect={mobile ? () => caThresholdTipToggle(i) : undefined}
+              onMouseRepeat={mobile ? undefined : () => caThresholdTipShow(i)}
+              onMouseLeave={mobile ? undefined : () => caThresholdTipHide()}
+            />
+          ))
+        : null}
+      {captionHovers && !mobile ? (
+        <text
+          x={0}
+          y={0}
+          w={width}
+          h="fill"
+          text={caption}
+          font={rewardsWaiting === 1 ? CaFont.BOLD : CaFont.BODY}
+          color={CaColour.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+          hover={{ color: CaColour.AMBER }}
+        />
+      ) : (
+        <text
+          x={0}
+          y={0}
+          w={width}
+          h="fill"
+          text={caption}
+          font={rewardsWaiting === 1 ? CaFont.BOLD : CaFont.BODY}
+          color={CaColour.WHITE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+      <rect x={0} y={0} w={width} h={CaTierBar.OUTER_H} color={CaColour.TIER_BAR_OUTER} />
+    </>
+  );
+}
+
+const LadderPins = [0, 1, 2, 3, 4, 5] as const;
+
+function pinX(at: Int, fullFill: Int): Int {
+  if (at <= 2) {
+    return 0;
+  }
+  if (at >= fullFill) {
+    return 3 + fullFill;
+  }
+  return at + 2;
+}
+
+export function caThresholdTipText(pin: Int): String {
+  const threshold: Int = caThreshold(pin);
+  const name: String = CaTierNames.get(pin + 1) ?? '';
+  if (threshold === 1) {
+    return `${name} Tier rewards unlocked at one point.`;
+  }
+  return `${name} Tier rewards unlocked at ${stringOf(threshold)} points.`;
+}
+
+function caThreshold(pin: Int): Int {
+  switch (pin) {
+    case 0:
+      return useServerState(Varbits.CA_THRESHOLD_EASY);
+    case 1:
+      return useServerState(Varbits.CA_THRESHOLD_MEDIUM);
+    case 2:
+      return useServerState(Varbits.CA_THRESHOLD_HARD);
+    case 3:
+      return useServerState(Varbits.CA_THRESHOLD_ELITE);
+    case 4:
+      return useServerState(Varbits.CA_THRESHOLD_MASTER);
+    case 5:
+      return useServerState(Varbits.CA_THRESHOLD_GRANDMASTER);
+  }
+  return 0;
+}
+
+export function caThresholdTipToggle(pin: Int): void {
+  const [up, setUp] = useState(leagueProgressBarTooltip);
+  if (up === pin) {
+    tooltipHide();
+    setUp(-1);
+    return;
+  }
+  if (onEnhancedAny()) {
+    return;
+  }
+  setUp(pin);
+  tooltipRaise();
+}
+
+export function caThresholdTipShow(pin: Int): void {
+  if (onEnhancedMobile()) {
+    return;
+  }
+  if (onEnhancedAny()) {
+    return;
+  }
+  tooltipMark();
+  if (!tooltipDwellElapsed(CaTierBar.TIP_DWELL)) {
+    return;
+  }
+  if (!tooltipDown()) {
+    return;
+  }
+  const [, setUp] = useState(leagueProgressBarTooltip);
+  setUp(pin);
+  tooltipRaise();
+}
+
+export function caThresholdTipHide(): void {
+  tooltipHide();
+  const [, setUp] = useState(leagueProgressBarTooltip);
+  setUp(-1);
+}

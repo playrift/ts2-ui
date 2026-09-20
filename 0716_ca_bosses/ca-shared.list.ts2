@@ -1,0 +1,294 @@
+import { intArray, resumePauseButton, useRef, useState } from 'ts2';
+
+import { playSound } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+
+import { CaArt, CaColour, CaFont, CaSound } from './ca-shared.constants';
+import { CaBosses, CaTasks } from './ca-shared.data';
+import { caSpecificTaskcount, caTaskIsDisabled } from './ca-shared.counts';
+import { CaSetupProgressBar } from './ca-shared.progress';
+import { CA_BOSS_COUNT, CaBossCardBox, CaBossKeys, CaBossesLayout, CaBossesText } from './ca-bosses.constants';
+
+export function CaBossCards({ query, visible, mobile }: { query: String; visible: Int; mobile: Boolean }): Component {
+  const perBoss = intArray(CA_BOSS_COUNT + 1);
+  let at: Int = 0;
+  while (at < CaTasks.length) {
+    const task = CaTasks.at(at);
+    if (task !== null) {
+      const boss: Int = task.boss;
+      if (boss <= CA_BOSS_COUNT) {
+        if (caTaskIsDisabled(task) === 0) {
+          perBoss[boss] = perBoss[boss] + 1;
+        }
+      }
+    }
+    at = at + 1;
+  }
+
+  return (
+    <>
+      <layer w="fill" h={caBossesExtentOf(visible)}>
+        {CaBossKeys.scan(
+          (bossKey, i, seen) =>
+            caBossShown(bossKey, query) === 1 ? (
+              <CaBossCard
+                name={caBossName(bossKey)}
+                combatLevel={caBossLevel(bossKey)}
+                total={perBoss[bossKey]}
+                done={caSpecificTaskcount(caBossId(bossKey))}
+                mobile={mobile}
+                x={CaBossCardBox.GAP + (seen % CaBossCardBox.COLUMNS) * CaBossCardBox.PITCH_X}
+                y={(seen / CaBossCardBox.COLUMNS) * CaBossCardBox.PITCH_Y}
+              />
+            ) : null,
+          (bossKey) => caBossShown(bossKey, query),
+          0,
+        )}
+      </layer>
+
+      <text
+        x="center"
+        y="center"
+        w={{ fill: CaBossesLayout.NONE_INSET }}
+        h={{ fill: CaBossesLayout.NONE_INSET }}
+        text={CaBossesText.NONE}
+        font={CaFont.BODY}
+        shadow
+        color={CaColour.AMBER}
+        align="center"
+        valign="middle"
+        hide={visible > 0}
+      />
+    </>
+  );
+}
+
+export function caBossesVisibleCount(query: String): Int {
+  let visible: Int = 0;
+  let key: Int = 1;
+  while (key <= CA_BOSS_COUNT) {
+    visible = visible + caBossShown(key, query);
+    key = key + 1;
+  }
+  return visible;
+}
+
+export function caBossesExtentOf(visible: Int): Int {
+  return visible === 0
+    ? CaBossCardBox.PITCH_Y
+    : ((visible + CaBossCardBox.COLUMNS - 1) / CaBossCardBox.COLUMNS) * CaBossCardBox.PITCH_Y;
+}
+
+function caBossShown(key: Int, query: String): Int {
+  const row = CaBosses.get(key);
+  if (row === null) {
+    return 0;
+  }
+  return bossMatches(row.name, query) ? 1 : 0;
+}
+
+function caBossName(key: Int): String {
+  const row = CaBosses.get(key);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+function caBossLevel(key: Int): Int {
+  const row = CaBosses.get(key);
+  if (row === null) {
+    return 0;
+  }
+  return row.combatLevel;
+}
+
+function caBossId(key: Int): Int {
+  const row = CaBosses.get(key);
+  if (row === null) {
+    return 0;
+  }
+  return row.bossId;
+}
+
+function bossMatches(name: String, query: String): Boolean {
+  return query.length <= 0 || name.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+}
+
+function CaBossCard({
+  name,
+  combatLevel,
+  total,
+  done,
+  mobile,
+  x,
+  y,
+}: {
+  name: String;
+  combatLevel: Int;
+  total: Int;
+  done: Int;
+  mobile: Boolean;
+  x: Int;
+  y: Int;
+}): Component {
+  const [lit, setLit] = useState(0);
+  const pause = useRef();
+
+  const w: Int = CaBossCardBox.W;
+  const h: Int = CaBossCardBox.H;
+  const corner: Int = CaBossCardBox.CORNER;
+
+  return (
+    <layer x={x} y={y} w={w} h={h}>
+      <sprite x={0} y={0} w={w} h={h} sprite={lit === 1 ? CaArt.BUTTON_BACKDROP_LIT : CaArt.BUTTON_BACKDROP} tiling />
+      <sprite
+        x={0}
+        y={0}
+        w={corner}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_0 : Sprites.V2_STONE_BUTTON_0}
+        tiling
+      />
+      <sprite
+        x={w - corner}
+        y={0}
+        w={corner}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_1 : Sprites.V2_STONE_BUTTON_1}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={h - corner}
+        w={corner}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_2 : Sprites.V2_STONE_BUTTON_2}
+        tiling
+      />
+      <sprite
+        x={w - corner}
+        y={h - corner}
+        w={corner}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_3 : Sprites.V2_STONE_BUTTON_3}
+        tiling
+      />
+      <sprite
+        x={0}
+        y={corner}
+        w={corner}
+        h={h - corner * 2}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_4 : Sprites.V2_STONE_BUTTON_4}
+        tiling
+      />
+      <sprite
+        x={corner}
+        y={0}
+        w={w - corner * 2}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_5 : Sprites.V2_STONE_BUTTON_5}
+        tiling
+      />
+      <sprite
+        x={w - corner}
+        y={corner}
+        w={corner}
+        h={h - corner * 2}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_6 : Sprites.V2_STONE_BUTTON_6}
+        tiling
+      />
+      <sprite
+        x={corner}
+        y={h - corner}
+        w={w - corner * 2}
+        h={corner}
+        sprite={lit === 1 ? Sprites.V2_STONE_BUTTON_IN_7 : Sprites.V2_STONE_BUTTON_7}
+        tiling
+      />
+
+      <rect
+        x={0}
+        y={0}
+        w={w}
+        h={h}
+        transparency={255}
+        options={['View']}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onMouseEnter={
+          mobile
+            ? undefined
+            : () => {
+                setLit(1);
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : () => {
+                setLit(0);
+              }
+        }
+        onOptionSelect={() => caBossSelect(pause)}
+      />
+
+      <rect
+        x={0}
+        y={0}
+        w={w}
+        h={h}
+        color={CaColour.BLACK}
+        transparency={CaBossCardBox.OUTLINE_ALPHA}
+        optionSubject={`<col=ff981f>${name}</col>`}
+      />
+
+      <text
+        x={CaBossCardBox.NAME_X}
+        y={CaBossCardBox.NAME_Y}
+        w={w - CaBossCardBox.NAME_INSET}
+        h={CaBossCardBox.NAME_H}
+        text={name}
+        font={CaFont.BOLD}
+        color={done === total && total > 0 ? CaColour.CARD_DONE : CaColour.CARD_NAME}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      <rect ref={pause} x={0} y={0} w={0} h={0} />
+
+      <text
+        x={0}
+        y={CaBossCardBox.LEVEL_Y}
+        w={w}
+        h={CaBossCardBox.LEVEL_H}
+        text={
+          combatLevel === 0
+            ? '<col=ff9933>Level:</col><col=ffffff> N/A</col>'
+            : `<col=ff9933>Level:</col><col=ffffff> ${stringOf(combatLevel)}</col>`
+        }
+        font={CaFont.SMALL}
+        align="center"
+        valign="middle"
+        shadow
+      />
+
+      {total > 0 ? (
+        <CaSetupProgressBar
+          total={total}
+          done={done}
+          x={CaBossCardBox.PROGRESS_X}
+          y={CaBossCardBox.PROGRESS_Y}
+          w={w - CaBossCardBox.PROGRESS_INSET}
+          color={CaColour.CARD_DONE}
+          captionDy={0}
+        />
+      ) : null}
+    </layer>
+  );
+}
+
+function caBossSelect(pause: ComponentId): void {
+  resumePauseButton(pause);
+  playSound(CaSound.SELECT);
+}

@@ -1,0 +1,384 @@
+import { useInterval, useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { breakpointOf, inLeagueTutorial } from '../0654_league_info/league-info.helpers';
+import { LeagueMenuButton, LeagueMenuDropdown, LeagueMenuOverlay } from '../0654_league_info/league-menu.component';
+import { CloseButton } from '../0735_league_3_fragments/close-button.component';
+import { RelicThemes } from '../0655_league_relics/league-relics.data';
+import { textPlural } from '../0512_trailblazer_areas/time.shared';
+import { TabSkins, TabState } from '../0512_trailblazer_areas/trailblazer-areas.data';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { CellBoxes } from '../0823_forestry_kit_main/cell-box.data';
+
+import { MasteryColour, MasteryFonts, MasterySprites } from './league-combat-mastery.constants';
+import { MasteryTasks } from './league-combat-mastery.data';
+import {
+  masteryAccent,
+  masteryLeague,
+  masteryLeagueKnown,
+  masteryTab,
+  masteryTabSelect,
+  pointsEarned,
+  pointsToSpend,
+} from './league-combat-mastery.helpers';
+import {
+  confirmOpen,
+  detailMastery,
+  detailPassive,
+  extraOpen,
+  masteryHover,
+  masteryLoading,
+} from './league-combat-mastery.state';
+import {
+  MasteryBackgrounds,
+  MasteryClicks,
+  MasteryFrames,
+  MasteryIcons,
+  MasteryLines,
+  MasteryPaths,
+  MasteryPips,
+  MasterySparks,
+  MasteryStart,
+  MasteryTooltip,
+} from './mastery-grid.component';
+import { CombatSummary, MasteryPoints } from './mastery-lists.component';
+import {
+  ExtraOverlay,
+  MasteryConfirm,
+  MasteryDetail,
+  MasteryLoadingSheet,
+  detailWindowHeight,
+} from './mastery-detail.component';
+
+export function LeagueCombatMastery(): Component {
+  const universe = useUniverse();
+  const [bp, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const [drawn, setDrawn] = useState(0);
+  const [detail, setDetail] = useState(detailMastery);
+  const [passive, setPassive] = useState(detailPassive);
+  const [, setLoading] = useState(masteryLoading);
+  const [, setConfirm] = useState(confirmOpen);
+  const [, setExtra] = useState(extraOpen);
+  const [, setHover] = useState(masteryHover);
+  useInterval(() => {
+    setBreakpoint(breakpointOf(universe.width, universe.height));
+    if (drawn === 0) {
+      setDetail(-1);
+      setPassive(-1);
+      setLoading(0);
+      setConfirm(0);
+      setExtra(0);
+      setHover(-1);
+    }
+    setDrawn(1);
+  });
+  const width: Int = windowWidth(bp, drawn);
+  const baseHeight: Int = windowHeight(bp, drawn);
+  const open: Boolean = detail !== -1;
+  const height: Int = open ? detailWindowHeight(detail, passive, width, baseHeight) : baseHeight;
+  const mobile: Boolean = onMobile();
+  const contentW: Int = drawn === 1 ? width - 12 : width;
+  const contentTop: Int = drawn === 1 ? contentY(bp) : 35;
+  const contentInset: Int = drawn === 1 ? contentTop + 6 : 36;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer x="center" y="center" w={width} h={height}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <SteelBorder
+            title="Combat Masteries"
+            titleColor={drawn === 1 ? masteryAccent() : MasteryColour.GOLD}
+            flags={1}
+          />
+        </layer>
+
+        <layer x="center" y={contentTop} w={contentW} h={{ fill: contentInset }}>
+          <layer x={9} y={4} w={{ fill: 19 }} h={33}>
+            {drawn === 1 && <MasteryPointsBar width={contentW - 19} />}
+          </layer>
+          <sprite x="center" y={26} w="fill" h={36} sprite={MasterySprites.RULE} tiling />
+          <layer x="center" y={47} w="fill" h={{ fill: 47 }}>
+            <layer x="center" y={drawn === 1 ? 23 : 0} w="fill" h={{ fill: drawn === 1 ? 23 : 0 }} hide={open}>
+              <layer x={0} y={0} w="fill" h="fill">
+                {drawn === 1 && <ViewAllFrame />}
+              </layer>
+              <layer x={25} y={10} w={{ fill: 47 }} h={{ fill: 22 }}>
+                {drawn === 1 && <CombatSummary />}
+              </layer>
+              <layer x={27} y={10} w={{ fill: 53 }} h={{ fill: 19 }}>
+                {drawn === 1 && <MasteryPoints />}
+              </layer>
+              <layer x={3} y={0} w={{ fill: 6 }} h="fill">
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryBackgrounds />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryStart />}
+                </layer>
+                <layer x={0} y={0} w="fill" h="fill">
+                  {drawn === 1 && <MasteryPaths />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryLines />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryFrames />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryIcons />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryPips />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasterySparks />}
+                </layer>
+                <layer x={0} y={{ bottom: 0 }} w="fill" h="fill">
+                  {drawn === 1 && <MasteryClicks />}
+                </layer>
+              </layer>
+            </layer>
+            <layer x={{ right: 0 }} y={{ bottom: 0 }} w="fill" h={16} hide={open} />
+          </layer>
+          <LeagueMenuOverlay />
+          <layer x={0} y={47} w="fill" h={drawn === 1 ? 27 : 28} hide={open}>
+            {drawn === 1 && <MasteryTabs />}
+          </layer>
+          <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: 46 }}>
+            <MasteryLoadingSheet />
+            <layer x="center" y="center" w="fill" h="fill" hide={!open}>
+              <MasteryDetail windowW={width} windowH={baseHeight} />
+            </layer>
+            <ExtraOverlay windowW={width} />
+            <MasteryConfirm />
+          </layer>
+          <layer x="center" y="center" w="fill" h="fill" hide />
+        </layer>
+
+        <CloseButton />
+        {drawn === 1 && !inLeagueTutorial() && (
+          <layer x={mobile ? 1 : 7} y={mobile ? 1 : 7} w={mobile ? 33 : 21} h={mobile ? 33 : 21}>
+            <LeagueMenuButton />
+          </layer>
+        )}
+        {drawn === 1 && masteryLeagueKnown() && (
+          <layer x={0} y={29} w={mobile ? 154 : 120} h={(mobile ? 140 : 115) + 12}>
+            <LeagueMenuDropdown league={masteryLeague()} accent={masteryAccent()} />
+          </layer>
+        )}
+      </layer>
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <MasteryTooltip
+          contentX={(universe.width - width) / 2 + (width - contentW) / 2}
+          contentY={(universe.height - height) / 2 + contentTop}
+          contentW={contentW}
+          contentH={height - contentInset}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function contentY(bp: Int): Int {
+  if (bp === 1 || bp === 2) {
+    return 37;
+  }
+  if (bp === 3) {
+    return 39;
+  }
+  return 35;
+}
+
+function windowWidth(bp: Int, drawn: Int): Int {
+  if (drawn === 0) {
+    return 480;
+  }
+  if (bp === 1) {
+    return 600;
+  }
+  if (bp === 2 || bp === 3) {
+    return 720;
+  }
+  return 480;
+}
+
+function windowHeight(bp: Int, drawn: Int): Int {
+  if (drawn === 0) {
+    return 314;
+  }
+  if (bp === 1) {
+    return 392;
+  }
+  if (bp === 2 || bp === 3) {
+    return 470;
+  }
+  return 314;
+}
+
+function MasteryPointsBar({ width }: { width: Int }): Component {
+  const theme = RelicThemes.get(masteryLeague());
+  const track: Sprite = theme === null ? -1 : theme.barTrack;
+  const fill: Sprite = theme === null ? -1 : theme.barFill;
+  const captionFont: Font = theme === null ? MasteryFonts.BODY : (theme.captionFont as Font);
+  const captionColour: Int = theme === null ? MasteryColour.WHITE : theme.captionColour;
+  const captionShadow: Boolean = theme === null ? true : theme.captionShadow;
+  const spend: Int = pointsToSpend();
+  const earned: Int = pointsEarned();
+  const total: Int = MasteryTasks.length;
+  let caption: String = `Combat mastery points ${stringOf(earned)} / ${stringOf(total)}`;
+  if (spend > 0) {
+    caption = `You have ${stringOf(spend)} Combat Mastery ${textPlural(spend, 'point', 'points')} to use!`;
+  } else if (earned >= total) {
+    caption = 'You have earned all Combat Mastery points!';
+  }
+  return (
+    <>
+      <rect x={2} y={2} w={width - 4} h={29} color={MasteryColour.BAR_OUTLINE} />
+      <sprite x={3} y={3} w={width - 6} h={27} sprite={track} tiling />
+      <sprite x={3} y={3} w={scaled(earned, total, width)} h={27} sprite={fill} tiling />
+      <text
+        x={1}
+        y={1}
+        w={width - 2}
+        h={{ fill: 2 }}
+        text={caption}
+        font={captionFont}
+        color={captionColour}
+        shadow={captionShadow}
+        align="center"
+        valign="middle"
+      />
+      <rect x={0} y={0} w={width} h={33} color={MasteryColour.BAR_FRAME} />
+      <rect x={1} y={1} w={width - 2} h={31} color={MasteryColour.BAR_FRAME} />
+    </>
+  );
+}
+
+function ViewAllFrame(): Component {
+  const box = useUniverse();
+  const style = CellBoxes.at(0);
+  if (style === null) {
+    return null;
+  }
+  return (
+    <>
+      <rect x={1} y={1} w={box.width - 2} h={box.height - 2} fill color={MasteryColour.TAB_BED} />
+      <StructBoxFrame x={0} y={0} w={box.width} h={box.height} style={style} />
+    </>
+  );
+}
+
+function MasteryTabs(): Component {
+  const box = useUniverse();
+  const tab: Int = masteryTab();
+  const accent: Int = masteryAccent();
+  const width: Int = (box.width - 6) / 3;
+  return (
+    <>
+      <MasteryTab
+        index={0}
+        width={width}
+        height={box.height}
+        stripW={box.width}
+        label="Masteries"
+        colour={accent}
+        selected={tab === 0}
+      />
+      <MasteryTab
+        index={1}
+        width={width}
+        height={box.height}
+        stripW={box.width}
+        label="Mastery Points"
+        colour={accent}
+        selected={tab === 1}
+      />
+      <MasteryTab
+        index={2}
+        width={width}
+        height={box.height}
+        stripW={box.width}
+        label="Combat Summary"
+        colour={accent}
+        selected={tab === 2}
+      />
+    </>
+  );
+}
+
+function MasteryTab({
+  index,
+  width,
+  height,
+  stripW,
+  label,
+  colour,
+  selected,
+}: {
+  index: Int;
+  width: Int;
+  height: Int;
+  stripW: Int;
+  label: String;
+  colour: Int;
+  selected: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const mobile: Boolean = onMobile();
+  const left: Int = index * (width + 3);
+  const state: Int = selected ? TabState.SELECTED : hovered === 1 ? TabState.HOVERED : TabState.UNSELECTED;
+  const skin = TabSkins.at(state);
+  const fill: Sprite = skin === null ? -1 : skin.fill;
+  const edgeLeft: Sprite = skin === null ? -1 : skin.edgeLeft;
+  const edgeTop: Sprite = skin === null ? -1 : skin.edgeTop;
+  const edgeRight: Sprite = skin === null ? -1 : skin.edgeRight;
+  const cornerTl: Sprite = skin === null ? -1 : skin.cornerTl;
+  const cornerTr: Sprite = skin === null ? -1 : skin.cornerTr;
+  const side: Int = selected ? 4 : 7;
+  const leftSide: Int = left === 0 && selected ? 4 : 7;
+  const rightSide: Int = left + width === stripW && selected ? 4 : 7;
+  return (
+    <>
+      {selected ? (
+        <rect x={left + 1} y={1} w={width - 2} h={{ fill: 3 }} fill color={MasteryColour.TAB_BED} />
+      ) : (
+        <rect
+          x={left + 1}
+          y={1}
+          w={width - 2}
+          h={{ fill: 3 }}
+          fill
+          color={MasteryColour.TAB_BED}
+          options={['View']}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          onOptionSelect={() => masteryTabSelect(index)}
+          onMouseEnter={mobile ? undefined : () => setHovered(1)}
+          onMouseLeave={mobile ? undefined : () => setHovered(0)}
+        />
+      )}
+      <sprite x={left + 2} y={4} w={width - 4} h={{ fill: side }} sprite={fill} tiling />
+      <sprite x={left} y={4} w={4} h={{ fill: leftSide }} sprite={edgeLeft} tiling />
+      <sprite x={left + 4} y={0} w={width - 8} h={4} sprite={edgeTop} tiling />
+      <sprite x={left + width - 4} y={4} w={4} h={{ fill: rightSide }} sprite={edgeRight} tiling />
+      <sprite x={left} y={0} w={4} h={4} sprite={cornerTl} tiling />
+      <sprite x={left + width - 4} y={0} w={4} h={4} sprite={cornerTr} tiling />
+      <sprite x={left + 4} y={(height + 1) / 2} w={0} h={0} sprite={-1} tiling />
+      <text
+        x={left + 8}
+        y={4}
+        w={width - 16}
+        h={{ fill: 7 }}
+        text={label}
+        font={MasteryFonts.BODY}
+        color={colour}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}

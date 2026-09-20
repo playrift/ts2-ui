@@ -1,0 +1,130 @@
+import { param, predictServerState, useServerState, useState } from 'ts2';
+
+import { Relic } from '../lib/league-relics.data';
+import { itemName, playSound } from '../lib/lib.engine';
+import { leagueRelicActive } from '../lib/lib.magic';
+import { Params } from '../lib/game/params';
+import { prepotDeviceLoadoutsUiActiveDevice } from '../lib/game/varcs';
+import { BankView, BanksideSounds, BanksideVarbits, BanksideVarps } from './bankside.constants';
+import { runeNamePickerOpen, runePickerOpen } from './bankside.state';
+
+export function secondInventoryAvailable(): Int {
+  if (leagueRelicActive(1731 as Relic) === 1) {
+    return 1;
+  }
+  return 0;
+}
+
+export function isPrepotDevice(item: Item): Boolean {
+  if (param(item, Params.DEATHKEEP_DISASSEMBLES) === 1 && param(item, Params.PARAM_1978) > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function prepotDeviceSlots(item: Item): Int {
+  return param(item, Params.PARAM_1978);
+}
+
+export function setView(view: Int, item: Item): void {
+  predictServerState(BanksideVarbits.VIEW, view);
+  predictServerState(BanksideVarps.BANK_VIEWCONTAINER_OBJ, item as Int);
+}
+
+export function banksideViewAsked(view: Int, obj: Item): Int {
+  if (view === BankView.LOOTING_BAG) {
+    return BankView.LOOTING_BAG;
+  }
+  if (view === BankView.SECOND_INVENTORY) {
+    return BankView.SECOND_INVENTORY;
+  }
+  if (view === BankView.RUNE_POUCH || view === BankView.DIVINE_RUNE_POUCH) {
+    return BankView.RUNE_POUCH;
+  }
+  if (view === BankView.PREPOT_DEVICE && isPrepotDevice(obj)) {
+    return BankView.PREPOT_DEVICE;
+  }
+  return BankView.ITEMS;
+}
+
+export function banksideApplyArm(): void {
+  const view: Int = useServerState(BanksideVarbits.VIEW);
+  const obj: Item = useServerState(BanksideVarps.BANK_VIEWCONTAINER_OBJ) as Item;
+  const asked: Int = banksideViewAsked(view, obj);
+  if (asked === BankView.SECOND_INVENTORY && secondInventoryAvailable() !== 1) {
+    setView(BankView.ITEMS, -1);
+    return;
+  }
+  if (asked === BankView.PREPOT_DEVICE) {
+    prepotDeviceShow(obj);
+  }
+}
+
+export function prepotDeviceShow(item: Item): void {
+  const [active, setActive] = useState(prepotDeviceLoadoutsUiActiveDevice);
+  if (active !== -1 && active === item) {
+    return;
+  }
+  setActive(item as Int);
+}
+
+export function selectView(op: Int, item: Item, mode: Int): void {
+  if (op === 1) {
+    playSound(BanksideSounds.SELECT);
+    setView(mode, item);
+    banksideApplyArm();
+  }
+  if (mode !== BankView.RUNE_POUCH && mode !== BankView.DIVINE_RUNE_POUCH) {
+    const [, setPicker] = useState(runePickerOpen);
+    setPicker(0);
+  }
+}
+
+export function dismissView(op: Int): void {
+  selectView(op, -1, BankView.ITEMS);
+}
+
+export function banksideInit(): void {
+  const [, setActive] = useState(prepotDeviceLoadoutsUiActiveDevice);
+  setActive(-1);
+  banksideApplyArm();
+}
+
+export function closeRunePickers(): void {
+  const [, setPicker] = useState(runePickerOpen);
+  setPicker(0);
+  const [, setNames] = useState(runeNamePickerOpen);
+  setNames(0);
+}
+
+export function potionSettable(item: Item): Boolean {
+  const category: Int = param(item, Params.PARAM_468);
+  if (
+    category === 44 ||
+    category === 49 ||
+    category === 51 ||
+    category === 54 ||
+    category === 55 ||
+    category === 56 ||
+    category === 57 ||
+    category === 58 ||
+    category === 59 ||
+    category === 0
+  ) {
+    return false;
+  }
+  if (param(item, Params.PARAM_403) !== 0) {
+    return false;
+  }
+  if (param(item, Params.PARAM_181) > 0) {
+    return false;
+  }
+  if (param(item, Params.PARAM_59) === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function orangeName(item: Item): String {
+  return `<col=ff9040>${itemName(item)}</col>`;
+}

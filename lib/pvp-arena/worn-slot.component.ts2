@@ -1,0 +1,116 @@
+import { CS2, useDerived } from 'ts2';
+import { flashFor } from '../lib.components';
+import { itemName } from '../lib.engine';
+import { loadoutWornItem } from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.helpers';
+import { SlotIcons } from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.data';
+import { dropZone } from './drop-zone';
+import { rearrange, wornMarked } from './loadout-edit';
+import { itemOf } from './loadout-state';
+import {
+  DRAG_DEAD,
+  FillerCamera,
+  STACK_SHOWN,
+  SuppliesColor,
+  SuppliesModels,
+  SuppliesSprites,
+  Wash,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+
+export function WornSlot({
+  build,
+  slot,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  build: Int;
+  slot: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const key: Int = useDerived(() => loadoutWornItem(build, slot));
+  const held: Item = itemOf(key);
+  const marked: Int = useDerived(() => wornMarked(build, slot));
+  const placeholder: Sprite = SlotIcons.get(slot) ?? -1;
+
+  if (held === -1) {
+    return (
+      <>
+        <sprite x="center" y="center" w={36} h={36} sprite={SuppliesSprites.SLOT_BACK} />
+        <sprite x={{ center: 2 }} y="center" w={36} h={32} transparency={Wash.CLEAR} />
+        <sprite x="center" y="center" w={32} h={32} sprite={placeholder} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <sprite x="center" y="center" w={36} h={36} sprite={SuppliesSprites.SLOT_BACK} />
+      <sprite
+        x={{ center: 2 }}
+        y="center"
+        w={36}
+        h={32}
+        item={held}
+        itemCount={CS2.item_stackable(held) ? STACK_SHOWN : 1}
+        transparency={Wash.OPAQUE}
+        outline={1}
+        shadowColor={SuppliesColor.ITEM_SHADOW}
+        options={['Discard', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={`<col=ff9040>${itemName(held)}</col>`}
+        onOptionSelect={(event) => {
+          flashFor(event.self, Wash.PRESS, Wash.OPAQUE);
+        }}
+        draggable={proxy}
+        dragDeadZone={DRAG_DEAD}
+        dragDeadTime={DRAG_DEAD}
+        onDragComplete={(event) => {
+          rearrange(
+            build,
+            slot,
+            -1,
+            dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13),
+          );
+        }}
+      />
+      {marked === 1 && (
+        <model
+          x={{ center: 1 }}
+          y="center"
+          w={36}
+          h={32}
+          model={SuppliesModels.FILLER}
+          offsetX={FillerCamera.OFFSET_X}
+          offsetY={FillerCamera.OFFSET_Y}
+          pitch={FillerCamera.PITCH}
+          yaw={FillerCamera.YAW}
+          roll={FillerCamera.ROLL}
+          zoom={FillerCamera.ZOOM}
+        />
+      )}
+    </>
+  );
+}

@@ -1,0 +1,138 @@
+import { CS2, Engine, useRef, useRerenderOn, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { opsound } from '../lib/lib.helpers';
+import {
+  ChannelColor,
+  ChannelFonts,
+  JOIN_OP,
+  LEAVE_OP_LOCKED,
+  Layout,
+  SETUP_OP,
+  SETUP_OPSOUND_MASK,
+} from './chatchannel-current.constants';
+import { joinchatOnop } from './chatchannel-current.state';
+
+function HoverStoneButton({ pressed }: { pressed: Int }): Component {
+  const base = useRef();
+  const down = useRef();
+
+  let baseHidden: Boolean = false;
+  let downHidden: Boolean = true;
+  if (pressed === 1) {
+    baseHidden = true;
+    downHidden = false;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      onMouseRepeat={
+        pressed === 0
+          ? () => {
+              base.hide = true;
+              down.hide = false;
+            }
+          : undefined
+      }
+      onMouseLeave={
+        pressed === 0
+          ? () => {
+              base.hide = false;
+              down.hide = true;
+            }
+          : undefined
+      }
+    >
+      <layer ref={base} w="fill" h="fill" hide={baseHidden}>
+        <StoneButton />
+      </layer>
+      <layer ref={down} w="fill" h="fill" hide={downHidden}>
+        <StoneButtonPressed />
+      </layer>
+    </layer>
+  );
+}
+
+export function ChannelButtons(): Component {
+  useRerenderOn(Engine.CLAN);
+
+  const blocked: Int = useServerState(Varbits.CHATCHANNEL_BLOCKED);
+  const inRaid: Int = useServerState(Varbits.RAIDS_CLIENT_INDUNGEON);
+  const clanWarTeam: Int = useServerState(Varbits.CLANWARS_MYTEAM);
+
+  let members: Int = CS2.friendschat_chat_count_get();
+  if (blocked === 1) {
+    members = 0;
+  }
+
+  let joinLabel: String = '<col=0dc10d>Join</col>';
+  let joinOp: String = 'Join';
+  let leaveOp: String = '';
+  let expected: Int = JOIN_OP;
+  let setupLabel: String = 'Setup';
+  let setupOp: String = 'Setup';
+  if (blocked === 1) {
+    joinLabel = '<col=9f9f9f>---</col>';
+    joinOp = '';
+    setupLabel = '<col=9f9f9f>---</col>';
+    setupOp = '';
+  } else if (members > 0) {
+    joinLabel = '<col=ff0000>Leave</col>';
+    if (inRaid === 1 || clanWarTeam !== 0) {
+      joinOp = '';
+      leaveOp = 'Leave';
+      expected = LEAVE_OP_LOCKED;
+    } else {
+      joinOp = 'Leave';
+    }
+  }
+
+  return (
+    <>
+      <layer x={Layout.BUTTON_X} y={{ bottom: Layout.BUTTON_BOTTOM }} w={Layout.BUTTON_W} h={Layout.BUTTON_H}>
+        <HoverStoneButton pressed={blocked} />
+      </layer>
+      <text
+        x={Layout.BUTTON_X}
+        y={{ bottom: Layout.BUTTON_BOTTOM }}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+        text={joinLabel}
+        font={ChannelFonts.BODY}
+        color={ChannelColor.CAPTION}
+        align="center"
+        valign="middle"
+        shadow
+        options={[joinOp, '', '', '', '', leaveOp]}
+        onOptionSelect={(event) => joinchatOnop(event.option, expected)}
+      />
+
+      <layer
+        x={{ right: Layout.BUTTON_X }}
+        y={{ bottom: Layout.BUTTON_BOTTOM }}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+      >
+        <HoverStoneButton pressed={blocked} />
+      </layer>
+      <text
+        x={{ right: Layout.BUTTON_X }}
+        y={{ bottom: Layout.BUTTON_BOTTOM }}
+        w={Layout.BUTTON_W}
+        h={Layout.BUTTON_H}
+        text={setupLabel}
+        font={ChannelFonts.BODY}
+        color={ChannelColor.CAPTION}
+        align="center"
+        valign="middle"
+        shadow
+        options={[setupOp]}
+        onOptionSelect={(event) => opsound(event.option, SETUP_OPSOUND_MASK)}
+      />
+    </>
+  );
+}

@@ -1,18 +1,60 @@
-import { sessionState } from 'ts2';
+import { CS2, sessionState, useServerState, useState } from 'ts2';
 
 import { tooltipDown, tooltipDwellElapsed, tooltipHide, tooltipMark, tooltipRaise } from '../lib/tooltip.component';
+import { Varbits } from '../lib/game/varbits';
 import { Layout } from './farming-view.constants';
 
-export const invokedPatch = sessionState(8);
-export const invokedItem = sessionState(1942);
-export const invokedGrowth = sessionState(3);
-export const invokedLastState = sessionState(4);
-export const invokedMinYield = sessionState(2);
-export const invokedWatered = sessionState(1);
-export const invokedFlags = sessionState(32);
-export const invokedName = sessionState('allotment');
+export const invokedPatch = sessionState(-1);
+export const invokedItem = sessionState(-1);
+export const invokedGrowth = sessionState(0);
+export const invokedLastState = sessionState(0);
+export const invokedMinYield = sessionState(0);
+export const invokedWatered = sessionState(0);
+export const invokedFlags = sessionState(0);
+export const invokedName = sessionState('');
+
+export function farmingViewSetPanel(patch: Int, item: Item, packed: Coord, flags: Int, name: String): void {
+  const [, setPatch] = useState(invokedPatch);
+  const [, setItem] = useState(invokedItem);
+  const [, setGrowth] = useState(invokedGrowth);
+  const [, setLastState] = useState(invokedLastState);
+  const [, setMinYield] = useState(invokedMinYield);
+  const [, setWatered] = useState(invokedWatered);
+  const [, setFlags] = useState(invokedFlags);
+  const [, setName] = useState(invokedName);
+  setItem(item as Int);
+  setGrowth(packed.x % 64);
+  setLastState(packed.z % 64);
+  setMinYield(packed.x / 64);
+  setWatered(packed.plane);
+  setFlags(flags);
+  setName(name);
+  setPatch(patch);
+}
+
+export function farmingViewReset(): void {
+  const [, setPatch] = useState(invokedPatch);
+  const [, setItem] = useState(invokedItem);
+  const [, setGrowth] = useState(invokedGrowth);
+  const [, setLastState] = useState(invokedLastState);
+  const [, setMinYield] = useState(invokedMinYield);
+  const [, setWatered] = useState(invokedWatered);
+  const [, setFlags] = useState(invokedFlags);
+  const [, setName] = useState(invokedName);
+  setPatch(-1);
+  setItem(-1);
+  setGrowth(0);
+  setLastState(0);
+  setMinYield(0);
+  setWatered(0);
+  setFlags(0);
+  setName('');
+}
 
 export function showPatchTooltip(): void {
+  if (onEnhancedMobile()) {
+    return;
+  }
   tooltipMark();
   if (tooltipDown() && tooltipDwellElapsed(Layout.TOOLTIP_DWELL)) {
     tooltipRaise();
@@ -21,4 +63,17 @@ export function showPatchTooltip(): void {
 
 export function hidePatchTooltip(): void {
   tooltipHide();
+}
+
+export function onEnhancedMobile(): Boolean {
+  const type: Int = CS2.clienttype();
+  if (useServerState(Varbits.OSM_SIMULATE) === 1) {
+    if (type === 4 || type === 5 || type === 10) {
+      return true;
+    }
+  }
+  if (type === 7 || type === 8) {
+    return true;
+  }
+  return false;
 }

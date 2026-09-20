@@ -1,0 +1,224 @@
+import { CS2, useRef } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { textWidth } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import {
+  Copy,
+  INVISIBLE,
+  Layout,
+  OtherLayout,
+  RewardsColour,
+  RewardsFonts,
+  RewardTab,
+} from './soul-wars-rewards.constants';
+import { needAtLeast, needTokens, rewardGate, tokenWord } from './soul-wars-rewards.helpers';
+import { rewardRefuse, rewardSelect } from './soul-wars-rewards.state';
+import { OtherCosts } from './other-costs.data';
+import { OtherRewards } from './other-rewards.data';
+import { RewardCounts } from './reward-counts.data';
+
+export function OtherList({ pick, sub, tokens, scroll }: { pick: Int; sub: Int; tokens: Int; scroll: Int }): Component {
+  const pane = useRef();
+  const mobile: Boolean = onMobile();
+  const rows: Int = OtherRewards.length;
+  const extent: Int = OtherLayout.TOP + ((rows - 1) / OtherLayout.COLUMNS) * Layout.ROW_STEP + Layout.ROW_STEP;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        w={{ fill: Layout.LIST_INSET_W }}
+        h="fill"
+        scrollHeight={extent >= Layout.PAGE_H ? extent : 0}
+        scrollY={scroll}
+      >
+        {OtherRewards.map((reward, index) => (
+          <OtherEntry
+            reward={reward}
+            index={index}
+            x={OtherLayout.LEFT + (index % OtherLayout.COLUMNS) * OtherLayout.COLUMN_W}
+            y={OtherLayout.TOP + (index / OtherLayout.COLUMNS) * Layout.ROW_STEP}
+            pick={pick}
+            sub={sub}
+            tokens={tokens}
+            mobile={mobile}
+            pane={pane}
+          />
+        ))}
+      </layer>
+      <layer x={{ right: Layout.SCROLLBAR_X }} y="center" w={Layout.SCROLLBAR_W} h={{ fill: Layout.SCROLLBAR_INSET_H }}>
+        <ScrollbarVertical
+          content={pane}
+          track={ScrollbarSprites.TRACK}
+          capTopSprite={ScrollbarSprites.CAP_TOP}
+          thumbSprite={ScrollbarSprites.THUMB}
+          capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+          arrowUp={ScrollbarSprites.ARROW_UP}
+          arrowDown={ScrollbarSprites.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function OtherEntry({
+  reward,
+  index,
+  x,
+  y,
+  pick,
+  sub,
+  tokens,
+  mobile,
+  pane,
+}: {
+  reward: ItemName;
+  index: Int;
+  x: Int;
+  y: Int;
+  pick: Int;
+  sub: Int;
+  tokens: Int;
+  mobile: Boolean;
+  pane: Ref;
+}): Component {
+  const buyOne = useRef();
+  const cost: Int = OtherCosts.at(index) ?? -1;
+  const rawCount: Int = RewardCounts.get(reward as Item) ?? 1;
+  const name: String = CS2.item_name(reward as Item);
+  const gate: String = rewardGate(reward);
+  const refusedOne: String = tokens < cost ? needTokens(cost) : gate;
+  const refusedX: String = tokens < cost ? needAtLeast(cost) : gate;
+  const refused: Boolean = CS2.string_length(refusedOne) > 0;
+  const rest: Int = refused ? RewardsColour.GREY : RewardsColour.ORANGE;
+  const hot: Int = refused ? RewardsColour.GREY : RewardsColour.YELLOW;
+  const chosen: Boolean = pick === index;
+  const oneChosen: Boolean = chosen && sub === 0;
+  const xChosen: Boolean = chosen && sub === 1;
+  const reachable: Boolean = tokens >= cost || (CS2.string_length(gate) > 0 && !mobile);
+  const labelW: Int = OtherLayout.COLUMN_W - Layout.LABEL_X;
+  const oneText: String = `Buy 1 (${cost} ${tokenWord(cost)})`;
+  const oneW: Int = textWidth(oneText, Layout.BUY_MEASURE_W, RewardsFonts.SMALL) + Layout.BUY_PAD;
+
+  return (
+    <>
+      <rect x={x} y={y} w={OtherLayout.COLUMN_W} h={Layout.ROW_H} fill transparency={INVISIBLE} />
+      <sprite
+        x={x + Layout.ICON_X}
+        y={y}
+        w={Layout.ICON_W}
+        h={Layout.ROW_H}
+        item={reward}
+        itemCount={rawCount <= 1 ? -1 : rawCount}
+        shadowColor={RewardsColour.SHADOW}
+        outline={1}
+        options={[Copy.SELECT, '', '', '', Copy.EXAMINE]}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onMouseRepeat={
+          !oneChosen && reachable
+            ? () => {
+                buyOne.color = hot;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          !oneChosen && reachable
+            ? () => {
+                buyOne.color = rest;
+              }
+            : undefined
+        }
+        onOptionSelect={(event) => {
+          if (refused) {
+            rewardRefuse(event.option, RewardTab.OTHER, refusedOne, pane.scrollY);
+            return;
+          }
+          rewardSelect(event.option, RewardTab.OTHER, index, 0, pane.scrollY);
+        }}
+      />
+      <text
+        x={x + Layout.LABEL_X}
+        y={y}
+        w={labelW}
+        h={Layout.ROW_H}
+        font={textWidth(name, Layout.MEASURE_W, RewardsFonts.BODY) > labelW ? RewardsFonts.SMALL : RewardsFonts.BODY}
+        shadow
+        align="left"
+        valign="top"
+        color={refused ? RewardsColour.GREY : chosen ? RewardsColour.WHITE : RewardsColour.GREEN}
+        text={name}
+      />
+      <text
+        ref={buyOne}
+        x={x + Layout.LABEL_X}
+        y={y}
+        w={oneW}
+        h={Layout.ROW_H}
+        font={RewardsFonts.SMALL}
+        shadow
+        align="left"
+        valign="bottom"
+        color={oneChosen ? RewardsColour.WHITE : rest}
+        text={cost > 0 ? oneText : ''}
+        options={[`Select <col=ff9040>${name}</col>`, '', '', '', Copy.EXAMINE]}
+        onMouseRepeat={
+          !oneChosen && reachable
+            ? (event) => {
+                event.self.color = hot;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          !oneChosen && reachable
+            ? (event) => {
+                event.self.color = rest;
+              }
+            : undefined
+        }
+        onOptionSelect={(event) => {
+          if (refused) {
+            rewardRefuse(event.option, RewardTab.OTHER, refusedOne, pane.scrollY);
+            return;
+          }
+          rewardSelect(event.option, RewardTab.OTHER, index, 0, pane.scrollY);
+        }}
+      />
+      <text
+        x={x + Layout.LABEL_X + oneW}
+        y={y}
+        w={labelW - oneW}
+        h={Layout.ROW_H}
+        font={RewardsFonts.SMALL}
+        shadow
+        align="left"
+        valign="bottom"
+        color={xChosen ? RewardsColour.WHITE : rest}
+        text={Copy.BUY_X}
+        options={[`Select <col=ff9040>${cost} Tokens/${name}</col>`, '', '', '', Copy.EXAMINE]}
+        onMouseRepeat={
+          !xChosen && reachable
+            ? (event) => {
+                event.self.color = hot;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          !xChosen && reachable
+            ? (event) => {
+                event.self.color = rest;
+              }
+            : undefined
+        }
+        onOptionSelect={(event) => {
+          if (refused) {
+            rewardRefuse(event.option, RewardTab.OTHER, refusedX, pane.scrollY);
+            return;
+          }
+          rewardSelect(event.option, RewardTab.OTHER, index, 1, pane.scrollY);
+        }}
+      />
+    </>
+  );
+}

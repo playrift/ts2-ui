@@ -1,0 +1,224 @@
+import { CS2, intArray, useState } from 'ts2';
+
+import { Sprites } from '../lib/game/sprites';
+
+import {
+  Drag,
+  Grip,
+  Stripe,
+  TelenexusColor,
+  TelenexusFonts,
+  TelenexusOrder,
+  TelenexusTeleport,
+  TelenexusTeleports,
+  scrolling1Ref,
+  scrolling2Ref,
+} from './telenexus.constants';
+import { NEXUS_MAX_ROWS, gripDrop, rowHeight } from './telenexus.lists';
+import { CostRow, CostY } from './telenexus.state';
+import { teleportRequirements } from './telenexus.requirements';
+import { claimSlot, isSlotted, removeTeleport, setSlot, slotCapacity, slotValue, slotsFull } from './telenexus.slots';
+
+export function AvailableRows(): Component {
+  const [costRow, setCostRow] = useState(CostRow);
+  const [costY, setCostY] = useState(CostY);
+  const h: Int = rowHeight();
+  const drop: Int = gripDrop();
+
+  const rows = intArray(NEXUS_MAX_ROWS);
+  let at: Int = 0;
+  let shown: Int = 0;
+  while (at < TelenexusOrder.length) {
+    const teleport: Int = TelenexusOrder.at(at) ?? -1;
+    if (isSlotted(teleport) === false) {
+      rows[shown] = teleport;
+      shown = shown + 1;
+    }
+    at = at + 1;
+  }
+  let pad: Int = shown;
+  while (pad < NEXUS_MAX_ROWS) {
+    rows[pad] = -1;
+    pad = pad + 1;
+  }
+
+  return (
+    <>
+      <layer w="fill" h="fill">
+        {rows.map(
+          (teleport, index) =>
+            teleport !== -1 && (
+              <rect
+                x={0}
+                y={index * h}
+                w="fill"
+                h={h}
+                fill
+                color={index % 2 === 0 ? Stripe.EVEN : Stripe.ODD}
+                transparency={index % 2 === 0 ? Stripe.EVEN_TRANS : Stripe.ODD_TRANS}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer w="fill" h="fill">
+        <rect x={0} y={costY} w="fill" h={h} fill color={0} hide={costRow === -1} />
+
+        {rows.map(
+          (teleport, index) => teleport !== -1 && <AvailableRow teleport={teleport} top={index * h} height={h} />,
+        )}
+      </layer>
+
+      <layer w="fill" h="fill">
+        {rows.map(
+          (teleport, index) =>
+            teleport !== -1 && (
+              <sprite
+                x={0}
+                y={index * h + Grip.OFFSET_AVAILABLE + drop}
+                w={Grip.W}
+                h={Grip.H}
+                sprite={Sprites.DRAG_HANDLE}
+              />
+            ),
+        )}
+      </layer>
+    </>
+  );
+}
+
+function AvailableRow({ teleport, top, height }: { teleport: Int; top: Int; height: Int }): Component {
+  const [, setCostRow] = useState(CostRow);
+  const [, setCostY] = useState(CostY);
+  const row: TelenexusTeleport | null = TelenexusTeleports.get(teleport);
+  const name: String = row === null ? '' : row.name;
+  const met: Boolean = row === null ? false : requirementsMet(row);
+
+  return (
+    <text
+      x={0}
+      y={top}
+      w="fill"
+      h={height}
+      text={`    ${name}`}
+      font={TelenexusFonts.LABEL}
+      color={met ? TelenexusColor.BUTTON : TelenexusColor.ROW_LOCKED}
+      align="left"
+      valign="middle"
+      shadow
+      optionSubject="Show cost"
+      options={[name]}
+      dragDeadTime={met ? Drag.DEAD_TIME_AVAILABLE : 0}
+      dragDeadZone={met ? Drag.DEAD_ZONE : 0}
+      onOptionSelect={() => {
+        setCostRow(teleport);
+        setCostY(top);
+      }}
+      onDrag={() => setCostRow(-1)}
+    />
+  );
+}
+
+function requirementsMet(row: TelenexusTeleport): Boolean {
+  const [met, _] = teleportRequirements(row);
+  return met;
+}
+
+export function SlottedRows(): Component {
+  const h: Int = rowHeight();
+  const drop: Int = gripDrop();
+  const capacity: Int = slotCapacity();
+
+  const rows = intArray(NEXUS_MAX_ROWS);
+  let slot: Int = 1;
+  let shown: Int = 0;
+  while (slot <= NEXUS_MAX_ROWS) {
+    if (slot <= capacity && slotValue(slot) > 0) {
+      rows[shown] = slot;
+      shown = shown + 1;
+    }
+    slot = slot + 1;
+  }
+  let pad: Int = shown;
+  while (pad < NEXUS_MAX_ROWS) {
+    rows[pad] = -1;
+    pad = pad + 1;
+  }
+
+  return (
+    <>
+      <layer w="fill" h="fill">
+        {rows.map(
+          (row, index) =>
+            row !== -1 && (
+              <rect
+                x={0}
+                y={index * h}
+                w="fill"
+                h={h}
+                fill
+                color={index % 2 === 0 ? Stripe.EVEN : Stripe.ODD}
+                transparency={index % 2 === 0 ? Stripe.EVEN_TRANS : Stripe.ODD_TRANS}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer w="fill" h="fill">
+        <rect x={0} y={0} w="fill" h={h} fill color={0} hide />
+
+        {rows.map((slotIndex, index) => slotIndex !== -1 && <SlottedRow slot={slotIndex} top={index * h} height={h} />)}
+      </layer>
+
+      <layer w="fill" h="fill">
+        {rows.map(
+          (row, index) =>
+            row !== -1 && (
+              <sprite
+                x={0}
+                y={index * h + Grip.OFFSET_SLOTTED + drop}
+                w={Grip.W}
+                h={Grip.H}
+                sprite={Sprites.DRAG_HANDLE}
+              />
+            ),
+        )}
+      </layer>
+    </>
+  );
+}
+
+function SlottedRow({ slot, top, height }: { slot: Int; top: Int; height: Int }): Component {
+  const teleport: Int = slotValue(slot);
+  const row: TelenexusTeleport | null = TelenexusTeleports.get(teleport);
+  const name: String = row === null ? '' : row.name;
+
+  return (
+    <text
+      x={0}
+      y={top}
+      w="fill"
+      h={height}
+      text={`    ${name}`}
+      font={TelenexusFonts.LABEL}
+      color={TelenexusColor.BUTTON}
+      align="left"
+      valign="middle"
+      shadow
+      dragDeadTime={Drag.DEAD_TIME_SLOTTED}
+      dragDeadZone={Drag.DEAD_ZONE}
+    />
+  );
+}
+
+function dragScroll(pane: Ref, mouseY: Int, height: Int): void {
+  const at: Int = CS2.if_scroll_y_get(pane);
+  const paneHeight: Int = CS2.if_height_get(pane);
+  if (mouseY < Drag.SCROLL_TOP + height) {
+    CS2.if_scroll_pos_set(0, at > Drag.SCROLL_STEP ? at - Drag.SCROLL_STEP : 0, pane);
+    return;
+  }
+  if (mouseY > Drag.SCROLL_TOP + paneHeight - height) {
+    CS2.if_scroll_pos_set(0, Math.min(CS2.if_scroll_height_get(pane), at + Drag.SCROLL_STEP), pane);
+  }
+}

@@ -1,24 +1,31 @@
-import { CS2, useServerState, useState } from 'ts2';
+import { useServerState, useState } from 'ts2';
 
 import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
 import { scaled } from '../lib/lib.engine';
-import { Anchor, overlayRelayout } from '../lib/lib.overlay';
 import {
   BreakpointGates,
   HEALTHY_TEXT,
-  Infection,
-  InfectionColor,
   INFECTION_MAX,
   InfectionVarbits,
   Layout,
   OverlayWidths,
   STRANGLED_TEXT,
+  universe,
 } from './dt2-infection.constants';
+import {
+  infectionBarPx,
+  infectionGlyphAlpha,
+  infectionMeasuredPx,
+  infectionWalkTarget,
+  infectionWalkTrackPx,
+} from './dt2-infection.state';
 
-const enum SizeMode {
-  ABS = 0,
-  MINUS = 1,
+export const enum Snap {
+  WALK = 0,
+  NOW = 1,
 }
+
+const CLEAR = 255;
 
 export function breakpointOf(width: Int, height: Int): Int {
   let level: Int = 0;
@@ -47,68 +54,113 @@ export function overlayWidth(breakpoint: Int): Int {
   return OverlayWidths.BASE;
 }
 
-export function infectionRelayout(dodger: ComponentId, root: ComponentId, card: ComponentId): void {
-  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
-  const breakpoint: Int = breakpointOf(CS2.if_width_get(root), CS2.if_height_get(root));
-  setBreakpoint(breakpoint);
-
-  CS2.if_size_set(overlayWidth(breakpoint), Layout.CARD_H, SizeMode.ABS, SizeMode.ABS, card);
-  overlayRelayout(dodger, card, Infection.DODGE, Anchor.LEFT, Anchor.TOP, 1);
+export function cardWidth(): Int {
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  return overlayWidth(breakpoint);
 }
 
-export function infectionBar(track: ComponentId, percent: ComponentId, bar: ComponentId, icon: ComponentId): void {
-  const infection: Int = useServerState(InfectionVarbits.INFECTION);
-  const trackW: Int = CS2.if_width_get(track);
+export function trackWidth(): Int {
+  return cardWidth() - Layout.BAR_INSET_W;
+}
 
+export function barTarget(infection: Int, trackW: Int): Int {
   if (infection === 0) {
-    percent.text = HEALTHY_TEXT;
-    percent.color = InfectionColor.HEALTHY;
-    CS2.if_size_set(0, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-    return;
+    return 0;
   }
-
   if (infection === INFECTION_MAX) {
-    percent.text = STRANGLED_TEXT;
-    percent.color = InfectionColor.STRANGLED;
-    CS2.if_size_set(trackW, CS2.if_height_get(bar), SizeMode.ABS, SizeMode.ABS, bar);
-    return;
+    return trackW;
   }
-
-  percent.color = InfectionColor.TEXT;
-
-  let target: Int = scaled(infection, INFECTION_MAX, trackW);
+  const target: Int = scaled(infection, INFECTION_MAX, trackW);
   if (target < 1) {
-    target = 1;
+    return 1;
   }
-  const shown: Int = CS2.if_width_get(bar);
+  return target;
+}
 
-  if (shown <= 0) {
-    CS2.if_size_set(1, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+export function glyphAlphaFor(px: Int, trackW: Int): Int {
+  return scaled(px, trackW, CLEAR);
+}
+
+export function infectionCaption(infection: Int): String {
+  if (infection === 0) {
+    return HEALTHY_TEXT;
   }
-
+  if (infection === INFECTION_MAX) {
+    return STRANGLED_TEXT;
+  }
   let pct: Int = scaled(infection, INFECTION_MAX, 100);
   if (pct < 1) {
     pct = 1;
   }
-  percent.text = `Infection: ${stringOf(pct)}%`;
+  return `Infection: ${pct}%`;
+}
 
-  if (shown <= 0) {
+export function publishBreakpoint(): void {
+  const [, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  setBreakpoint(breakpointOf(universe.width, universe.height));
+}
+
+export function infectionBar(snap: Int): void {
+  const infection: Int = useServerState(InfectionVarbits.INFECTION);
+  const [barPx, setBarPx] = useState(infectionBarPx);
+  const [, setWalkTarget] = useState(infectionWalkTarget);
+  const [, setWalkTrackPx] = useState(infectionWalkTrackPx);
+
+  if (infection === 0) {
+    setBarPx(0);
+    return;
+  }
+  const trackW: Int = trackWidth();
+  if (infection === INFECTION_MAX) {
+    setBarPx(trackW);
     return;
   }
 
+  const target: Int = barTarget(infection, trackW);
+  if (barPx <= 0) {
+    setBarPx(1);
+  }
+  setWalkTarget(target);
+  setWalkTrackPx(trackW);
+  if (snap === Snap.NOW) {
+    infectionBarWalk(snap);
+  }
+}
+
+export function infectionBarWalk(snap: Int): void {
+  const [walkTarget, setWalkTarget] = useState(infectionWalkTarget);
+  if (walkTarget === -1) {
+    return;
+  }
+  const [walkTrackPx] = useState(infectionWalkTrackPx);
+  const [shown, setBarPx] = useState(infectionBarPx);
+  const [, setAlpha] = useState(infectionGlyphAlpha);
+  const trackW: Int = trackWidth();
+
   let next: Int = shown;
-  if (shown === 0) {
-    next = target;
-  } else if (shown < target) {
+  if (walkTrackPx !== trackW) {
+    next = walkTarget;
+  } else if (snap === Snap.NOW || shown === 0) {
+    next = walkTarget;
+  } else if (shown < walkTarget) {
     next = shown + 1;
-  } else if (shown > target) {
+  } else if (shown > walkTarget) {
     next = shown - 1;
   }
 
-  if (next === trackW) {
-    CS2.if_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS, bar);
-  } else {
-    CS2.if_size_set(next, 0, SizeMode.ABS, SizeMode.MINUS, bar);
+  setBarPx(next);
+  setAlpha(glyphAlphaFor(next, trackW));
+  if (next === walkTarget) {
+    setWalkTarget(-1);
   }
-  icon.transparency = scaled(next, trackW, 255);
+}
+
+export function infectionTick(): void {
+  const trackW: Int = trackWidth();
+  const [measured, setMeasured] = useState(infectionMeasuredPx);
+  if (measured !== trackW) {
+    setMeasured(trackW);
+    infectionBar(Snap.NOW);
+  }
+  infectionBarWalk(Snap.WALK);
 }

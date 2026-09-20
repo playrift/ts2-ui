@@ -1,0 +1,446 @@
+import { CS2, useState } from 'ts2';
+
+import { enhancedClient, enhancedFlags } from '../0465_ge_offers/ge-offers.helpers';
+import { FswFonts } from '../0784_fsw_sp_points/fsw.constants';
+import { breakpointOf, fswClick } from '../0784_fsw_sp_points/fsw.helpers';
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { hasBit, membersWorld, textLineCount } from '../lib/lib.engine';
+import { FswFreshProse, type FswFreshProseRow } from './fsw-fresh-prose.data';
+import { FswMainProse, type FswMainProseRow } from './fsw-main-prose.data';
+import { OptinAction, OptinBanners, OptinInfoProse, OptinLayout, OptinProse, fswOptinRef } from './fsw-optin.constants';
+import {
+  fswOptinBuilt,
+  fswOptinChoice,
+  fswOptinFinding,
+  fswOptinInfo,
+  fswOptinPublishing,
+  fswOptinRemaining,
+  fswOptinTransfer,
+} from './fsw-optin.state';
+
+export function fswOptinOpen(remaining: String): void {
+  const [, setPublishing] = useState(fswOptinPublishing);
+  const [, setPublished] = useState(responsiveCurrentBreakpoint);
+  setPublishing(1);
+  setPublished(breakpointOf(fswOptinRef.width!, fswOptinRef.height!));
+  fswOptinShow(0, 0, 0, remaining);
+}
+
+export function fswOptinReset(): void {
+  const [, setBuilt] = useState(fswOptinBuilt);
+  const [, setPublishing] = useState(fswOptinPublishing);
+  const [, setChoice] = useState(fswOptinChoice);
+  const [, setFinding] = useState(fswOptinFinding);
+  const [, setInfo] = useState(fswOptinInfo);
+  const [, setTransfer] = useState(fswOptinTransfer);
+  setBuilt(0);
+  setPublishing(0);
+  setChoice(0);
+  setFinding(0);
+  setInfo(0);
+  setTransfer('');
+}
+
+export function fswOptinShow(choice: Int, finding: Int, info: Int, remaining: String): void {
+  const [, setBuilt] = useState(fswOptinBuilt);
+  const [, setChoice] = useState(fswOptinChoice);
+  const [, setFinding] = useState(fswOptinFinding);
+  const [, setInfo] = useState(fswOptinInfo);
+  const [, setRemaining] = useState(fswOptinRemaining);
+  const [, setTransfer] = useState(fswOptinTransfer);
+  setBuilt(1);
+  setChoice(choice);
+  setFinding(finding);
+  setInfo(info);
+  setRemaining(remaining);
+  if (choice > 0 && finding === 1) {
+    setTransfer('Finding a suitable <col=ff981f>Fresh Start World</col>...');
+  }
+  if (choice > 0 && finding === 2) {
+    setTransfer('Finding a suitable world...');
+  }
+}
+
+export function fswOptinAct(action: Int, choice: Int): void {
+  const [remaining] = useState(fswOptinRemaining);
+  fswClick();
+  if (action === OptinAction.SELECT_FRESH || action === OptinAction.SELECT_MAIN) {
+    fswOptinShow(action, 0, 0, remaining);
+    return;
+  }
+  if (action === OptinAction.CONFIRM) {
+    let finding: Int = 0;
+    if (choice === 1 && !onFreshStartWorld()) {
+      finding = 1;
+    }
+    if (choice === 2 && onFreshStartWorld()) {
+      finding = 2;
+    }
+    fswOptinShow(choice, finding, 0, remaining);
+    return;
+  }
+  if (action === OptinAction.MORE) {
+    fswOptinShow(0, 0, 1, remaining);
+    return;
+  }
+  fswOptinShow(0, 0, 0, remaining);
+}
+
+export function onFreshStartWorld(): Boolean {
+  return enhancedClient();
+}
+
+export function fswOptinFindWorld(mode: Int): void {
+  fswOptinRef.onTimer = () => fswOptinHop(mode);
+}
+
+function fswOptinHop(mode: Int): void {
+  if (!CS2.worldlist_fetch()) {
+    return;
+  }
+  fswOptinRef.onTimer = null;
+  CS2.worldlist_sort(8, false, 0, false);
+  let members: Int = 0;
+  if (membersWorld()) {
+    members = 1;
+  }
+  let [world, flags, activity, country, players, host] = CS2.worldlist_start();
+  let fallback: Int = -1;
+  let found: Int = 0;
+  let memberWorld: Int = 0;
+  while (found === 0 && world > 0) {
+    memberWorld = 0;
+    if (hasBit(flags, 0)) {
+      memberWorld = 1;
+    }
+    if (worldEligible(mode, members, flags, memberWorld) === 1) {
+      if ((memberWorld === 0 && players > 950) || (memberWorld === 1 && players > 1950)) {
+        if (fallback === -1) {
+          fallback = world;
+        }
+      } else {
+        found = 1;
+      }
+    }
+    if (found === 0) {
+      const [w2, f2, a2, c2, p2, h2] = CS2.worldlist_next();
+      world = w2;
+      flags = f2;
+      activity = a2;
+      country = c2;
+      players = p2;
+      host = h2;
+    }
+  }
+  if (found === 0) {
+    world = fallback;
+  }
+  CS2.countdialog_resume(`${world}`);
+}
+
+function worldEligible(mode: Int, members: Int, flags: Int, memberWorld: Int): Int {
+  if (memberWorld !== members) {
+    return 0;
+  }
+  const fresh: Boolean = enhancedFlags(flags);
+  if (mode === 1 && !fresh) {
+    return 0;
+  }
+  if (mode === 2 && fresh) {
+    return 0;
+  }
+  if (
+    hasBit(flags, 2) ||
+    hasBit(flags, 4) ||
+    hasBit(flags, 5) ||
+    hasBit(flags, 6) ||
+    hasBit(flags, 7) ||
+    hasBit(flags, 10) ||
+    hasBit(flags, 14) ||
+    hasBit(flags, 15) ||
+    hasBit(flags, 17) ||
+    hasBit(flags, 20) ||
+    hasBit(flags, 21) ||
+    hasBit(flags, 23) ||
+    hasBit(flags, 25) ||
+    hasBit(flags, 26) ||
+    hasBit(flags, 29) ||
+    hasBit(flags, 30) ||
+    hasBit(flags, 31)
+  ) {
+    return 0;
+  }
+  return 1;
+}
+
+export function optinMargin(breakpoint: Int): Int {
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinLayout.MARGIN_WIDE;
+  }
+  return OptinLayout.MARGIN;
+}
+
+export function optinFreshWidth(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OptinLayout.FRESH_W_ONE;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinLayout.FRESH_W_WIDE;
+  }
+  return OptinLayout.FRESH_W;
+}
+
+export function optinInfoHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OptinLayout.INFO_H_ONE;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinLayout.INFO_H_WIDE;
+  }
+  return OptinLayout.INFO_H;
+}
+
+export function optinInfoY(breakpoint: Int): Int {
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinLayout.INFO_Y_WIDE;
+  }
+  return OptinLayout.INFO_Y;
+}
+
+export function optinImageHeight(breakpoint: Int): Int {
+  if (breakpoint >= 2) {
+    return OptinLayout.IMAGE_H_WIDE;
+  }
+  return OptinLayout.IMAGE_H;
+}
+
+export function optinTitleFont(breakpoint: Int): Font {
+  if (breakpoint === 2 || breakpoint === 3) {
+    return FswFonts.VERDANA_13;
+  }
+  return FswFonts.VERDANA_11;
+}
+
+export function optinFreshBanner(breakpoint: Int): Sprite {
+  if (breakpoint === 1) {
+    return OptinBanners.FRESH_MEDIUM;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinBanners.FRESH_LARGE;
+  }
+  return OptinBanners.FRESH_SMALL;
+}
+
+export function optinMainBanner(breakpoint: Int): Sprite {
+  if (breakpoint === 1) {
+    return OptinBanners.MAIN_MEDIUM;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinBanners.MAIN_LARGE;
+  }
+  return OptinBanners.MAIN_SMALL;
+}
+
+export function proseMargin(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OptinProse.MARGIN_ONE;
+  }
+  return OptinProse.MARGIN;
+}
+
+export function proseGap(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OptinProse.GAP_ONE;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinProse.GAP_WIDE;
+  }
+  return OptinProse.GAP;
+}
+
+export function proseLineHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return OptinProse.LINE_H_ONE;
+  }
+  if (breakpoint === 2 || breakpoint === 3) {
+    return OptinProse.LINE_H_WIDE;
+  }
+  return OptinProse.LINE_H;
+}
+
+export function proseFont(breakpoint: Int): Font {
+  if (breakpoint === 1 || breakpoint === 2 || breakpoint === 3) {
+    return FswFonts.VERDANA_13;
+  }
+  return FswFonts.VERDANA_11;
+}
+
+export function freshLine(row: FswFreshProseRow, breakpoint: Int): String {
+  if (breakpoint === 0) {
+    return row.small;
+  }
+  if (breakpoint <= 2) {
+    return row.medium;
+  }
+  return row.large;
+}
+
+export function mainLine(row: FswMainProseRow, breakpoint: Int): String {
+  if (breakpoint === 0) {
+    return row.small;
+  }
+  if (breakpoint <= 2) {
+    return row.medium;
+  }
+  return row.large;
+}
+
+export function freshRowHeight(row: FswFreshProseRow, breakpoint: Int, width: Int): Int {
+  return textLineCount(freshLine(row, breakpoint), width, proseFont(breakpoint)) * proseLineHeight(breakpoint);
+}
+
+export function mainRowHeight(row: FswMainProseRow, breakpoint: Int, width: Int): Int {
+  return textLineCount(mainLine(row, breakpoint), width, proseFont(breakpoint)) * proseLineHeight(breakpoint);
+}
+
+export function freshRowsThatFit(breakpoint: Int, width: Int, room: Int): Int {
+  const count: Int = FswFreshProse.length;
+  const lineH: Int = proseLineHeight(breakpoint);
+  let left: Int = room - (OptinProse.MORE_RESERVE + proseMargin(breakpoint));
+  let fit: Int = 0;
+  let index: Int = 0;
+  let row: FswFreshProseRow | null = null;
+  while (index < count) {
+    row = FswFreshProse.at(index);
+    if (row === null) {
+      index = count;
+    } else {
+      left = left - freshRowHeight(row, breakpoint, width);
+      if (left >= 0) {
+        fit = fit + 1;
+        if (left < lineH) {
+          index = count;
+        } else {
+          index = index + 1;
+        }
+      } else {
+        index = count;
+      }
+    }
+  }
+  return fit;
+}
+
+export function mainRowsThatFit(breakpoint: Int, width: Int, room: Int): Int {
+  const count: Int = FswMainProse.length;
+  const lineH: Int = proseLineHeight(breakpoint);
+  let left: Int = room - proseMargin(breakpoint);
+  let fit: Int = 0;
+  let index: Int = 0;
+  let row: FswMainProseRow | null = null;
+  while (index < count) {
+    row = FswMainProse.at(index);
+    if (row === null) {
+      index = count;
+    } else {
+      left = left - mainRowHeight(row, breakpoint, width);
+      if (left >= 0) {
+        fit = fit + 1;
+        if (left < lineH) {
+          index = count;
+        } else {
+          index = index + 1;
+        }
+      } else {
+        index = count;
+      }
+    }
+  }
+  return fit;
+}
+
+export function proseStripeIsAmber(index: Int): Boolean {
+  return index % 2 === 0;
+}
+
+export function infoRowHeight(row: FswFreshProseRow): Int {
+  return textLineCount(row.large, OptinInfoProse.W, FswFonts.P12) * OptinInfoProse.LINE_H;
+}
+
+export function infoClosingY(): Int {
+  const count: Int = FswFreshProse.length;
+  let y: Int = OptinInfoProse.Y;
+  let index: Int = 0;
+  let row: FswFreshProseRow | null = null;
+  while (index < count) {
+    row = FswFreshProse.at(index);
+    if (row !== null) {
+      y = y + infoRowHeight(row) + OptinInfoProse.GAP;
+    }
+    index = index + 1;
+  }
+  return y + OptinInfoProse.CLOSING_LEAD;
+}
+
+export function infoClosingText(remaining: String): String {
+  return `There are ${remaining} remaining before Fresh Start Worlds ends.`;
+}
+
+export function infoClosingHeight(remaining: String): Int {
+  return textLineCount(infoClosingText(remaining), OptinInfoProse.W, FswFonts.P12) * OptinInfoProse.LINE_H;
+}
+
+export function confirmNote(choice: Int): String {
+  if (choice === 2) {
+    return 'Please confirm your choice. This choice cannot be changed.';
+  }
+  return 'Please confirm your choice. You can opt-out at any time.';
+}
+
+export function choiceName(choice: Int): String {
+  if (choice === 2) {
+    return 'Old School Main';
+  }
+  return 'Fresh Start Worlds';
+}
+
+export function confirmHops(choice: Int): Int {
+  if (choice === 1 && !onFreshStartWorld()) {
+    return 1;
+  }
+  if (choice === 2 && onFreshStartWorld()) {
+    return 1;
+  }
+  return 0;
+}
+
+export function confirmInfo1(choice: Int, finding: Int): String {
+  if (finding > 0 || confirmHops(choice) === 0) {
+    return '';
+  }
+  return confirmNote(choice);
+}
+
+export function confirmInfo2(choice: Int, finding: Int): String {
+  if (finding > 0 || confirmHops(choice) === 0) {
+    return '';
+  }
+  if (choice === 1) {
+    return '<col=ff981f>You will be hopped to a Fresh Start World on confirmation.</col>';
+  }
+  return '<col=ff981f>You will be hopped to a Main World on confirmation.</col>';
+}
+
+export function confirmInfo3(choice: Int, finding: Int): String {
+  if (finding > 0 || confirmHops(choice) === 1) {
+    return '';
+  }
+  return confirmNote(choice);
+}
+
+export function confirmTitle(choice: Int, finding: Int): String {
+  if (finding > 0) {
+    return '';
+  }
+  return `You are selecting <col=ff981f>${choiceName(choice)}</col>.`;
+}

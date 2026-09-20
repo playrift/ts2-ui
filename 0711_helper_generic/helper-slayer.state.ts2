@@ -1,0 +1,132 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  HelperActive,
+  helperGenericActive,
+  helperGenericActiveArg,
+  helperGenericAddData,
+  helperGenericAddTitle,
+  helperGenericBuildUi,
+  helperGenericSetBit,
+  helperGenericSetup,
+  helperGenericUpdateText,
+} from './helper-generic.state';
+import { SlayerAreaNames, SlayerBossNames, SlayerTaskNames } from './slayer-names.data';
+
+export function slayerTaskName(target: Int, bossId: Int): String {
+  if (target === 98) {
+    return SlayerBossNames.get(bossId) ?? '';
+  }
+  return SlayerTaskNames.get(target) ?? '';
+}
+
+export function slayerAreaName(area: Int): String {
+  return SlayerAreaNames.get(area) ?? '';
+}
+
+export function slayerAssignmentLabel(): String {
+  return 'Task:';
+}
+
+export function slayerAssignmentValue(): String {
+  const count: Int = useServerState(Varps.SLAYER_COUNT);
+  if (count <= 0) {
+    return 'Need assignment';
+  }
+  const target: Int = useServerState(Varps.SLAYER_TARGET);
+  if (target === 98) {
+    return slayerTaskName(98, useServerState(Varbits.SLAYER_TARGET_BOSSID));
+  }
+  if (target > 0) {
+    return slayerTaskName(target, -1);
+  }
+  return 'Need assignment';
+}
+
+export function slayerAmountLabel(): String {
+  if (useServerState(Varps.SLAYER_COUNT) > 0) {
+    return 'Amount:';
+  }
+  return '';
+}
+
+export function slayerAmountValue(): String {
+  const count: Int = useServerState(Varps.SLAYER_COUNT);
+  if (count > 0) {
+    return CS2.tostring(count);
+  }
+  return '';
+}
+
+export function slayerAreaLabel(): String {
+  if (useServerState(Varps.SLAYER_AREA) > 0) {
+    return 'Area:';
+  }
+  return '';
+}
+
+export function slayerAreaValue(): String {
+  const area: Int = useServerState(Varps.SLAYER_AREA);
+  if (area > 0) {
+    return slayerAreaName(area);
+  }
+  return '';
+}
+
+export function slayerStreakLabel(): String {
+  return 'Streak: ';
+}
+
+export function slayerStreakValue(): String {
+  let streak: Int = 0;
+  if (useServerState(Varbits.SLAYER_MASTER) === 7) {
+    streak = useServerState(Varbits.SLAYER_WILDERNESS_TASKS_COMPLETED);
+  } else {
+    streak = useServerState(Varbits.SLAYER_TASKS_COMPLETED);
+  }
+  if (streak >= 16000) {
+    return 'Lots!';
+  }
+  return CS2.tostring(streak);
+}
+
+export function helperSlayerInit(): void {
+  helperSlayerDrawContent();
+}
+
+export function helperSlayerDrawContent(): void {
+  helperGenericSetup(0, 1, 1);
+  helperGenericSetBit(0);
+  helperGenericAddTitle('Slayer Info', 0);
+  const taskRow: Int = helperGenericAddData(slayerAssignmentLabel(), slayerAssignmentValue());
+  const [, setActive] = useState(helperGenericActive);
+  const [, setArg] = useState(helperGenericActiveArg);
+  setActive(HelperActive.SLAYER);
+  setArg(taskRow);
+  helperGenericAddData(slayerAmountLabel(), slayerAmountValue());
+  helperGenericAddData(slayerAreaLabel(), slayerAreaValue());
+  helperGenericAddData(slayerStreakLabel(), slayerStreakValue());
+  helperGenericBuildUi();
+}
+
+export function helperSlayerUpdateInfo(row: Int): void {
+  helperGenericUpdateText(row, slayerAssignmentLabel());
+  helperGenericUpdateText(row + 1, slayerAssignmentValue());
+  helperGenericUpdateText(row + 2, slayerAmountLabel());
+  helperGenericUpdateText(row + 3, slayerAmountValue());
+  helperGenericUpdateText(row + 4, slayerAreaLabel());
+  helperGenericUpdateText(row + 5, slayerAreaValue());
+  helperGenericUpdateText(row + 7, slayerStreakValue());
+  helperGenericBuildUi();
+}
+
+export function helperSlayerTransmit(): void {
+  const [active] = useState(helperGenericActive);
+  if (active !== HelperActive.SLAYER) {
+    return;
+  }
+  const [row] = useState(helperGenericActiveArg);
+  helperSlayerUpdateInfo(row);
+}

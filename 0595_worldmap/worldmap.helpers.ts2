@@ -1,0 +1,547 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  keyboardTimeout,
+  tooltipBuilt,
+  worldmapIntermaplink,
+  worldmapSearch,
+  worldmapSearching,
+  worldmapYouarehere,
+} from '../lib/game/varcs';
+import { debugMessage } from '../lib/lib.debug';
+import { overlayInit } from '../lib/lib.overlay';
+import { hideTooltip } from '../0128_hosidius_seedbox/hosidius-seedbox.state';
+import { clientClock, hasBit, moveCoord, playSound, textWidth } from '../lib/lib.engine';
+import { coordInBox } from '../lib/lib.helpers';
+import { questName, questStatus } from '../0782_questjournal_overview/questjournal-overview.helpers';
+import { FairyRingIcons, QuestIcons, UnlistedQuestIcons } from './worldmap-icon-tips.data';
+import { IntermapJumps } from './worldmap-intermap-jumps.data';
+import { KeyHeaderRows, KeyRows, MapIds, ToggleLabels } from './worldmap-key.data';
+import {
+  WorldmapCategory,
+  WorldmapFont,
+  WorldmapLayout,
+  WorldmapSound,
+  dodgerRef,
+  frameRef,
+} from './worldmap.constants';
+import {
+  worldmapEmbedded,
+  worldmapListOpen,
+  worldmapMapChoice,
+  worldmapTipH,
+  worldmapTipText,
+  worldmapTipW,
+  worldmapTipX,
+  worldmapTipY,
+  worldmapZoomChoice,
+} from './worldmap.state';
+
+export function worldmapEmbed(hideClose: Int): void {
+  const [, setEmbedded] = useState(worldmapEmbedded);
+  setEmbedded(hideClose === 1 ? 2 : 1);
+  CS2.show_loading_messages_set(false);
+  CS2.worldmap_disable_icons(false);
+}
+
+function leagueWorld(): Boolean {
+  const flags: Int = useServerState(Varps.MAP_FLAGS_CACHED);
+  if (!hasBit(flags, 29) && hasBit(flags, 30)) {
+    return true;
+  }
+  return false;
+}
+
+export function mapListed(map: Int): Boolean {
+  if (map === 8 && useServerState(Varbits.DT2_GHORROCK) < 6) {
+    return false;
+  }
+  if (map === 41 && useServerState(Varbits.DT2_LASSAR) < 8) {
+    return false;
+  }
+  if (!leagueWorld() && map === 9) {
+    return false;
+  }
+  return true;
+}
+
+function coordInBackdrop(map: Int, at: Coord): Boolean {
+  if (map === 44 || map === 45) {
+    if (coordInBox(tileOf(1504, 9536, 0), tileOf(1535, 9599, 3), at)) {
+      return true;
+    }
+    if (coordInBox(tileOf(1496, 9544, 0), tileOf(1535, 9599, 3), at)) {
+      return true;
+    }
+    if (coordInBox(tileOf(1488, 9560, 0), tileOf(1535, 9599, 3), at)) {
+      return true;
+    }
+    if (coordInBox(tileOf(1480, 9568, 0), tileOf(1535, 9599, 3), at)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function coordInMap(map: Int, from: Coord): Coord {
+  if (map === -1 || from === -1) {
+    return -1 as Coord;
+  }
+  if (CS2.worldmap_coordinmap(map, from)) {
+    return from;
+  }
+  if (!coordInBackdrop(map, from)) {
+    let at: Coord = from;
+    while (at.plane > 0) {
+      at = moveCoord(at, 0, 0, -1);
+      if (CS2.worldmap_coordinmap(map, at)) {
+        return at;
+      }
+    }
+    while (at.plane < 3) {
+      at = moveCoord(at, 0, 0, 1);
+      if (CS2.worldmap_coordinmap(map, at)) {
+        return at;
+      }
+    }
+  }
+  return -1 as Coord;
+}
+
+export function initialMap(): Int {
+  const [here] = useState(worldmapYouarehere);
+  let chosen: Int = MapIds.at(0) ?? 0;
+  let i: Int = 0;
+  while (i < MapIds.length) {
+    const map: Int = MapIds.at(i) ?? -1;
+    if (mapListed(map)) {
+      if (coordInMap(map, here as Coord) !== -1) {
+        chosen = map;
+      }
+    }
+    i = i + 1;
+  }
+  return chosen;
+}
+
+export function keyPanelWidth(): Int {
+  let widest: Int = 0;
+  let i: Int = 0;
+  while (i < KeyRows.length) {
+    const row = KeyRows.at(i);
+    if (row !== null) {
+      widest = Math.max(widest, textWidth(row.name, 512, WorldmapFont.PLAIN));
+    }
+    i = i + 1;
+  }
+  widest = widest + WorldmapLayout.KEY_PAD_TEXT;
+  i = 0;
+  while (i < KeyHeaderRows.length) {
+    const header = KeyHeaderRows.at(i);
+    if (header !== null) {
+      widest = Math.max(widest, textWidth(header.title, 512, WorldmapFont.PLAIN));
+    }
+    i = i + 1;
+  }
+  widest = widest + WorldmapLayout.KEY_PAD_BAR;
+  let toggles: Int = 0;
+  i = 0;
+  while (i < ToggleLabels.length) {
+    toggles = Math.max(toggles, 25 + textWidth(ToggleLabels.at(i) ?? '', 512, WorldmapFont.PLAIN));
+    i = i + 1;
+  }
+  return Math.max(widest, toggles + 6);
+}
+
+export function mapListFont(map: Int): Font {
+  return map === 0 ? WorldmapFont.PLAIN : WorldmapFont.SMALL;
+}
+
+export function mapListWidth(): Int {
+  let widest: Int = 0;
+  let i: Int = 0;
+  while (i < MapIds.length) {
+    const map: Int = MapIds.at(i) ?? -1;
+    if (mapListed(map)) {
+      widest = Math.max(widest, textWidth(CS2.worldmap_map_name_get(map), 512, mapListFont(map)));
+    }
+    i = i + 1;
+  }
+  return widest + WorldmapLayout.LIST_PAD;
+}
+
+export function mapListCount(): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < MapIds.length) {
+    if (mapListed(MapIds.at(i) ?? -1)) {
+      count = count + 1;
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function mapListSlot(map: Int, index: Int): Int {
+  if (index === 0) {
+    return 0;
+  }
+  const mine: String = CS2.lowercase(CS2.worldmap_map_name_get(map));
+  let slot: Int = mapListed(MapIds.at(0) ?? -1) ? 1 : 0;
+  let i: Int = 1;
+  while (i < MapIds.length) {
+    const other: Int = MapIds.at(i) ?? -1;
+    if (i !== index && mapListed(other)) {
+      const order: Int = CS2.compare(CS2.lowercase(CS2.worldmap_map_name_get(other)), mine);
+      if (order < 0 || (order === 0 && i < index)) {
+        slot = slot + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return slot;
+}
+
+export function edgeDragMinus(minus: Int, pos: Int, limit: Int): Int {
+  let shrunk: Int = minus;
+  let at: Int = pos;
+  if (at < 10) {
+    shrunk = shrunk - at;
+    at = 0;
+  }
+  if (shrunk < at + 10) {
+    shrunk = at;
+  }
+  return Math.max(Math.min(shrunk, limit), 0);
+}
+
+export function edgeDragPos(minus: Int, pos: Int, limit: Int): Int {
+  const at: Int = pos < 10 ? 0 : pos;
+  return Math.max(Math.min(at, edgeDragMinus(minus, pos, limit)), 0);
+}
+
+export function toggleOff(bits: Int, row: Int): Boolean {
+  return hasBit(bits, row);
+}
+
+export function toggleEffects(bits: Int): void {
+  CS2.worldmap_disable_icon_category(WorldmapCategory.MAP_LABELS, !toggleOff(bits, 2));
+  hideTooltip();
+}
+
+export function worldmapOpen(): void {
+  const [, setEmbedded] = useState(worldmapEmbedded);
+  const [, setMapChoice] = useState(worldmapMapChoice);
+  const [, setListOpen] = useState(worldmapListOpen);
+  const [, setZoomChoice] = useState(worldmapZoomChoice);
+  const [, setQuery] = useState(worldmapSearch);
+  const [, setSearching] = useState(worldmapSearching);
+  const [, setKeyTimeout] = useState(keyboardTimeout);
+  const [, setTipText] = useState(worldmapTipText);
+  setEmbedded(0);
+  setTipText('');
+  setMapChoice(-2);
+  setListOpen(0);
+  setZoomChoice(-1);
+  overlayInit(dodgerRef, -1, 8192, 1, 1, 0);
+  setQuery('');
+  setSearching(0);
+  setKeyTimeout(clientClock() + 2);
+  CS2.key_input_mode_all_set();
+  toggleEffects(useServerState(Varbits.WORLDMAP_TOGGLES));
+  const map: Int = initialMap();
+  if (CS2.worldmap_current_map_get() !== map) {
+    CS2.worldmap_map_set(map);
+  }
+  const [player] = useState(worldmapYouarehere);
+  const start: Coord = coordInMap(map, player as Coord);
+  if (start !== -1) {
+    CS2.worldmap_jumptosourcecoord_instant(start);
+  }
+  CS2.worldmap_zoom_set(CS2.worldmap_config_zoom_get(map));
+}
+
+export function worldmapTooltipHide(x: Int, y: Int): void {
+  hideTooltip();
+}
+
+export function worldmapIconTooltip(icon: Int, mouseX: Int, mouseY: Int): void {
+  const [built, setBuilt] = useState(tooltipBuilt);
+  const [, setText] = useState(worldmapTipText);
+  const [, setX] = useState(worldmapTipX);
+  const [, setY] = useState(worldmapTipY);
+  const [, setW] = useState(worldmapTipW);
+  const [, setH] = useState(worldmapTipH);
+  if (toggleOff(useServerState(Varbits.WORLDMAP_TOGGLES), 3)) {
+    hideTooltip();
+    return;
+  }
+  if (built === 1) {
+    return;
+  }
+  const text: String = iconTooltipText(categoryName(CS2.worldmap_icon_category(icon) as Int), icon);
+  if (text.length <= 0) {
+    return;
+  }
+  const frameW: Int = frameRef.width!;
+  const frameH: Int = frameRef.height!;
+  const wrap: Int = Math.min(150, frameW) - 4;
+  const w: Int = 4 + CS2.parawidth(text, wrap, WorldmapFont.PLAIN);
+  const h: Int = 7 + 12 * CS2.paraheight(text, wrap, WorldmapFont.PLAIN);
+  const x: Int = Math.min(mouseX + 5, frameW - w);
+  let y: Int = mouseY + 20;
+  if (y > frameH - h) {
+    y = mouseY - (h + 5);
+  }
+  setW(w);
+  setH(h);
+  setX(x);
+  setY(y);
+  setText(text);
+  setBuilt(1);
+}
+
+export function categoryName(category: Int): String {
+  let i: Int = 0;
+  while (i < KeyRows.length) {
+    const row = KeyRows.at(i);
+    if (row !== null) {
+      if (row.category === category) {
+        return row.name;
+      }
+    }
+    i = i + 1;
+  }
+  return '';
+}
+
+export function iconTooltipText(name: String, icon: Int): String {
+  const category: Int = CS2.worldmap_icon_category(icon) as Int;
+  let text: String = name;
+  if (category === WorldmapCategory.QUEST) {
+    text = questIconTooltip(icon);
+  }
+  if (category === WorldmapCategory.TRANSPORTATION) {
+    text = fairyRingTooltip(icon);
+  }
+  return text;
+}
+
+export function questIconTooltip(icon: Int): String {
+  const row = QuestIcons.get(icon);
+  const unlisted = UnlistedQuestIcons.get(icon);
+  const category: Int = CS2.worldmap_icon_category(icon) as Int;
+  if (row === null && unlisted === null) {
+    return categoryName(category);
+  }
+  const name: String = row !== null ? questName(row.quest) : unlisted !== null ? unlisted.name : '';
+  const members: Boolean = row !== null ? row.members : unlisted !== null ? unlisted.members : false;
+  const title: String = `Quest: ${name}`;
+  if (!CS2.map_members() && members) {
+    return `<col=ff0000>${title} (Members Only)</col>`;
+  }
+  const status: Int = row !== null ? questStatus(row.quest) : unlistedQuestStatus(icon);
+  if (status === 1) {
+    return `${title} (Not Started)`;
+  }
+  if (status === 0) {
+    return `${title} (In Progress)`;
+  }
+  if (status === 2) {
+    return `${title} (Completed)`;
+  }
+  return title;
+}
+
+export function unlistedQuestStatus(icon: Int): Int {
+  const row = UnlistedQuestIcons.get(icon);
+  const releaseType: Int = row === null ? 0 : row.releaseType;
+  const unstarted: Int = row === null ? -1 : row.unstartedState;
+  const end: Int = row === null ? -1 : row.endState;
+  if (row === null || releaseType !== 2) {
+    return 1;
+  }
+  const progress: Int = unlistedQuestProgress(icon);
+  if (unstarted === -1 || end === -1 || progress === -1 || end <= unstarted) {
+    return 1;
+  }
+  if (progress >= end) {
+    return 2;
+  }
+  if (progress <= unstarted) {
+    return 1;
+  }
+  return 0;
+}
+
+export function unlistedQuestProgress(icon: Int): Int {
+  switch (icon) {
+    case 178:
+      return useServerState(Varps.TUTORIAL);
+    case 280:
+      return useServerState(Varbits.VARBIT_20106);
+  }
+  return -1;
+}
+
+export function worldmapIntermapJump(element: Int, at: Coord): void {
+  if (element !== 13 && element !== 14) {
+    return;
+  }
+  intermapJump(at);
+}
+
+export function intermapJump(at: Coord): void {
+  const dest = IntermapJumps.get(at);
+  if (dest === null) {
+    debugMessage(
+      `[World Map-CLIENT]<col=d30b0b>[ERROR]</col> Intermap link at ${debugCoordText(at)} is not configured correctly.`,
+    );
+    playSound(WorldmapSound.LINK_BROKEN);
+    return;
+  }
+  intermapJumpTo(dest);
+}
+
+export function intermapJumpTo(dest: Coord): void {
+  const [, setLink] = useState(worldmapIntermaplink);
+  playSound(WorldmapSound.CLICK);
+  setLink(dest as Int);
+}
+
+export function debugCoordText(at: Coord): String {
+  const x: Int = CS2.coordx(at);
+  const y: Int = CS2.coordy(at);
+  return `${CS2.coordz(at)},${x / 64},${y / 64},${x % 64},${y % 64}`;
+}
+
+export function fairyRingTooltip(icon: Int): String {
+  const row = FairyRingIcons.get(icon);
+  if (row === null) {
+    return categoryName(CS2.worldmap_icon_category(icon) as Int);
+  }
+  const ring: Int = row.ring;
+  const tooltip: String = row.tooltip;
+  if (fairyRingLogged(ring) === 1) {
+    return tooltip;
+  }
+  return 'Fairy ring';
+}
+
+export function fairyRingLogged(ring: Int): Int {
+  switch (ring) {
+    case 3:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AIQ);
+    case 2:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AIR);
+    case 33:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AJQ);
+    case 32:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AJR);
+    case 31:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AJS);
+    case 23:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AKQ);
+    case 30:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AJP);
+    case 21:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AKS);
+    case 22:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AKR);
+    case 10:
+      return useServerState(Varbits.FAIRYRINGS_LOG_ALP);
+    case 13:
+      return useServerState(Varbits.FAIRYRINGS_LOG_ALQ);
+    case 20:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AKP);
+    case 12:
+      return useServerState(Varbits.FAIRYRINGS_LOG_ALR);
+    case 11:
+      return useServerState(Varbits.FAIRYRINGS_LOG_ALS);
+    case 1:
+      return useServerState(Varbits.FAIRYRINGS_LOG_AIS);
+    case 300:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BIP);
+    case 303:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BIQ);
+    case 301:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BIS);
+    case 330:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BJP);
+    case 332:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BJR);
+    case 331:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BJS);
+    case 320:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BKP);
+    case 323:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BKQ);
+    case 322:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BKR);
+    case 321:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BKS);
+    case 310:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BLP);
+    case 312:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BLR);
+    case 311:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BLS);
+    case 313:
+      return useServerState(Varbits.FAIRYRINGS_LOG_BLQ);
+    case 200:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CIP);
+    case 203:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CIQ);
+    case 202:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CIR);
+    case 201:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CIS);
+    case 232:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CJR);
+    case 233:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CJQ);
+    case 220:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CKP);
+    case 223:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CKQ);
+    case 222:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CKR);
+    case 221:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CKS);
+    case 210:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CLP);
+    case 212:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CLR);
+    case 211:
+      return useServerState(Varbits.FAIRYRINGS_LOG_CLS);
+    case 100:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DIP);
+    case 103:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DIQ);
+    case 102:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DIR);
+    case 101:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DIS);
+    case 130:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DJP);
+    case 132:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DJR);
+    case 120:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DKP);
+    case 122:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DKR);
+    case 121:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DKS);
+    case 113:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DLQ);
+    case 112:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DLR);
+    case 110:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DLP);
+    case 111:
+      return useServerState(Varbits.FAIRYRINGS_LOG_DLS);
+  }
+  return 0;
+}

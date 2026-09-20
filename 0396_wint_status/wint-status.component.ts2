@@ -1,8 +1,8 @@
-import { createRef, useInterval } from 'ts2';
+import { createRef, useWatch } from 'ts2';
 
-import { Anchor, overlayRelayout } from '../lib/lib.overlay';
-import { Layout, WintColor, WintDodge, WintFonts, WintModel, WintSprites } from './wint-status.constants';
-import { wintTimerCountdown } from './wint-status.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
+import { Layout, WintColor, WintDodge, WintFonts, WintModel, WintSprites, WintVarbits } from './wint-status.constants';
+import { wintTimerResynch } from './wint-status.helpers';
 
 const timerHost1 = createRef('0396_wint_status_timer_host1');
 
@@ -11,12 +11,16 @@ const timerHost2 = createRef('0396_wint_status_timer_host2');
 const status = createRef('wint_status_status');
 
 export function WintStatus(): Component {
-  useInterval(() => overlayRelayout(timerHost1, status, WintDodge.STATUS, Anchor.LEFT, Anchor.TOP, 1), timerHost1);
-  useInterval(() => wintTimerCountdown(timerHost2), timerHost2);
+  useWatch(WintVarbits.RESPAWN_DELAY, () => wintTimerResynch(timerHost2), timerHost2);
 
   return (
     <layer w="fill" h="fill">
-      <layer w="fill" h="fill" ref={timerHost1}>
+      <layer
+        w="fill"
+        h="fill"
+        ref={timerHost1}
+        onLoad={() => overlayInit(timerHost1, status, WintDodge.STATUS, Anchor.LEFT, Anchor.TOP, 1)}
+      >
         <layer ref={status} x={0} y={0} w={Layout.PLATE_W} h={Layout.PLATE_H}>
           <layer x={0} y="bottom" w={Layout.ROSE_BOX} h={Layout.ROSE_BOX}>
             <sprite x="center" y="center" w={Layout.ROSE_DISC} h={Layout.ROSE_DISC} sprite={WintSprites.ROSE} />
@@ -119,6 +123,7 @@ export function WintStatus(): Component {
               valign="middle"
               color={WintColor.BLACK}
               ref={timerHost2}
+              onLoad={() => wintTimerResynch(timerHost2)}
             />
           </layer>
         </layer>

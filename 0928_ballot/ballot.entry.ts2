@@ -1,0 +1,267 @@
+import { CS2, useServerState, useState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { toplevelComponents } from '../lib/lib.helpers';
+import { Anchor, OverlayDodge, overlayInit } from '../lib/lib.overlay';
+import { floaterSetBounds, floaterTopBar } from '../0372_cr_ui/floater';
+import { ServerScript } from '../lib/server-scripts';
+import {
+  BALLOT_LOADING_TITLE,
+  BALLOT_MAX_QUESTIONS,
+  BallotLayout,
+  BallotPage,
+  BallotSubmit,
+  ballotDodgerRef,
+  ballotFrameRef,
+  ballotPollsRowsBarRef,
+  ballotPollsRowsRef,
+  ballotResultsContentRef,
+  ballotResultsViewportRef,
+  ballotVotePaneRef,
+} from './ballot.constants';
+import {
+  ballotDisplayFrame,
+  ballotLoadingShown,
+  ballotMarkerIndex,
+  ballotMarkerText,
+  ballotModalShown,
+  ballotPage,
+  ballotQ0Text,
+  ballotQ1Text,
+  ballotQ2Text,
+  ballotQ3Text,
+  ballotQ4Text,
+  ballotQ5Text,
+  ballotQ6Text,
+  ballotQ7Text,
+  ballotQuestionWide,
+  ballotSubmitShown,
+  ballotTitle,
+  ballotVoteBarBuild,
+  ballotVoteContentShown,
+  pollsRowsContentTotal,
+  voteContentTotal,
+} from './ballot.state';
+import { ballotVoteContentHeight } from './ballot.layout';
+import { resultsClearRows, resultsContentHeight } from './results.state';
+
+export function ballotOpen(): void {
+  const [, setDisplayFrame] = useState(ballotDisplayFrame);
+  const display: Boolean = toplevelComponents() === ToplevelComponents.DISPLAY;
+
+  setDisplayFrame(display ? 1 : 0);
+  ballotSetTitle(BALLOT_LOADING_TITLE);
+
+  if (display) {
+    overlayInit(ballotDodgerRef, -1, OverlayDodge.SAFE_AREA, Anchor.CENTRE, Anchor.TOP, 0);
+    return;
+  }
+
+  const topBar: Int = floaterTopBar();
+  floaterSetBounds(
+    BallotLayout.CANVAS_W - BallotLayout.MIN_W_INSET,
+    BallotLayout.CANVAS_H - Math.max(BallotLayout.MIN_H_TOPBAR_FLOOR, topBar),
+    BallotLayout.CANVAS_W - BallotLayout.DEFAULT_W_INSET,
+    BallotLayout.CANVAS_H - topBar,
+  );
+}
+
+export function ballotShowPage(page: Int): void {
+  const [, setPage] = useState(ballotPage);
+  const [, setModal] = useState(ballotModalShown);
+  const [, setLoading] = useState(ballotLoadingShown);
+
+  setPage(page);
+  setModal(0);
+  setLoading(0);
+
+  if (page === BallotPage.LOADING) {
+    ballotSetTitle(BALLOT_LOADING_TITLE);
+  }
+}
+
+export function ballotSetLoadingRing(shown: Boolean): void {
+  const [, setLoading] = useState(ballotLoadingShown);
+  setLoading(shown ? 1 : 0);
+}
+
+export function ballotSetVoteContentTotal(total: Int): void {
+  const [, setTotal] = useState(voteContentTotal);
+  setTotal(total);
+}
+
+export function ballotSetPollsRowsTotal(total: Int): void {
+  const [, setTotal] = useState(pollsRowsContentTotal);
+  setTotal(total);
+  const barH: Int = ballotPollsRowsBarRef.height;
+  if (total > barH) {
+    ballotPollsRowsRef.props = { x: 2, y: 'center', w: { fill: 20 }, h: { fill: 4 } };
+    ballotPollsRowsRef.scrollHeight = total;
+  } else {
+    ballotPollsRowsRef.props = { x: 2, y: 2, w: { fill: 20 }, h: total };
+    ballotPollsRowsRef.scrollHeight = 0;
+  }
+}
+
+export function ballotSetResultsExtent(): void {
+  ballotResultsViewportRef.scrollHeight = resultsContentHeight(CS2.if_width_get(ballotResultsContentRef));
+}
+
+export function ballotSetTitle(title: String): void {
+  const [, setTitle] = useState(ballotTitle);
+  setTitle(title);
+}
+
+export function ballotShowLoading(title: String): void {
+  const [, setSubmit] = useState(ballotSubmitShown);
+  const [, setVoteContent] = useState(ballotVoteContentShown);
+  const [, setLoading] = useState(ballotLoadingShown);
+  const [, setMarkerIndex] = useState(ballotMarkerIndex);
+  const [, setMarkerText] = useState(ballotMarkerText);
+
+  setSubmit(0);
+  setMarkerIndex(-1);
+  setMarkerText('');
+  ballotClearQuestions();
+  resultsClearRows();
+
+  ballotShowPage(BallotPage.VOTE);
+  ballotSetTitle(title);
+
+  setVoteContent(0);
+  setLoading(1);
+}
+
+export function ballotShowSubmit(): void {
+  const [, setSubmit] = useState(ballotSubmitShown);
+  const [, setVoteContent] = useState(ballotVoteContentShown);
+  const [, setLoading] = useState(ballotLoadingShown);
+  const [barBuild, setBarBuild] = useState(ballotVoteBarBuild);
+
+  setSubmit(1);
+  setVoteContent(1);
+  setLoading(0);
+  ballotVotePaneRef.scrollHeight = ballotVoteContentHeight();
+  setBarBuild(barBuild + 1);
+}
+
+export function ballotSubmitOp(): void {
+  ballotCommitPendingAnswers();
+  ballotNotifyServer(BallotSubmit.SUBMIT);
+}
+
+export function ballotNotifyServer(code: Int): void {
+  CS2.if_runscript(ServerScript.BALLOT_NOTIFY, ballotFrameRef, -1, code, 'i');
+}
+
+export function ballotSelectAnswer(index: Int, unused: Int, caption: String): void {
+  const [, setMarkerIndex] = useState(ballotMarkerIndex);
+  const [, setMarkerText] = useState(ballotMarkerText);
+
+  setMarkerIndex(index);
+  setMarkerText(caption);
+}
+
+export function ballotSetQuestionText(question: Int, text: String): void {
+  const [, setText0] = useState(ballotQ0Text);
+  const [, setText1] = useState(ballotQ1Text);
+  const [, setText2] = useState(ballotQ2Text);
+  const [, setText3] = useState(ballotQ3Text);
+  const [, setText4] = useState(ballotQ4Text);
+  const [, setText5] = useState(ballotQ5Text);
+  const [, setText6] = useState(ballotQ6Text);
+  const [, setText7] = useState(ballotQ7Text);
+
+  if (question === 0) {
+    setText0(text);
+  } else if (question === 1) {
+    setText1(text);
+  } else if (question === 2) {
+    setText2(text);
+  } else if (question === 3) {
+    setText3(text);
+  } else if (question === 4) {
+    setText4(text);
+  } else if (question === 5) {
+    setText5(text);
+  } else if (question === 6) {
+    setText6(text);
+  } else if (question === 7) {
+    setText7(text);
+  }
+}
+
+export function ballotQuestionText(question: Int): String {
+  const [text0] = useState(ballotQ0Text);
+  const [text1] = useState(ballotQ1Text);
+  const [text2] = useState(ballotQ2Text);
+  const [text3] = useState(ballotQ3Text);
+  const [text4] = useState(ballotQ4Text);
+  const [text5] = useState(ballotQ5Text);
+  const [text6] = useState(ballotQ6Text);
+  const [text7] = useState(ballotQ7Text);
+
+  if (question === 0) {
+    return text0;
+  }
+  if (question === 1) {
+    return text1;
+  }
+  if (question === 2) {
+    return text2;
+  }
+  if (question === 3) {
+    return text3;
+  }
+  if (question === 4) {
+    return text4;
+  }
+  if (question === 5) {
+    return text5;
+  }
+  if (question === 6) {
+    return text6;
+  }
+  if (question === 7) {
+    return text7;
+  }
+  return '';
+}
+
+export function ballotAddQuestion(index: Int, wide: Int, text: String): void {
+  const [mask, setMask] = useState(ballotQuestionWide);
+
+  if (index < 0 || index >= BALLOT_MAX_QUESTIONS) {
+    return;
+  }
+
+  ballotSetQuestionText(index, text);
+  setMask(wide === 1 ? CS2.bit_set(mask, index) : CS2.bit_clear(mask, index));
+}
+
+export function ballotClearQuestions(): void {
+  const [, setMask] = useState(ballotQuestionWide);
+
+  setMask(0);
+  ballotSetQuestionText(0, '');
+  ballotSetQuestionText(1, '');
+  ballotSetQuestionText(2, '');
+  ballotSetQuestionText(3, '');
+  ballotSetQuestionText(4, '');
+  ballotSetQuestionText(5, '');
+  ballotSetQuestionText(6, '');
+  ballotSetQuestionText(7, '');
+}
+
+export function ballotQuestionIsWide(index: Int): Boolean {
+  const [mask] = useState(ballotQuestionWide);
+  return CS2.testbit(mask, index);
+}
+
+export function ballotVotePaneLive(): Boolean {
+  return useServerState(Varbits.POLL_VOTE_PAGE_ACTIVE) === 1;
+}
+
+export function ballotCommitPendingAnswers(): void {}
+
+export function ballotRelayout(): void {}

@@ -1,0 +1,964 @@
+import { useInterval, useRef, useServerState, useState, useUniverse, useWatch } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  leagueTaskMenuBuildIsActive,
+  leagueTaskMenuCompletedCount,
+  leagueTaskMenuSelectedTask,
+  leagueTaskMenuTotalCount,
+  leagueTasksScrollPos,
+  leagueTasksSearchString,
+} from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { onMobile, textDevice } from '../lib/lib.helpers';
+import { SteelBorder } from '../lib/steel-border.component';
+import { inLeagueTutorial } from '../0654_league_info/league-info.helpers';
+import { LeagueMenuButton, LeagueMenuDropdown, LeagueMenuOverlay } from '../0654_league_info/league-menu.component';
+import { CloseButton } from '../0735_league_3_fragments/close-button.component';
+import { RelicThemes } from '../0655_league_relics/league-relics.data';
+import { relicTierThreshold } from '../0656_league_side_panel/league-side-panel.helpers';
+
+import {
+  BUILD_CHUNK,
+  Filter,
+  Layout,
+  Row,
+  TaskColour,
+  TaskFilter,
+  TaskFont,
+  TaskSprite,
+  areaFilterRef,
+  completedFilterRef,
+  contentRef,
+  dropdownBoxRef,
+  dropdownContainerRef,
+  dropdownPaneRef,
+  filtersRef,
+  pactFilterRef,
+  skillFilterRef,
+  taskChunkRef,
+  tasksListRef,
+  tierFilterRef,
+  typeFilterRef,
+  universeRef,
+} from './league-tasks.constants';
+import {
+  LeagueAreaNames,
+  LeagueFilterEntries,
+  LeagueFilterEntry,
+  LeagueTask,
+  LeagueTaskList,
+  LeagueTypeNames,
+} from './league-tasks.data';
+import {
+  collapseTasks,
+  descriptionLines,
+  dropdownEntryHeight,
+  filterCaption,
+  filterEntryDrawn,
+  filterLabel,
+  filterValue,
+  filtersActive,
+  leagueGeneralChanged,
+  leagueTaskFilterCancel,
+  leagueTaskFilterClose,
+  leagueTaskFilterOpen,
+  leagueTaskSearchKeyboard,
+  leagueTaskSearchOp,
+  leagueTaskSelect,
+  leagueTaskShown,
+  leagueTasksWindowInit,
+  rewardText,
+  rowHeight,
+  taskAccent,
+  taskDone,
+  taskLeague,
+  taskLeagueKnown,
+  tierIcon,
+  typeIntoLeagueSearch,
+  withoutSpaces,
+} from './league-tasks.helpers';
+import { dropdownOpenTick, listExtent, listPaneHeight, openFilter } from './league-tasks.state';
+import { ListScrollbar } from './list-scrollbar.component';
+
+export function LeagueTasks(): Component {
+  return (
+    <>
+      <layer
+        static
+        ref={universeRef}
+        x="center"
+        y="center"
+        w={Layout.universe.w}
+        h={Layout.universe.h}
+        onLoad={() => leagueTasksWindowInit()}
+      >
+        <layer static x={0} y={0} w="fill" h="fill">
+          <TaskFrame />
+        </layer>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <CloseButton />
+        </layer>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <MenuButtonMount />
+        </layer>
+        <layer
+          static
+          ref={contentRef}
+          x={Layout.content.x}
+          y={Layout.content.y}
+          w={{ fill: Layout.content.insetW }}
+          h={{ fill: Layout.content.insetH }}
+        >
+          <layer static x="center" y={Layout.progress.y} w={{ fill: Layout.progress.insetW }} h={Layout.progress.h}>
+            <TaskPointsBar />
+          </layer>
+          <sprite
+            static
+            x="center"
+            y={Layout.dividerH.y}
+            w="fill"
+            h={Layout.dividerH.h}
+            sprite={TaskSprite.DIVIDER_H}
+            tiling
+          />
+          <sprite
+            static
+            x={Layout.dividerV.x}
+            y={{ bottom: 0 }}
+            w={Layout.dividerV.w}
+            h={{ fill: Layout.dividerV.insetH }}
+            sprite={TaskSprite.DIVIDER_V}
+            tiling
+          />
+          <layer static x={Layout.search.x} y={Layout.search.y} w={{ fill: Layout.search.insetW }} h={Layout.search.h}>
+            <SearchBar />
+          </layer>
+          <layer
+            static
+            x={Layout.tasks.x}
+            y={Layout.tasks.y}
+            w={{ fill: Layout.tasks.insetW }}
+            h={{ fill: Layout.tasks.insetH }}
+          >
+            <layer static x={{ right: 0 }} y={0} w={Layout.scrollbar.w} h="fill">
+              <TasksScrollbar />
+            </layer>
+            <layer static ref={tasksListRef} x={0} y={0} w={{ fill: Layout.pane.insetW }} h="fill">
+              <layer static ref={taskChunkRef} x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={0} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={1} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={2} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={3} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={4} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h={Layout.chunk.h}>
+                <TaskChunk chunk={5} />
+              </layer>
+              <layer static x={0} y={0} w="fill" h="fill">
+                <TaskRows />
+              </layer>
+            </layer>
+          </layer>
+          <layer static ref={filtersRef} x={0} y={Layout.filters.y} w={Layout.filters.w} h={Layout.filters.h}>
+            <layer static x={0} y={0} w="fill" h="fill">
+              <FiltersTitle />
+            </layer>
+            <layer
+              static
+              ref={tierFilterRef}
+              x="center"
+              y={Layout.filterRow.tierY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+            >
+              <FilterRow filter={TaskFilter.TIER} />
+            </layer>
+            <layer
+              static
+              ref={typeFilterRef}
+              x="center"
+              y={Layout.filterRow.typeY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+            >
+              <FilterRow filter={TaskFilter.TYPE} />
+            </layer>
+            <layer
+              static
+              ref={areaFilterRef}
+              x="center"
+              y={Layout.filterRow.areaY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+            >
+              <FilterRow filter={TaskFilter.AREA} />
+            </layer>
+            <layer
+              static
+              ref={skillFilterRef}
+              x="center"
+              y={Layout.filterRow.skillY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+              hide
+            >
+              <FilterRow filter={TaskFilter.SKILL} />
+            </layer>
+            <layer
+              static
+              ref={completedFilterRef}
+              x="center"
+              y={Layout.filterRow.completedY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+            >
+              <FilterRow filter={TaskFilter.COMPLETED} />
+            </layer>
+            <layer
+              static
+              ref={pactFilterRef}
+              x="center"
+              y={Layout.filterRow.pactY}
+              w={Layout.filterRow.w}
+              h={Layout.filterRow.h}
+            >
+              <FilterRow filter={TaskFilter.PACT} />
+            </layer>
+          </layer>
+          <layer static x="center" y="center" w="fill" h="fill">
+            <LeagueMenuOverlay />
+          </layer>
+          <layer static x="center" y="center" w="fill" h="fill" hide />
+        </layer>
+        <layer static x={0} y={0} w="fill" h="fill">
+          <MenuDropdownMount />
+        </layer>
+      </layer>
+
+      <layer
+        static
+        ref={dropdownContainerRef}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        hide
+        noClickThrough
+        onClick={() => leagueTaskFilterCancel()}
+      >
+        <layer static ref={dropdownBoxRef} x={0} y={0} w={Layout.dropdownBox.w} h={Layout.dropdownBox.h} noClickThrough>
+          <sprite static x="center" y="center" w="fill" h="fill" sprite={TaskSprite.TRADEBACKING} tiling />
+          <layer
+            static
+            ref={dropdownPaneRef}
+            x="center"
+            y="center"
+            w={{ fill: Layout.dropdownPane.inset }}
+            h={{ fill: Layout.dropdownPane.inset }}
+          >
+            <DropdownEntries />
+          </layer>
+          <rect static x="center" y="center" w="fill" h="fill" color={TaskColour.INK_OUTER} />
+          <rect static x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={TaskColour.INK_INNER} />
+        </layer>
+      </layer>
+
+      <layer static x="center" y="center" w="fill" h="fill" />
+      <layer static x="center" y="center" w={Layout.resizePreview.w} h={Layout.resizePreview.h} hide />
+    </>
+  );
+}
+
+function TaskFrame(): Component {
+  const [building] = useState(leagueTaskMenuBuildIsActive);
+  const [done] = useState(leagueTaskMenuCompletedCount);
+  const [total] = useState(leagueTaskMenuTotalCount);
+  const settled: Boolean = building === 0;
+  const title: String = `League Tasks <col=ffffff>${stringOf(settled ? done : 0)}/${stringOf(settled ? total : 0)}</col>`;
+  return <SteelBorder title={title} titleColor={taskAccent()} flags={1} />;
+}
+
+function MenuButtonMount(): Component {
+  const mobile: Boolean = onMobile();
+  const tutorial: Boolean = inLeagueTutorial();
+  if (!taskLeagueKnown() || tutorial) {
+    return null;
+  }
+  return (
+    <layer
+      x={mobile ? Layout.menuButton.mobileXY : Layout.menuButton.x}
+      y={mobile ? Layout.menuButton.mobileXY : Layout.menuButton.y}
+      w={mobile ? Layout.menuButton.mobileWH : Layout.menuButton.w}
+      h={mobile ? Layout.menuButton.mobileWH : Layout.menuButton.h}
+    >
+      <LeagueMenuButton />
+    </layer>
+  );
+}
+
+function MenuDropdownMount(): Component {
+  const mobile: Boolean = onMobile();
+  if (!taskLeagueKnown()) {
+    return null;
+  }
+  return (
+    <layer
+      x={0}
+      y={Layout.menuFrame.y}
+      w={mobile ? Layout.menuFrame.mobileW : Layout.menuFrame.w}
+      h={(mobile ? Layout.menuFrame.mobileH : Layout.menuFrame.h) + Layout.menuFrame.pad}
+    >
+      <LeagueMenuDropdown league={taskLeague()} accent={taskAccent()} />
+    </layer>
+  );
+}
+
+function TaskPointsBar(): Component {
+  const box = useUniverse();
+  const theme = RelicThemes.get(taskLeague());
+  const claimed: Int = useServerState(Varps.LEAGUE_POINTS_CLAIMED);
+  const tutorial: Int = useServerState(Varbits.LEAGUE_TUTORIAL_COMPLETED);
+  const track: Sprite = theme === null ? -1 : theme.barTrack;
+  const barFill: Sprite = theme === null ? -1 : theme.barFill;
+  const captionFont: Font = (theme === null ? TaskFont.BODY : theme.captionFont) as Font;
+  const captionColour: Int = theme === null ? TaskColour.WHITE : theme.captionColour;
+  const captionShadow: Boolean = theme === null ? true : theme.captionShadow;
+  const capReady: Sprite = theme === null ? -1 : theme.capReady;
+  const capWaiting: Sprite = theme === null ? -1 : theme.capWaiting;
+  const threshold: Int = relicTierThreshold(false, false);
+  const width: Int = threshold !== -1 ? box.width - 15 : box.width;
+  const span: Int = width - 4;
+  let fill: Int = span - 2;
+  if (threshold !== -1 && threshold > 0) {
+    fill = scaled(claimed, threshold, span);
+  }
+  if (fill > span) {
+    fill = span - 1;
+  }
+  let caption: String = claimed === 1 ? `${stringOf(claimed)} point earned` : `${stringOf(claimed)} points earned`;
+  if (threshold !== -1) {
+    if (claimed >= threshold) {
+      caption =
+        tutorial < 9
+          ? 'You have enough points to unlock your next Relic!'
+          : `${textDevice('Click', 'Tap')} here to select your next Relic!`;
+    } else {
+      const remaining: Int = threshold - claimed;
+      caption =
+        remaining === 1
+          ? `${stringOf(remaining)} point until your next Relic.`
+          : `${stringOf(remaining)} points until your next Relic.`;
+    }
+  }
+  if (theme === null) {
+    return null;
+  }
+  return (
+    <>
+      <rect x={2} y={2} w={width - 4} h={29} color={TaskColour.INK_INNER} />
+      <sprite x={3} y={3} w={width - 6} h={27} sprite={track} tiling />
+      <sprite x={3} y={3} w={fill} h={27} sprite={barFill} tiling />
+      <text
+        x={0}
+        y={0}
+        w={width}
+        h="fill"
+        text={caption}
+        font={captionFont}
+        color={captionColour}
+        shadow={captionShadow}
+        align="center"
+        valign="middle"
+      />
+      <rect x={0} y={0} w={width} h={33} color={TaskColour.INK_OUTER} />
+      <rect x={1} y={1} w={width - 2} h={31} color={TaskColour.INK_OUTER} />
+      {threshold !== -1 ? (
+        <sprite
+          x={{ right: 1 }}
+          y={{ bottom: 2 }}
+          w={30}
+          h={30}
+          sprite={claimed >= threshold ? capReady : capWaiting}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function SearchBar(): Component {
+  const [query] = useState(leagueTasksSearchString);
+  const [hovered, setHovered] = useState(0);
+  const searching: Int = useServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING);
+  const mobile: Boolean = onMobile();
+  const known: Boolean = taskLeagueKnown();
+  const accent: Int = taskAccent();
+  const idleText: String = query.length > 0 ? query : '*';
+  const text: String = searching === 1 ? `${query}<col=f4f4f4>*</col>` : idleText;
+  const keyboardOp: Boolean = searching === 1 && mobile;
+  return (
+    <>
+      <layer
+        x={Layout.searchImage.x}
+        y="center"
+        w={{ fill: Layout.searchImage.insetW }}
+        h={{ fill: Layout.searchImage.insetH }}
+        options={[keyboardOp ? 'Show keyboard' : 'Search']}
+        onOptionSelect={() => {
+          if (keyboardOp) {
+            leagueTaskSearchKeyboard();
+          } else {
+            leagueTaskSearchOp();
+          }
+        }}
+      >
+        {known ? (
+          <>
+            <sprite
+              x="center"
+              y="center"
+              w={{ fill: Layout.searchImage.middleInsetW }}
+              h="fill"
+              sprite={TaskSprite.SEARCH_MIDDLE}
+            />
+            <sprite x={0} y="center" w={Layout.searchImage.cap} h="fill" sprite={TaskSprite.SEARCH_LEFT} />
+            <sprite x={{ right: 0 }} y="center" w={Layout.searchImage.cap} h="fill" sprite={TaskSprite.SEARCH_RIGHT} />
+          </>
+        ) : null}
+      </layer>
+      <text
+        x={Layout.searchText.x}
+        y="center"
+        w={{ fill: Layout.searchText.insetW }}
+        h={{ fill: Layout.searchText.insetH }}
+        text={text}
+        font={TaskFont.BODY}
+        shadow
+        align="left"
+        valign="middle"
+        color={hovered === 1 ? TaskColour.WHITE : accent}
+        onMouseEnter={searching === 0 ? () => setHovered(1) : undefined}
+        onMouseLeave={searching === 0 ? () => setHovered(0) : undefined}
+        onKey={searching === 1 ? (event) => typeIntoLeagueSearch(event.keyCode, event.keyChar) : undefined}
+      />
+      <text
+        x={0}
+        y={0}
+        w={Layout.searchTitle.w}
+        h="fill"
+        text="Search:"
+        font={TaskFont.BODY}
+        color={accent}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function TaskRows(): Component {
+  const mobile: Boolean = onMobile();
+  const box = useUniverse();
+  const paneWidth: Int = box.width;
+  const [built, setBuilt] = useState(300);
+  const [finished, setFinished] = useState(0);
+  const [expanded] = useState(leagueTaskMenuSelectedTask);
+  const [search] = useState(leagueTasksSearchString);
+  const [scrollPos] = useState(leagueTasksScrollPos);
+  const [, setBuilding] = useState(leagueTaskMenuBuildIsActive);
+  const [, setDoneCount] = useState(leagueTaskMenuCompletedCount);
+  const [, setTotalCount] = useState(leagueTaskMenuTotalCount);
+  const [, setExtent] = useState(listExtent);
+  const [, setPaneHeight] = useState(listPaneHeight);
+  const searching: Int = useServerState(Varbits.LEAGUE_TASKS_IS_SEARCHING);
+  const accent: Int = taskAccent();
+  const league: Int = taskLeague();
+  const total: Int = LeagueTaskList.length;
+
+  useInterval(
+    finished === 1
+      ? undefined
+      : () => {
+          if (built >= total) {
+            setFinished(1);
+          } else {
+            setBuilt(Math.min(total, built + BUILD_CHUNK));
+          }
+        },
+  );
+
+  useWatch(Varps.LEAGUE_POINTS_COMPLETED, () => collapseTasks());
+  useWatch([Varps.LEAGUE_GENERAL, Varps.LEAGUE_GENERAL_2], () => leagueGeneralChanged());
+
+  const searchLength: Int = withoutSpaces(search).length;
+  const active: Boolean = filtersActive(searchLength);
+
+  let content: Int = 0;
+  let shown: Int = 0;
+  let doneCount: Int = 0;
+  let i: Int = 0;
+  while (i < built) {
+    const task: LeagueTask | null = LeagueTaskList.at(i);
+    if (task !== null) {
+      const done: Int = taskDone(i);
+      if (leagueTaskShown(task, done, active, search, searchLength)) {
+        content = content + rowHeight(task, i, expanded, paneWidth);
+        shown = shown + 1;
+        doneCount = doneCount + done;
+      }
+    }
+    i = i + 1;
+  }
+
+  setBuilding(finished === 1 ? 0 : 1);
+  setDoneCount(doneCount);
+  setTotalCount(shown);
+
+  const paneHeight: Int = tasksListRef.height;
+  const extent: Int = content > paneHeight ? content : 0;
+  if (finished === 1) {
+    tasksListRef.scrollHeight = extent;
+    tasksListRef.scrollY = scrollPos === -1 ? tasksListRef.scrollY : scrollPos;
+  }
+  setExtent(finished === 1 ? extent : 0);
+  setPaneHeight(paneHeight);
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <text
+        x="center"
+        y="center"
+        w={{ fill: Layout.none.inset }}
+        h={{ fill: Layout.none.inset }}
+        text="There are no tasks available to you<br>that match your filters."
+        font={TaskFont.BODY}
+        color={accent}
+        shadow
+        align="center"
+        valign="middle"
+        hide={!(finished === 1 && shown === 0 && searching === 0)}
+      />
+    </layer>
+  );
+}
+
+function TaskChunk({ chunk }: { chunk: Int }): Component {
+  const mobile: Boolean = onMobile();
+  const box = useUniverse();
+  const paneWidth: Int = box.width;
+  const [expanded] = useState(leagueTaskMenuSelectedTask);
+  const [search] = useState(leagueTasksSearchString);
+  const accent: Int = taskAccent();
+  const league: Int = taskLeague();
+  const start: Int = chunk * BUILD_CHUNK;
+  const end: Int = Math.min(LeagueTaskList.length, start + BUILD_CHUNK);
+  const searchLength: Int = withoutSpaces(search).length;
+  const active: Boolean = filtersActive(searchLength);
+
+  let top: Int = 0;
+  let visible: Int = 0;
+  let bottom: Int = 0;
+  let i: Int = 0;
+  while (i < end) {
+    const task: LeagueTask | null = LeagueTaskList.at(i);
+    if (task !== null) {
+      if (leagueTaskShown(task, taskDone(i), active, search, searchLength)) {
+        const height: Int = rowHeight(task, i, expanded, paneWidth);
+        if (i < start) {
+          top = top + height;
+          visible = visible + 1;
+        }
+        bottom = bottom + height;
+      }
+    }
+    i = i + 1;
+  }
+
+  return (
+    <layer x={0} y={0} w={paneWidth} h={bottom}>
+      {LeagueTaskList.filter(
+        (task, index) =>
+          index >= start && index < end && leagueTaskShown(task, taskDone(index), active, search, searchLength),
+      ).scan(
+        (task, index, y) => (
+          <TaskRow
+            task={task}
+            visible={visible + index}
+            y={top + y}
+            expanded={expanded}
+            done={taskDone(task.bit)}
+            mobile={mobile}
+            paneWidth={paneWidth}
+            accent={accent}
+            league={league}
+          />
+        ),
+        (task) => rowHeight(task, task.bit, expanded, paneWidth),
+      )}
+    </layer>
+  );
+}
+
+function TasksScrollbar(): Component {
+  const [building] = useState(leagueTaskMenuBuildIsActive);
+  const [extent] = useState(listExtent);
+  const [paneHeight] = useState(listPaneHeight);
+  if (building !== 0) {
+    return null;
+  }
+  return <ListScrollbar extent={extent} paneHeight={paneHeight} />;
+}
+
+function TaskRow({
+  task,
+  visible,
+  y,
+  expanded,
+  done,
+  mobile,
+  paneWidth,
+  accent,
+  league,
+}: {
+  task: LeagueTask;
+  visible: Int;
+  y: Int;
+  expanded: Int;
+  done: Int;
+  mobile: Boolean;
+  paneWidth: Int;
+  accent: Int;
+  league: Int;
+}): Component {
+  const open: Boolean = task.bit === expanded;
+  const lines: Int = open ? descriptionLines(task, paneWidth) : 0;
+  const height: Int = open ? Row.H + Row.LINE * lines + Row.EXPAND_PAD : Row.H;
+  const stripe: Int = visible % 2 === 1 ? Row.trans.odd : Row.trans.even;
+  const icon = useRef();
+  return (
+    <>
+      <rect
+        x="center"
+        y={y}
+        w="fill"
+        h={height}
+        fill
+        color={TaskColour.WHITE}
+        transparency={open ? Row.trans.open : stripe}
+        onMouseRepeat={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.transparency = Row.trans.open;
+                icon.sprite = open ? TaskSprite.COLLAPSE_HOVER : TaskSprite.EXPAND_HOVER;
+              }
+        }
+        onMouseLeave={
+          mobile
+            ? undefined
+            : (event) => {
+                event.self.transparency = stripe;
+                icon.sprite = open ? TaskSprite.COLLAPSE : TaskSprite.EXPAND;
+              }
+        }
+        optionSubject={`<col=f47113>${task.name}</col>`}
+        options={[open ? 'Collapse' : 'Expand']}
+        onOptionSelect={() => leagueTaskSelect(task.bit)}
+      />
+      {open ? <ExpandedLines task={task} y={y} lines={lines} accent={accent} /> : null}
+      <sprite
+        ref={icon}
+        x={Row.icon.expandX}
+        y={y + Row.icon.dy}
+        w={Row.icon.size}
+        h={Row.icon.size}
+        sprite={open ? TaskSprite.COLLAPSE : TaskSprite.EXPAND}
+      />
+      <sprite
+        x={Row.icon.tierX}
+        y={y + Row.icon.dy}
+        w={Row.icon.size}
+        h={Row.icon.size}
+        sprite={tierIcon(task, league)}
+      />
+      <text
+        x={Row.name.x}
+        y={y + Row.name.dy}
+        w={{ fill: Row.name.insetW }}
+        h={Row.name.h}
+        text={task.name}
+        font={TaskFont.BODY}
+        shadow
+        align="left"
+        valign="middle"
+        color={done === 1 ? accent : TaskColour.TODO}
+      />
+      <text
+        x={Row.reward.x}
+        y={y + Row.reward.dy}
+        w={{ fill: Row.reward.insetW }}
+        h={Row.reward.h}
+        text={rewardText(task)}
+        font={TaskFont.SMALL}
+        shadow
+        align="left"
+        valign="middle"
+        color={accent}
+      />
+    </>
+  );
+}
+
+function ExpandedLines({ task, y, lines, accent }: { task: LeagueTask; y: Int; lines: Int; accent: Int }): Component {
+  return (
+    <>
+      <text
+        x={Row.type.x}
+        y={y + Row.type.dy}
+        w={{ fill: Row.type.insetW }}
+        h={Row.type.h}
+        text={`Type: <col=ffffff>${LeagueTypeNames.get(task.type) ?? ''}</col>`}
+        font={TaskFont.SMALL}
+        shadow
+        align="left"
+        valign="middle"
+        color={accent}
+      />
+      <text
+        x={Row.area.x}
+        y={y + Row.area.dy}
+        w={{ fill: Row.area.insetW }}
+        h={Row.area.h}
+        text={`Area: <col=ffffff>${LeagueAreaNames.get(task.area) ?? ''}</col>`}
+        font={TaskFont.SMALL}
+        shadow
+        align="left"
+        valign="middle"
+        color={accent}
+      />
+      <text
+        x={Row.description.x}
+        y={y + Row.description.dy}
+        w={{ fill: Row.description.insetW }}
+        h={Row.LINE * lines}
+        text={`Description: <col=ffffff>${task.description}.</col>`}
+        font={TaskFont.SMALL}
+        shadow
+        align="left"
+        valign="middle"
+        color={accent}
+      />
+    </>
+  );
+}
+
+function FiltersTitle(): Component {
+  return (
+    <text
+      x="center"
+      y={Layout.filters.titleY}
+      w="fill"
+      h={Layout.filters.titleH}
+      text="Filters"
+      font={TaskFont.BOLD}
+      color={taskAccent()}
+      shadow
+      align="center"
+      valign="middle"
+    />
+  );
+}
+
+function FilterRow({ filter }: { filter: Int }): Component {
+  const [open] = useState(openFilter);
+  const mobile: Boolean = onMobile();
+  const arrow = useRef();
+  if (!taskLeagueKnown()) {
+    return null;
+  }
+  const isOpen: Boolean = open === filter;
+  const accent: Int = taskAccent();
+  const label: String = filterLabel(filter, filterValue(filter));
+  return (
+    <>
+      <sprite
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Filter.box.h}
+        sprite={TaskSprite.TRADEBACKING}
+        tiling
+        transparency={isOpen ? Filter.trans.open : Filter.trans.rest}
+        onMouseEnter={
+          isOpen || mobile
+            ? undefined
+            : (event) => {
+                event.self.transparency = Filter.trans.hover;
+                arrow.transparency = Filter.arrowHover;
+                arrow.sprite = TaskSprite.ARROW_CLOSED;
+              }
+        }
+        onMouseLeave={
+          isOpen || mobile
+            ? undefined
+            : (event) => {
+                event.self.transparency = Filter.trans.rest;
+                arrow.transparency = 0;
+                arrow.sprite = TaskSprite.ARROW_CLOSED;
+              }
+        }
+        onClick={(event) => {
+          event.self.transparency = Filter.trans.open;
+          arrow.transparency = 0;
+          arrow.sprite = TaskSprite.ARROW_OPEN;
+          leagueTaskFilterOpen(filter);
+        }}
+      />
+      <rect x="center" y="bottom" w="fill" h={Filter.box.h} color={TaskColour.INK_OUTER} />
+      <rect
+        x="center"
+        y={{ bottom: Filter.box.innerBottom }}
+        w={{ fill: Filter.box.innerInsetW }}
+        h={Filter.box.innerH}
+        color={TaskColour.INK_INNER}
+      />
+      <sprite
+        ref={arrow}
+        x={{ right: Filter.arrow.inset }}
+        y={{ bottom: Filter.arrow.inset }}
+        w={Filter.arrow.size}
+        h={Filter.arrow.size}
+        sprite={isOpen ? TaskSprite.ARROW_OPEN : TaskSprite.ARROW_CLOSED}
+      />
+      <text
+        x={Filter.value.x}
+        y={{ bottom: Filter.value.bottom }}
+        w={{ fill: Filter.value.insetW }}
+        h={Filter.value.h}
+        text={label}
+        font={TaskFont.SMALL}
+        shadow
+        color={accent}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={Filter.caption.x}
+        y={0}
+        w={{ fill: Filter.caption.insetW }}
+        h={Filter.caption.h}
+        text={filterCaption(filter)}
+        font={TaskFont.BODY}
+        shadow
+        color={accent}
+        align="left"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function DropdownEntries(): Component {
+  const [open] = useState(openFilter);
+  const [opened] = useState(dropdownOpenTick);
+  const strip = useRef();
+  if (open === -1) {
+    return null;
+  }
+  const filter: Int = open + opened * 0;
+  const mobile: Boolean = onMobile();
+  const entryHeight: Int = dropdownEntryHeight();
+  const accent: Int = taskAccent();
+  return (
+    <>
+      <rect
+        ref={strip}
+        x="center"
+        y={0}
+        w="fill"
+        h={entryHeight}
+        fill
+        color={TaskColour.WHITE}
+        transparency={Filter.strip.trans}
+        hide
+      />
+      <layer x={0} y={0} w="fill" h="fill">
+        {LeagueFilterEntries.filter((entry) => entry.filter === filter).scan(
+          (entry, index, top) => (
+            <DropdownEntry
+              entry={entry}
+              y={top}
+              entryHeight={entryHeight}
+              mobile={mobile}
+              accent={accent}
+              strip={strip}
+              drawn={filterEntryDrawn(entry)}
+            />
+          ),
+          (entry) => (filterEntryDrawn(entry) ? entryHeight : 0),
+        )}
+      </layer>
+    </>
+  );
+}
+
+function DropdownEntry({
+  entry,
+  y,
+  entryHeight,
+  mobile,
+  accent,
+  strip,
+  drawn,
+}: {
+  entry: LeagueFilterEntry;
+  y: Int;
+  entryHeight: Int;
+  mobile: Boolean;
+  accent: Int;
+  strip: Ref;
+  drawn: Boolean;
+}): Component {
+  return (
+    <text
+      x="center"
+      y={y}
+      w="fill"
+      h={entryHeight}
+      text={entry.label}
+      font={TaskFont.SMALL}
+      shadow
+      color={accent}
+      align="center"
+      valign="middle"
+      hide={!drawn}
+      options={['Select']}
+      onMouseRepeat={
+        mobile
+          ? undefined
+          : () => {
+              strip.hide = false;
+              strip.y = y;
+            }
+      }
+      onMouseLeave={
+        mobile
+          ? undefined
+          : () => {
+              strip.hide = true;
+            }
+      }
+      onOptionSelect={(event) => leagueTaskFilterClose(event.option, entry.key, entry.filter)}
+    />
+  );
+}

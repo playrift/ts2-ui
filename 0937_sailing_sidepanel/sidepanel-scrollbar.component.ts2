@@ -1,0 +1,180 @@
+import { useRef } from 'ts2';
+import { ARROW, CAP, STEP, WHEEL } from '../lib/lib.constants';
+import { trackScroll } from '../lib/lib.helpers';
+import { thumbHeightOf } from '../lib/scrollbar-vertical.component';
+import { assignPaneRef, crewPaneRef, facilitiesPaneRef, statsPaneRef } from './sailing-sidepanel.constants';
+
+export const enum Pane {
+  CREW = 0,
+  STATS = 1,
+  ASSIGN = 2,
+  FACILITIES = 3,
+}
+
+function paneExtent(which: Int): Int {
+  if (which === Pane.STATS) {
+    return statsPaneRef.scrollHeight;
+  }
+  if (which === Pane.ASSIGN) {
+    return assignPaneRef.scrollHeight;
+  }
+  if (which === Pane.FACILITIES) {
+    return facilitiesPaneRef.scrollHeight;
+  }
+  return crewPaneRef.scrollHeight;
+}
+
+function paneHeight(which: Int): Int {
+  if (which === Pane.STATS) {
+    return statsPaneRef.height;
+  }
+  if (which === Pane.ASSIGN) {
+    return assignPaneRef.height;
+  }
+  if (which === Pane.FACILITIES) {
+    return facilitiesPaneRef.height;
+  }
+  return crewPaneRef.height;
+}
+
+function paneY(which: Int): Int {
+  if (which === Pane.STATS) {
+    return statsPaneRef.scrollY;
+  }
+  if (which === Pane.ASSIGN) {
+    return assignPaneRef.scrollY;
+  }
+  if (which === Pane.FACILITIES) {
+    return facilitiesPaneRef.scrollY;
+  }
+  return crewPaneRef.scrollY;
+}
+
+function setPaneY(which: Int, y: Int): void {
+  if (which === Pane.STATS) {
+    statsPaneRef.scrollY = y;
+  } else if (which === Pane.ASSIGN) {
+    assignPaneRef.scrollY = y;
+  } else if (which === Pane.FACILITIES) {
+    facilitiesPaneRef.scrollY = y;
+  } else {
+    crewPaneRef.scrollY = y;
+  }
+}
+
+function paneOf(which: Int): ComponentId {
+  if (which === Pane.STATS) {
+    return statsPaneRef;
+  }
+  if (which === Pane.ASSIGN) {
+    return assignPaneRef;
+  }
+  if (which === Pane.FACILITIES) {
+    return facilitiesPaneRef;
+  }
+  return crewPaneRef;
+}
+
+function trackScrollOn(gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref, which: Int): void {
+  trackScroll(gutter, thumb, capTop, capBottom, paneOf(which));
+}
+
+function wheelOn(which: Int, delta: Int, gutter: Ref, thumb: Ref, capTop: Ref, capBottom: Ref): void {
+  setPaneY(which, paneY(which) + delta * WHEEL);
+  trackScrollOn(gutter, thumb, capTop, capBottom, which);
+}
+
+export function PaneScrollbar({ which, extent, height }: { which: Int; extent: Int; height: Int }): Component {
+  const bar = useRef();
+  const gutter = useRef();
+  const thumb = useRef();
+  const capTop = useRef();
+  const capBottom = useRef();
+
+  const measured: Int = extent > 0 ? extent : height;
+  const range: Int = Math.max(1, extent - height);
+
+  if (which === Pane.STATS) {
+    statsPaneRef.onScrollWheel = (event) => wheelOn(which, event.mouseY, gutter, thumb, capTop, capBottom);
+  } else if (which === Pane.FACILITIES) {
+    facilitiesPaneRef.onScrollWheel = (event) => wheelOn(which, event.mouseY, gutter, thumb, capTop, capBottom);
+  } else if (which === Pane.ASSIGN) {
+    assignPaneRef.onScrollWheel = (event) => wheelOn(which, event.mouseY, gutter, thumb, capTop, capBottom);
+  } else {
+    crewPaneRef.onScrollWheel = (event) => wheelOn(which, event.mouseY, gutter, thumb, capTop, capBottom);
+  }
+
+  return (
+    <layer ref={bar} w="fill" h="fill">
+      <sprite
+        ref={gutter}
+        y="center"
+        w="fill"
+        h={{ fill: ARROW * 2 }}
+        sprite={Bar.TRACK}
+        noClickThrough
+        onScrollWheel={(event) => wheelOn(which, event.mouseY, gutter, thumb, capTop, capBottom)}
+        onClick={(event) => {
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const offset: Int = Math.clamp(0, travel, event.mouseY - thumb.height / 2);
+          const span: Int = paneExtent(which) - paneHeight(which);
+          setPaneY(which, (offset * span) / travel);
+          trackScrollOn(gutter, thumb, capTop, capBottom, which);
+        }}
+      />
+      <sprite
+        ref={thumb}
+        y={ARROW + ((gutter.height - thumbHeightOf(bar.height, height, measured, false)) * paneY(which)) / range}
+        w="fill"
+        h={thumbHeightOf(bar.height, height, measured, false)}
+        sprite={Bar.THUMB}
+        noClickThrough
+        draggable={gutter}
+        dragMoves
+        onDrag={(event) => {
+          const offset: Int = event.mouseY;
+          thumb.y = offset + ARROW;
+          capTop.y = offset + ARROW;
+          capBottom.y = offset + ARROW + thumb.height - CAP;
+
+          const travel: Int = Math.max(1, gutter.height - thumb.height);
+          const span: Int = paneExtent(which) - paneHeight(which);
+          setPaneY(which, (offset * span) / travel);
+        }}
+      />
+      <sprite ref={capTop} y={thumb.y} w="fill" h={CAP} sprite={Bar.CAP_TOP} />
+      <sprite ref={capBottom} y={thumb.y + thumb.height - CAP} w="fill" h={CAP} sprite={Bar.CAP_BOTTOM} />
+      <sprite
+        y="top"
+        w="fill"
+        h={ARROW}
+        sprite={Bar.ARROW_UP}
+        noClickThrough
+        onHold={() => {
+          setPaneY(which, paneY(which) - STEP);
+          trackScrollOn(gutter, thumb, capTop, capBottom, which);
+        }}
+      />
+      <sprite
+        y="bottom"
+        w="fill"
+        h={ARROW}
+        sprite={Bar.ARROW_DOWN}
+        noClickThrough
+        onHold={() => {
+          setPaneY(which, paneY(which) + STEP);
+          trackScrollOn(gutter, thumb, capTop, capBottom, which);
+        }}
+      />
+    </layer>
+  );
+}
+
+const Bar = {
+  TRACK: 792,
+  CAP_TOP: 789,
+  THUMB: 790,
+  CAP_BOTTOM: 791,
+  ARROW_UP: 773,
+  ARROW_DOWN: 788,
+} as const;

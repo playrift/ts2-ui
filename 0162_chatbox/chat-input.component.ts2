@@ -1,0 +1,131 @@
+import { CS2, onMounted, onUpdated, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { chatboxMode, chatinput } from '../lib/game/varcs';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { opsound } from '../lib/lib.helpers';
+import { accountIcon, groupPrefixed } from './chatbox.helpers';
+import { chatInputTransparent } from './chatbox.state';
+import { ChatboxColor, ChatboxFonts, Layout, inputLineRef } from './chatbox.constants';
+
+export function ChatInputLine(): Component {
+  const [typed] = useState(chatinput);
+  const [mode] = useState(chatboxMode);
+
+  const [transparent] = useState(chatInputTransparent);
+
+  let typedTag: String = '<col=0000ff>';
+  let colour: Int = ChatboxColor.BODY;
+  let hoverColour: Int = OPAQUE_HOVER;
+  let shadow: Boolean = false;
+  if (transparent === 1) {
+    typedTag = '<col=9090ff>';
+    colour = ChatboxColor.BODY_TRANSPARENT;
+    hoverColour = TRANSPARENT_HOVER;
+    shadow = true;
+  }
+
+  const named: Boolean = useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 1;
+  const length: Int = CS2.string_length(typed);
+  const escaped: String = CS2.escape(typed);
+
+  let line: String = '';
+  let rightAligned: Boolean = false;
+  let resetMode: Boolean = false;
+
+  if (named) {
+    line = `${accountIcon()}${CS2.chat_playername()}`;
+    if (mode === 1) {
+      line = CS2.append(line, ' (channel)');
+    } else if (mode === 2) {
+      line = CS2.append(line, ' (clan)');
+    } else if (mode === 3) {
+      line = CS2.append(line, ' (guest clan)');
+    } else if (mode === 4) {
+      if (isGroupIronman(useServerState(Varbits.IRONMAN))) {
+        line = CS2.append(line, ' (group)');
+      } else {
+        resetMode = true;
+      }
+    }
+    line = CS2.append(line, `: ${typedTag}${escaped}</col>`);
+    if (groupPrefixed(typed)) {
+      if (length < GROUP_CARET_LIMIT) {
+        line = CS2.append(line, `${typedTag}*</col>`);
+      }
+    } else if (length < CARET_LIMIT) {
+      line = CS2.append(line, `${typedTag}*</col>`);
+    }
+    if (CS2.parawidth(line, MAX_INT, ChatboxFonts.BODY) > inputLineRef.width!) {
+      rightAligned = true;
+    }
+  } else {
+    line = `${accountIcon()} You must set a name before you can chat.`;
+  }
+
+  onMounted(() => chatInputApply(line, colour, shadow, named, rightAligned, hoverColour, resetMode));
+  onUpdated(() => chatInputApply(line, colour, shadow, named, rightAligned, hoverColour, resetMode));
+
+  return <layer x={0} y={0} w={1} h={1} />;
+}
+
+function chatInputApply(
+  line: String,
+  colour: Int,
+  shadow: Boolean,
+  named: Boolean,
+  rightAligned: Boolean,
+  hoverColour: Int,
+  resetMode: Boolean,
+): void {
+  if (named) {
+    inputLineRef.props = {
+      text: line,
+      color: colour,
+      shadow: shadow,
+      align: rightAligned ? 'right' : 'left',
+      valign: 'bottom',
+      lineHeight: 0,
+      w: { fill: 3 },
+      h: Layout.INPUT_H,
+    };
+    inputLineRef.options = [];
+    inputLineRef.onMouseRepeat = null;
+    inputLineRef.onMouseLeave = null;
+    inputLineRef.onOptionSelect = null;
+  } else {
+    inputLineRef.props = {
+      text: line,
+      color: colour,
+      shadow: shadow,
+      align: 'center',
+      valign: 'bottom',
+      lineHeight: 0,
+      w: { fill: 3 },
+      h: Layout.INPUT_H,
+    };
+    inputLineRef.options = ['', '', '', '', '', '', '', '', '', 'Configure'];
+    inputLineRef.optionSubject = '<col=ff9040>Display name</col>';
+    inputLineRef.onMouseRepeat = (event) => textColourSwapper(event.component, hoverColour);
+    inputLineRef.onMouseLeave = (event) => textColourSwapper(event.component, colour);
+    inputLineRef.onOptionSelect = (event) => opsound(event.option, OPSOUND_MASK);
+  }
+
+  if (resetMode) {
+    const [, setMode] = useState(chatboxMode);
+    setMode(0);
+  }
+}
+
+function textColourSwapper(component: ComponentId, colour: Int): void {
+  if (CS2.if_find(component)) {
+    CS2.cc_colour_set(colour);
+  }
+}
+
+const OPAQUE_HOVER = 0x5f5f5f;
+const TRANSPARENT_HOVER = 0xbfbfbf;
+const MAX_INT = 2147483647;
+const CARET_LIMIT = 80;
+const GROUP_CARET_LIMIT = 79;
+const OPSOUND_MASK = 1024;

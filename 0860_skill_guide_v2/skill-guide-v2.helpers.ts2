@@ -1,0 +1,594 @@
+import { CS2, param, paramText, useInventory, useServerState, useSkillBase, useState } from 'ts2';
+
+import { Inventories } from '../lib/game/inventories';
+import { Params } from '../lib/game/params';
+import { Sounds } from '../lib/game/sounds';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { skillGuideV2CurrentSkill, skillGuideV2CurrentTab } from '../lib/game/varcs';
+import { chatMessage, itemName, playSound, textLineCount } from '../lib/lib.engine';
+import { magicRuneCount, spellbookHasRunes } from '../lib/lib.magic';
+import { Quest, questComplete } from '../lib/lib.quests';
+import { SkillByIndex } from '../lib/skills.data';
+import { Skills } from '../0320_stats/stats.constants';
+
+import {
+  GuideFont,
+  GuideServerScript,
+  IconOp,
+  LEVEL_UP_TAB,
+  REQUIREMENT_MET,
+  REQUIREMENT_UNMET,
+  Row,
+} from './skill-guide-v2.constants';
+import {
+  GuideCategories,
+  GuideEntries,
+  GuideEntry,
+  GuideEntryCount,
+  GuideEntryStart,
+  GuideSkillNames,
+  GuideTuples,
+  GuideUnlock,
+  GuideUnlocks,
+  LevelUpMembersOnly,
+  OtherCheck,
+} from './skill-guide-v2.data';
+import { guideLevelFrom, guideLevelTo } from './skill-guide-v2.state';
+
+export function skillGuideV2Open(skill: Int, tab: Int, from: Int, to: Int): void {
+  const [, setSkill] = useState(skillGuideV2CurrentSkill);
+  const [, setTab] = useState(skillGuideV2CurrentTab);
+  const [, setFrom] = useState(guideLevelFrom);
+  const [, setTo] = useState(guideLevelTo);
+  let first: Int = from;
+  let last: Int = to;
+  if (tab !== LEVEL_UP_TAB) {
+    first = 0;
+    last = 0;
+  }
+  setSkill(skill);
+  setTab(tab);
+  setFrom(first);
+  setTo(last);
+}
+
+export function skillGuideV2SelectTab(tab: Int): void {
+  const [current, setTab] = useState(skillGuideV2CurrentTab);
+  if (tab === current) {
+    return;
+  }
+  playSound(Sounds.INTERFACE_SELECT1);
+  setTab(tab);
+}
+
+export function categoryCount(skill: Int): Int {
+  let count: Int = 0;
+  let i: Int = 0;
+  while (i < GuideCategories.length) {
+    const category = GuideCategories.at(i);
+    if (category !== null) {
+      if (category.skill === skill) {
+        count = count + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return count;
+}
+
+export function categoryIndex(skill: Int, tab: Int): Int {
+  let i: Int = 0;
+  while (i < GuideCategories.length) {
+    const category = GuideCategories.at(i);
+    if (category !== null) {
+      if (category.skill === skill && category.tab === tab) {
+        return i;
+      }
+    }
+    i = i + 1;
+  }
+  return -1;
+}
+
+export function pageMembersOnly(skill: Int, tab: Int): Boolean {
+  if (tab === LEVEL_UP_TAB) {
+    return LevelUpMembersOnly.get(skill) ?? false;
+  }
+  const index: Int = categoryIndex(skill, tab);
+  const category = GuideCategories.at(index);
+  if (category === null) {
+    return false;
+  }
+  return category.membersOnly;
+}
+
+export function guideTitle(skill: Int, tab: Int): String {
+  let header: String = '';
+  if (tab === LEVEL_UP_TAB) {
+    header = 'Level-up Unlocks';
+  } else {
+    const category = GuideCategories.at(categoryIndex(skill, tab));
+    if (category !== null) {
+      header = category.header;
+    }
+  }
+  if (pageMembersOnly(skill, tab)) {
+    header = `${header} (Members Only)`;
+  }
+  return `${GuideSkillNames.get(skill) ?? 'this skill'} - ${header} `;
+}
+
+function tabFold(listHeight: Int, count: Int, wantGap: Boolean): Int {
+  let height: Int = 20;
+  let gap: Int = 0;
+  if (listHeight >= 392) {
+    height = 26;
+    gap = 2;
+  } else if (listHeight >= 350) {
+    height = 24;
+    gap = 1;
+  } else if (listHeight >= 308) {
+    height = 21;
+    gap = 1;
+  } else if (listHeight >= 294) {
+    height = 21;
+  }
+  const share: Int = listHeight / Math.max(count, 1);
+  while (height + gap > share && (height > 20 || gap > -1)) {
+    gap = Math.max(gap - 1, -1);
+    if (height + gap > share) {
+      height = Math.max(height - 1, 20);
+    }
+  }
+  if (wantGap) {
+    return gap;
+  }
+  return height;
+}
+
+export function tabHeight(listHeight: Int, count: Int): Int {
+  return tabFold(listHeight, count, false);
+}
+
+export function tabGap(listHeight: Int, count: Int): Int {
+  return tabFold(listHeight, count, true);
+}
+
+export function tabLabelPad(height: Int): Int {
+  if (height >= 26) {
+    return 4;
+  }
+  if (height >= 24) {
+    return 3;
+  }
+  if (height >= 21) {
+    return 2;
+  }
+  return 1;
+}
+
+export function rowLineHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return 17;
+  }
+  if (breakpoint === 2) {
+    return 18;
+  }
+  if (breakpoint === 3) {
+    return 20;
+  }
+  return 16;
+}
+
+export function leagueRow(row: Int, league: Int): Int {
+  const unlock = GuideUnlocks.at(row);
+  if (unlock === null) {
+    return -1;
+  }
+  if (league === 6) {
+    return unlock.league6;
+  }
+  if (league === 1) {
+    return unlock.league1;
+  }
+  if (league === 3) {
+    return unlock.league3;
+  }
+  return -1;
+}
+
+function swappedRowMatches(row: Int, skill: Int, level: Int, levelUp: Boolean): Boolean {
+  const unlock = GuideUnlocks.at(row);
+  if (unlock === null) {
+    return false;
+  }
+  let t: Int = unlock.tupleCount;
+  while (t > 0) {
+    t = t - 1;
+    const tuple = GuideTuples.at(unlock.tupleStart + t);
+    if (tuple !== null) {
+      if (tuple.skill === skill && tuple.level === level) {
+        if (!levelUp || tuple.tab !== -1) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+export function entryRow(entry: GuideEntry, skill: Int, tab: Int, from: Int, to: Int, league: Int): Int {
+  const levelUp: Boolean = tab === LEVEL_UP_TAB && from > 0 && from <= to;
+  if (levelUp) {
+    if (entry.level < from || entry.level > to) {
+      return -1;
+    }
+  } else if (entry.tab !== tab) {
+    return -1;
+  }
+  const swapped: Int = leagueRow(entry.row, league);
+  if (swapped === -1) {
+    if (levelUp && entry.tab === -1) {
+      return -1;
+    }
+    return entry.row;
+  }
+  if (swappedRowMatches(swapped, skill, entry.level, levelUp)) {
+    return swapped;
+  }
+  return -1;
+}
+
+export function baseLevel(skillKey: Int): Int {
+  const skill: Skill = SkillByIndex.get(skillKey) ?? -1;
+  switch (skill) {
+    case 0:
+      return useSkillBase(Skills.ATTACK);
+    case 1:
+      return useSkillBase(Skills.DEFENCE);
+    case 2:
+      return useSkillBase(Skills.STRENGTH);
+    case 3:
+      return useSkillBase(Skills.HITPOINTS);
+    case 4:
+      return useSkillBase(Skills.RANGED);
+    case 5:
+      return useSkillBase(Skills.PRAYER);
+    case 6:
+      return useSkillBase(Skills.MAGIC);
+    case 7:
+      return useSkillBase(Skills.COOKING);
+    case 8:
+      return useSkillBase(Skills.WOODCUTTING);
+    case 9:
+      return useSkillBase(Skills.FLETCHING);
+    case 10:
+      return useSkillBase(Skills.FISHING);
+    case 11:
+      return useSkillBase(Skills.FIREMAKING);
+    case 12:
+      return useSkillBase(Skills.CRAFTING);
+    case 13:
+      return useSkillBase(Skills.SMITHING);
+    case 14:
+      return useSkillBase(Skills.MINING);
+    case 15:
+      return useSkillBase(Skills.HERBLORE);
+    case 16:
+      return useSkillBase(Skills.AGILITY);
+    case 17:
+      return useSkillBase(Skills.THIEVING);
+    case 18:
+      return useSkillBase(Skills.SLAYER);
+    case 19:
+      return useSkillBase(Skills.FARMING);
+    case 20:
+      return useSkillBase(Skills.RUNECRAFT);
+    case 21:
+      return useSkillBase(Skills.HUNTER);
+    case 22:
+      return useSkillBase(Skills.CONSTRUCTION);
+    case 23:
+      return useSkillBase(Skills.SAILING);
+  }
+  return 0;
+}
+
+export function otherRequirement(check: Int): Int {
+  let met: Boolean = false;
+  switch (check) {
+    case OtherCheck.ZOGRE_BOW:
+      met = useServerState(Varbits.THZFE_MAKECOMPOZOGREBOW) >= 1;
+      break;
+    case OtherCheck.VIRGINIA:
+      met = useServerState(Varps.TOTAL_TEMPOROSS_KILLS) >= 100;
+      break;
+    case OtherCheck.COMBAT_3:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 3;
+      break;
+    case OtherCheck.COMBAT_20:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 20;
+      break;
+    case OtherCheck.COMBAT_40:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 40;
+      break;
+    case OtherCheck.COMBAT_70:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 70;
+      break;
+    case OtherCheck.COMBAT_75:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 75;
+      break;
+    case OtherCheck.COMBAT_85:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 85;
+      break;
+    case OtherCheck.COMBAT_100:
+      met = useServerState(Varbits.COMBATLEVEL_TRANSMIT) >= 100;
+      break;
+    case OtherCheck.MYREQUE_FENCE:
+      met = useServerState(Varbits.MYREQUE_2_QUEST) >= 50;
+      break;
+    case OtherCheck.CRYSTAL_HALBERD:
+      met = useServerState(Varbits.WESTERN_HARD_REWARD) >= 1;
+      break;
+    case OtherCheck.DEADEYE:
+      met = useServerState(Varbits.PRAYER_DEADEYE_UNLOCKED) >= 1;
+      break;
+    case OtherCheck.MYSTIC_VIGOUR:
+      met = useServerState(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) >= 1;
+      break;
+    case OtherCheck.RIGOUR:
+      met = useServerState(Varbits.PRAYER_RIGOUR_UNLOCKED) >= 1;
+      break;
+    case OtherCheck.AUGURY:
+      met = useServerState(Varbits.PRAYER_AUGURY_UNLOCKED) >= 1;
+      break;
+    case OtherCheck.LEAGUE_6:
+      met = useServerState(Varbits.LEAGUE_TYPE) === 6;
+      break;
+    default:
+      return -1;
+  }
+  if (met) {
+    return 1;
+  }
+  return 0;
+}
+
+export function unlockText(unlock: GuideUnlock, skill: Int, pageMembers: Boolean): String {
+  let text: String = unlock.text;
+  if (!pageMembers && unlock.membersOnly) {
+    text = `Members: ${text}`;
+  }
+  let requires: String = '';
+  let t: Int = unlock.tupleCount;
+  while (t > 0) {
+    t = t - 1;
+    const tuple = GuideTuples.at(unlock.tupleStart + t);
+    if (tuple !== null) {
+      if (tuple.skill !== 0 && tuple.skill !== skill && tuple.level > 1) {
+        const tag: String = baseLevel(tuple.skill) >= tuple.level ? REQUIREMENT_MET : REQUIREMENT_UNMET;
+        const name: String = GuideSkillNames.get(tuple.skill) ?? 'this skill';
+        if (requires.length > 0) {
+          requires = `${requires}, ${tag}level ${stringOf(tuple.level)} ${name}</col>`;
+        } else {
+          requires = `Requires: ${tag}Level ${stringOf(tuple.level)} ${name}</col>`;
+        }
+      }
+    }
+  }
+  if (unlock.quest !== -1) {
+    const tag: String = questComplete(unlock.quest as Quest) ? REQUIREMENT_MET : REQUIREMENT_UNMET;
+    if (requires.length > 0) {
+      requires = `${requires}, ${tag}${unlock.questName}</col>`;
+    } else {
+      requires = `Requires: ${tag}${unlock.questName}</col>`;
+    }
+  }
+  if (unlock.otherReq.length > 0) {
+    const met: Int = otherRequirement(unlock.otherCheck);
+    let tag: String = '';
+    if (met === 1) {
+      tag = REQUIREMENT_MET;
+    } else if (met === 0) {
+      tag = REQUIREMENT_UNMET;
+    }
+    if (requires.length > 0) {
+      requires = `${requires}<br>Requires: ${tag}${unlock.otherReq}</col>`;
+    } else {
+      requires = `Requires: ${tag}${unlock.otherReq}</col>`;
+    }
+  }
+  if (requires.length > 0) {
+    text = `${text}<br>${requires}`;
+  }
+  return text;
+}
+
+export function unlockTextWidth(unlock: GuideUnlock, level: Int, textW: Int): Int {
+  if ((level < 1 || level > 99) && unlock.icon === Row.blankIcon && unlock.sprite === -1) {
+    return textW + Row.iconColumn;
+  }
+  return textW;
+}
+
+export function entryHeight(
+  entry: GuideEntry,
+  skill: Int,
+  tab: Int,
+  from: Int,
+  to: Int,
+  league: Int,
+  pageMembers: Boolean,
+  textW: Int,
+  lineHeight: Int,
+): Int {
+  const unlock = GuideUnlocks.at(entryRow(entry, skill, tab, from, to, league));
+  if (unlock === null) {
+    return 0;
+  }
+  return unlockHeight(unlockText(unlock, skill, pageMembers), unlockTextWidth(unlock, entry.level, textW), lineHeight);
+}
+
+export function entryText(
+  entry: GuideEntry,
+  skill: Int,
+  tab: Int,
+  from: Int,
+  to: Int,
+  league: Int,
+  pageMembers: Boolean,
+): String {
+  const unlock = GuideUnlocks.at(entryRow(entry, skill, tab, from, to, league));
+  if (unlock === null) {
+    return '';
+  }
+  return unlockText(unlock, skill, pageMembers);
+}
+
+export function entryWidth(entry: GuideEntry, skill: Int, tab: Int, from: Int, to: Int, league: Int, textW: Int): Int {
+  const unlock = GuideUnlocks.at(entryRow(entry, skill, tab, from, to, league));
+  if (unlock === null) {
+    return 0;
+  }
+  return unlockTextWidth(unlock, entry.level, textW);
+}
+
+export function tableExtent(
+  skill: Int,
+  tab: Int,
+  from: Int,
+  to: Int,
+  league: Int,
+  pageMembers: Boolean,
+  textW: Int,
+  lineHeight: Int,
+): Int {
+  const start: Int = GuideEntryStart.get(skill) ?? 0;
+  const end: Int = start + (GuideEntryCount.get(skill) ?? 0);
+  let extent: Int = 0;
+  let i: Int = start;
+  while (i < end) {
+    const entry = GuideEntries.at(i);
+    if (entry !== null) {
+      extent = extent + entryHeight(entry, skill, tab, from, to, league, pageMembers, textW, lineHeight);
+    }
+    i = i + 1;
+  }
+  return extent;
+}
+
+export function tableRows(skill: Int, tab: Int, from: Int, to: Int, league: Int): Int {
+  const start: Int = GuideEntryStart.get(skill) ?? 0;
+  const end: Int = start + (GuideEntryCount.get(skill) ?? 0);
+  let rows: Int = 0;
+  let i: Int = start;
+  while (i < end) {
+    const entry = GuideEntries.at(i);
+    if (entry !== null) {
+      if (entryRow(entry, skill, tab, from, to, league) !== -1) {
+        rows = rows + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return rows;
+}
+
+export function unlockHeight(text: String, width: Int, lineHeight: Int): Int {
+  return Math.max(textLineCount(text, width, GuideFont.BODY) * lineHeight + Row.inset * 2, Row.minH);
+}
+
+export function iconOpItem(unlock: GuideUnlock, skill: Int): Item {
+  if (skill === IconOp.MAGIC) {
+    return unlock.magicItem;
+  }
+  if (skill === IconOp.CONSTRUCTION) {
+    return unlock.constructionItem;
+  }
+  if (skill === IconOp.SAILING) {
+    return unlock.sailingItem;
+  }
+  return -1;
+}
+
+export function iconOpLabel(skill: Int): String {
+  if (skill === IconOp.MAGIC) {
+    return 'Check runes';
+  }
+  return 'Check materials';
+}
+
+export function iconOp(skill: Int, item: Item, component: ComponentId, subId: Int): void {
+  if (skill === IconOp.MAGIC) {
+    checkRunes(item);
+  } else if (skill === IconOp.CONSTRUCTION) {
+    checkMaterials(component, subId, IconOp.CONSTRUCTION_KIND, item);
+  } else if (skill === IconOp.SAILING) {
+    checkMaterials(component, subId, IconOp.SAILING_KIND, item);
+  }
+}
+
+export function checkMaterials(component: ComponentId, subId: Int, kind: Int, item: Item): void {
+  CS2.if_runscript(GuideServerScript.CHECK_MATERIALS, component, subId, kind, item as Int, 'ii');
+  playSound(Sounds.INTERFACE_SELECT1);
+}
+
+export function checkRunes(spell: Item): void {
+  playSound(Sounds.INTERFACE_SELECT1);
+  const worn = useInventory(Inventories.WORN);
+  const weapon: Item = worn[IconOp.WEAPON_SLOT];
+  const shield: Item = worn[IconOp.SHIELD_SLOT];
+  const covered: Boolean = spellbookHasRunes(spell, weapon, shield);
+  let text: String = '';
+  text = runeCost(
+    param(spell, Params.MAGIC_RUNETYPE_4),
+    param(spell, Params.MAGIC_RUNECOUNT_4),
+    covered,
+    weapon,
+    shield,
+    text,
+  );
+  text = runeCost(
+    param(spell, Params.MAGIC_RUNETYPE_3),
+    param(spell, Params.MAGIC_RUNECOUNT_3),
+    covered,
+    weapon,
+    shield,
+    text,
+  );
+  text = runeCost(
+    param(spell, Params.MAGIC_RUNETYPE_2),
+    param(spell, Params.MAGIC_RUNECOUNT_2),
+    covered,
+    weapon,
+    shield,
+    text,
+  );
+  const first: Item = param(spell, Params.MAGIC_RUNETYPE_1);
+  if (first !== -1) {
+    const count: Int = param(spell, Params.MAGIC_RUNECOUNT_1);
+    let name: String = itemName(first);
+    if (first === IconOp.WRATH_RUNE_ALIAS) {
+      name = itemName(IconOp.WRATH_RUNE_NAME);
+    }
+    if (covered || magicRuneCount(first, weapon, shield) >= count) {
+      text = `${stringOf(count)} x ${name}${text}`;
+    } else {
+      text = `<col=ef1020>${stringOf(count)} x ${name}</col>${text}`;
+    }
+  } else {
+    text = paramText(spell, Params.SPELL_DESC);
+  }
+  chatMessage(`${paramText(spell, Params.SPELL_NAME)}: ${text}`);
+}
+
+function runeCost(rune: Item, count: Int, covered: Boolean, weapon: Item, shield: Item, tail: String): String {
+  if (rune === -1) {
+    return tail;
+  }
+  if (covered || magicRuneCount(rune, weapon, shield) >= count) {
+    return `, ${stringOf(count)} x ${itemName(rune)}${tail}`;
+  }
+  return `, <col=ef1020>${stringOf(count)} x ${itemName(rune)}</col>${tail}`;
+}

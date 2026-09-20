@@ -1,0 +1,162 @@
+import { createRef, useServerState } from 'ts2';
+import { ThinStoneBoxEntrypoint } from '../lib/thin-stone-box.component';
+import { BuildList } from '../lib/pvp-arena/build-list.component';
+import { StatColumn, StatSide } from '../lib/pvp-arena/stat-column-side.component';
+import { ChooseBuildSkill } from '../0765_pvp_arena_choosebuild/pvp-arena-choosebuild.constants';
+import { battleSettled } from './supplies-tabs';
+import {
+  Copy,
+  FighterCamera,
+  FighterModel,
+  Layout,
+  SuppliesColor,
+  SuppliesFonts,
+  SuppliesSprites,
+  SuppliesVarbits,
+} from './pvp-arena-stagingarea-supplies.constants';
+
+const statsStatusText = createRef('pvp_arena_stagingarea_supplies:stats_status');
+
+export function StatsDisplay(): Component {
+  return (
+    <>
+      <layer x="center" y={Layout.strip.y} w={{ fill: Layout.strip.inset }} h={Layout.strip.h}>
+        <sprite
+          x="center"
+          y={{ center: Layout.strip.backingNudge }}
+          w={{ fill: Layout.strip.backingInset }}
+          h={{ fill: Layout.strip.backingInset }}
+          sprite={SuppliesSprites.STRIP_BACKING}
+          tiling
+        />
+        <BuildList />
+      </layer>
+
+      <layer x="center" y={{ bottom: Layout.stats.bottom }} w={Layout.stats.w} h={{ fill: Layout.stats.drop }}>
+        <sprite
+          x="center"
+          y="center"
+          w={{ fill: Layout.stats.backingInset }}
+          h={{ fill: Layout.stats.backingInset }}
+          sprite={SuppliesSprites.ROW_BACK}
+          tiling
+        />
+        <rect
+          x={Layout.stats.ruleX}
+          y="center"
+          w={Layout.stats.ruleW}
+          h={{ fill: Layout.stats.ruleDrop }}
+          fill
+          color={SuppliesColor.RULE_LIGHT}
+        />
+        <rect
+          x={{ right: Layout.stats.ruleX }}
+          y="center"
+          w={Layout.stats.ruleW}
+          h={{ fill: Layout.stats.ruleDrop }}
+          fill
+          color={SuppliesColor.RULE_DARK}
+        />
+        <layer x={Layout.stats.columnInset} y="center" w={Layout.stats.columnW} h={{ fill: Layout.stats.columnDrop }}>
+          <StatColumn
+            side={StatSide.LEFT}
+            skill0={ChooseBuildSkill.ATTACK}
+            skill1={ChooseBuildSkill.STRENGTH}
+            skill2={ChooseBuildSkill.RANGED}
+            skill3={ChooseBuildSkill.MAGIC}
+          />
+        </layer>
+        <layer
+          x={{ right: Layout.stats.columnInset }}
+          y="center"
+          w={Layout.stats.columnW}
+          h={{ fill: Layout.stats.columnDrop }}
+        >
+          <StatColumn
+            side={StatSide.RIGHT}
+            skill0={ChooseBuildSkill.DEFENCE}
+            skill1={ChooseBuildSkill.HITPOINTS}
+            skill2={ChooseBuildSkill.PRAYER}
+            skill3={ChooseBuildSkill.AGILITY}
+          />
+        </layer>
+        <ThinStoneBoxEntrypoint />
+      </layer>
+
+      <model
+        x={Layout.fighter.x}
+        y={Layout.fighter.y}
+        w={Layout.fighter.w}
+        h={Layout.fighter.h}
+        model={FighterModel.TOP_LEFT}
+        zoom={FighterCamera.topLeft.zoom}
+        pitch={FighterCamera.topLeft.pitch}
+        yaw={FighterCamera.topLeft.yaw}
+        offsetY={FighterCamera.topLeft.offsetY}
+      />
+      <model
+        x={Layout.fighter.x}
+        y={{ bottom: Layout.fighter.bottom }}
+        w={Layout.fighter.w}
+        h={Layout.fighter.h}
+        model={FighterModel.BOTTOM_LEFT}
+        zoom={FighterCamera.bottomLeft.zoom}
+        pitch={FighterCamera.bottomLeft.pitch}
+        yaw={FighterCamera.bottomLeft.yaw}
+        offsetX={FighterCamera.bottomLeft.offsetX}
+        offsetY={FighterCamera.bottomLeft.offsetY}
+      />
+      <model
+        x={{ right: Layout.fighter.x }}
+        y={Layout.fighter.y}
+        w={Layout.fighter.w}
+        h={Layout.fighter.h}
+        model={FighterModel.TOP_RIGHT}
+        zoom={FighterCamera.topRight.zoom}
+        pitch={FighterCamera.topRight.pitch}
+        yaw={FighterCamera.topRight.yaw}
+        offsetX={FighterCamera.topRight.offsetX}
+      />
+      <model
+        x={{ right: Layout.fighter.x }}
+        y={{ bottom: Layout.fighter.bottom }}
+        w={Layout.fighter.w}
+        h={Layout.fighter.h}
+        model={FighterModel.BOTTOM_RIGHT}
+        zoom={FighterCamera.bottomRight.zoom}
+        pitch={FighterCamera.bottomRight.pitch}
+        yaw={FighterCamera.bottomRight.yaw}
+        offsetX={FighterCamera.bottomRight.offsetX}
+        offsetY={FighterCamera.bottomRight.offsetY}
+      />
+
+      <text
+        static
+        ref={statsStatusText}
+        x="center"
+        y="bottom"
+        w="fill"
+        h={Layout.status.h}
+        text=""
+        font={SuppliesFonts.BODY}
+        color={SuppliesColor.LABEL}
+        shadow
+        align="center"
+        valign="bottom"
+      />
+    </>
+  );
+}
+
+export function paintStatsStatus(): void {
+  const canEdit: Int = useServerState(SuppliesVarbits.CAN_EDIT_BUILD);
+  if (canEdit === 1) {
+    return;
+  }
+  const battleType: Int = useServerState(SuppliesVarbits.BATTLE_TYPE);
+  if (battleSettled(battleType)) {
+    statsStatusText.text = Copy.STATS_SETTLED;
+    return;
+  }
+  statsStatusText.text = Copy.STATS_BROWSE;
+}

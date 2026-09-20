@@ -1,0 +1,197 @@
+import { CaColour, CaFonts } from '../0717_ca_overview/ca-overview.constants';
+import { CaTierRow } from '../0717_ca_overview/ca-tiers.data';
+
+import { Layout, RewardsColour } from './ca-rewards.constants';
+import { CaRewardTextRow, CaTierExtras, CaTierRewards, CaTierUnlocks } from './ca-rewards.data';
+import { rewardBlockHeight, rewardRowHeight } from './ca-rewards.helpers';
+
+export function RewardRows({ tier, index, contentW }: { tier: CaTierRow; index: Int; contentW: Int }): Component {
+  const rowsW: Int = contentW - Layout.ROWS_INSET_W;
+  const measureFirst: Int = contentW - Layout.MEASURE_INSET_FIRST;
+  const measureRest: Int = contentW - Layout.MEASURE_INSET_REST;
+
+  const rewardsH: Int = rewardBlockHeight(CaTierRewards, index, measureFirst, Layout.ROW_PAD);
+  const unlocksH: Int = rewardBlockHeight(CaTierUnlocks, index, measureRest, Layout.ROW_PAD);
+  const extrasH: Int = rewardBlockHeight(CaTierExtras, index, measureRest, Layout.ROW_PAD_EXTRA);
+  const rewardsY: Int = Layout.CONTENT_TOP;
+  const unlocksY: Int = rewardsY + rewardsH - 1;
+  const extrasY: Int = unlocksY + unlocksH - 1;
+  const hasExtras: Boolean = tier.extraItem !== -1;
+
+  return (
+    <>
+      {CaTierRewards.scan(
+        (row, i, y, n) =>
+          row.tier === index && (
+            <RewardRow
+              y={y}
+              w={rowsW}
+              h={rewardRowHeight(row.text, measureFirst, Layout.ROW_PAD)}
+              text={row.text}
+              odd={n % 2 === 1}
+            />
+          ),
+        [
+          (row) => (row.tier === index ? rewardRowHeight(row.text, measureFirst, Layout.ROW_PAD) : 0),
+          (row) => (row.tier === index ? 1 : 0),
+        ],
+        [rewardsY, 0],
+      )}
+      <ItemColumn y={rewardsY} h={rewardsH} item={tier.rewardsItem} second={-1} />
+
+      {CaTierUnlocks.scan(
+        (row, i, y, n) =>
+          row.tier === index && (
+            <RewardRow
+              y={y}
+              w={rowsW}
+              h={rewardRowHeight(row.text, measureRest, Layout.ROW_PAD)}
+              text={row.text}
+              odd={n % 2 === 1}
+            />
+          ),
+        [
+          (row) => (row.tier === index ? rewardRowHeight(row.text, measureRest, Layout.ROW_PAD) : 0),
+          (row) => (row.tier === index ? 1 : 0),
+        ],
+        [unlocksY, 0],
+      )}
+      <ItemColumn y={unlocksY} h={unlocksH} item={tier.unlocksItem} second={-1} />
+
+      {CaTierExtras.scan(
+        (row, i, y, n) =>
+          row.tier === index && (
+            <RewardRow
+              y={y}
+              w={rowsW}
+              h={rewardRowHeight(row.text, measureRest, Layout.ROW_PAD_EXTRA)}
+              text={row.text}
+              odd={n % 2 === 1}
+            />
+          ),
+        [
+          (row) => (row.tier === index ? rewardRowHeight(row.text, measureRest, Layout.ROW_PAD_EXTRA) : 0),
+          (row) => (row.tier === index ? 1 : 0),
+        ],
+        [extrasY, 0],
+      )}
+      {hasExtras && <ItemColumn y={extrasY} h={extrasH} item={tier.extraItem} second={tier.extraItem2} />}
+    </>
+  );
+}
+
+function RewardRow({ y, w, h, text, odd }: { y: Int; w: Int; h: Int; text: String; odd: Boolean }): Component {
+  return (
+    <>
+      <rect
+        x={Layout.ROWS_X}
+        y={y}
+        w={w}
+        h={h}
+        fill
+        color={CaColour.WHITE}
+        transparency={odd ? Layout.ROW_WASH_ODD : Layout.ROW_WASH_EVEN}
+      />
+      <text
+        x={Layout.ROWS_X + Layout.ROW_TEXT_INSET}
+        y={y}
+        w={w - Layout.ROW_TEXT_INSET * 2}
+        h={h}
+        text={text}
+        font={CaFonts.BODY}
+        shadow
+        color={CaColour.ORANGE}
+        align="left"
+        valign="middle"
+        lineHeight={Layout.ROW_TEXT_LINE_H}
+      />
+    </>
+  );
+}
+
+function ItemColumn({ y, h, item, second }: { y: Int; h: Int; item: Item; second: Item }): Component {
+  return (
+    <>
+      <rect
+        x={Layout.ITEM_COLUMN_X}
+        y={y}
+        w={Layout.ITEM_COLUMN_W}
+        h={h}
+        fill
+        color={CaColour.WHITE}
+        transparency={Layout.ITEM_WASH}
+      />
+      {second !== -1 ? (
+        <>
+          <sprite
+            x={Layout.ITEM_X}
+            y={y + (h - Layout.ITEM_H * 2) / 2}
+            w={Layout.ITEM_W}
+            h={Layout.ITEM_H}
+            item={item}
+            itemCount={1}
+            shadowColor={RewardsColour.ITEM_SHADOW}
+            outline={1}
+          />
+          <sprite
+            x={Layout.ITEM_X}
+            y={y + (h - Layout.ITEM_H * 2) / 2 + Layout.ITEM_H}
+            w={Layout.ITEM_W}
+            h={Layout.ITEM_H}
+            item={second}
+            itemCount={1}
+            shadowColor={RewardsColour.ITEM_SHADOW}
+            outline={1}
+          />
+        </>
+      ) : (
+        <sprite
+          x={Layout.ITEM_X}
+          y={y + (h - Layout.ITEM_H) / 2}
+          w={Layout.ITEM_W}
+          h={Layout.ITEM_H}
+          item={item}
+          itemCount={1}
+          shadowColor={RewardsColour.ITEM_SHADOW}
+          outline={1}
+        />
+      )}
+    </>
+  );
+}
+
+export function RewardBorders({ tier, index, contentW }: { tier: CaTierRow; index: Int; contentW: Int }): Component {
+  const rowsW: Int = contentW - Layout.ROWS_INSET_W;
+  const rewardsH: Int = rewardBlockHeight(CaTierRewards, index, contentW - Layout.MEASURE_INSET_FIRST, Layout.ROW_PAD);
+  const unlocksH: Int = rewardBlockHeight(CaTierUnlocks, index, contentW - Layout.MEASURE_INSET_REST, Layout.ROW_PAD);
+  const extrasH: Int = rewardBlockHeight(
+    CaTierExtras,
+    index,
+    contentW - Layout.MEASURE_INSET_REST,
+    Layout.ROW_PAD_EXTRA,
+  );
+  const rewardsY: Int = Layout.CONTENT_TOP;
+  const unlocksY: Int = rewardsY + rewardsH - 1;
+  const extrasY: Int = unlocksY + unlocksH - 1;
+  const hasExtras: Boolean = tier.extraItem !== -1;
+
+  return (
+    <>
+      <ThinBox x={Layout.ROWS_X} y={rewardsY} w={rowsW} h={rewardsH} />
+      <ThinBox x={Layout.ITEM_COLUMN_X} y={rewardsY} w={Layout.ITEM_COLUMN_W} h={rewardsH} />
+      <ThinBox x={Layout.ROWS_X} y={unlocksY} w={rowsW} h={unlocksH} />
+      <ThinBox x={Layout.ITEM_COLUMN_X} y={unlocksY} w={Layout.ITEM_COLUMN_W} h={unlocksH} />
+      {hasExtras && <ThinBox x={Layout.ROWS_X} y={extrasY} w={rowsW} h={extrasH} />}
+      {hasExtras && <ThinBox x={Layout.ITEM_COLUMN_X} y={extrasY} w={Layout.ITEM_COLUMN_W} h={extrasH} />}
+    </>
+  );
+}
+
+function ThinBox({ x, y, w, h }: { x: Int; y: Int; w: Int; h: Int }): Component {
+  return (
+    <>
+      <rect x={x} y={y} w={w} h={h} color={RewardsColour.THINBOX_OUTER} />
+      <rect x={x + 1} y={y + 1} w={w - 2} h={h - 2} color={RewardsColour.THINBOX_INNER} />
+    </>
+  );
+}

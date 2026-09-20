@@ -1,0 +1,397 @@
+import { useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { scaled } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+
+import {
+  MASTERY_SUMMARY_PANE,
+  MasteryColour,
+  MasteryFonts,
+  MasteryScrollbar,
+  MasterySprites,
+  PASSIVE_SUMMARY_PANE,
+  TASK_PANE,
+} from './league-combat-mastery.constants';
+import { CombatMasteries, MasteryPassives, MasteryTasks } from './league-combat-mastery.data';
+import { masteryAccent, masteryTab, masteryUnlocked, passiveActive, taskMet } from './league-combat-mastery.helpers';
+
+const TASKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const MASTERIES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] as const;
+const PASSIVES = [1, 2, 3, 4, 5, 6] as const;
+
+function breakpoint(): Int {
+  const [value] = useState(responsiveCurrentBreakpoint);
+  return value;
+}
+
+function ThinboxLight(): Component {
+  return (
+    <>
+      <rect x="center" y="center" w="fill" h="fill" color={0x2e2b23} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={0x726451} />
+    </>
+  );
+}
+
+function ListBacking(): Component {
+  return (
+    <>
+      <sprite x={0} y={0} w="fill" h="fill" sprite={MasterySprites.BACKING} tiling />
+      <ThinboxLight />
+    </>
+  );
+}
+
+export function MasteryPoints(): Component {
+  if (masteryTab() !== 1) {
+    return null;
+  }
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const accent: Int = masteryAccent();
+  const small: Boolean = !(bp === 1 || bp === 2 || bp === 3);
+  const listH: Int = box.height - 58;
+  const rowH: Int = small ? listH / 5 : listH / 8;
+  return (
+    <>
+      <text
+        x="center"
+        y={0}
+        w="fill"
+        h={57}
+        text="Unlock combat mastery points by completing any of the following tasks. Once complete, the task will be highlighted below."
+        font={small ? MasteryFonts.BODY : MasteryFonts.HEADING}
+        color={accent}
+        align="center"
+        valign="middle"
+        lineHeight={20}
+        shadow
+      />
+      <layer x={{ right: 15 }} y={{ bottom: 0 }} w={{ fill: 15 }} h={{ fill: 58 }}>
+        <ListBacking />
+      </layer>
+      <layer
+        ref={TASK_PANE}
+        x={2}
+        y={60}
+        w={{ fill: 19 }}
+        h={{ fill: 58 }}
+        scrollHeight={rowH * MasteryTasks.length}
+        scrollY={0}
+      >
+        {TASKS.map((task) => (
+          <TaskRow task={task} y={rowH * (task - 1)} h={rowH} accent={accent} />
+        ))}
+      </layer>
+      <layer x={{ right: 0 }} y={{ bottom: 0 }} w={16} h={{ fill: 58 }}>
+        <ScrollbarVertical
+          content={TASK_PANE}
+          track={MasteryScrollbar.TRACK}
+          capTopSprite={MasteryScrollbar.CAP_TOP}
+          thumbSprite={MasteryScrollbar.THUMB}
+          capBottomSprite={MasteryScrollbar.CAP_BOTTOM}
+          arrowUp={MasteryScrollbar.ARROW_UP}
+          arrowDown={MasteryScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function TaskRow({ task, y, h, accent }: { task: Int; y: Int; h: Int; accent: Int }): Component {
+  const text: String = MasteryTasks.get(task) ?? '';
+  return (
+    <>
+      <rect x={0} y={y} w="fill" h={h} fill color={MasteryColour.BLACK} transparency={task % 2 === 0 ? 220 : 255} />
+      <text
+        x={0}
+        y={y}
+        w="fill"
+        h={h}
+        text={text}
+        font={MasteryFonts.BODY}
+        color={taskMet(task) ? accent : MasteryColour.TASK_MISSING}
+        align="center"
+        valign="middle"
+        shadow
+      />
+    </>
+  );
+}
+
+export function CombatSummary(): Component {
+  if (masteryTab() !== 2) {
+    return null;
+  }
+  const box = useUniverse();
+  return (
+    <>
+      <layer x={{ right: 0 }} y={0} w={box.width - scaled(40, 100, box.width)} h={{ fill: 10 }}>
+        <MasterySummary />
+      </layer>
+      <layer x={0} y={0} w={box.width - (scaled(60, 100, box.width) + 5)} h={{ fill: 10 }}>
+        <PassiveSummary />
+      </layer>
+    </>
+  );
+}
+
+function summaryRowH(bp: Int): Int {
+  return bp === 0 ? 67 : 55;
+}
+
+function masteriesBefore(index: Int): Int {
+  let count: Int = 0;
+  let at: Int = 0;
+  while (at < index) {
+    if (masteryUnlocked(at)) {
+      count = count + 1;
+    }
+    at = at + 1;
+  }
+  return count;
+}
+
+function passivesBefore(key: Int): Int {
+  let count: Int = 0;
+  let at: Int = 1;
+  while (at < key) {
+    if (passiveActive(at)) {
+      count = count + 1;
+    }
+    at = at + 1;
+  }
+  return count;
+}
+
+function MasterySummary(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const accent: Int = masteryAccent();
+  const rowH: Int = summaryRowH(bp);
+  const listH: Int = box.height - 39;
+  const count: Int = masteriesBefore(CombatMasteries.length);
+  const total: Int = rowH * count;
+  return (
+    <>
+      <text
+        x="center"
+        y={9}
+        w="fill"
+        h={23}
+        text="Mastery Summary"
+        font={MasteryFonts.HEADING}
+        color={accent}
+        align="center"
+        valign="middle"
+        lineHeight={20}
+        shadow
+      />
+      <layer x={0} y={35} w={{ fill: 15 }} h={{ fill: 35 }}>
+        <ListBacking />
+      </layer>
+      <layer
+        ref={MASTERY_SUMMARY_PANE}
+        x={2}
+        y={37}
+        w={{ fill: 19 }}
+        h={{ fill: 39 }}
+        scrollHeight={Math.max(total, listH)}
+        scrollY={0}
+      >
+        {MASTERIES.map(
+          (index) =>
+            masteryUnlocked(index) && (
+              <SummaryRow
+                y={rowH * masteriesBefore(index)}
+                h={rowH}
+                inset={10}
+                accent={accent}
+                faded={masteriesBefore(index) % 2 === 0}
+                text={masteryDescription(index)}
+              />
+            ),
+        )}
+        {count <= 0 && (
+          <text
+            x={{ center: 4 }}
+            y="center"
+            w={{ fill: 10 }}
+            h="fill"
+            text="You have no mastery effects active."
+            font={MasteryFonts.BODY}
+            color={accent}
+            align="center"
+            valign="middle"
+            lineHeight={15}
+            shadow
+          />
+        )}
+        {count > 0 && total < listH && (
+          <rect
+            x={0}
+            y={total}
+            w="fill"
+            h={listH - total}
+            fill
+            color={MasteryColour.BLACK}
+            transparency={count % 2 === 0 ? 220 : 255}
+          />
+        )}
+      </layer>
+      <layer x={{ right: 0 }} y={35} w={16} h={{ fill: 35 }}>
+        <ScrollbarVertical
+          content={MASTERY_SUMMARY_PANE}
+          track={MasteryScrollbar.TRACK}
+          capTopSprite={MasteryScrollbar.CAP_TOP}
+          thumbSprite={MasteryScrollbar.THUMB}
+          capBottomSprite={MasteryScrollbar.CAP_BOTTOM}
+          arrowUp={MasteryScrollbar.ARROW_UP}
+          arrowDown={MasteryScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function masteryDescription(index: Int): String {
+  const row = CombatMasteries.at(index);
+  if (row === null) {
+    return '';
+  }
+  return row.description;
+}
+
+function passiveDescription(key: Int): String {
+  const row = MasteryPassives.get(key);
+  if (row === null) {
+    return '';
+  }
+  return row.description;
+}
+
+function PassiveSummary(): Component {
+  const box = useUniverse();
+  const bp: Int = breakpoint();
+  const accent: Int = masteryAccent();
+  const rowH: Int = summaryRowH(bp);
+  const listH: Int = box.height - 39;
+  const count: Int = passivesBefore(MasteryPassives.length + 1);
+  const total: Int = rowH * count;
+  return (
+    <>
+      <text
+        x="center"
+        y={9}
+        w="fill"
+        h={23}
+        text="Passive Summary"
+        font={MasteryFonts.HEADING}
+        color={accent}
+        align="center"
+        valign="middle"
+        lineHeight={20}
+        shadow
+      />
+      <layer x={0} y={35} w={{ fill: 15 }} h={{ fill: 35 }}>
+        <ListBacking />
+      </layer>
+      <layer
+        ref={PASSIVE_SUMMARY_PANE}
+        x={2}
+        y={37}
+        w={{ fill: 19 }}
+        h={{ fill: 39 }}
+        scrollHeight={Math.max(total, listH)}
+        scrollY={0}
+      >
+        {PASSIVES.map(
+          (key) =>
+            passiveActive(key) && (
+              <SummaryRow
+                y={rowH * passivesBefore(key)}
+                h={rowH}
+                inset={7}
+                accent={accent}
+                faded={key % 2 > 0}
+                text={passiveDescription(key)}
+              />
+            ),
+        )}
+        {count <= 0 && (
+          <text
+            x={{ center: 4 }}
+            y="center"
+            w={{ fill: 10 }}
+            h="fill"
+            text="You have no passive effects active."
+            font={MasteryFonts.BODY}
+            color={accent}
+            align="center"
+            valign="middle"
+            lineHeight={15}
+            shadow
+          />
+        )}
+        {count > 0 && total < listH && (
+          <rect
+            x={0}
+            y={total}
+            w="fill"
+            h={listH - total}
+            fill
+            color={MasteryColour.BLACK}
+            transparency={count % 2 === 0 ? 220 : 255}
+          />
+        )}
+      </layer>
+      <layer x={{ right: 0 }} y={35} w={16} h={{ fill: 35 }}>
+        <ScrollbarVertical
+          content={PASSIVE_SUMMARY_PANE}
+          track={MasteryScrollbar.TRACK}
+          capTopSprite={MasteryScrollbar.CAP_TOP}
+          thumbSprite={MasteryScrollbar.THUMB}
+          capBottomSprite={MasteryScrollbar.CAP_BOTTOM}
+          arrowUp={MasteryScrollbar.ARROW_UP}
+          arrowDown={MasteryScrollbar.ARROW_DOWN}
+        />
+      </layer>
+    </>
+  );
+}
+
+function SummaryRow({
+  y,
+  h,
+  inset,
+  accent,
+  faded,
+  text,
+}: {
+  y: Int;
+  h: Int;
+  inset: Int;
+  accent: Int;
+  faded: Boolean;
+  text: String;
+}): Component {
+  return (
+    <>
+      <rect x={0} y={y} w="fill" h={h} fill color={MasteryColour.BLACK} transparency={faded ? 220 : 255} />
+      <text
+        x={4}
+        y={y}
+        w={{ fill: inset }}
+        h={h}
+        text={text}
+        font={MasteryFonts.BODY}
+        color={accent}
+        align="center"
+        valign="middle"
+        lineHeight={15}
+        shadow
+      />
+    </>
+  );
+}

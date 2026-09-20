@@ -1,0 +1,200 @@
+import { CS2, useInventory, useRef } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { textWidth } from '../lib/lib.engine';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import { caTierComplete } from '../0206_nzone_rewards/nzone-rewards.price';
+import {
+  Copy,
+  ImbueLayout,
+  INVISIBLE,
+  Layout,
+  RewardsColour,
+  RewardsFonts,
+  RewardsInventories,
+  RewardTab,
+} from './soul-wars-rewards.constants';
+import { firstImbuable, imbuableCount, needTokens, rewardGate, tokenWord } from './soul-wars-rewards.helpers';
+import { rewardRefuse, rewardSelect } from './soul-wars-rewards.state';
+import { ImbueCosts } from './imbue-costs.data';
+import { ImbuedBases } from './imbued-bases.data';
+import { ImbueIndex } from './imbue-index.data';
+import { ImbueRewards } from './imbue-rewards.data';
+import { ImbueTargets } from './imbue-targets.data';
+import { RewardCounts } from './reward-counts.data';
+
+export function ImbueList({ pick, tokens, scroll }: { pick: Int; tokens: Int; scroll: Int }): Component {
+  const pack = useInventory(RewardsInventories.BACKPACK);
+  const pane = useRef();
+  const mobile: Boolean = onMobile();
+  const halve: Boolean = caTierComplete(3) === 1;
+  const count: Int = imbuableCount();
+  const extent: Int = ImbueLayout.TOP + (count / ImbueLayout.COLUMNS) * Layout.ROW_STEP + Layout.ROW_STEP;
+
+  return (
+    <>
+      <layer
+        ref={pane}
+        w={{ fill: Layout.LIST_INSET_W }}
+        h="fill"
+        scrollHeight={extent >= Layout.PAGE_H ? extent : 0}
+        scrollY={scroll}
+      >
+        {pack
+          .filter((item, slot) => firstImbuable(slot))
+          .scan(
+            (item, slot, placed) => (
+              <ImbueEntry
+                item={item}
+                x={(placed % ImbueLayout.COLUMNS) * ImbueLayout.COLUMN_W}
+                y={ImbueLayout.TOP + (placed / ImbueLayout.COLUMNS) * Layout.ROW_STEP}
+                pick={pick}
+                tokens={tokens}
+                halve={halve}
+                mobile={mobile}
+                pane={pane}
+              />
+            ),
+            (item) => 1,
+          )}
+        {count <= 0 && (
+          <text
+            x={{ center: ImbueLayout.EMPTY_X }}
+            y="center"
+            w={Layout.LIST_W}
+            h={Layout.PAGE_H}
+            font={RewardsFonts.BOLD}
+            color={RewardsColour.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+            text={Copy.NO_IMBUES}
+          />
+        )}
+      </layer>
+      <layer x={{ right: Layout.SCROLLBAR_X }} y="center" w={Layout.SCROLLBAR_W} h={{ fill: Layout.SCROLLBAR_INSET_H }}>
+        {count > 0 && (
+          <ScrollbarVertical
+            content={pane}
+            track={ScrollbarSprites.TRACK}
+            capTopSprite={ScrollbarSprites.CAP_TOP}
+            thumbSprite={ScrollbarSprites.THUMB}
+            capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+            arrowUp={ScrollbarSprites.ARROW_UP}
+            arrowDown={ScrollbarSprites.ARROW_DOWN}
+          />
+        )}
+      </layer>
+    </>
+  );
+}
+
+function ImbueEntry({
+  item,
+  x,
+  y,
+  pick,
+  tokens,
+  halve,
+  mobile,
+  pane,
+}: {
+  item: Item;
+  x: Int;
+  y: Int;
+  pick: Int;
+  tokens: Int;
+  halve: Boolean;
+  mobile: Boolean;
+  pane: Ref;
+}): Component {
+  const price = useRef();
+  const reward: ItemName = ImbueTargets.get(item) ?? -1;
+  const index: Int = ImbueIndex.get(reward) ?? -1;
+  const imbued: ItemName = ImbueRewards.at(index) ?? -1;
+  const rawCount: Int = RewardCounts.get(imbued as Item) ?? 1;
+  const shown: ItemName = ImbuedBases.get(imbued as Item) ?? -1;
+  const baseCost: Int = ImbueCosts.at(index) ?? -1;
+  const cost: Int = halve ? baseCost / 2 : baseCost;
+  const name: String = CS2.item_name(shown as Item);
+  const gate: String = rewardGate(shown);
+  const reason: String = tokens < cost ? needTokens(cost) : gate;
+  const refused: Boolean = CS2.string_length(reason) > 0;
+  const chosen: Boolean = pick === index;
+  const rest: Int = refused ? RewardsColour.GREY : RewardsColour.ORANGE;
+  const hot: Int = refused ? RewardsColour.GREY : RewardsColour.YELLOW;
+  const hoverable: Boolean = !chosen && (tokens >= cost || (CS2.string_length(gate) > 0 && !mobile));
+  const labelW: Int = ImbueLayout.COLUMN_W - Layout.LABEL_X;
+
+  return (
+    <>
+      <rect
+        x={x}
+        y={y}
+        w={ImbueLayout.COLUMN_W}
+        h={Layout.ROW_H}
+        fill
+        transparency={INVISIBLE}
+        options={[Copy.SELECT, '', '', '', '']}
+        optionSubject={`<col=ff9040>${name}</col>`}
+        onMouseRepeat={
+          hoverable
+            ? () => {
+                price.color = hot;
+              }
+            : undefined
+        }
+        onMouseLeave={
+          hoverable
+            ? () => {
+                price.color = rest;
+              }
+            : undefined
+        }
+        onOptionSelect={(event) => {
+          if (refused) {
+            rewardRefuse(event.option, RewardTab.IMBUES, reason, pane.scrollY);
+            return;
+          }
+          rewardSelect(event.option, RewardTab.IMBUES, index, -1, pane.scrollY);
+        }}
+      />
+      <sprite
+        x={x + Layout.ICON_X}
+        y={y}
+        w={Layout.ICON_W}
+        h={Layout.ROW_H}
+        item={shown}
+        itemCount={rawCount <= 1 ? -1 : rawCount}
+        shadowColor={RewardsColour.SHADOW}
+        outline={1}
+      />
+      <text
+        x={x + Layout.LABEL_X}
+        y={y}
+        w={labelW}
+        h={Layout.ROW_H}
+        font={textWidth(name, Layout.MEASURE_W, RewardsFonts.BODY) > labelW ? RewardsFonts.SMALL : RewardsFonts.BODY}
+        shadow
+        align="left"
+        valign="top"
+        color={refused ? RewardsColour.GREY : chosen ? RewardsColour.WHITE : RewardsColour.GREEN}
+        text={name}
+      />
+      <text
+        ref={price}
+        x={x + Layout.LABEL_X}
+        y={y}
+        w={labelW}
+        h={Layout.ROW_H}
+        font={RewardsFonts.SMALL}
+        shadow
+        align="left"
+        valign="bottom"
+        color={chosen ? RewardsColour.WHITE : rest}
+        text={cost > 0 ? `${cost} ${tokenWord(cost)}` : Copy.FREE}
+      />
+    </>
+  );
+}

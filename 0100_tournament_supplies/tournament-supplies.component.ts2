@@ -1,0 +1,189 @@
+import { CS2, onMounted, useInterval, useRef, useState } from 'ts2';
+
+import { meslayerinput, meslayermode } from '../lib/game/varcs';
+import { playSound, textWidth } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { SteelBorderEntrypoint } from '../lib/steel-border-entrypoint.component';
+import { ButtonBackground } from '../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../0551_raids_storage_side/button-background-pressed.component';
+import { bankmainSearching } from '../0012_bankmain/bankmain.helpers';
+import { meslayerClose } from '../0162_chatbox/meslayer';
+import { meslayerMode11 } from '../0724_shared_bank/meslayer-mode11';
+import { ApplyButton, LoadoutList } from './loadout-list.component';
+import { LoadoutPreview, WornCross } from './loadout-preview.component';
+import { SupplyGrid } from './supply-grid.component';
+import {
+  Copy,
+  Layout,
+  MESLAYER_SEARCH,
+  SuppliesColour,
+  SuppliesFonts,
+  SuppliesSprites,
+  TITLE,
+} from './tournament-supplies.constants';
+import { searchCaption, tournamentWorld } from './tournament-supplies.helpers';
+
+export function TournamentSupplies(): Component {
+  return (
+    <>
+      <SteelBorderEntrypoint title={TITLE} />
+      <SuppliesBody />
+    </>
+  );
+}
+
+function SuppliesBody(): Component {
+  const [switched, setSwitched] = useState(0);
+  const [searchOn, setSearchOn] = useState(0);
+  const [mode] = useState(meslayermode);
+  const [input] = useState(meslayerinput);
+
+  const loadouts: Boolean = tournamentWorld() ? switched === 0 : switched === 1;
+  const searching: Boolean = searchOn === 1;
+  const term: String = CS2.tags_remove(CS2.lowercase(input));
+  const filter: String = searching ? term : '';
+  const label: String = loadouts ? Copy.ITEMS : Copy.LOADOUTS;
+
+  const switchCaption = useRef();
+  const searchText = useRef();
+
+  useInterval(
+    searching
+      ? () => {
+          if (!bankmainSearching()) {
+            setSearchOn(0);
+          }
+        }
+      : undefined,
+  );
+
+  onMounted(() => {
+    if (bankmainSearching()) {
+      meslayerClose(true, true, true);
+    }
+  });
+
+  return (
+    <>
+      <layer
+        x={Layout.SWITCH_X}
+        y={Layout.SWITCH_Y}
+        w={textWidth(label, Layout.MEASURE_W, SuppliesFonts.SMALL) + Layout.SWITCH_PAD}
+        h={Layout.SWITCH_H}
+        options={[label]}
+        onMouseRepeat={() => {
+          switchCaption.color = SuppliesColour.WHITE;
+        }}
+        onMouseLeave={() => {
+          switchCaption.color = SuppliesColour.ORANGE;
+        }}
+        onOptionSelect={() => {
+          playSound(Sounds.CLICK);
+          if (mode === MESLAYER_SEARCH) {
+            meslayerClose(true, true, true);
+          }
+          setSearchOn(0);
+          setSwitched(switched === 0 ? 1 : 0);
+        }}
+      >
+        <ButtonBackground />
+        <text
+          ref={switchCaption}
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          font={SuppliesFonts.SMALL}
+          align="center"
+          valign="middle"
+          shadow
+          color={SuppliesColour.ORANGE}
+          text={label}
+        />
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        hide={loadouts}
+      >
+        <SupplyGrid filter={filter} />
+
+        <layer
+          x="center"
+          y="bottom"
+          w={Layout.SEARCH_W}
+          h={Layout.SEARCH_H}
+          options={[searching ? Copy.CLEAR : Copy.SEARCH]}
+          onMouseEnter={
+            searching
+              ? undefined
+              : () => {
+                  searchText.color = SuppliesColour.WHITE;
+                }
+          }
+          onMouseLeave={
+            searching
+              ? undefined
+              : () => {
+                  searchText.color = SuppliesColour.ORANGE;
+                }
+          }
+          onOptionSelect={() => {
+            playSound(Sounds.CLICK);
+            if (searching) {
+              if (mode === MESLAYER_SEARCH) {
+                meslayerClose(true, true, true);
+              }
+              setSearchOn(0);
+              return;
+            }
+            meslayerMode11();
+            setSearchOn(1);
+          }}
+        >
+          {searching ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+          <sprite x={Layout.GLASS_X} y="center" w={Layout.GLASS_W} h={Layout.GLASS_H} sprite={SuppliesSprites.GLASS} />
+          <text
+            ref={searchText}
+            x={{ right: Layout.SEARCH_TEXT_RIGHT }}
+            y="center"
+            w={{ fill: Layout.SEARCH_TEXT_INSET }}
+            h="fill"
+            font={SuppliesFonts.BODY}
+            align="center"
+            valign="middle"
+            shadow
+            color={searching ? SuppliesColour.WHITE : SuppliesColour.ORANGE}
+            text={searching ? searchCaption(term) : Copy.SEARCH}
+          />
+        </layer>
+      </layer>
+
+      <layer
+        x="center"
+        y={{ bottom: Layout.PANE_BOTTOM }}
+        w={{ fill: Layout.PANE_INSET_W }}
+        h={{ fill: Layout.PANE_INSET_H }}
+        hide={!loadouts}
+      >
+        <text
+          x={Layout.CAPTION_X}
+          w={Layout.CAPTION_W}
+          h={Layout.CAPTION_H}
+          font={SuppliesFonts.BOLD}
+          align="center"
+          valign="middle"
+          shadow
+          color={SuppliesColour.ORANGE}
+        />
+        <LoadoutPreview />
+        <WornCross />
+        <LoadoutList />
+        <ApplyButton />
+      </layer>
+    </>
+  );
+}

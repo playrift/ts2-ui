@@ -1,0 +1,570 @@
+import { CS2, predictServerState, stopTimer, useInventory, useServerState, useState } from 'ts2';
+
+import { RuneIndex, ZmiRunes } from '../0106_zmi_bank_payment/zmi-runes.data';
+import { pouchSlotCount, pouchSlotRune } from '../0106_zmi_bank_payment/zmi-bank-payment.helpers';
+import { meslayerClose } from '../0162_chatbox/meslayer';
+import { setPouchSlotItem } from '../0190_rune_pouch/rune-pouch.helpers';
+import { meslayermode } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { clientClock, playSound, scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  BanksideInventories,
+  BanksideItems,
+  BanksideSounds,
+  BanksideVarbits,
+  HoverFade,
+  Pouch,
+  runepouchSelectBackdrop,
+} from './bankside.constants';
+import { runeNamePickerOpen, runePickerOpen } from './bankside.state';
+import { LoadoutNameOrder } from './bankside-loadout-names.data';
+
+export function hoverFade(entering: Boolean, target: ComponentId, flash: Int, rest: Int): void {
+  if (entering) {
+    const settleAt: Int = clientClock() + HoverFade.CYCLES;
+    target.transparency = flash;
+    target.onTimer = () => {
+      if (clientClock() < settleAt) {
+        return;
+      }
+      target.transparency = rest;
+      stopTimer(target);
+    };
+    return;
+  }
+  target.transparency = rest;
+  target.onTimer = null;
+}
+
+export function hoverFadeUnlessMobile(target: ComponentId, flash: Int, rest: Int): void {
+  if (onMobile()) {
+    return;
+  }
+  hoverFade(true, target, flash, rest);
+}
+
+export function loadoutRuneIndex(loadout: Int, slot: Int): Int {
+  let index: Int = 0;
+  if (loadout === 1) {
+    if (slot === 1) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE1_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE1_BITSA);
+    }
+    if (slot === 2) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE2_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE2_BITSA);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_RUNE4);
+    }
+  }
+  if (loadout === 2) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_RUNE4);
+    }
+  }
+  if (loadout === 3) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_RUNE4);
+    }
+  }
+  if (loadout === 4) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_RUNE4);
+    }
+  }
+  if (loadout === 5) {
+    if (slot === 1) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE1_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE1_BITSA);
+    }
+    if (slot === 2) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE2_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE2_BITSA);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_RUNE4);
+    }
+  }
+  if (loadout === 6) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_RUNE4);
+    }
+  }
+  if (loadout === 7) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_RUNE4);
+    }
+  }
+  if (loadout === 8) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_RUNE4);
+    }
+  }
+  if (loadout === 9) {
+    if (slot === 1) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE1_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE1_BITSA);
+    }
+    if (slot === 2) {
+      index =
+        Math.pow(2, 4) * useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE2_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE2_BITSA);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_RUNE4);
+    }
+  }
+  if (loadout === 10) {
+    if (slot === 1) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_RUNE1);
+    }
+    if (slot === 2) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_RUNE2);
+    }
+    if (slot === 3) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_RUNE3);
+    }
+    if (slot === 4) {
+      index = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_RUNE4);
+    }
+  }
+  if (ZmiRunes.get(index) !== null) {
+    return index;
+  }
+  return 0;
+}
+
+export function loadoutCap(loadout: Int, slot: Int): Int {
+  let cap: Int = 0;
+  if (loadout === 1) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_A_CAP4);
+    }
+  }
+  if (loadout === 2) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_B_CAP4);
+    }
+  }
+  if (loadout === 3) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_C_CAP4);
+    }
+  }
+  if (loadout === 4) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP2);
+    }
+    if (slot === 3) {
+      cap =
+        Math.pow(2, 10) * useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP3_BITSC) +
+        Math.pow(2, 6) * useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP3_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP3_BITSA);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_D_CAP4);
+    }
+  }
+  if (loadout === 5) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_E_CAP4);
+    }
+  }
+  if (loadout === 6) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_F_CAP4);
+    }
+  }
+  if (loadout === 7) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_G_CAP4);
+    }
+  }
+  if (loadout === 8) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP2);
+    }
+    if (slot === 3) {
+      cap =
+        Math.pow(2, 10) * useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP3_BITSC) +
+        Math.pow(2, 6) * useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP3_BITSB) +
+        Math.pow(2, 0) * useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP3_BITSA);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_H_CAP4);
+    }
+  }
+  if (loadout === 9) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_I_CAP4);
+    }
+  }
+  if (loadout === 10) {
+    if (slot === 1) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_CAP1);
+    }
+    if (slot === 2) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_CAP2);
+    }
+    if (slot === 3) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_CAP3);
+    }
+    if (slot === 4) {
+      cap = useServerState(Varbits.RUNE_POUCH_LOADOUT_J_CAP4);
+    }
+  }
+  if (ZmiRunes.get(loadoutRuneIndex(loadout, slot)) === null) {
+    return 0;
+  }
+  if (cap >= Pouch.CAP_LIMIT || cap < 0) {
+    return 0;
+  }
+  return cap;
+}
+
+function runeInPouch(rune: ItemName): Boolean {
+  let slot: Int = 1;
+  while (slot <= Pouch.SLOTS) {
+    if (pouchSlotRune(slot) === rune) {
+      return true;
+    }
+    slot = slot + 1;
+  }
+  return false;
+}
+
+export function loadoutRuneAvailable(rune: ItemName): Boolean {
+  if (rune === -1) {
+    return false;
+  }
+  if (runeInPouch(rune)) {
+    return true;
+  }
+  const bank = useInventory(BanksideInventories.BANK);
+  if (bank.total(rune as Item) > 0) {
+    return true;
+  }
+  const inv = useInventory(BanksideInventories.INV);
+  if (inv.total(rune as Item) > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function loadoutNameId(loadout: Int): Int {
+  if (loadout === 1) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_A);
+  }
+  if (loadout === 2) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_B);
+  }
+  if (loadout === 3) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_C);
+  }
+  if (loadout === 4) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_D);
+  }
+  if (loadout === 5) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_E);
+  }
+  if (loadout === 6) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_F);
+  }
+  if (loadout === 7) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_G);
+  }
+  if (loadout === 8) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_H);
+  }
+  if (loadout === 9) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_I);
+  }
+  if (loadout === 10) {
+    return useServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_J);
+  }
+  return 0;
+}
+
+function setLoadoutNameId(loadout: Int, id: Int): void {
+  if (loadout === 1) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_A, id);
+  }
+  if (loadout === 2) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_B, id);
+  }
+  if (loadout === 3) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_C, id);
+  }
+  if (loadout === 4) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_D, id);
+  }
+  if (loadout === 5) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_E, id);
+  }
+  if (loadout === 6) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_F, id);
+  }
+  if (loadout === 7) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_G, id);
+  }
+  if (loadout === 8) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_H, id);
+  }
+  if (loadout === 9) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_I, id);
+  }
+  if (loadout === 10) {
+    predictServerState(Varbits.RUNE_POUCH_LOADOUT_NAME_J, id);
+  }
+}
+
+export function openNamePicker(loadout: Int): void {
+  playSound(BanksideSounds.SELECT);
+  const [, setNames] = useState(runeNamePickerOpen);
+  setNames(1);
+  predictServerState(BanksideVarbits.LOADOUT_NAME_SELECTED, loadout);
+}
+
+export function pickLoadoutName(row: Int): void {
+  playSound(BanksideSounds.SELECT);
+  const [, setNames] = useState(runeNamePickerOpen);
+  setNames(0);
+  const selected: Int = useServerState(BanksideVarbits.LOADOUT_NAME_SELECTED);
+  setLoadoutNameId(selected, LoadoutNameOrder.at(row) ?? 0);
+}
+
+function fadeInBackdrop(startedAt: Int, target: ComponentId): void {
+  const elapsed: Int = clientClock() - startedAt;
+  if (elapsed >= Pouch.FADE_CYCLES) {
+    target.transparency = Pouch.FADE_TO;
+    stopTimer(target);
+    return;
+  }
+  target.transparency = scaled(elapsed, Pouch.FADE_CYCLES, Pouch.FADE_TO);
+}
+
+export function openRunePicker(op: Int): void {
+  const [mode] = useState(meslayermode);
+  if (mode === Pouch.MESLAYER_ITEM) {
+    meslayerClose(true, true, true);
+  }
+  if (op !== 1) {
+    return;
+  }
+  playSound(BanksideSounds.SELECT);
+  const [, setPicker] = useState(runePickerOpen);
+  setPicker(1);
+  const startedAt: Int = clientClock();
+  runepouchSelectBackdrop.transparency = 0;
+  runepouchSelectBackdrop.onTimer = () => fadeInBackdrop(startedAt, runepouchSelectBackdrop);
+  CS2.if_on_dialog_abort_set(() => closeRunePicker(), runepouchSelectBackdrop);
+}
+
+export function closeRunePicker(): void {
+  const [, setPicker] = useState(runePickerOpen);
+  setPicker(0);
+}
+
+function restorePickedRune(at: Int, target: ComponentId): void {
+  if (clientClock() < at) {
+    return;
+  }
+  target.transparency = HoverFade.BRIGHT_REST;
+  target.onMouseRepeat = (event) => hoverFadeUnlessMobile(event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST);
+  target.onMouseLeave = (event) => hoverFade(false, event.self, HoverFade.BRIGHT_FLASH, HoverFade.BRIGHT_REST);
+  stopTimer(target);
+}
+
+export function pickRune(self: ComponentId, rune: ItemName): void {
+  if (rune !== -1) {
+    CS2.itemdialog_resume(rune as Int);
+    if ((RuneIndex.get(rune as Item) ?? 0) !== 0) {
+      if (CS2.if_trans_get(runepouchSelectBackdrop) >= 255) {
+        return;
+      }
+      runepouchSelectBackdrop.transparency = 255;
+      playSound(BanksideSounds.SELECT);
+      const restoreAt: Int = clientClock() + Pouch.PICKED_CYCLES;
+      self.transparency = Pouch.PICKED_TRANS;
+      self.onMouseRepeat = null;
+      self.onMouseLeave = null;
+      self.onTimer = (event) => restorePickedRune(restoreAt, event.self);
+      const closeAt: Int = clientClock() + Pouch.CLOSE_CYCLES;
+      runepouchSelectBackdrop.onTimer = () => {
+        if (clientClock() < closeAt) {
+          return;
+        }
+        stopTimer(runepouchSelectBackdrop);
+        closeRunePicker();
+      };
+      return;
+    } else {
+      playSound(BanksideSounds.SELECT);
+    }
+  }
+  closeRunePicker();
+}
+
+export function pouchReorder(from: ComponentId, onto: ComponentId, fromSlot: Int, ontoSlot: Int, slots: Int): void {
+  if (from !== onto) {
+    return;
+  }
+  if (fromSlot < 1 || ontoSlot < 1 || fromSlot > slots || ontoSlot > slots) {
+    return;
+  }
+  const rune: ItemName = pouchSlotRune(fromSlot);
+  const count: Int = pouchSlotCount(fromSlot);
+  if (rune === -1 || count <= 0) {
+    return;
+  }
+  const other: ItemName = pouchSlotRune(ontoSlot);
+  const otherCount: Int = pouchSlotCount(ontoSlot);
+  setPouchSlotItem(fromSlot, other, otherCount);
+  setPouchSlotItem(ontoSlot, rune, count);
+}
+
+export function pouchModelItem(view: Int): Item {
+  if (view === 3) {
+    return BanksideItems.BH_RUNE_POUCH;
+  }
+  return BanksideItems.DIVINE_RUNE_POUCH;
+}

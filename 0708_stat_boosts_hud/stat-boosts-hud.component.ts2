@@ -1,0 +1,279 @@
+import { onMounted, onUpdated, useInterval, useServerState, useState, useWatch } from 'ts2';
+
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { Fonts } from '../lib/game/fonts';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { sbhHasBoostedStats } from '../lib/game/varcs';
+import { onMobile } from '../lib/lib.helpers';
+import { Anchor, overlayInit } from '../lib/lib.overlay';
+import { SkillByIndex, SkillIcons } from '../lib/skills.data';
+import {
+  Colour,
+  Dodge,
+  Layout,
+  Skills,
+  Trans,
+  contentRef,
+  dodgerRef,
+  dynamicTimerRef,
+  tooltipRef,
+} from './stat-boosts-hud.constants';
+import {
+  anyBoosted,
+  columnH,
+  columnY,
+  dynamicTick,
+  statBoostsHudOpened,
+  statBoostsHudRedraw,
+  stepRestoreBars,
+  tileCaption,
+  tileColour,
+  tileShown,
+  tilesDrawn,
+} from './stat-boosts-hud.helpers';
+import {
+  statBoostsHudHidden,
+  statBoostsRestoreDownPx,
+  statBoostsRestoreUpPx,
+  statBoostsTilesDrawn,
+  statBoostsTransmitted,
+} from './stat-boosts-hud.state';
+
+export function StatBoostsHud(): Component {
+  useInterval(() => dynamicTick(), dynamicTimerRef);
+
+  useWatch(Varbits.STAT_BOOSTS_HUD_HIDDEN, () => statBoostsHudUpdateEnabled(), dodgerRef);
+
+  useWatch(
+    [
+      Skills.ATTACK,
+      Skills.DEFENCE,
+      Skills.STRENGTH,
+      Skills.HITPOINTS,
+      Skills.RANGED,
+      Skills.PRAYER,
+      Skills.MAGIC,
+      Skills.COOKING,
+      Skills.WOODCUTTING,
+      Skills.FLETCHING,
+      Skills.FISHING,
+      Skills.FIREMAKING,
+      Skills.CRAFTING,
+      Skills.SMITHING,
+      Skills.MINING,
+      Skills.HERBLORE,
+      Skills.AGILITY,
+      Skills.THIEVING,
+      Skills.SLAYER,
+      Skills.FARMING,
+      Skills.RUNECRAFT,
+      Skills.HUNTER,
+      Skills.CONSTRUCTION,
+      Skills.SAILING,
+    ],
+    () => statBoostsHudRedraw(),
+    contentRef,
+  );
+  useWatch(Varbits.STAT_BOOSTS_HUD_NUM_DISPLAYS, () => statBoostsHudRedraw(), contentRef);
+
+  return (
+    <>
+      <layer static ref={dynamicTimerRef} w={Layout.FULL_W} h={Layout.FULL_H} />
+
+      <layer static ref={dodgerRef} w="fill" h="fill" onLoad={() => statBoostsDodgerInit(dodgerRef, contentRef)}>
+        <layer
+          static
+          ref={contentRef}
+          x={{ right: Layout.CONTENT_INSET }}
+          y={{ bottom: Layout.CONTENT_INSET }}
+          w={Layout.CONTENT_W}
+          h={Layout.CONTENT_H}
+        >
+          <StatBoostsStrip />
+        </layer>
+        <layer static ref={tooltipRef} w={Layout.FULL_W} h={Layout.FULL_H} />
+      </layer>
+    </>
+  );
+}
+
+function statBoostsDodgerInit(dodger: ComponentId, content: ComponentId): void {
+  statBoostsHudOpened();
+  if (!enhancedAny()) {
+    return;
+  }
+  if (!onMobile()) {
+    overlayInit(dodger, content, Dodge.DESKTOP_FLAGS, Anchor.LEFT, Anchor.BOTTOM, 0);
+  } else {
+    overlayInit(dodger, content, Dodge.MOBILE_FLAGS, Anchor.RIGHT, Anchor.BOTTOM, 0);
+  }
+}
+
+export function statBoostsHudUpdateEnabled(): void {
+  let hidden: Boolean = false;
+  if (useServerState(Varbits.STAT_BOOSTS_HUD_HIDDEN) === 1) {
+    hidden = true;
+  }
+  contentRef.hide = hidden;
+  const [, setHidden] = useState(statBoostsHudHidden);
+  setHidden(hidden ? 1 : 0);
+}
+
+function StatBoostsStrip(): Component {
+  const cap: Int = useServerState(Varbits.STAT_BOOSTS_HUD_NUM_DISPLAYS);
+  const mobile: Boolean = onMobile();
+  const [transmitted] = useState(statBoostsTransmitted);
+  let drawn: Int = 0;
+  let boosted: Boolean = false;
+  if (transmitted === 1) {
+    drawn = tilesDrawn(cap);
+    boosted = anyBoosted();
+  }
+
+  onMounted(() => placeContent(mobile, drawn, boosted));
+  onUpdated(() => placeContent(mobile, drawn, boosted));
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer x={0} y={0} w={Layout.TIMERS_W} h={Layout.TIMERS_H} hide={drawn === 0}>
+        <RestoreBars boosted={boosted} />
+      </layer>
+      {SkillByIndex.filter((skill) => transmitted === 1 && tileShown(skill)).map(
+        (skill, key, slot) =>
+          slot <= cap && <StatTile skill={skill} slot={slot} caption={tileCaption(skill)} colour={tileColour(skill)} />,
+      )}
+    </layer>
+  );
+}
+
+function placeContent(mobile: Boolean, drawn: Int, boosted: Boolean): void {
+  const width: Int = Layout.TIMERS_W + drawn * Layout.TILE;
+  if (mobile) {
+    contentRef.props = {
+      x: { right: Layout.CONTENT_INSET },
+      y: { bottom: Layout.CONTENT_INSET_MOBILE_Y },
+      w: width,
+      h: Layout.TIMERS_H,
+    };
+  } else {
+    contentRef.props = {
+      x: Layout.CONTENT_INSET,
+      y: { bottom: Layout.CONTENT_INSET },
+      w: width,
+      h: Layout.TIMERS_H,
+    };
+  }
+  const [, setDrawn] = useState(statBoostsTilesDrawn);
+  const [, setBoosted] = useState(sbhHasBoostedStats);
+  setDrawn(drawn);
+  setBoosted(boosted ? 1 : 0);
+}
+
+function StatTile({
+  skill,
+  slot,
+  caption,
+  colour,
+}: {
+  skill: Skill;
+  slot: Int;
+  caption: String;
+  colour: Int;
+}): Component {
+  const x: Int = Layout.TIMERS_W + slot * Layout.TILE;
+  const iconX: Int = x + (Layout.TILE - Layout.ICON) / 2;
+  const iconY: Int = (Layout.TILE - Layout.ICON) / 2 - Layout.ICON_LIFT;
+  const stripH: Int = Layout.CAPTION_H + Layout.CAPTION_PAD * 2;
+
+  return (
+    <>
+      <sprite
+        x={x}
+        y={0}
+        w={Layout.TILE}
+        h={Layout.TILE}
+        sprite={Sprites.TRADEBACKING}
+        transparency={Trans.BACKING}
+        tiling
+      />
+      <sprite x={iconX} y={iconY} w={Layout.ICON} h={Layout.ICON} sprite={SkillIcons.get(skill) ?? -1} />
+      <rect
+        x={x}
+        y={Layout.TILE - stripH}
+        w={Layout.TILE}
+        h={stripH}
+        color={Colour.BLACK}
+        fill
+        transparency={Trans.CAPTION_STRIP}
+      />
+      <text
+        x={x}
+        y={Layout.TILE - Layout.CAPTION_H - Layout.CAPTION_PAD}
+        w={Layout.TILE}
+        h={Layout.CAPTION_H}
+        font={Fonts.P12_FULL}
+        text={caption}
+        align="center"
+        valign="middle"
+        shadow
+        color={colour}
+      />
+      <rect x={x} y={0} w={Layout.TILE} h={Layout.TILE} color={Colour.FRAME_OUTER} />
+      <rect x={x} y={0} w={Layout.TILE - 1} h={Layout.TILE - 1} color={Colour.FRAME_INNER} />
+    </>
+  );
+}
+
+function RestoreBars({ boosted }: { boosted: Boolean }): Component {
+  const [up] = useState(statBoostsRestoreUpPx);
+  const [down] = useState(statBoostsRestoreDownPx);
+  useInterval(() => stepRestoreBars());
+
+  const upX: Int = Layout.BAR_X_STEP * 0 + Layout.BAR_X_BASE;
+  const downX: Int = Layout.BAR_X_STEP * 1 + Layout.BAR_X_BASE;
+
+  return (
+    <>
+      <sprite
+        x={upX}
+        y={0}
+        w={Layout.BAR_W}
+        h={Layout.TIMERS_H}
+        sprite={Sprites.TRADEBACKING}
+        transparency={Trans.BACKING}
+        tiling
+      />
+      <rect
+        x={upX}
+        y={columnY(up)}
+        w={Layout.BAR_W}
+        h={columnH(up)}
+        color={Colour.DRAINED}
+        fill
+        transparency={Trans.BAR}
+      />
+      <sprite
+        x={downX}
+        y={0}
+        w={Layout.BAR_W}
+        h={Layout.TIMERS_H}
+        sprite={Sprites.TRADEBACKING}
+        transparency={Trans.BACKING}
+        tiling
+      />
+      <rect
+        x={downX}
+        y={columnY(down)}
+        w={Layout.BAR_W}
+        h={columnH(down)}
+        color={Colour.BOOSTED}
+        fill
+        transparency={Trans.BAR}
+        hide={!boosted}
+      />
+      <rect x={0} y={0} w="fill" h="fill" color={Colour.FRAME_OUTER} />
+      <rect x={0} y={0} w={{ fill: 1 }} h={{ fill: 1 }} color={Colour.FRAME_INNER} />
+    </>
+  );
+}

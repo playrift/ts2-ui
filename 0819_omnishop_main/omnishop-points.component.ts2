@@ -1,0 +1,95 @@
+import { compactCount } from '../0529_league_summary/league-summary.helpers';
+import { chatMessage } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { OmnishopCurrencies } from './omnishop.data';
+import { ShopColors, ShopFonts } from './omnishop-main.constants';
+import { currencyBalance, shopCurrencyAt } from './omnishop-main.helpers';
+
+const enum Points {
+  TOP = 2,
+  ROW_H = 20,
+  EXAMINE_H = 40,
+  SPRITE = 20,
+  MAX_INT = 2147483647,
+}
+
+const SLOTS = [0, 1, 2] as const;
+
+export function PointsStrip({ shopIndex, width, count }: { shopIndex: Int; width: Int; count: Int }): Component {
+  const cell: Int = width / Math.max(1, Math.min(3, count));
+  const many: Int = count > 1 ? 1 : 0;
+  return (
+    <>
+      {SLOTS.map((index) => (
+        <PointsCell shopIndex={shopIndex} index={index} cell={cell} many={many} />
+      ))}
+    </>
+  );
+}
+
+function PointsCell({ shopIndex, index, cell, many }: { shopIndex: Int; index: Int; cell: Int; many: Int }): Component {
+  const currency: Int = shopCurrencyAt(shopIndex, index);
+  const row = OmnishopCurrencies.at(currency);
+  const balance: Int = currencyBalance(currency);
+  let plural: String = '';
+  let graphic: Int = -1;
+  if (row !== null) {
+    plural = row.plural;
+    graphic = row.graphic;
+  }
+  const thousands: Int = many === 1 ? 100000 : Points.MAX_INT;
+  const millions: Int = many === 1 ? 10000000 : Points.MAX_INT;
+  const value: String = balance >= 1000000000 ? 'Lots' : compactCount(balance, thousands, millions, ',');
+  if (currency < 0) {
+    return null;
+  }
+  return (
+    <layer x={index * cell} y={0} w={cell} h="fill">
+      <rect
+        x={0}
+        y={Points.TOP}
+        w={cell}
+        h={Points.EXAMINE_H}
+        color={0}
+        transparency={255}
+        options={['Examine']}
+        optionSubject={`<col=ff9040>${plural}</col>`}
+        onOptionSelect={() => chatMessage(`You have ${groupDigits(balance, ',')} ${plural} to spend in this shop.`)}
+      />
+      {graphic !== -1 ? (
+        <sprite
+          x={cell / 2 - Points.SPRITE / 2}
+          y={Points.TOP}
+          w={Points.SPRITE}
+          h={Points.SPRITE}
+          sprite={graphic as Sprite}
+        />
+      ) : (
+        <text
+          x={0}
+          y={Points.TOP}
+          w={cell}
+          h={Points.ROW_H}
+          text={plural}
+          font={ShopFonts.B12}
+          color={ShopColors.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+        />
+      )}
+      <text
+        x={0}
+        y={{ bottom: Points.TOP }}
+        w={cell}
+        h={Points.ROW_H}
+        text={value}
+        font={ShopFonts.Q8}
+        color={ShopColors.ORANGE}
+        shadow
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

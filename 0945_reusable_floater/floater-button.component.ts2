@@ -1,0 +1,424 @@
+import { useRef, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { NONE } from './reusable-floater.data';
+import {
+  Piece,
+  clickWhenDisabled,
+  hoverSkin,
+  normalSkin,
+  pressedSkin,
+  skinBorder,
+  skinInset,
+  skinSprite,
+  skinTiling,
+  wornHoverSkin,
+  wornStyle,
+} from './floater-styles';
+import {
+  Colour,
+  FloaterFonts,
+  FloaterSounds,
+  Layout,
+  OUT_OF_RANGE,
+  PRESS_OP,
+  PressOptions,
+  TOGGLE_OP,
+} from './reusable-floater.constants';
+
+export function SkinPieces({ skin }: { skin: Int }): Component {
+  const border: Int = skinBorder(skin);
+  const inset: Int = skinInset(skin);
+  const tiling: Boolean = skinTiling(skin);
+  const insetFill: Sprite = skinSprite(skin, Piece.INSET_FILL);
+  return (
+    <>
+      {insetFill !== NONE ? (
+        <sprite
+          x={inset}
+          y={inset}
+          w={{ fill: inset * 2 }}
+          h={{ fill: inset * 2 }}
+          sprite={insetFill}
+          tiling={tiling}
+        />
+      ) : (
+        <sprite
+          x={border}
+          y={border}
+          w={{ fill: border * 2 }}
+          h={{ fill: border * 2 }}
+          sprite={skinSprite(skin, Piece.FILL)}
+          tiling={tiling}
+        />
+      )}
+      {border > 0 && (
+        <>
+          <sprite x={0} y={0} w={border} h={border} sprite={skinSprite(skin, Piece.CORNER_TL)} />
+          <sprite x={{ right: 0 }} y={0} w={border} h={border} sprite={skinSprite(skin, Piece.CORNER_TR)} />
+          <sprite x={0} y={{ bottom: 0 }} w={border} h={border} sprite={skinSprite(skin, Piece.CORNER_BL)} />
+          <sprite x={{ right: 0 }} y={{ bottom: 0 }} w={border} h={border} sprite={skinSprite(skin, Piece.CORNER_BR)} />
+          <sprite
+            x={0}
+            y={border}
+            w={border}
+            h={{ fill: border * 2 }}
+            sprite={skinSprite(skin, Piece.EDGE_LEFT)}
+            tiling
+          />
+          <sprite
+            x={border}
+            y={0}
+            w={{ fill: border * 2 }}
+            h={border}
+            sprite={skinSprite(skin, Piece.EDGE_TOP)}
+            tiling
+          />
+          <sprite
+            x={{ right: 0 }}
+            y={{ bottom: border }}
+            w={border}
+            h={{ fill: border * 2 }}
+            sprite={skinSprite(skin, Piece.EDGE_RIGHT)}
+            tiling
+          />
+          <sprite
+            x={{ right: border }}
+            y={{ bottom: 0 }}
+            w={{ fill: border * 2 }}
+            h={border}
+            sprite={skinSprite(skin, Piece.EDGE_BOTTOM)}
+            tiling
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+export function FloaterButton({
+  x,
+  y,
+  w,
+  h,
+  style,
+  toggled,
+  disabled,
+  label,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  style: Int;
+  toggled: Int;
+  disabled: Boolean;
+  label: String;
+}): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+
+  const worn: Int = wornStyle(style, toggled);
+  const baseHover: Int = hoverSkin(style);
+  const shownHover: Int = wornHoverSkin(style, toggled);
+  let ink: Int = Colour.ORANGE;
+  if (disabled) {
+    ink = Colour.GREY;
+  }
+  let clickable: Boolean = true;
+  if (disabled && !clickWhenDisabled(worn)) {
+    clickable = false;
+  }
+
+  return (
+    <layer x={x} y={y} w={w} h={h} noClickThrough>
+      <layer
+        w="fill"
+        h="fill"
+        onOptionSelect={
+          disabled
+            ? null
+            : () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+        }
+        onMouseEnter={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  hoverLayer.hide = false;
+                }
+              }
+        }
+        onMouseLeave={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                hoverLayer.hide = true;
+              }
+        }
+        onClick={
+          clickable
+            ? () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (disabled) {
+                  playSound(FloaterSounds.REFUSED);
+                  return;
+                }
+                pressedLayer.hide = false;
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+            : null
+        }
+        onRelease={
+          disabled
+            ? null
+            : () => {
+                pressedLayer.hide = true;
+              }
+        }
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      {baseHover !== NONE && (
+        <layer ref={hoverLayer} w="fill" h="fill" hide>
+          <SkinPieces skin={shownHover} />
+        </layer>
+      )}
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      {label.length > 0 && (
+        <text
+          x={Layout.LABEL_INSET}
+          y={Layout.LABEL_INSET}
+          w={{ fill: Layout.LABEL_SHRINK }}
+          h={{ fill: Layout.LABEL_SHRINK }}
+          font={FloaterFonts.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+          color={ink}
+          text={label}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function ToggledFloaterButton({
+  x,
+  y,
+  w,
+  h,
+  style,
+  label,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  style: Int;
+  label: String;
+}): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const [on, setOn] = useState(1);
+
+  const worn: Int = wornStyle(style, on);
+  const baseHover: Int = hoverSkin(style);
+  const shownHover: Int = wornHoverSkin(style, on);
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      noClickThrough
+      options={[TOGGLE_OP]}
+      onOptionSelect={() => {
+        setOn(1 - on);
+        if (onMobile()) {
+          return;
+        }
+        if (soundAt < clientClock()) {
+          playSound(FloaterSounds.SELECT);
+          setSoundAt(clientClock());
+        }
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onOptionSelect={() => {
+          if (onMobile()) {
+            return;
+          }
+          if (soundAt < clientClock()) {
+            playSound(FloaterSounds.SELECT);
+            setSoundAt(clientClock());
+          }
+        }}
+        onMouseEnter={
+          baseHover === NONE
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  hoverLayer.hide = false;
+                }
+              }
+        }
+        onMouseLeave={
+          baseHover === NONE
+            ? null
+            : () => {
+                hoverLayer.hide = true;
+              }
+        }
+        onClick={() => {
+          if (onMobile()) {
+            return;
+          }
+          pressedLayer.hide = false;
+          if (soundAt < clientClock()) {
+            playSound(FloaterSounds.SELECT);
+            setSoundAt(clientClock());
+          }
+        }}
+        onRelease={() => {
+          pressedLayer.hide = true;
+        }}
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      {baseHover !== NONE && (
+        <layer ref={hoverLayer} w="fill" h="fill" hide>
+          <SkinPieces skin={shownHover} />
+        </layer>
+      )}
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      {label.length > 0 && (
+        <text
+          x={Layout.LABEL_INSET}
+          y={Layout.LABEL_INSET}
+          w={{ fill: Layout.LABEL_SHRINK }}
+          h={{ fill: Layout.LABEL_SHRINK }}
+          font={FloaterFonts.TEXT}
+          shadow
+          align="center"
+          valign="middle"
+          color={Colour.ORANGE}
+          text={label}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function PressFloaterButton({ x, y, w, h, style }: { x: Int; y: Int; w: Int; h: Int; style: Int }): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const [option, setOption] = useState(0);
+
+  const worn: Int = style;
+  const caption: String = PressOptions.at(option) ?? OUT_OF_RANGE;
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      noClickThrough
+      options={[PRESS_OP]}
+      onOptionSelect={() => {
+        let next: Int = option;
+        if (next < 0) {
+          next = 0;
+        }
+        setOption((next + 1) % PressOptions.length);
+        if (onMobile()) {
+          return;
+        }
+        if (soundAt < clientClock()) {
+          playSound(FloaterSounds.SELECT);
+          setSoundAt(clientClock());
+        }
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onOptionSelect={() => {
+          if (onMobile()) {
+            return;
+          }
+          if (soundAt < clientClock()) {
+            playSound(FloaterSounds.SELECT);
+            setSoundAt(clientClock());
+          }
+        }}
+        onMouseEnter={() => {
+          if (!onMobile()) {
+            hoverLayer.hide = false;
+          }
+        }}
+        onMouseLeave={() => {
+          hoverLayer.hide = true;
+        }}
+        onClick={() => {
+          if (onMobile()) {
+            return;
+          }
+          pressedLayer.hide = false;
+          if (soundAt < clientClock()) {
+            playSound(FloaterSounds.SELECT);
+            setSoundAt(clientClock());
+          }
+        }}
+        onRelease={() => {
+          pressedLayer.hide = true;
+        }}
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      <layer ref={hoverLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={hoverSkin(worn)} />
+      </layer>
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      <text
+        x={Layout.LABEL_INSET}
+        y={Layout.LABEL_INSET}
+        w={{ fill: Layout.LABEL_SHRINK }}
+        h={{ fill: Layout.LABEL_SHRINK }}
+        font={FloaterFonts.TEXT}
+        shadow
+        align="center"
+        valign="middle"
+        color={Colour.ORANGE}
+        text={caption}
+      />
+    </layer>
+  );
+}

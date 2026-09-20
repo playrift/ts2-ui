@@ -1,0 +1,1069 @@
+import { CS2, sessionState, useState } from 'ts2';
+import { scaleColour } from '../0259_area_task/area-task.helpers';
+import { Fonts } from '../lib/game/fonts';
+import { Sounds } from '../lib/game/sounds';
+import { groupDigits } from '../lib/lib.format';
+import { playSound } from '../lib/lib.engine';
+import { BallotFont, BallotPage, BallotSound } from './ballot.constants';
+import {
+  ballotClearQuestions,
+  ballotNotifyServer,
+  ballotQuestionIsWide,
+  ballotQuestionText,
+  ballotSetLoadingRing,
+  ballotSetResultsExtent,
+  ballotSetTitle,
+  ballotShowPage,
+} from './ballot.entry';
+import { ballotQuestionLabelWidth } from './ballot.helpers';
+import { ballotShowModal } from './ballot.layout';
+
+export const resultsRevealed = sessionState(0);
+
+export const resultsQuestionCount = sessionState(0);
+
+export const resultsPageBuild = sessionState(0);
+
+export const resultsBlob = sessionState('');
+
+const RESULTS_FIELD_DIGITS = 4;
+
+const RESULTS_FIELD_WIDTH = 132;
+
+const RESULTS_FIELD_CONTENT = 128;
+
+const RESULTS_HEADER_FIELDS = 13;
+
+const RESULTS_ANSWER_FIELDS = 4;
+
+export const RESULTS_MAX_ANSWERS = 12;
+
+export const RESULTS_MAX_QUESTIONS = 8;
+
+export const RESULTS_MAX_GRID_ROWS = 4;
+
+export const RESULTS_MAX_GRID_COLUMNS = 4;
+
+export const RESULTS_GRID_CELL_SLOTS = 20;
+
+export const RESULTS_GRID_STRIDE = 5;
+
+export const RESULTS_RECORD_FIELDS = 109;
+
+export const RESULTS_GRID_BASE = 61;
+
+export const RESULTS_MAX_ROWS = 13;
+
+export const ResultsField = {
+  KIND: 0,
+  WIDE: 1,
+  TEXT: 2,
+  SHOW_NUMBERS: 3,
+  SKIP_COUNT: 4,
+  PICK: 5,
+  UNIFORM: 6,
+  BAND: 7,
+  ANSWER_COUNT: 8,
+  GRID_ROWS: 9,
+  GRID_COLS: 10,
+  SKIPPED: 11,
+  GRID_MAX: 12,
+} as const;
+
+export const ResultsKind = {
+  NONE: 0,
+  RADIO: 1,
+  CHOICE: 2,
+  TEXT: 3,
+  GRID: 4,
+  RANK: 5,
+} as const;
+
+export const ResultsColour = {
+  ANSWER: 0xff981f,
+  HIGHLIGHT: 0xffffff,
+  SKIP: 0xafafaf,
+} as const;
+
+export const ResultsFont = {
+  ROW: Fonts.P11_FULL,
+} as const;
+
+export const RESULTS_SKIP_LABEL = 'Skip question';
+
+export const ResultsRowLayout = {
+  NUMBER_W: 100,
+  NUMBER_GAP: 4,
+  LINE_H: 13,
+  LABEL_PERCENT: 40,
+  BAR_H: 12,
+  ROW_GAP: 4,
+  BAR_SPAN: 16384,
+  BAR_PER_MILLE: 1000,
+  BAR_WASH_COLOUR: 0xffffff,
+  BAR_WASH_TRANSPARENCY: 200,
+  BAR_EDGE_COLOUR: 0x383023,
+  QUESTION_LINE_H: 16,
+  QUESTION_PAD: 4,
+} as const;
+
+export const ResultsBandLayout = {
+  WASH_COLOUR: 0x20ff20,
+  WASH_TRANSPARENCY: 220,
+  OUTER_COLOUR: 0x383023,
+  INNER_COLOUR: 0x5a5245,
+  INNER_INSET: 2,
+  PAD: 4,
+} as const;
+
+export const ResultsTextLayout = {
+  BACKING: 0x372e22,
+  INSET: 4,
+  LINE_H: 16,
+  CORNER_W: 2,
+  CORNER_H: 1,
+  SKIP_GAP: 4,
+} as const;
+
+export const ResultsSkipRowLayout = {
+  PAD: 2,
+  LINE_H: 16,
+  TEXT_INSET: 21,
+  LABEL_FILL: 100,
+} as const;
+
+export const ResultsGridLayout = {
+  DATA_PERCENT: 65,
+  GUTTER: 1,
+  INSET: 2,
+  HEADER_LINE_H: 13,
+  CELL_LINE_H: 15,
+  WASH: 0x726451,
+  FRAME_ALPHA: 150,
+  FLAT_ALPHA: 215,
+  ALPHA_EMPTY: 255,
+  ALPHA_FULL: 80,
+  TINT_FROM: 0xff0000,
+  TINT_TO: 0xffb83f,
+} as const;
+
+export const RESULTS_SCROLL_GUTTER = 8;
+
+export const RESULTS_QUESTION_GAP = 12;
+
+export const ResultsServerScript = {
+  EXIT: 1086024184,
+} as const;
+
+export const RESULTS_NOTIFY_VOTE = 1;
+
+export const ResultsVoteStatus = {
+  UNSUBMITTED: 4,
+  LOCKED: 5,
+} as const;
+
+function resultsField(text: String): String {
+  const raw: Int = CS2.string_length(text);
+  const len: Int = raw > RESULTS_FIELD_CONTENT ? RESULTS_FIELD_CONTENT : raw;
+  const kept: String = text.substring(0, len);
+  return `${CS2.tostring(len).padStart(RESULTS_FIELD_DIGITS, '0')}` + `${kept.padStart(RESULTS_FIELD_CONTENT, '0')}`;
+}
+
+function resultsIntField(value: Int): String {
+  return resultsField(CS2.tostring(value));
+}
+
+function resultsSeek(blob: String, k: Int): Int {
+  return k * RESULTS_FIELD_WIDTH;
+}
+
+export function resultsFieldAt(blob: String, k: Int): String {
+  const at: Int = resultsSeek(blob, k);
+  if (at + RESULTS_FIELD_WIDTH > CS2.string_length(blob)) {
+    return '';
+  }
+  const len: Int = parseInt(blob.substring(at, at + RESULTS_FIELD_DIGITS));
+  return blob.substring(at + RESULTS_FIELD_WIDTH - len, at + RESULTS_FIELD_WIDTH);
+}
+
+export function resultsIntAt(blob: String, k: Int): Int {
+  const text: String = resultsFieldAt(blob, k);
+  if (CS2.string_length(text) === 0) {
+    return 0;
+  }
+  return parseInt(text);
+}
+
+export function resultsHeader(blob: String, q: Int, field: Int): Int {
+  return resultsIntAt(blob, q * RESULTS_RECORD_FIELDS + field);
+}
+
+export function resultsQuestionText(blob: String, q: Int): String {
+  return resultsFieldAt(blob, q * RESULTS_RECORD_FIELDS + ResultsField.TEXT);
+}
+
+function resultsAnswerIndex(q: Int, a: Int, f: Int): Int {
+  return q * RESULTS_RECORD_FIELDS + RESULTS_HEADER_FIELDS + a * RESULTS_ANSWER_FIELDS + f;
+}
+
+export function resultsRowCount(blob: String, q: Int): Int {
+  const kind: Int = resultsHeader(blob, q, ResultsField.KIND);
+  if (kind !== ResultsKind.RADIO && kind !== ResultsKind.CHOICE) {
+    return 0;
+  }
+  const answers: Int = resultsHeader(blob, q, ResultsField.ANSWER_COUNT);
+  const capped: Int = answers > RESULTS_MAX_ANSWERS ? RESULTS_MAX_ANSWERS : answers;
+  if (resultsHeader(blob, q, ResultsField.SKIP_COUNT) !== -1) {
+    return capped + 1;
+  }
+  return capped;
+}
+
+export function resultsRowLabel(blob: String, q: Int, a: Int): String {
+  if (a >= resultsHeader(blob, q, ResultsField.ANSWER_COUNT)) {
+    return RESULTS_SKIP_LABEL;
+  }
+  return resultsFieldAt(blob, resultsAnswerIndex(q, a, 0));
+}
+
+export function resultsRowVotes(blob: String, q: Int, a: Int): Int {
+  if (a >= resultsHeader(blob, q, ResultsField.ANSWER_COUNT)) {
+    return resultsHeader(blob, q, ResultsField.SKIP_COUNT);
+  }
+  return resultsIntAt(blob, resultsAnswerIndex(q, a, 1));
+}
+
+export function resultsRowPerMille(blob: String, q: Int, a: Int): Int {
+  if (a >= resultsHeader(blob, q, ResultsField.ANSWER_COUNT)) {
+    return -1;
+  }
+  return resultsIntAt(blob, resultsAnswerIndex(q, a, 2));
+}
+
+export function resultsRowColour(blob: String, q: Int, a: Int): Int {
+  const uniform: Boolean = resultsHeader(blob, q, ResultsField.UNIFORM) === 1;
+  if (a >= resultsHeader(blob, q, ResultsField.ANSWER_COUNT)) {
+    return uniform ? ResultsColour.HIGHLIGHT : ResultsColour.SKIP;
+  }
+  if (uniform) {
+    return ResultsColour.ANSWER;
+  }
+  if (resultsHeader(blob, q, ResultsField.PICK) === a) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  if (resultsIntAt(blob, resultsAnswerIndex(q, a, 3)) === 1) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  return ResultsColour.ANSWER;
+}
+
+export function resultsRowHasBar(blob: String, q: Int, a: Int): Boolean {
+  if (resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) === 0) {
+    return false;
+  }
+  return resultsRowPerMille(blob, q, a) !== -1;
+}
+
+export function resultsRowLabelWidth(blob: String, q: Int, a: Int, paneWidth: Int): Int {
+  if (resultsRowHasBar(blob, q, a)) {
+    return CS2.scale(paneWidth, 100, ResultsRowLayout.LABEL_PERCENT);
+  }
+  return paneWidth;
+}
+
+export function resultsRowHeight(blob: String, q: Int, a: Int, paneWidth: Int): Int {
+  return (
+    CS2.paraheight(resultsRowLabel(blob, q, a), resultsRowLabelWidth(blob, q, a, paneWidth), ResultsFont.ROW) *
+    ResultsRowLayout.LINE_H
+  );
+}
+
+export function resultsBarWidth(paneWidth: Int): Int {
+  const label: Int = CS2.scale(paneWidth, 100, ResultsRowLayout.LABEL_PERCENT);
+  return paneWidth - ResultsRowLayout.NUMBER_W - ResultsRowLayout.NUMBER_GAP - label - ResultsRowLayout.NUMBER_GAP;
+}
+
+export function resultsRowNumber(blob: String, q: Int, a: Int): String {
+  if (resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) === 0) {
+    return '-';
+  }
+  const votes: Int = resultsRowVotes(blob, q, a);
+  const perMille: Int = resultsRowPerMille(blob, q, a);
+  if (perMille !== -1) {
+    return `${perMille / 10}.${perMille % 10}% (${groupDigits(votes, ',')})`;
+  }
+  return `(${groupDigits(votes, ',')})`;
+}
+
+export function resultsTextAnswer(blob: String, q: Int): String {
+  if (resultsHeader(blob, q, ResultsField.SKIPPED) === 1) {
+    return 'You have skipped this question.';
+  }
+  return resultsFieldAt(blob, resultsAnswerIndex(q, 0, 0));
+}
+
+export function resultsTextColour(blob: String, q: Int): Int {
+  if (resultsHeader(blob, q, ResultsField.SKIPPED) === 1) {
+    return ResultsColour.SKIP;
+  }
+  if (CS2.string_length(resultsTextAnswer(blob, q)) > 0) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  return ResultsColour.SKIP;
+}
+
+export function resultsTextBoxHeight(blob: String, q: Int, paneWidth: Int): Int {
+  const lines: Int = CS2.paraheight(
+    resultsTextAnswer(blob, q),
+    paneWidth - ResultsTextLayout.INSET * 2,
+    BallotFont.BODY,
+  );
+  const atLeastOne: Int = lines > 1 ? lines : 1;
+  return atLeastOne * ResultsTextLayout.LINE_H + ResultsTextLayout.INSET * 2;
+}
+
+export function resultsSkipRowHeight(blob: String, q: Int, paneWidth: Int): Int {
+  const lines: Int = CS2.paraheight(RESULTS_SKIP_LABEL, paneWidth - ResultsSkipRowLayout.TEXT_INSET, BallotFont.BODY);
+  const atLeastOne: Int = lines > 1 ? lines : 1;
+  return ResultsSkipRowLayout.PAD + atLeastOne * ResultsSkipRowLayout.LINE_H;
+}
+
+export function resultsTextSkipColour(blob: String, q: Int): Int {
+  if (resultsHeader(blob, q, ResultsField.SKIPPED) === 1) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  return ResultsColour.SKIP;
+}
+
+export function resultsTextBlockHeight(blob: String, q: Int, paneWidth: Int): Int {
+  let total: Int = resultsTextBoxHeight(blob, q, paneWidth);
+  if (resultsHeader(blob, q, ResultsField.SKIP_COUNT) !== -1) {
+    total = total + ResultsTextLayout.SKIP_GAP + resultsSkipRowHeight(blob, q, paneWidth);
+  }
+  return total;
+}
+
+export function resultsGridRows(blob: String, q: Int): Int {
+  const rows: Int = resultsHeader(blob, q, ResultsField.GRID_ROWS);
+  return rows > RESULTS_MAX_GRID_ROWS ? RESULTS_MAX_GRID_ROWS : rows;
+}
+
+export function resultsGridCols(blob: String, q: Int): Int {
+  const cols: Int = resultsHeader(blob, q, ResultsField.GRID_COLS);
+  return cols > RESULTS_MAX_GRID_COLUMNS ? RESULTS_MAX_GRID_COLUMNS : cols;
+}
+
+export function resultsGridRowLabel(blob: String, q: Int, r: Int): String {
+  return resultsFieldAt(blob, q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE + r);
+}
+
+export function resultsGridHeader(blob: String, q: Int, c: Int): String {
+  if (c >= resultsGridCols(blob, q)) {
+    return 'Skip';
+  }
+  return resultsFieldAt(blob, q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE + RESULTS_MAX_GRID_ROWS + c);
+}
+
+export function resultsGridCount(blob: String, q: Int, r: Int, c: Int): Int {
+  const base: Int = q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE;
+  if (c >= resultsGridCols(blob, q)) {
+    return resultsIntAt(blob, base + 40 + r);
+  }
+  return resultsIntAt(blob, base + 8 + (r * RESULTS_MAX_GRID_COLUMNS + c) * 2);
+}
+
+export function resultsGridPerMille(blob: String, q: Int, r: Int, c: Int): Int {
+  if (c >= resultsGridCols(blob, q)) {
+    return -1;
+  }
+  return resultsIntAt(
+    blob,
+    q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE + 8 + (r * RESULTS_MAX_GRID_COLUMNS + c) * 2 + 1,
+  );
+}
+
+export function resultsGridPick(blob: String, q: Int, r: Int): Int {
+  return resultsIntAt(blob, q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE + 44 + r);
+}
+
+export function resultsGridHasSkipColumn(blob: String, q: Int): Boolean {
+  const rows: Int = resultsGridRows(blob, q);
+  const base: Int = q * RESULTS_RECORD_FIELDS + RESULTS_GRID_BASE;
+  let r: Int = 0;
+  while (r < rows) {
+    if (resultsIntAt(blob, base + 40 + r) !== -1) {
+      return true;
+    }
+    r = r + 1;
+  }
+  return false;
+}
+
+export function resultsGridColumns(blob: String, q: Int): Int {
+  if (resultsGridHasSkipColumn(blob, q)) {
+    return resultsGridCols(blob, q) + 1;
+  }
+  return resultsGridCols(blob, q);
+}
+
+export function resultsGridPitch(blob: String, q: Int, paneWidth: Int): Int {
+  const cols: Int = resultsGridColumns(blob, q);
+  if (cols === 0) {
+    return 0;
+  }
+  return CS2.scale(paneWidth, 100, ResultsGridLayout.DATA_PERCENT) / cols;
+}
+
+export function resultsGridCellWidth(blob: String, q: Int, paneWidth: Int): Int {
+  return resultsGridPitch(blob, q, paneWidth) - ResultsGridLayout.GUTTER;
+}
+
+export function resultsGridLabelWidth(blob: String, q: Int, paneWidth: Int): Int {
+  return paneWidth - resultsGridPitch(blob, q, paneWidth) * resultsGridColumns(blob, q);
+}
+
+export function resultsGridCellX(blob: String, q: Int, c: Int, paneWidth: Int): Int {
+  return (
+    resultsGridLabelWidth(blob, q, paneWidth) + ResultsGridLayout.GUTTER + c * resultsGridPitch(blob, q, paneWidth)
+  );
+}
+
+export function resultsGridHeaderHeight(blob: String, q: Int, paneWidth: Int): Int {
+  const textW: Int = resultsGridCellWidth(blob, q, paneWidth) - ResultsGridLayout.INSET * 2;
+  const cols: Int = resultsGridColumns(blob, q);
+  let lines: Int = 1;
+  let c: Int = 0;
+  while (c < cols) {
+    const h: Int = CS2.paraheight(resultsGridHeader(blob, q, c), textW, ResultsFont.ROW);
+    if (h > lines) {
+      lines = h;
+    }
+    c = c + 1;
+  }
+  return lines * ResultsGridLayout.HEADER_LINE_H + ResultsGridLayout.INSET * 2;
+}
+
+export function resultsGridRowHeight(blob: String, q: Int, r: Int, paneWidth: Int): Int {
+  const textW: Int = resultsGridLabelWidth(blob, q, paneWidth) - ResultsGridLayout.INSET * 2;
+  const floor: Int = resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) === 1 ? 2 : 1;
+  const measured: Int = CS2.paraheight(resultsGridRowLabel(blob, q, r), textW, ResultsFont.ROW);
+  const lines: Int = measured > floor ? measured : floor;
+  return lines * ResultsGridLayout.CELL_LINE_H + ResultsGridLayout.INSET * 2;
+}
+
+export function resultsGridRowTop(blob: String, q: Int, r: Int, paneWidth: Int): Int {
+  let top: Int = resultsGridHeaderHeight(blob, q, paneWidth);
+  let i: Int = 0;
+  while (i <= r) {
+    top = top + ResultsGridLayout.GUTTER;
+    if (i < r) {
+      top = top + resultsGridRowHeight(blob, q, i, paneWidth);
+    }
+    i = i + 1;
+  }
+  return top;
+}
+
+export function resultsGridTableHeight(blob: String, q: Int, paneWidth: Int): Int {
+  const rows: Int = resultsGridRows(blob, q);
+  if (rows === 0) {
+    return resultsGridHeaderHeight(blob, q, paneWidth);
+  }
+  return resultsGridRowTop(blob, q, rows - 1, paneWidth) + resultsGridRowHeight(blob, q, rows - 1, paneWidth);
+}
+
+export function resultsGridBlockHeight(blob: String, q: Int, paneWidth: Int): Int {
+  let total: Int = resultsGridTableHeight(blob, q, paneWidth);
+  if (resultsHeader(blob, q, ResultsField.SKIP_COUNT) !== -1) {
+    total = total + ResultsTextLayout.SKIP_GAP + resultsSkipRowHeight(blob, q, paneWidth);
+  }
+  return total;
+}
+
+export function resultsGridAlpha(blob: String, q: Int, r: Int, c: Int): Int {
+  if (c >= resultsGridCols(blob, q) || resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) !== 1) {
+    return ResultsGridLayout.FLAT_ALPHA;
+  }
+  return CS2.interpolate(
+    ResultsGridLayout.ALPHA_EMPTY,
+    ResultsGridLayout.ALPHA_FULL,
+    0,
+    resultsHeader(blob, q, ResultsField.GRID_MAX),
+    resultsGridPerMille(blob, q, r, c),
+  );
+}
+
+export function resultsGridColour(blob: String, q: Int, r: Int, c: Int): Int {
+  const pick: Int = resultsGridPick(blob, q, r);
+  if (c >= resultsGridCols(blob, q)) {
+    return pick === -1 ? ResultsColour.HIGHLIGHT : ResultsColour.SKIP;
+  }
+  if (pick === c) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  if (resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) === 1) {
+    return scaleColour(
+      ResultsGridLayout.TINT_FROM,
+      ResultsGridLayout.TINT_TO,
+      resultsGridPerMille(blob, q, r, c),
+      resultsHeader(blob, q, ResultsField.GRID_MAX),
+    );
+  }
+  return ResultsColour.ANSWER;
+}
+
+export function resultsGridCellText(blob: String, q: Int, r: Int, c: Int): String {
+  if (resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) !== 1) {
+    return '-';
+  }
+  const count: Int = resultsGridCount(blob, q, r, c);
+  if (c >= resultsGridCols(blob, q)) {
+    return `(${groupDigits(count, ',')})`;
+  }
+  const perMille: Int = resultsGridPerMille(blob, q, r, c);
+  return `${perMille / 10}.${perMille % 10}%<br>(${groupDigits(count, ',')})`;
+}
+
+export function resultsGridCellShown(blob: String, q: Int, r: Int, c: Int): Boolean {
+  if (r >= resultsGridRows(blob, q) || c >= resultsGridColumns(blob, q)) {
+    return false;
+  }
+  if (c >= resultsGridCols(blob, q)) {
+    return resultsGridCount(blob, q, r, c) !== -1;
+  }
+  return true;
+}
+
+export function resultsGridSlotShown(blob: String, q: Int, k: Int): Boolean {
+  const r: Int = k / RESULTS_GRID_STRIDE;
+  return resultsGridCellShown(blob, q, r, k - r * RESULTS_GRID_STRIDE);
+}
+
+export function resultsSkipRowNumber(blob: String, q: Int): String {
+  if (resultsHeader(blob, q, ResultsField.SHOW_NUMBERS) !== 1) {
+    return '-';
+  }
+  return `(${groupDigits(resultsHeader(blob, q, ResultsField.SKIP_COUNT), ',')})`;
+}
+
+export function resultsGridSkipColour(blob: String, q: Int): Int {
+  if (resultsHeader(blob, q, ResultsField.UNIFORM) === 1) {
+    return ResultsColour.HIGHLIGHT;
+  }
+  return ResultsColour.SKIP;
+}
+
+export function resultsRowTop(blob: String, q: Int, a: Int, paneWidth: Int): Int {
+  let stack: Int = 0;
+  let i: Int = 0;
+  while (i < a) {
+    if (stack > 0) {
+      stack = stack + ResultsRowLayout.ROW_GAP;
+    }
+    stack = stack + resultsRowHeight(blob, q, i, paneWidth);
+    i = i + 1;
+  }
+  if (stack > 0) {
+    stack = stack + ResultsRowLayout.ROW_GAP;
+  }
+  return stack;
+}
+
+export function resultsAnswersHeight(blob: String, q: Int, paneWidth: Int): Int {
+  const kind: Int = resultsHeader(blob, q, ResultsField.KIND);
+  if (kind === ResultsKind.TEXT) {
+    return resultsTextBlockHeight(blob, q, paneWidth);
+  }
+  if (kind === ResultsKind.GRID) {
+    return resultsGridBlockHeight(blob, q, paneWidth);
+  }
+  if (kind === ResultsKind.RANK) {
+    return resultsHeader(blob, q, ResultsField.SKIP_COUNT) !== -1 ? 4 : 0;
+  }
+  const rows: Int = resultsRowCount(blob, q);
+  if (rows === 0) {
+    return 0;
+  }
+  return resultsRowTop(blob, q, rows - 1, paneWidth) + resultsRowHeight(blob, q, rows - 1, paneWidth);
+}
+
+export function resultsQuestionTextHeight(blob: String, q: Int, paneWidth: Int): Int {
+  return (
+    CS2.paraheight(resultsQuestionText(blob, q), paneWidth - ballotQuestionLabelWidth(q), BallotFont.BODY) *
+      ResultsRowLayout.QUESTION_LINE_H +
+    ResultsRowLayout.QUESTION_PAD
+  );
+}
+
+export function resultsQuestionHeight(blob: String, q: Int, paneWidth: Int): Int {
+  return resultsQuestionTextHeight(blob, q, paneWidth) + resultsAnswersHeight(blob, q, paneWidth);
+}
+
+export function resultsBeginPage(title: String): void {
+  const [, setBlob] = useState(resultsBlob);
+  const [, setCount] = useState(resultsQuestionCount);
+  const [, setRevealed] = useState(resultsRevealed);
+  const [build, setBuild] = useState(resultsPageBuild);
+
+  setBlob('');
+  setCount(0);
+  setRevealed(0);
+  setBuild(build + 1);
+
+  ballotClearQuestions();
+
+  ballotShowPage(BallotPage.RESULTS);
+  ballotSetLoadingRing(true);
+  ballotSetTitle(title);
+}
+
+const RESULTS_INT_ARRAY = 105;
+
+function resultsHead(
+  blob: String,
+  q: Int,
+  kind: Int,
+  wide: Int,
+  text: String,
+  showNumbers: Int,
+  skipCount: Int,
+  pick: Int,
+  uniform: Int,
+  band: Int,
+  answers: Int,
+  gridRows: Int,
+  gridCols: Int,
+  skipped: Int,
+  gridMax: Int,
+): String {
+  const want: Int = resultsSeek(blob, q * RESULTS_RECORD_FIELDS);
+  const have: Int = CS2.string_length(blob);
+  const head: String = blob.substring(0, want > have ? have : want);
+  return (
+    `${head}${resultsIntField(kind)}${resultsIntField(wide)}` +
+    `${resultsField(text)}${resultsIntField(showNumbers)}` +
+    `${resultsIntField(skipCount)}${resultsIntField(pick)}` +
+    `${resultsIntField(uniform)}${resultsIntField(band)}` +
+    `${resultsIntField(answers)}${resultsIntField(gridRows)}` +
+    `${resultsIntField(gridCols)}${resultsIntField(skipped)}` +
+    `${resultsIntField(gridMax)}`
+  );
+}
+
+function resultsPadGrid(): String {
+  let out: String = '';
+  let r: Int = 0;
+  while (r < RESULTS_MAX_GRID_ROWS) {
+    out = `${out}${resultsField('')}`;
+    r = r + 1;
+  }
+  let c: Int = 0;
+  while (c < RESULTS_MAX_GRID_COLUMNS) {
+    out = `${out}${resultsField('')}`;
+    c = c + 1;
+  }
+  let k: Int = 0;
+  while (k < RESULTS_MAX_GRID_ROWS * RESULTS_MAX_GRID_COLUMNS) {
+    out = `${out}${resultsIntField(0)}${resultsIntField(-1)}`;
+    k = k + 1;
+  }
+  let t: Int = 0;
+  while (t < RESULTS_MAX_GRID_ROWS) {
+    out = `${out}${resultsIntField(-1)}`;
+    t = t + 1;
+  }
+  let v: Int = 0;
+  while (v < RESULTS_MAX_GRID_ROWS) {
+    out = `${out}${resultsIntField(-1)}`;
+    v = v + 1;
+  }
+  return out;
+}
+
+function resultsPadSlots(from: Int): String {
+  let out: String = '';
+  let a: Int = from;
+  while (a < RESULTS_MAX_ANSWERS) {
+    out = `${out}${resultsField('')}${resultsIntField(0)}` + `${resultsIntField(-1)}${resultsIntField(0)}`;
+    a = a + 1;
+  }
+  return out;
+}
+
+function resultsRewrite(
+  blob: String,
+  q: Int,
+  kind: Int,
+  showNumbers: Int,
+  skipCount: Int,
+  pick: Int,
+  uniform: Int,
+  band: Int,
+  labels: Strings,
+  counts: Ints,
+  perMilles: Ints,
+  highlights: Ints,
+): String {
+  const answers: Int = labels.length > RESULTS_MAX_ANSWERS ? RESULTS_MAX_ANSWERS : labels.length;
+
+  let out: String = resultsHead(
+    blob,
+    q,
+    kind,
+    ballotQuestionIsWide(q) ? 1 : 0,
+    ballotQuestionText(q),
+    showNumbers,
+    skipCount,
+    pick,
+    uniform,
+    band,
+    answers,
+    0,
+    0,
+    0,
+    1,
+  );
+
+  let a: Int = 0;
+  while (a < answers) {
+    out =
+      `${out}${resultsField(labels[a])}${resultsIntField(counts[a])}` +
+      `${resultsIntField(perMilles[a])}${resultsIntField(highlights[a])}`;
+    a = a + 1;
+  }
+  return `${out}${resultsPadSlots(answers)}${resultsPadGrid()}`;
+}
+
+export function resultsShowRadioResult(
+  index: Int,
+  showNumbers: Int,
+  skipCount: Int,
+  pick: Int,
+  uniform: Int,
+  bandThreshold: Int,
+  labels: Strings,
+  counts: Ints,
+  perMilles: Ints,
+): void {
+  const [blob, setBlob] = useState(resultsBlob);
+  const [count, setCount] = useState(resultsQuestionCount);
+
+  if (index >= RESULTS_MAX_QUESTIONS) {
+    return;
+  }
+  setCount(index + 1 > count ? index + 1 : count);
+
+  const answers: Int = labels.length;
+  let band: Int = 0;
+  if (
+    bandThreshold !== -1 &&
+    showNumbers === 1 &&
+    answers === 2 &&
+    perMilles[0] >= bandThreshold * 10 &&
+    CS2.compare(CS2.lowercase('yes'), CS2.lowercase(labels[0])) === 0 &&
+    CS2.compare(CS2.lowercase('no'), CS2.lowercase(labels[1])) === 0
+  ) {
+    band = 1;
+  }
+
+  const highlights: AnyArray = CS2.array_create(RESULTS_INT_ARRAY, answers, answers);
+
+  setBlob(
+    resultsRewrite(
+      blob,
+      index,
+      ResultsKind.RADIO,
+      showNumbers,
+      skipCount,
+      pick,
+      uniform,
+      band,
+      labels,
+      counts,
+      perMilles,
+      highlights as Ints,
+    ),
+  );
+}
+
+export function resultsShowChoiceResult(
+  index: Int,
+  showNumbers: Int,
+  skipCount: Int,
+  uniform: Int,
+  labels: Strings,
+  counts: Ints,
+  perMilles: Ints,
+  highlights: Ints,
+): void {
+  const [blob, setBlob] = useState(resultsBlob);
+  const [count, setCount] = useState(resultsQuestionCount);
+
+  if (index >= RESULTS_MAX_QUESTIONS) {
+    return;
+  }
+  setCount(index + 1 > count ? index + 1 : count);
+
+  setBlob(
+    resultsRewrite(
+      blob,
+      index,
+      ResultsKind.CHOICE,
+      showNumbers,
+      skipCount,
+      -1,
+      uniform,
+      0,
+      labels,
+      counts,
+      perMilles,
+      highlights,
+    ),
+  );
+}
+
+export function resultsShowTextResult(index: Int, showNumbers: Int, skipCount: Int, skipped: Int, text: String): void {
+  const [blob, setBlob] = useState(resultsBlob);
+  const [count, setCount] = useState(resultsQuestionCount);
+
+  if (index >= RESULTS_MAX_QUESTIONS) {
+    return;
+  }
+  setCount(index + 1 > count ? index + 1 : count);
+
+  setBlob(
+    `${resultsHead(
+      blob,
+      index,
+      ResultsKind.TEXT,
+      ballotQuestionIsWide(index) ? 1 : 0,
+      ballotQuestionText(index),
+      showNumbers,
+      skipCount,
+      -1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      skipped,
+      1,
+    )}${resultsField(CS2.escape(text))}${resultsIntField(0)}` +
+      `${resultsIntField(-1)}${resultsIntField(0)}` +
+      `${resultsPadSlots(1)}${resultsPadGrid()}`,
+  );
+}
+
+export function resultsShowGridResult(
+  index: Int,
+  showNumbers: Int,
+  skipCount: Int,
+  uniform: Int,
+  rowLabels: Strings,
+  headers: Strings,
+  counts: Ints,
+  perMilles: Ints,
+  picks: Ints,
+): void {
+  const [blob, setBlob] = useState(resultsBlob);
+  const [count, setCount] = useState(resultsQuestionCount);
+
+  if (index >= RESULTS_MAX_QUESTIONS) {
+    return;
+  }
+  setCount(index + 1 > count ? index + 1 : count);
+
+  const rawRows: Int = rowLabels.length;
+  const rawCols: Int = headers.length;
+  const rows: Int = rawRows > RESULTS_MAX_GRID_ROWS ? RESULTS_MAX_GRID_ROWS : rawRows;
+  const cols: Int = rawCols > RESULTS_MAX_GRID_COLUMNS ? RESULTS_MAX_GRID_COLUMNS : rawCols;
+
+  let gridMax: Int = 1;
+  let m: Int = 0;
+  while (m < perMilles.length) {
+    if (perMilles[m] > gridMax) {
+      gridMax = perMilles[m];
+    }
+    m = m + 1;
+  }
+
+  let out: String = resultsHead(
+    blob,
+    index,
+    ResultsKind.GRID,
+    ballotQuestionIsWide(index) ? 1 : 0,
+    ballotQuestionText(index),
+    showNumbers,
+    skipCount,
+    -1,
+    uniform,
+    0,
+    0,
+    rows,
+    cols,
+    0,
+    gridMax,
+  );
+  out = `${out}${resultsPadSlots(0)}`;
+
+  let r: Int = 0;
+  while (r < RESULTS_MAX_GRID_ROWS) {
+    out = `${out}${resultsField(r < rows ? rowLabels[r] : '')}`;
+    r = r + 1;
+  }
+  let c: Int = 0;
+  while (c < RESULTS_MAX_GRID_COLUMNS) {
+    out = `${out}${resultsField(c < cols ? headers[c] : '')}`;
+    c = c + 1;
+  }
+
+  let cr: Int = 0;
+  while (cr < RESULTS_MAX_GRID_ROWS) {
+    let cc: Int = 0;
+    while (cc < RESULTS_MAX_GRID_COLUMNS) {
+      if (cr < rows && cc < cols) {
+        const at: Int = cr * rawCols + cc;
+        out = `${out}${resultsIntField(counts[at])}` + `${resultsIntField(perMilles[at])}`;
+      } else {
+        out = `${out}${resultsIntField(0)}${resultsIntField(-1)}`;
+      }
+      cc = cc + 1;
+    }
+    cr = cr + 1;
+  }
+
+  let sr: Int = 0;
+  while (sr < RESULTS_MAX_GRID_ROWS) {
+    if (sr < rows) {
+      out = `${out}${resultsIntField(counts[rawRows * rawCols + sr])}`;
+    } else {
+      out = `${out}${resultsIntField(-1)}`;
+    }
+    sr = sr + 1;
+  }
+
+  let pr: Int = 0;
+  while (pr < RESULTS_MAX_GRID_ROWS) {
+    out = `${out}${resultsIntField(pr < rows ? picks[pr] : -1)}`;
+    pr = pr + 1;
+  }
+
+  setBlob(out);
+}
+
+export function resultsShowRankResult(index: Int, skipCount: Int): void {
+  const [blob, setBlob] = useState(resultsBlob);
+  const [count, setCount] = useState(resultsQuestionCount);
+
+  if (index >= RESULTS_MAX_QUESTIONS) {
+    return;
+  }
+  setCount(index + 1 > count ? index + 1 : count);
+  setBlob(
+    `${resultsHead(
+      blob,
+      index,
+      ResultsKind.RANK,
+      ballotQuestionIsWide(index) ? 1 : 0,
+      ballotQuestionText(index),
+      1,
+      skipCount,
+      -1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+    )}${resultsPadSlots(0)}${resultsPadGrid()}`,
+  );
+}
+
+export function resultsRevealPage(): void {
+  const [, setRevealed] = useState(resultsRevealed);
+  setRevealed(1);
+  ballotSetResultsExtent();
+  ballotSetLoadingRing(false);
+}
+
+export function resultsVoteOp(): void {
+  ballotNotifyServer(RESULTS_NOTIFY_VOTE);
+}
+
+export function resultsExit(status: Int, component: ComponentId, subId: Int): void {
+  if (status === ResultsVoteStatus.LOCKED) {
+    playSound(Sounds.PILLORY_WRONG);
+    return;
+  }
+  if (status === ResultsVoteStatus.UNSUBMITTED) {
+    ballotShowModal(
+      'Your vote has not yet been submitted!<br>Are you sure you wish to leave?' +
+        '<br><br>Your choices will be lost if you <col=ffffff>leave</col><br>' +
+        'or <col=ffffff>log out</col> before submitting them.',
+      -1,
+      -1,
+      '<col=0dc10d>Stay</col>',
+      '<col=ff0000>Leave</col>',
+    );
+    return;
+  }
+  playSound(BallotSound.SELECT);
+  CS2.if_runscript(ResultsServerScript.EXIT, component, subId, '');
+}
+
+export function resultsContentHeight(paneWidth: Int): Int {
+  const [blob] = useState(resultsBlob);
+  const [count] = useState(resultsQuestionCount);
+  return resultsStackHeight(blob, count, paneWidth);
+}
+
+export function resultsStackHeight(blob: String, count: Int, paneWidth: Int): Int {
+  let stack: Int = 0;
+  let q: Int = 0;
+  while (q < count && q < RESULTS_MAX_QUESTIONS) {
+    if (q > 0) {
+      stack = stack + RESULTS_QUESTION_GAP;
+    }
+    if (resultsHeader(blob, q, ResultsField.BAND) === 1) {
+      stack = stack + ResultsBandLayout.PAD;
+    }
+    stack = stack + resultsQuestionHeight(blob, q, paneWidth);
+    if (resultsHeader(blob, q, ResultsField.BAND) === 1) {
+      stack = stack + ResultsBandLayout.PAD;
+    }
+    q = q + 1;
+  }
+  return stack;
+}
+
+export function resultsClearRows(): void {
+  const [, setBlob] = useState(resultsBlob);
+  const [, setCount] = useState(resultsQuestionCount);
+  const [build, setBuild] = useState(resultsPageBuild);
+  setBlob('');
+  setCount(0);
+  setBuild(build + 1);
+}
+
+export function resultsQuestionTop(blob: String, q: Int, paneWidth: Int): Int {
+  let stack: Int = 0;
+  let i: Int = 0;
+  while (i < q) {
+    if (i > 0) {
+      stack = stack + RESULTS_QUESTION_GAP;
+    }
+    if (resultsHeader(blob, i, ResultsField.BAND) === 1) {
+      stack = stack + ResultsBandLayout.PAD * 2;
+    }
+    stack = stack + resultsQuestionHeight(blob, i, paneWidth);
+    i = i + 1;
+  }
+  if (q > 0) {
+    stack = stack + RESULTS_QUESTION_GAP;
+  }
+  if (resultsHeader(blob, q, ResultsField.BAND) === 1) {
+    stack = stack + ResultsBandLayout.PAD;
+  }
+  return stack;
+}

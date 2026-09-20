@@ -1,0 +1,140 @@
+import { createRef, stopTimer, useServerState, useState, useWatch } from 'ts2';
+import { SteelborderColor, SteelborderFont, SteelborderSprite } from '../lib/lib.constants';
+import { closeInterface, onMobile } from '../lib/lib.helpers';
+import { scaled } from '../lib/lib.engine';
+import { pvpaCountdown } from '../lib/game/varcs';
+import { rgbToHex } from '../0259_area_task/area-task.helpers';
+import { colourTag } from '../0889_nps/colour-tag';
+import { frame } from './pvp-arena-stagingarea-supplies.refs';
+import {
+  BattleType,
+  Copy,
+  Countdown,
+  SuppliesVarbits,
+  SuppliesVarps,
+} from './pvp-arena-stagingarea-supplies.constants';
+
+const titleText = createRef('pvp_arena_stagingarea_supplies:title');
+
+export function paintCountdownTitle(prefix: String): void {
+  const [ticks] = useState(pvpaCountdown);
+  const seconds: Int = (ticks % Countdown.PER_MINUTE) / Countdown.PER_SECOND;
+  const minutes: Int = ticks / Countdown.PER_MINUTE;
+  let clock: String = '';
+  if (seconds >= Countdown.TWO_DIGITS) {
+    clock = `${stringOf(minutes)}:${stringOf(seconds)}`;
+  } else {
+    clock = `${stringOf(minutes)}:0${stringOf(seconds)}`;
+  }
+  const level: Int = Math.min(Countdown.FADE_SPAN, ticks);
+  const tag: String = colourTag(
+    rgbToHex(
+      Countdown.RED_FULL,
+      scaled(level, Countdown.FADE_SPAN, Countdown.GREEN_FULL),
+      scaled(level, Countdown.FADE_SPAN, Countdown.BLUE_FULL),
+    ),
+    'col',
+  );
+  titleText.text = `${prefix} - ${tag}${clock}</col>`;
+}
+
+export function suppliesTitleInit(): void {
+  const battleType: Int = useServerState(SuppliesVarbits.BATTLE_TYPE);
+  let prefix: String = '';
+  if (battleType === BattleType.TOURNAMENT_UNRANKED) {
+    prefix = Copy.TITLE_1001;
+  } else if (battleType === BattleType.TOURNAMENT_RANKED) {
+    prefix = Copy.TITLE_1002;
+  } else if (battleType === BattleType.DUEL_UNRANKED) {
+    prefix = Copy.TITLE_1005;
+  } else if (battleType === BattleType.DUEL_RANKED) {
+    prefix = Copy.TITLE_1006;
+  } else {
+    titleText.text = Copy.TITLE_DEFAULT;
+    stopTimer(titleText);
+    return;
+  }
+
+  const [previous, setCountdown] = useState(pvpaCountdown);
+  let ticks: Int = Math.max(0, previous);
+  const fromServer: Int = useServerState(SuppliesVarbits.TIME_REMAINING) * Countdown.UNIT;
+  if (fromServer > ticks + Countdown.RESYNC || fromServer < ticks - Countdown.RESYNC) {
+    ticks = fromServer;
+  }
+  setCountdown(ticks);
+
+  paintCountdownTitle(prefix);
+  titleText.onTimer = () => paintCountdownTitle(prefix);
+}
+
+export function SuppliesFrame(): Component {
+  useWatch([SuppliesVarps.TEMP_TRANSMIT_0, SuppliesVarps.TEMP_TRANSMIT_1], () => suppliesTitleInit(), frame);
+
+  return (
+    <layer static ref={frame} x="center" y="center" w="fill" h="fill" onLoad={() => suppliesTitleInit()}>
+      <sprite static x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} sprite={SteelborderSprite.BACKDROP} tiling />
+
+      <text
+        static
+        ref={titleText}
+        x="center"
+        y={6}
+        w={{ fill: 12 }}
+        h={24}
+        text=""
+        align="center"
+        valign="middle"
+        shadow
+        color={SteelborderColor.TITLE}
+        font={SteelborderFont.TITLE}
+      />
+
+      <sprite static x="left" y="top" w={25} h={30} sprite={SteelborderSprite.CORNER_TL} tiling />
+      <sprite static x="right" y="top" w={25} h={30} sprite={SteelborderSprite.CORNER_TR} tiling />
+      <sprite static x="left" y="bottom" w={25} h={30} sprite={SteelborderSprite.CORNER_BL} tiling />
+      <sprite static x="right" y="bottom" w={25} h={30} sprite={SteelborderSprite.CORNER_BR} tiling />
+
+      <sprite static x={{ left: -15 }} y="center" w={36} h={{ fill: 60 }} sprite={SteelborderSprite.EDGE_LEFT} tiling />
+      <sprite
+        static
+        x={{ right: -15 }}
+        y="center"
+        w={36}
+        h={{ fill: 60 }}
+        sprite={SteelborderSprite.EDGE_RIGHT}
+        tiling
+      />
+      <sprite static x="center" y={{ top: -15 }} w={{ fill: 50 }} h={36} sprite={SteelborderSprite.EDGE_TOP} tiling />
+      <sprite
+        static
+        x="center"
+        y={{ bottom: -15 }}
+        w={{ fill: 50 }}
+        h={36}
+        sprite={SteelborderSprite.EDGE_BOTTOM}
+        tiling
+      />
+
+      <sprite static x="center" y={14} w={{ fill: 10 }} h={26} sprite={SteelborderSprite.DIVIDER} tiling />
+
+      <SteelCloseButton />
+    </layer>
+  );
+}
+
+function SteelCloseButton(): Component {
+  const mobile = onMobile();
+  return (
+    <sprite
+      x={{ right: mobile ? 1 : 3 }}
+      y={mobile ? 1 : 6}
+      w={mobile ? 33 : 26}
+      h={mobile ? 33 : 23}
+      sprite={mobile ? SteelborderSprite.CLOSE_MOBILE : SteelborderSprite.CLOSE_OFF}
+      hover={{ sprite: mobile ? SteelborderSprite.CLOSE_MOBILE : SteelborderSprite.CLOSE_HOVER }}
+      tiling
+      options={['Close']}
+      onOptionSelect={() => closeInterface()}
+    />
+  );
+}

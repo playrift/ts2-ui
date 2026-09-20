@@ -1,0 +1,175 @@
+import { useInterval, useState, useUniverse } from 'ts2';
+
+import { responsiveCurrentBreakpoint } from '../lib/game/varcs';
+import { SteelBorder } from '../lib/steel-border.component';
+import { onMobile } from '../lib/lib.helpers';
+import { breakpointOf, inLeagueTutorial } from '../0654_league_info/league-info.helpers';
+import { LeagueMenuButton, LeagueMenuDropdown, LeagueMenuOverlay } from '../0654_league_info/league-menu.component';
+import { CloseButton } from '../0735_league_3_fragments/close-button.component';
+import { ScrollbarHorizontal } from '../0770_pvp_arena_1v1_info/scrollbar-horizontal.component';
+import { CrmLoadingIcon } from '../0284_membership_benefits_prompt/crm-loading-icon.component';
+
+import { RelicColour, RelicLayout, RelicScrollbarX, RelicText, TIER_PANE } from './league-relics.constants';
+import { contentY, relicAccent, relicLeague, relicTierCount, windowHeight, windowWidth } from './league-relics.helpers';
+import { confirmOpen, detailRelic, detailWindowH, passiveOpen, relicHover, relicsLoading } from './league-relics.state';
+import { BarTooltip } from './bar-tooltip.component';
+import { PointsBar } from './points-bar.component';
+import { RelicDetail } from './relic-detail.component';
+import { EffectsBox, PassiveBox } from './relic-effects.component';
+import { ConfirmSheet, PassiveOverlay } from './relic-overlays.component';
+import {
+  GridGuides,
+  RelicClicks,
+  RelicFrames,
+  RelicIcons,
+  RelicMessage,
+  RelicNames,
+  TierDividers,
+  TierLabels,
+  TierWashes,
+} from './relic-grid.component';
+
+export function LeagueRelics(): Component {
+  const universe = useUniverse();
+  const [bp, setBreakpoint] = useState(responsiveCurrentBreakpoint);
+  const [drawn, setDrawn] = useState(0);
+  const [relic, setRelic] = useState(detailRelic);
+  const [detailH] = useState(detailWindowH);
+  const [, setLoading] = useState(relicsLoading);
+  const [, setConfirm] = useState(confirmOpen);
+  const [, setPassive] = useState(passiveOpen);
+  const [, setHover] = useState(relicHover);
+  useInterval(() => {
+    setBreakpoint(breakpointOf(universe.width, universe.height));
+    if (drawn === 0) {
+      setRelic(-1);
+      setLoading(0);
+      setConfirm(0);
+      setPassive(0);
+      setHover(-1);
+    }
+    setDrawn(1);
+  });
+  const width: Int = windowWidth(bp, drawn);
+  const baseHeight: Int = windowHeight(bp, drawn);
+  const detail: Boolean = relic !== -1;
+  const height: Int = detail ? detailH : baseHeight;
+  const mobile: Boolean = onMobile();
+  const count: Int = relicTierCount();
+  const cols: Int = bp === 0 ? RelicLayout.COLUMNS_SMALL : RelicLayout.COLUMNS;
+  const contentW: Int = drawn === 1 ? width - 12 : width;
+  const contentTop: Int = drawn === 1 ? contentY(bp) : 35;
+  const contentInset: Int = drawn === 1 ? contentTop + 6 : 36;
+  const columnW: Int = contentW / cols;
+  const gridW: Int = (contentW - columnW * cols) / 2 + columnW * count;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill">
+      <layer x="center" y="center" w={width} h={height}>
+        <layer x={0} y={0} w="fill" h="fill">
+          <SteelBorder title={RelicText.TITLE} titleColor={drawn === 1 ? relicAccent() : RelicColour.GOLD} flags={1} />
+        </layer>
+
+        <layer x="center" y={contentTop} w={contentW} h={{ fill: contentInset }}>
+          <layer x={9} y={4} w={{ fill: 18 }} h={RelicLayout.BAR_H}>
+            {drawn === 1 && <PointsBar width={contentW - 18} />}
+          </layer>
+          <sprite x="center" y={26} w="fill" h={36} sprite={2546} tiling />
+          <layer x="center" y={47} w="fill" h={{ fill: 47 }}>
+            <layer x={0} y={0} w="fill" h={RelicLayout.LABEL_H} hide={detail}>
+              {drawn === 1 && <RelicMessage />}
+            </layer>
+            <layer
+              ref={TIER_PANE}
+              x="center"
+              y={0}
+              w="fill"
+              h={drawn === 1 ? (bp === 0 ? { fill: RelicLayout.PANE_SCROLLBAR_H } : 'fill') : { fill: 16 }}
+              scrollWidth={drawn === 1 && gridW > contentW ? gridW : 0}
+              hide={detail}
+            >
+              <layer x={0} y={0} w="fill" h={RelicLayout.LABEL_H}>
+                {drawn === 1 && <TierLabels />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <GridGuides />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <TierWashes />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <RelicFrames />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <RelicIcons />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: 11 }}>
+                {drawn === 1 && <TierDividers />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <RelicNames />}
+              </layer>
+              <layer x={0} y={{ bottom: 0 }} w="fill" h={{ fill: RelicLayout.LABEL_H }}>
+                {drawn === 1 && <RelicClicks />}
+              </layer>
+            </layer>
+            <layer x={{ right: 0 }} y={{ bottom: 0 }} w="fill" h={16} hide={detail}>
+              {drawn === 1 && cols < count && (
+                <ScrollbarHorizontal
+                  content={TIER_PANE}
+                  track={RelicScrollbarX.TRACK}
+                  capLeftSprite={RelicScrollbarX.CAP_LEFT}
+                  thumbSprite={RelicScrollbarX.THUMB}
+                  capRightSprite={RelicScrollbarX.CAP_RIGHT}
+                  arrowLeft={RelicScrollbarX.ARROW_LEFT}
+                  arrowRight={RelicScrollbarX.ARROW_RIGHT}
+                  rebuilt
+                />
+              )}
+            </layer>
+            <RelicLoading />
+            <layer x="center" y="center" w="fill" h="fill" hide={!detail}>
+              <RelicDetail />
+              <EffectsBox />
+              <PassiveBox />
+            </layer>
+            <PassiveOverlay />
+          </layer>
+          <LeagueMenuOverlay />
+          <ConfirmSheet />
+          <layer x="center" y="center" w="fill" h="fill" hide />
+        </layer>
+
+        <CloseButton />
+        {drawn === 1 && !inLeagueTutorial() && (
+          <layer x={mobile ? 1 : 7} y={mobile ? 1 : 7} w={mobile ? 33 : 21} h={mobile ? 33 : 21}>
+            <LeagueMenuButton />
+          </layer>
+        )}
+        {drawn === 1 && relicLeague() > 0 && (
+          <layer x={0} y={29} w={mobile ? 154 : 120} h={(mobile ? 140 : 115) + 12}>
+            <LeagueMenuDropdown league={relicLeague()} accent={relicAccent()} />
+          </layer>
+        )}
+      </layer>
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <BarTooltip
+          windowX={(universe.width - width) / 2 + (width - contentW) / 2}
+          windowY={(universe.height - height) / 2 + contentTop - 35}
+          barWidth={contentW - 18}
+        />
+      </layer>
+    </layer>
+  );
+}
+
+function RelicLoading(): Component {
+  const [loading] = useState(relicsLoading);
+  return (
+    <layer x="center" y="center" w="fill" h="fill" hide={loading === 0} noClickThrough>
+      <rect x="center" y="center" w="fill" h="fill" fill transparency={128} />
+      {loading === 1 && <CrmLoadingIcon />}
+    </layer>
+  );
+}

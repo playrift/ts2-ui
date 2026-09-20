@@ -1,0 +1,351 @@
+import { CS2, useInventory, useRef, useServerState, useState, useUniverse } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import { chatMessage, clientClock, itemName, playSound } from '../lib/lib.engine';
+import { categoryCountLines } from './collection-counts';
+import {
+  Build,
+  CollectionColor,
+  CollectionFonts,
+  CollectionScrollbar,
+  CollectionSounds,
+  CollectionSprites,
+  Copy,
+  Layout,
+} from './collection.constants';
+import { CollectionCategories, CollectionItems } from './collection.data';
+import { collectionLogCategory, collectionSearchOpen } from './collection.state';
+
+export function CollectionLog(): Component {
+  const main = useUniverse();
+  const [category] = useState(collectionLogCategory);
+  const [searchOpen] = useState(collectionSearchOpen);
+  if (searchOpen === 1) {
+    return null;
+  }
+
+  if (category === -1) {
+    return (
+      <>
+        <layer x={0} y={0} w="fill" h={Layout.HEADER_H}>
+          <layer x={Layout.HEADER_TEXT_X} y={0} w={{ fill: Layout.HEADER_TEXT_INSET_W }} h="fill">
+            <layer x="right" y={0} w={Layout.CA_W} h={Layout.CA_H} hide />
+          </layer>
+          <rect x={0} y={0} w="fill" h="fill" color={CollectionColor.OUTLINE} />
+        </layer>
+        <layer x={0} y="bottom" w="fill" h={{ fill: Layout.HEADER_H }}>
+          <layer
+            x={Layout.ITEMS_X}
+            y={Layout.ITEMS_Y}
+            w={{ fill: Layout.ITEMS_INSET_W }}
+            h={{ fill: Layout.ITEMS_INSET_H }}
+          />
+          <layer
+            right={Layout.SCROLLBAR_INSET}
+            y={Layout.SCROLLBAR_INSET}
+            w={Layout.SCROLLBAR_W}
+            h={{ fill: Layout.SCROLLBAR_INSET_H }}
+          />
+          <rect x={0} y={0} w="fill" h="fill" color={CollectionColor.OUTLINE} />
+        </layer>
+      </>
+    );
+  }
+
+  const row = CollectionCategories.get(category);
+  if (row === null) {
+    return null;
+  }
+
+  const [line1, line2, line3, line4] = categoryCountLines(category);
+  const headerH: Int = headerHeight(line1, line2, line3, line4);
+
+  const textW: Int = main.width - Layout.HEADER_TEXT_INSET_W;
+  const gridW: Int = main.width - Layout.ITEMS_INSET_W;
+  const gridH: Int = main.height - (headerH + 1) - Layout.ITEMS_INSET_H;
+
+  const log = useInventory(Inventories.COLLECTION_TRANSMIT);
+  const female: Boolean = useServerState(Varbits.COLLECTION_PLAYER_BODYTYPE) === 1;
+
+  const first: Int = row.firstItem;
+  const total: Int = row.itemCount;
+  const obtained: Int = obtainedCount(first, total);
+
+  const columns: Int = (gridW - Build.CELL_WRAP_SLACK) / Build.CELL_STRIDE + 1;
+  const rows: Int = (total + columns - 1) / columns;
+  const extent: Int = Math.max(1, rows) * Build.CELL_ROW;
+
+  const nameW: Int = CS2.parawidth(row.name, textW, CollectionFonts.HEADER);
+  const obtainedText: String = obtainedLabel(obtained, total);
+  const obtainedW: Int = Math.max(nameW, CS2.parawidth(obtainedText, textW, CollectionFonts.SMALL));
+
+  const grid = useRef();
+
+  return (
+    <>
+      <layer x={0} y={0} w="fill" h={headerH}>
+        <layer x={Layout.HEADER_TEXT_X} y={0} w={{ fill: Layout.HEADER_TEXT_INSET_W }} h="fill">
+          <text
+            x={0}
+            y={0}
+            w={nameW}
+            h={Build.NAME_H}
+            text={row.name}
+            font={CollectionFonts.HEADER}
+            shadow
+            color={CollectionColor.ORANGE}
+            align="left"
+            valign="middle"
+          />
+          {line1.length !== 0 ? (
+            <text
+              x={0}
+              y={Build.OBTAINED_Y}
+              w={obtainedW}
+              h={Build.NAME_H}
+              text={obtainedText}
+              font={CollectionFonts.SMALL}
+              shadow
+              color={CollectionColor.ORANGE}
+              align="left"
+              valign="middle"
+            />
+          ) : (
+            <text
+              x={0}
+              bottom={0}
+              w={obtainedW}
+              h={Build.NAME_H}
+              text={obtainedText}
+              font={CollectionFonts.SMALL}
+              shadow
+              color={CollectionColor.ORANGE}
+              align="left"
+              valign="middle"
+            />
+          )}
+          {line4.length !== 0 ? <CountLine text={line4} bottom={Build.LINE_Y4} width={textW} /> : null}
+          {line3.length !== 0 ? <CountLine text={line3} bottom={Build.LINE_Y3} width={textW} /> : null}
+          {line2.length !== 0 ? <CountLine text={line2} bottom={Build.LINE_Y2} width={textW} /> : null}
+          {line1.length !== 0 ? <CountLine text={line1} bottom={Build.LINE_Y1} width={textW} /> : null}
+          {row.combatAchievements ? (
+            <layer x="right" y={Build.CA_Y} w={Layout.CA_W} h={Layout.CA_H}>
+              <CombatAchievementsButton />
+            </layer>
+          ) : (
+            <layer x="right" y={0} w={Layout.CA_W} h={Layout.CA_H} hide />
+          )}
+        </layer>
+        <rect x={0} y={0} w="fill" h="fill" color={CollectionColor.OUTLINE} />
+      </layer>
+
+      <layer x={0} y="bottom" w="fill" h={{ fill: headerH + 1 }}>
+        <layer
+          ref={grid}
+          x={Layout.ITEMS_X}
+          y={Layout.ITEMS_Y}
+          w={{ fill: Layout.ITEMS_INSET_W }}
+          h={{ fill: Layout.ITEMS_INSET_H }}
+          scrollHeight={extent > gridH ? extent : 0}
+        >
+          {CollectionItems.filter((item, index) => index >= first && index < first + total).map((item, index) => (
+            <LogCell
+              item={item.item}
+              female={item.female ?? -1}
+              useFemale={female}
+              count={log.total(item.item)}
+              x={(index % columns) * Build.CELL_STRIDE}
+              y={(index / columns) * Build.CELL_ROW}
+            />
+          ))}
+        </layer>
+        <layer
+          right={Layout.SCROLLBAR_INSET}
+          y={Layout.SCROLLBAR_INSET}
+          w={Layout.SCROLLBAR_W}
+          h={{ fill: Layout.SCROLLBAR_INSET_H }}
+        >
+          <ScrollbarVertical
+            content={grid}
+            track={CollectionScrollbar.TRACK}
+            capTopSprite={CollectionScrollbar.CAP_TOP}
+            thumbSprite={CollectionScrollbar.THUMB}
+            capBottomSprite={CollectionScrollbar.CAP_BOTTOM}
+            arrowUp={CollectionScrollbar.ARROW_UP}
+            arrowDown={CollectionScrollbar.ARROW_DOWN}
+          />
+        </layer>
+        <rect x={0} y={0} w="fill" h="fill" color={CollectionColor.OUTLINE} />
+      </layer>
+    </>
+  );
+}
+
+function headerHeight(line1: String, line2: String, line3: String, line4: String): Int {
+  if (line4.length !== 0) {
+    return Build.HEADER_H4;
+  }
+  if (line3.length !== 0) {
+    return Build.HEADER_H3;
+  }
+  if (line2.length !== 0) {
+    return Build.HEADER_H2;
+  }
+  if (line1.length !== 0) {
+    return Build.HEADER_H1;
+  }
+  return Build.HEADER_H0;
+}
+
+function obtainedCount(first: Int, total: Int): Int {
+  const log = useInventory(Inventories.COLLECTION_TRANSMIT);
+  let obtained: Int = 0;
+  let i: Int = first;
+  while (i < first + total) {
+    const item = CollectionItems.at(i);
+    if (item !== null) {
+      if (log.total(item.item) !== 0) {
+        obtained = obtained + 1;
+      }
+    }
+    i = i + 1;
+  }
+  return obtained;
+}
+
+function obtainedLabel(obtained: Int, total: Int): String {
+  if (obtained === total) {
+    return `${Copy.OBTAINED}<col=0dc10d>${stringOf(obtained)}/${stringOf(total)}</col>`;
+  }
+  if (obtained > 0) {
+    return `${Copy.OBTAINED}<col=ffff00>${stringOf(obtained)}/${stringOf(total)}</col>`;
+  }
+  return `${Copy.OBTAINED}<col=ff0000>${stringOf(obtained)}/${stringOf(total)}</col>`;
+}
+
+function CountLine({ text, bottom, width }: { text: String; bottom: Int; width: Int }): Component {
+  return (
+    <text
+      x={0}
+      bottom={bottom}
+      w={CS2.parawidth(text, width, CollectionFonts.SMALL)}
+      h={Build.LINE_H}
+      text={text}
+      font={CollectionFonts.SMALL}
+      shadow
+      color={CollectionColor.ORANGE}
+      align="left"
+      valign="middle"
+    />
+  );
+}
+
+function LogCell({
+  item,
+  female,
+  useFemale,
+  count,
+  x,
+  y,
+}: {
+  item: Item;
+  female: Item;
+  useFemale: Boolean;
+  count: Int;
+  x: Int;
+  y: Int;
+}): Component {
+  const shown: Item = useFemale && female !== -1 ? female : item;
+  if (count > 1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={Build.CELL_W}
+        h={Build.CELL_H}
+        outline={1}
+        item={shown}
+        itemCount={count}
+        options={[Copy.CHECK]}
+        optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+        onOptionSelect={() => collectionItemClick(shown, count)}
+      />
+    );
+  }
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Build.CELL_W}
+      h={Build.CELL_H}
+      outline={1}
+      item={shown}
+      itemCount={1}
+      itemCountMode="never"
+      transparency={count === 0 ? Build.CELL_MISSING : 0}
+      options={[Copy.CHECK]}
+      optionSubject={`<col=ff9040>${itemName(shown)}</col>`}
+      onOptionSelect={() => collectionItemClick(shown, count)}
+    />
+  );
+}
+
+export function collectionItemClick(item: Item, count: Int): void {
+  chatMessage(`You have received ${stringOf(count)} x ${itemName(item)}.`);
+}
+
+function CombatAchievementsButton(): Component {
+  const [hovered, setHovered] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(0);
+  const pressed: Boolean = pressedUntil !== 0 || hovered === 1;
+
+  return (
+    <layer
+      w="fill"
+      h="fill"
+      options={[Copy.COMBAT_ACHIEVEMENTS]}
+      onMouseRepeat={pressedUntil !== 0 ? undefined : () => setHovered(1)}
+      onMouseLeave={pressedUntil !== 0 ? undefined : () => setHovered(0)}
+      onOptionSelect={
+        pressedUntil !== 0
+          ? undefined
+          : (event) => {
+              if (event.option !== 1) {
+                return;
+              }
+              playSound(CollectionSounds.SELECT);
+              setPressedUntil(clientClock() + Build.CA_PRESS_CYCLES);
+            }
+      }
+      onTimer={
+        pressedUntil !== 0
+          ? () => {
+              if (clientClock() >= pressedUntil) {
+                setPressedUntil(0);
+              }
+            }
+          : undefined
+      }
+    >
+      {pressed ? (
+        <StoneButtonPressedFilled>
+          <CombatAchievementsIcon />
+        </StoneButtonPressedFilled>
+      ) : (
+        <StoneButtonFilled>
+          <CombatAchievementsIcon />
+        </StoneButtonFilled>
+      )}
+    </layer>
+  );
+}
+
+function CombatAchievementsIcon(): Component {
+  return (
+    <sprite x="center" y="center" w={Build.CA_ICON} h={Build.CA_ICON} sprite={CollectionSprites.COMBAT_ACHIEVEMENTS} />
+  );
+}

@@ -1,0 +1,272 @@
+import { CS2, stopTimer, useRef, useState } from 'ts2';
+import { chatMessage, clientClock, playSound } from '../lib.engine';
+import { onMobile } from '../lib.helpers';
+import { ThinStoneBox } from '../thin-stone-box.component';
+import { meslayermode } from '../game/varcs';
+import { ButtonBackground } from '../../0370_poh_options/button-background.component';
+import { ButtonBackgroundPressed } from '../../0551_raids_storage_side/button-background-pressed.component';
+import {
+  BuildSpellbooks,
+  SPELLBOOK_NAME_DEFAULT,
+  SpellbookNames,
+} from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.data';
+import { meslayerClose } from '../../0162_chatbox/meslayer';
+import { setLoadoutSpellbook, spellbookName } from './loadout-state';
+import {
+  Copy,
+  FLASH_CYCLES,
+  Layout,
+  MESLAYER_SEEK,
+  OVERLAY_RELEASE_CYCLES,
+  SuppliesColor,
+  SuppliesFonts,
+  SuppliesSounds,
+  SuppliesSprites,
+  Wash,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+import { openDropdown, sheetClosableAt } from './kit.state';
+
+export function SpellbookControl({ build }: { build: Int }): Component {
+  const [open] = useState(openDropdown);
+  const isOpen: Boolean = open === build;
+  const strip = useRef();
+  const chevron = useRef();
+  const value = useRef();
+  return (
+    <>
+      <sprite
+        ref={strip}
+        x="center"
+        y="center"
+        w="fill"
+        h="fill"
+        sprite={SuppliesSprites.TRADEBACKING}
+        tiling
+        transparency={isOpen ? Wash.CONTROL_OPEN : Wash.OPAQUE}
+        onClick={isOpen ? null : () => openSpellbook(build)}
+        onMouseEnter={
+          isOpen
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  strip.transparency = Wash.CONTROL_HOVER;
+                  chevron.sprite = SuppliesSprites.SCROLL_ARROW_DOWN;
+                  value.color = SuppliesColor.LABEL_HOT;
+                }
+              }
+        }
+        onMouseLeave={
+          isOpen
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  strip.transparency = Wash.OPAQUE;
+                  chevron.sprite = SuppliesSprites.SCROLL_ARROW_DOWN;
+                  value.color = SuppliesColor.LABEL;
+                }
+              }
+        }
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={SuppliesColor.CONTROL_OUTER} />
+      <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={SuppliesColor.CONTROL_INNER} />
+      <sprite
+        ref={chevron}
+        x={{ right: Layout.spellbook.chevronRight }}
+        y="center"
+        w={Layout.spellbook.chevron}
+        h={Layout.spellbook.chevron}
+        sprite={isOpen ? SuppliesSprites.SCROLL_ARROW_UP : SuppliesSprites.SCROLL_ARROW_DOWN}
+        transparency={Wash.OPAQUE}
+      />
+      <text
+        ref={value}
+        x={Layout.spellbook.labelX}
+        y="center"
+        w={{ fill: Layout.spellbook.labelInset }}
+        h={{ fill: Layout.spellbook.labelDrop }}
+        font={SuppliesFonts.BODY}
+        color={isOpen ? SuppliesColor.LABEL_HOT : SuppliesColor.LABEL}
+        shadow
+        align="center"
+        valign="middle"
+        text={spellbookName(build)}
+      />
+    </>
+  );
+}
+
+export function openSpellbook(build: Int): void {
+  const [, setOpen] = useState(openDropdown);
+  const [, setClosableAt] = useState(sheetClosableAt);
+  playSound(SuppliesSounds.CLICK);
+  setOpen(build);
+  setClosableAt(clientClock() + OVERLAY_RELEASE_CYCLES);
+}
+
+export function closeSpellbook(): void {
+  const [, setOpen] = useState(openDropdown);
+  playSound(SuppliesSounds.CLICK);
+  setOpen(-1);
+}
+
+export function SpellbookList({ build, rowH }: { build: Int; rowH: Int }): Component {
+  const highlight = useRef();
+  return (
+    <layer w="fill" h="fill">
+      <rect
+        ref={highlight}
+        x={0}
+        y={0}
+        w="fill"
+        h={rowH + 2}
+        fill
+        color={SuppliesColor.WHITE}
+        transparency={Wash.DROPDOWN_STRIP}
+        hide
+      />
+      {BuildSpellbooks.map((code, menu) => (
+        <text
+          x="center"
+          y={menu * rowH + 2}
+          w="fill"
+          h={rowH}
+          color={SuppliesColor.LABEL}
+          font={SuppliesFonts.BODY}
+          shadow
+          align="center"
+          valign="middle"
+          text={SpellbookNames.get(code) ?? SPELLBOOK_NAME_DEFAULT}
+          options={['Select']}
+          onMouseEnter={(event) => {
+            if (!onMobile()) {
+              event.self.color = SuppliesColor.LABEL_HOT;
+              highlight.hide = false;
+              highlight.x = event.self.x;
+              highlight.y = event.self.y;
+            }
+          }}
+          onMouseLeave={(event) => {
+            if (!onMobile()) {
+              event.self.color = SuppliesColor.LABEL;
+              highlight.hide = true;
+            }
+          }}
+          onOptionSelect={(event) => {
+            if (event.option !== 1) {
+              return;
+            }
+            setLoadoutSpellbook(build, menu);
+            closeSpellbook();
+          }}
+        />
+      ))}
+      <ThinStoneBox />
+    </layer>
+  );
+}
+
+export const BIN_LABEL = Copy.BIN;
+
+export function binClicked(): void {
+  chatMessage(BIN_LABEL);
+}
+
+function pressGlyph(button: Ref, glyph: Ref): void {
+  playSound(SuppliesSounds.CLICK);
+  glyph.transparency = Wash.BUTTON_PRESSED;
+  button.onMouseRepeat = null;
+  button.onMouseLeave = null;
+  const restoreAt: Int = clientClock() + FLASH_CYCLES;
+  glyph.onTimer = () => {
+    if (clientClock() < restoreAt) {
+      return;
+    }
+    glyph.transparency = Wash.OPAQUE;
+    button.onMouseRepeat = () => {
+      glyph.transparency = Wash.BUTTON_HOVER;
+    };
+    button.onMouseLeave = () => {
+      glyph.transparency = Wash.OPAQUE;
+    };
+    stopTimer(glyph);
+  };
+}
+
+export function SeekButton(): Component {
+  const [mode] = useState(meslayermode);
+  const seeking: Int = mode === MESLAYER_SEEK ? 1 : 0;
+  const button = useRef();
+  const glyph = useRef();
+  return (
+    <layer
+      ref={button}
+      w="fill"
+      h="fill"
+      options={[Copy.SEEK]}
+      onMouseRepeat={() => {
+        glyph.transparency = Wash.BUTTON_HOVER;
+      }}
+      onMouseLeave={() => {
+        glyph.transparency = Wash.OPAQUE;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option === 1) {
+          pressGlyph(button, glyph);
+        }
+      }}
+    >
+      {seeking === 1 ? <ButtonBackgroundPressed /> : <ButtonBackground />}
+      <sprite
+        ref={glyph}
+        x={{ center: Layout.glyph.seekDx }}
+        y="center"
+        w={Layout.glyph.w}
+        h={Layout.glyph.h}
+        sprite={SuppliesSprites.SEEK}
+        transparency={Wash.OPAQUE}
+      />
+    </layer>
+  );
+}
+
+export function WipeButton(): Component {
+  const button = useRef();
+  const glyph = useRef();
+  return (
+    <layer
+      ref={button}
+      w="fill"
+      h="fill"
+      options={[Copy.WIPE]}
+      onMouseRepeat={() => {
+        glyph.transparency = Wash.BUTTON_HOVER;
+      }}
+      onMouseLeave={() => {
+        glyph.transparency = Wash.OPAQUE;
+      }}
+      onOptionSelect={(event) => {
+        if (event.option === 1) {
+          pressGlyph(button, glyph);
+        }
+      }}
+    >
+      <ButtonBackground />
+      <sprite
+        ref={glyph}
+        x="center"
+        y="center"
+        w={Layout.glyph.w}
+        h={Layout.glyph.h}
+        sprite={SuppliesSprites.BIN}
+        transparency={Wash.OPAQUE}
+      />
+    </layer>
+  );
+}
+
+export function closeSeekPrompt(): void {
+  const [mode] = useState(meslayermode);
+  if (mode === MESLAYER_SEEK) {
+    meslayerClose(true, true, true);
+  }
+}

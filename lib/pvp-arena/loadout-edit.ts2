@@ -1,0 +1,299 @@
+import { param } from 'ts2';
+import { Params } from '../game/params';
+import { playSound } from '../lib.engine';
+import {
+  ammoUnfirable,
+  itemBlocked,
+  loadoutInvItem,
+  loadoutWornItem,
+  wornSlotDrawn,
+} from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.helpers';
+import {
+  RUNE_CAP_NONE,
+  RuneReplacementCaps,
+} from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.data';
+import { LeftStats, RightStats } from './build-stats.data';
+import { itemOf, setLoadoutInv, setLoadoutWorn } from './loadout-state';
+import {
+  Ammo,
+  Grid,
+  SuppliesSounds,
+  WORN_SLOTS,
+  Zone,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+
+export function addItem(build: Int, from: Int, key: Int): void {
+  if (itemOf(key) === -1) {
+    return;
+  }
+  let step: Int = 0;
+  while (step < Grid.SLOTS) {
+    const slot: Int = (from + step) % Grid.SLOTS;
+    if (itemOf(loadoutInvItem(build, slot)) === -1) {
+      playSound(SuppliesSounds.CLICK);
+      setLoadoutInv(build, slot, key);
+      return;
+    }
+    step = step + 1;
+  }
+}
+
+export function insertFromList(build: Int, key: Int, zone: Int): void {
+  const dragged: Item = itemOf(key);
+  if (dragged === -1) {
+    return;
+  }
+  if (zone === Zone.NONE || zone === Zone.BIN) {
+    return;
+  }
+  if (zone === Zone.INVENTORY) {
+    addItem(build, 0, key);
+    return;
+  }
+  if (slotInfo(dragged) !== zone) {
+    return;
+  }
+  playSound(SuppliesSounds.CLICK);
+  setLoadoutWorn(build, zone, key);
+}
+
+export function rearrange(build: Int, fromWorn: Int, fromInv: Int, zone: Int): void {
+  const sourceKey: Int = fromInv >= 0 ? loadoutInvItem(build, fromInv) : loadoutWornItem(build, fromWorn);
+  const dragged: Item = itemOf(sourceKey);
+  if (dragged === -1) {
+    return;
+  }
+  if (zone === Zone.NONE) {
+    return;
+  }
+
+  if (zone === Zone.BIN) {
+    playSound(SuppliesSounds.CLICK);
+    if (fromInv >= 0) {
+      setLoadoutInv(build, fromInv, 0);
+    } else {
+      setLoadoutWorn(build, fromWorn, 0);
+    }
+    return;
+  }
+
+  if (zone === Zone.INVENTORY) {
+    if (fromInv >= 0) {
+      setLoadoutInv(build, fromInv, 0);
+    } else {
+      setLoadoutWorn(build, fromWorn, 0);
+    }
+    addItem(build, 0, sourceKey);
+    return;
+  }
+
+  if (slotInfo(dragged) !== zone) {
+    return;
+  }
+  const targetKey: Int = loadoutWornItem(build, zone);
+  const displaced: Item = itemOf(targetKey);
+  if (displaced !== -1 && fromInv < 0 && slotInfo(displaced) !== fromWorn) {
+    return;
+  }
+  playSound(SuppliesSounds.CLICK);
+  setLoadoutWorn(build, zone, sourceKey);
+  if (fromInv >= 0) {
+    setLoadoutInv(build, fromInv, targetKey);
+  } else {
+    setLoadoutWorn(build, fromWorn, targetKey);
+  }
+}
+
+export function slotInfo(item: Item): Int {
+  return param(item, Params.LOADOUT_ITEMINFO);
+}
+
+export function statsBlock(build: Int, item: Item): Boolean {
+  const left = LeftStats.get(build);
+  const right = RightStats.get(build);
+  if (left === null || right === null) {
+    return false;
+  }
+  return itemBlocked(item, left.row0, left.row1, left.row2, left.row3, right.row0, right.row1, right.row2, right.row3);
+}
+
+function stackCap(item: Item): Int {
+  return RuneReplacementCaps.get(item) ?? RUNE_CAP_NONE;
+}
+
+export function wornOverCap(build: Int, slot: Int): Int {
+  const key: Int = loadoutWornItem(build, slot);
+  const held: Item = itemOf(key);
+  if (held === -1) {
+    return 0;
+  }
+  let ahead: Int = 0;
+  let s: Int = WORN_SLOTS - 1;
+  while (s > slot) {
+    if (wornSlotDrawn(s)) {
+      if (loadoutWornItem(build, s) === key) {
+        ahead = ahead + 1;
+      }
+    }
+    s = s - 1;
+  }
+  return ahead >= stackCap(held) ? 1 : 0;
+}
+
+export function invOverCap(build: Int, slot: Int): Int {
+  const key: Int = loadoutInvItem(build, slot);
+  const held: Item = itemOf(key);
+  if (held === -1) {
+    return 0;
+  }
+  let ahead: Int = 0;
+  let s: Int = 0;
+  while (s < WORN_SLOTS) {
+    if (wornSlotDrawn(s)) {
+      if (loadoutWornItem(build, s) === key) {
+        ahead = ahead + 1;
+      }
+    }
+    s = s + 1;
+  }
+  s = 0;
+  while (s < slot) {
+    if (loadoutInvItem(build, s) === key) {
+      ahead = ahead + 1;
+    }
+    s = s + 1;
+  }
+  return ahead >= stackCap(held) ? 1 : 0;
+}
+
+function ammoMax(build: Int, kind: Int): Int {
+  let best: Int = -1;
+  let s: Int = 0;
+  while (s < WORN_SLOTS) {
+    if (wornSlotDrawn(s)) {
+      const worn: Item = itemOf(loadoutWornItem(build, s));
+      if (worn !== -1) {
+        if (worn.loadoutIteminfo! !== Ammo.IS_AMMUNITION && worn.loadoutAmmotype! === kind) {
+          best = Math.max(best, worn.loadoutAmmoreq!);
+        }
+      }
+    }
+    s = s + 1;
+  }
+  s = 0;
+  while (s < Grid.SLOTS) {
+    const carried: Item = itemOf(loadoutInvItem(build, s));
+    if (carried !== -1) {
+      if (carried.loadoutIteminfo! !== Ammo.IS_AMMUNITION && carried.loadoutAmmotype! === kind) {
+        best = Math.max(best, carried.loadoutAmmoreq!);
+      }
+    }
+    s = s + 1;
+  }
+  return best;
+}
+
+export function ammoBlocked(build: Int, item: Item): Boolean {
+  if (item.loadoutIteminfo! !== Ammo.IS_AMMUNITION) {
+    return false;
+  }
+  return ammoUnfirable(
+    item,
+    ammoMax(build, Ammo.TYPE_3),
+    ammoMax(build, Ammo.TYPE_5),
+    ammoMax(build, Ammo.TYPE_M6),
+    ammoMax(build, Ammo.TYPE_M7),
+    ammoMax(build, Ammo.TYPE_M8),
+  );
+}
+
+export function wornMarked(build: Int, slot: Int): Int {
+  const held: Item = itemOf(loadoutWornItem(build, slot));
+  if (held === -1) {
+    return 0;
+  }
+  if (wornOverCap(build, slot) === 1) {
+    return 1;
+  }
+  if (statsBlock(build, held)) {
+    return 1;
+  }
+  if (ammoBlocked(build, held)) {
+    return 1;
+  }
+  return 0;
+}
+
+export function invMarked(build: Int, slot: Int): Int {
+  const held: Item = itemOf(loadoutInvItem(build, slot));
+  if (held === -1) {
+    return 0;
+  }
+  if (invOverCap(build, slot) === 1) {
+    return 1;
+  }
+  if (statsBlock(build, held)) {
+    return 1;
+  }
+  if (ammoBlocked(build, held)) {
+    return 1;
+  }
+  return 0;
+}
+
+export enum Warning {
+  OK = 0,
+  STATS = 1,
+  TOO_MANY = 2,
+  AMMO = 3,
+}
+
+export function warningState(build: Int): Int {
+  let stats: Int = 0;
+  let tooMany: Int = 0;
+  let ammo: Int = 0;
+  let s: Int = 0;
+  while (s < WORN_SLOTS) {
+    if (wornSlotDrawn(s)) {
+      const worn: Item = itemOf(loadoutWornItem(build, s));
+      if (worn !== -1) {
+        if (statsBlock(build, worn)) {
+          stats = 1;
+        }
+        if (wornOverCap(build, s) === 1) {
+          tooMany = 1;
+        }
+        if (ammoBlocked(build, worn)) {
+          ammo = 1;
+        }
+      }
+    }
+    s = s + 1;
+  }
+  s = 0;
+  while (s < Grid.SLOTS) {
+    const carried: Item = itemOf(loadoutInvItem(build, s));
+    if (carried !== -1) {
+      if (statsBlock(build, carried)) {
+        stats = 1;
+      }
+      if (invOverCap(build, s) === 1) {
+        tooMany = 1;
+      }
+      if (ammoBlocked(build, carried)) {
+        ammo = 1;
+      }
+    }
+    s = s + 1;
+  }
+  if (stats === 1) {
+    return Warning.STATS;
+  }
+  if (tooMany === 1) {
+    return Warning.TOO_MANY;
+  }
+  if (ammo === 1) {
+    return Warning.AMMO;
+  }
+  return Warning.OK;
+}

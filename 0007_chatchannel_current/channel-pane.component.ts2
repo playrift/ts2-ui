@@ -1,0 +1,195 @@
+import { CS2, Engine, intArray, useRef, useRerenderOn, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { scaled } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import {
+  ChannelColor,
+  ChannelFonts,
+  ChannelScrollbar,
+  ChannelSort,
+  Layout,
+  MemberRowLayout,
+} from './chatchannel-current.constants';
+import { currentSort, previousSort } from './chatchannel-current.state';
+import { MemberRow } from './member-row.component';
+
+function secondaryUnderRank(secondary: Int): void {
+  if (secondary === ChannelSort.NAME_DESC) {
+    CS2.friendschat_sort_name(false);
+  } else if (secondary === ChannelSort.WORLD_ASC) {
+    CS2.friendschat_sort_online_world(true);
+    CS2.friendschat_sort_world(true);
+    CS2.friendschat_sort_name(true);
+  } else if (secondary === ChannelSort.WORLD_DESC) {
+    CS2.friendschat_sort_online_world(true);
+    CS2.friendschat_sort_world(false);
+    CS2.friendschat_sort_name(true);
+  } else if (secondary === ChannelSort.RECENT_ASC) {
+    CS2.friendschat_sort_lastworldchange(true);
+  } else if (secondary === ChannelSort.RECENT_DESC) {
+    CS2.friendschat_sort_lastworldchange(false);
+  } else {
+    CS2.friendschat_sort_name(true);
+  }
+}
+
+function secondaryUnderWorld(secondary: Int): void {
+  if (secondary === ChannelSort.NAME_DESC) {
+    CS2.friendschat_sort_name(false);
+  } else if (secondary === ChannelSort.RANK_ASC) {
+    CS2.friendschat_sort_rank(true);
+    CS2.friendschat_sort_name(true);
+  } else if (secondary === ChannelSort.RANK_DESC) {
+    CS2.friendschat_sort_rank(false);
+    CS2.friendschat_sort_name(true);
+  } else if (secondary === ChannelSort.RECENT_ASC) {
+    CS2.friendschat_sort_lastworldchange(true);
+  } else if (secondary === ChannelSort.RECENT_DESC) {
+    CS2.friendschat_sort_lastworldchange(false);
+  } else {
+    CS2.friendschat_sort_name(true);
+  }
+}
+
+export function ChannelPane(): Component {
+  useRerenderOn(Engine.CLAN);
+  useRerenderOn(Engine.FRIENDS);
+
+  const list = useRef();
+
+  const blocked: Int = useServerState(Varbits.CHATCHANNEL_BLOCKED);
+
+  const sort: Int = currentSort();
+  const secondary: Int = previousSort();
+  CS2.friendschat_sort_reset();
+  if (sort === ChannelSort.LEGACY_REVERSED) {
+    CS2.friendschat_sort_legacy(false);
+  } else if (sort === ChannelSort.NAME_ASC) {
+    CS2.friendschat_sort_name(true);
+  } else if (sort === ChannelSort.NAME_DESC) {
+    CS2.friendschat_sort_name(false);
+  } else if (sort === ChannelSort.RANK_ASC) {
+    CS2.friendschat_sort_rank(true);
+    secondaryUnderRank(secondary);
+  } else if (sort === ChannelSort.RANK_DESC) {
+    CS2.friendschat_sort_rank(false);
+    secondaryUnderRank(secondary);
+  } else if (sort === ChannelSort.RECENT_ASC) {
+    CS2.friendschat_sort_lastworldchange(true);
+  } else if (sort === ChannelSort.RECENT_DESC) {
+    CS2.friendschat_sort_lastworldchange(false);
+  } else if (sort === ChannelSort.WORLD_ASC) {
+    CS2.friendschat_sort_online_world(true);
+    CS2.friendschat_sort_world(true);
+    secondaryUnderWorld(secondary);
+  } else if (sort === ChannelSort.WORLD_DESC) {
+    CS2.friendschat_sort_online_world(true);
+    CS2.friendschat_sort_world(false);
+    secondaryUnderWorld(secondary);
+  }
+  CS2.friendschat_sort_apply();
+
+  let members: Int = CS2.friendschat_chat_count_get();
+  let overlayHidden: Boolean = true;
+  let barHidden: Boolean = false;
+  if (blocked === 1) {
+    if (members > 0) {
+      CS2.friendschat_leavechat();
+    }
+    members = 0;
+    overlayHidden = false;
+    barHidden = true;
+  }
+
+  const myRank: Int = CS2.friendschat_chat_rank_get();
+  const minKickRank: Int = CS2.friendschat_chat_min_kick_get();
+  const here: Int = CS2.map_world();
+  const enhanced: Int = enhancedAny() ? 1 : 0;
+
+  const rowHeight: Int = onMobile() ? scaled(8, 5, MemberRowLayout.HEIGHT) : MemberRowLayout.HEIGHT;
+
+  const live = intArray(MemberRowLayout.MAX_MEMBERS);
+  let at: Int = 0;
+  while (at < MemberRowLayout.MAX_MEMBERS) {
+    live[at] = at < members ? 1 : 0;
+    at = at + 1;
+  }
+
+  let extent: Int = 0;
+  if (members >= 1) {
+    extent = members * rowHeight + MemberRowLayout.TAIL_PAD;
+  }
+
+  return (
+    <>
+      <layer
+        ref={list}
+        x={Layout.LIST_X}
+        y={{ bottom: Layout.LIST_BOTTOM }}
+        w={{ fill: Layout.LIST_INSET }}
+        h={{ fill: Layout.LIST_DROP }}
+        scrollHeight={extent}
+      >
+        {live.map(
+          (row, slot) =>
+            row === 1 && (
+              <MemberRow
+                slot={slot}
+                top={slot * rowHeight}
+                rowHeight={rowHeight}
+                here={here}
+                minKickRank={minKickRank}
+                myRank={myRank}
+                enhanced={enhanced}
+              />
+            ),
+        )}
+      </layer>
+
+      <layer
+        x={{ right: Layout.BAR_RIGHT }}
+        y={{ bottom: Layout.LIST_BOTTOM }}
+        w={Layout.BAR_W}
+        h={{ fill: Layout.LIST_DROP }}
+        hide={barHidden}
+      >
+        <ScrollbarVertical
+          content={list}
+          track={ChannelScrollbar.TRACK}
+          capTopSprite={ChannelScrollbar.CAP_TOP}
+          thumbSprite={ChannelScrollbar.THUMB}
+          capBottomSprite={ChannelScrollbar.CAP_BOTTOM}
+          arrowUp={ChannelScrollbar.ARROW_UP}
+          arrowDown={ChannelScrollbar.ARROW_DOWN}
+        />
+      </layer>
+
+      <layer x="center" y="center" w="fill" h="fill" hide={overlayHidden} noClickThrough>
+        <rect
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          fill
+          color={ChannelColor.OVERLAY}
+          transparency={Layout.OVERLAY_TRANSPARENCY}
+        />
+        <text
+          x="center"
+          y="center"
+          w={{ fill: Layout.NOTICE_INSET }}
+          h={{ fill: Layout.NOTICE_INSET }}
+          font={ChannelFonts.BODY}
+          color={ChannelColor.CAPTION}
+          align="center"
+          valign="middle"
+          lineHeight={Layout.NOTICE_LINE_H}
+          shadow
+        />
+      </layer>
+    </>
+  );
+}

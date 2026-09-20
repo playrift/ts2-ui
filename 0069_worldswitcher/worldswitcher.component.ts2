@@ -1,0 +1,200 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { onMobile, opsound } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { ScrollbarSprites } from '../0891_hotkey_settings_new/hotkey-settings-new.constants';
+import {
+  Colour,
+  entriesRef,
+  Layout,
+  Metric,
+  OPSOUND_MASK,
+  rowsRef,
+  SortKey,
+  Trans,
+  WorldArt,
+  WorldFont,
+} from './worldswitcher.constants';
+import {
+  bodyInsetBottom,
+  favouritesHint,
+  footerHeight,
+  headerHeight,
+  rowHeight,
+  worldSwitcherTitle,
+} from './worldswitcher.helpers';
+import { SortButton } from './sort-button.component';
+
+export function WorldSwitcher(): Component {
+  const [polls, setPolls] = useState(0);
+  const loaded: Boolean = CS2.worldlist_fetch();
+  useInterval(
+    loaded
+      ? undefined
+      : () => {
+          if (CS2.worldlist_fetch()) {
+            setPolls(polls + 1);
+          }
+        },
+  );
+
+  const title: String = worldSwitcherTitle(loaded);
+  const footerH: Int = footerHeight();
+
+  const headerH: Int = loaded ? headerHeight() : Metric.HEADER_H;
+
+  const searched: Boolean = false;
+
+  const viewport = useRef();
+
+  return (
+    <>
+      <sprite w="fill" h="fill" x="center" y="center" sprite={WorldArt.BACKING} tiling transparency={Trans.BACKING} />
+
+      <layer w="fill" h={Layout.TITLE_H} x="center">
+        <text
+          w="fill"
+          h="fill"
+          x="center"
+          y="center"
+          font={WorldFont.TITLE}
+          align="center"
+          valign="middle"
+          shadow
+          color={Colour.ORANGE}
+          text={title}
+        />
+        <sprite
+          w={Layout.TITLE_BUTTON}
+          h="fill"
+          y="center"
+          sprite={WorldArt.CONFIGURE}
+          options={['Configure']}
+          hover={{ transparency: Trans.CONFIGURE_HOVER }}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        />
+        <sprite
+          w={Layout.TITLE_BUTTON}
+          h="fill"
+          x="right"
+          y="center"
+          sprite={WorldArt.CLOSE}
+          tiling
+          transparency={Trans.CLOSE}
+          options={['Close']}
+          hover={{ sprite: WorldArt.CLOSE_HOVER }}
+          onOptionSelect={(event) => opsound(event.option, OPSOUND_MASK)}
+        />
+      </layer>
+
+      <layer w="fill" h={{ fill: bodyInsetBottom() }} x="center" y={Layout.BODY_Y}>
+        <rect y={Layout.BODY_INSET_Y} h={{ fill: Layout.BODY_INSET_H }} w="fill" fill transparency={Trans.BODY} />
+        <rect h={Layout.DIVIDER_H} w="fill" fill color={Colour.DIVIDER} transparency={Trans.DIVIDER} />
+        <rect h={Layout.DIVIDER_H} w="fill" y="bottom" fill color={Colour.DIVIDER} transparency={Trans.DIVIDER} />
+
+        <layer y={Layout.BODY_INSET_Y} h={{ fill: Layout.BODY_INSET_H }} w="fill" x="center">
+          <layer h={headerH} w="fill">
+            <SortButton
+              x={Layout.SORT_MEMBERS_X}
+              w={Layout.SORT_MEMBERS_W}
+              asc={SortKey.MEMBERS_ASC}
+              desc={SortKey.MEMBERS_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_WORLD_X}
+              w={Layout.SORT_WORLD_W}
+              asc={SortKey.WORLD_ASC}
+              desc={SortKey.WORLD_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_COUNTRY_X}
+              w={Layout.SORT_COUNTRY_W}
+              asc={SortKey.COUNTRY_ASC}
+              desc={SortKey.COUNTRY_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <SortButton
+              x={Layout.SORT_PLAYERS_X}
+              w={Layout.SORT_PLAYERS_W}
+              asc={SortKey.PLAYERS_ASC}
+              desc={SortKey.PLAYERS_DESC}
+              searched={searched}
+              hide={!loaded}
+            />
+            <ActivityHead searched={searched} hide={!loaded} />
+          </layer>
+
+          <layer
+            w={{ fill: Layout.SCROLLBAR_W }}
+            h={{ fill: headerH }}
+            y="bottom"
+            ref={viewport}
+            hide={!loaded}
+            scrollY={0}
+          >
+            <layer ref={rowsRef} w="fill" h="fill" x="center" />
+            <layer ref={entriesRef} w="fill" h="fill" x="center" />
+          </layer>
+
+          <layer w={Layout.SCROLLBAR_W} h={{ fill: headerH }} x="right" y="bottom">
+            <ScrollbarVertical
+              content={viewport}
+              track={ScrollbarSprites.TRACK}
+              capTopSprite={ScrollbarSprites.CAP_TOP}
+              thumbSprite={ScrollbarSprites.THUMB}
+              capBottomSprite={ScrollbarSprites.CAP_BOTTOM}
+              arrowUp={ScrollbarSprites.ARROW_UP}
+              arrowDown={ScrollbarSprites.ARROW_DOWN}
+            />
+          </layer>
+        </layer>
+      </layer>
+
+      <layer w="fill" h={footerH} x="center" y="bottom">
+        <text
+          w={{ fill: Layout.FOOTER_TEXT_INSET }}
+          h="fill"
+          y="bottom"
+          font={WorldFont.HINT}
+          align="center"
+          valign="middle"
+          shadow
+          color={Colour.ORANGE}
+          text={favouritesHint()}
+        />
+        <layer w={{ fill: Layout.FOOTER_TEXT_INSET }} h={Layout.FAVOURITE_H} options={['Switch', 'Clear']} />
+        <layer w={{ fill: Layout.FOOTER_TEXT_INSET }} h={Layout.FAVOURITE_H} y="bottom" options={['Switch', 'Clear']} />
+        <sprite
+          x={{ right: Layout.LOGOUT_X }}
+          y="center"
+          w={Layout.LOGOUT_W}
+          h={Layout.LOGOUT_H}
+          sprite={WorldArt.LOGOUT}
+          options={['Logout']}
+          hover={{ transparency: Trans.LOGOUT_HOVER }}
+          onOptionSelect={() => CS2.logout()}
+        />
+      </layer>
+
+      <layer w={Layout.TOOLTIP_ANCHOR} h={Layout.TOOLTIP_ANCHOR} />
+    </>
+  );
+}
+
+function ActivityHead({ searched, hide }: { searched: Boolean; hide: Boolean }): Component {
+  return (
+    <SortButton
+      x={Layout.SORT_ACTIVITY_X}
+      w={Layout.SORT_ACTIVITY_W}
+      asc={SortKey.ACTIVITY_ASC}
+      desc={SortKey.ACTIVITY_DESC}
+      searched={searched}
+      hide={hide}
+    />
+  );
+}

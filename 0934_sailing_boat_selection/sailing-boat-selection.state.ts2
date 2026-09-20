@@ -1,0 +1,100 @@
+import { sessionState, useState } from 'ts2';
+
+import { chatDefaultStopInput } from '../0608_fossil_mushtrees/chatdefault-input';
+import { chatMessage, playSound } from '../lib/lib.engine';
+import { groupDigits } from '../lib/lib.format';
+import { sailingBoatSelectionExpandedInfo, sailingBoatSelectionScrollPos } from '../lib/game/varcs';
+import { SelectionSounds } from './sailing-boat-selection.constants';
+import { selectionEnabled } from './sailing-boat-selection.helpers';
+
+export const refusalOpen = sessionState(0);
+export const refusalTitleCell = sessionState('');
+export const refusalTextCell = sessionState('');
+
+export const cargoSlot = sessionState(0);
+
+export const chosenSlot = sessionState(0);
+
+export const friendOpUsed = sessionState(0);
+
+export function sailingBoatSelectionOpen(): void {
+  const [, setScroll] = useState(sailingBoatSelectionScrollPos);
+  const [, setExpanded] = useState(sailingBoatSelectionExpandedInfo);
+  setScroll(0);
+  setExpanded(-1);
+  if (selectionEnabled()) {
+    chatDefaultStopInput();
+  }
+  hideOverlays();
+}
+
+export function hideOverlays(): void {
+  const [, setRefusal] = useState(refusalOpen);
+  const [, setCargo] = useState(cargoSlot);
+  const [, setChosen] = useState(chosenSlot);
+  const [, setFriend] = useState(friendOpUsed);
+  setRefusal(0);
+  setCargo(0);
+  setChosen(0);
+  setFriend(0);
+}
+
+export function toggleExpanded(slot: Int): void {
+  const [expanded, setExpanded] = useState(sailingBoatSelectionExpandedInfo);
+  if (expanded === slot) {
+    setExpanded(-1);
+  } else {
+    setExpanded(slot);
+  }
+  playSound(SelectionSounds.SELECT);
+  hideOverlays();
+}
+
+export function openRefusal(title: String, text: String): void {
+  const [, setOpen] = useState(refusalOpen);
+  const [, setTitle] = useState(refusalTitleCell);
+  const [, setText] = useState(refusalTextCell);
+  playSound(SelectionSounds.REFUSE);
+  setTitle(title);
+  setText(text);
+  setOpen(1);
+}
+
+export function closeRefusal(): void {
+  const [, setOpen] = useState(refusalOpen);
+  setOpen(0);
+  playSound(SelectionSounds.SELECT);
+}
+
+export function chooseBoat(slot: Int): void {
+  const [, setChosen] = useState(chosenSlot);
+  playSound(SelectionSounds.SELECT);
+  setChosen(slot);
+}
+
+export function openCargo(slot: Int): void {
+  const [, setCargo] = useState(cargoSlot);
+  playSound(SelectionSounds.SELECT);
+  setCargo(slot);
+}
+
+export function closeCargo(): void {
+  const [, setCargo] = useState(cargoSlot);
+  setCargo(0);
+  playSound(SelectionSounds.SELECT);
+}
+
+export function boardFriend(): void {
+  const [, setUsed] = useState(friendOpUsed);
+  playSound(SelectionSounds.SELECT);
+  setUsed(1);
+}
+
+export function examineCargo(name: String, count: Int): void {
+  playSound(SelectionSounds.SELECT);
+  chatMessage(`${name} x ${groupDigits(count, ',')}`);
+}
+
+export function tooltipMessage(text: String): void {
+  chatMessage(`${text}.`);
+}

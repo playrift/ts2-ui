@@ -1,0 +1,346 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { broadcastClearedTime, chatForceChatboxRebuild, snapshotName } from '../lib/game/varcs';
+import { FixedSlots } from '../lib/game/gameframe-1129.data';
+import { StretchSlots } from '../lib/game/gameframe-1130.data';
+import { PreEocSlots } from '../lib/game/gameframe-1131.data';
+import { DisplaySlots } from '../lib/game/gameframe-1132.data';
+import { SpectatorSlots } from '../lib/game/gameframe-139.data';
+import { MobileSlots } from '../lib/game/gameframe-1745.data';
+import { ToplevelComponents } from '../lib/lib.constants';
+import { textLineCount, textWidth } from '../lib/lib.engine';
+import { pipeHead, pipeTail } from '../lib/lib.format';
+import { onMobile, toplevelComponents } from '../lib/lib.helpers';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import { newestChatUid } from '../0162_chatbox/chatout';
+import { stringIsNullOrEmpty, stringTrim } from '../0162_chatbox/chatbox.strings';
+import { meslayerMode6 } from '../0162_chatbox/meslayer';
+import { colourTag } from '../0889_nps/colour-tag';
+import {
+  BROADCAST_COLOUR_TAG,
+  BroadcastLinkBlocked,
+  BroadcastUrls,
+  CLIENT_TYPE_BLOCKING_LINKS,
+  CROWN_INFO_URL,
+  ChatType,
+  LINK_KEY_ALPHABET,
+  NOTICE_LIFETIME,
+  NoticeMode,
+  PM_COLOUR_TAG,
+  PM_FONT,
+  PmLayout,
+  PmOp,
+  POLL_LINK,
+} from './pm-chat.constants';
+import { pmChatLinesHeight } from './pm-chat.state';
+
+const SELECT_SOUND = 2266;
+
+export function noticeMode(permanent: Int, setting: Int): Int {
+  if (permanent === 0) {
+    return setting;
+  }
+  return permanent;
+}
+
+export function pmFilterTest(type: Int, stamp: Int, friend: Int, clearedAt: Int, mode: Int): Boolean {
+  if (type === ChatType.MOD_PRIVATE) {
+    if (stamp < clearedAt) {
+      return false;
+    }
+    if (friend === 2) {
+      return false;
+    }
+    return true;
+  }
+  if (type === ChatType.PRIVATE) {
+    if (stamp < clearedAt) {
+      return false;
+    }
+    if (friend === 2) {
+      return false;
+    }
+    if (CS2.chat_filter_private_get() === 0) {
+      return true;
+    }
+    if (CS2.chat_filter_private_get() === 1 && friend === 1) {
+      return true;
+    }
+    return false;
+  }
+  if (type === ChatType.LOGIN_NOTICE || type === ChatType.PRIVATE_OUT) {
+    if (stamp < clearedAt) {
+      return false;
+    }
+    if (type === ChatType.LOGIN_NOTICE) {
+      if (mode === NoticeMode.HIDDEN) {
+        return false;
+      } else if (mode === NoticeMode.TIMED && CS2.clientclock() - stamp >= NOTICE_LIFETIME) {
+        return false;
+      }
+    }
+    if (CS2.chat_filter_private_get() !== 2) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+export function pmShownOnDevice(chatDisabled: Int, hideAlongside: Int): Boolean {
+  if (!onMobile()) {
+    return true;
+  }
+  if (chatDisabled === 1 && hideAlongside === 1) {
+    return false;
+  }
+  return true;
+}
+
+export function pmColourTag(option: Int): String {
+  if (option - 1 !== -1) {
+    return colourTag(option - 1, 'col');
+  }
+  return PM_COLOUR_TAG;
+}
+
+export function broadcastColourTag(option: Int): String {
+  if (option - 1 !== -1) {
+    return colourTag(option - 1, 'col');
+  }
+  return BROADCAST_COLOUR_TAG;
+}
+
+export function affixTimestamp(timestamped: Boolean, timestamp: String, line: String, colour: String): String {
+  if (!timestamped || stringIsNullOrEmpty(timestamp)) {
+    return line;
+  }
+  if (stringIsNullOrEmpty(stringTrim(line))) {
+    return line;
+  }
+  let stamp: String = timestamp;
+  if (!stringIsNullOrEmpty(colour)) {
+    stamp = `${colour}${timestamp}</col>`;
+  }
+  return `${stamp} ${line}`;
+}
+
+export function timestampsShown(): Boolean {
+  return enhancedAny() && CS2.native_chat_timestamps_get() !== 0;
+}
+
+function linkKey(body: String): Int {
+  const tail: String = pipeTail(body);
+  if (CS2.string_length(tail) <= 0) {
+    return -1;
+  }
+  return CS2.string_indexof_string(LINK_KEY_ALPHABET, CS2.substring(tail, 0, 1), 0);
+}
+
+function linkUsable(body: String): Boolean {
+  const key: Int = linkKey(body);
+  if (key === -1 && CS2.string_length(pipeTail(body)) <= 0) {
+    return false;
+  }
+  const url: String = BroadcastUrls.get(key) ?? '';
+  if (CS2.string_length(url) <= 0) {
+    return false;
+  }
+  if (CS2.clienttype() === CLIENT_TYPE_BLOCKING_LINKS && (BroadcastLinkBlocked.get(key) ?? true)) {
+    return false;
+  }
+  return true;
+}
+
+export function broadcastText(body: String): String {
+  const text: String = pipeHead(body);
+  if (!linkUsable(body)) {
+    return text;
+  }
+  if (CS2.clienttype() === CLIENT_TYPE_BLOCKING_LINKS) {
+    return text;
+  }
+  return `<img=12> ${text}`;
+}
+
+export function broadcastUrl(body: String): String {
+  if (!linkUsable(body)) {
+    return '';
+  }
+  return BroadcastUrls.get(linkKey(body)) ?? '';
+}
+
+export function broadcastLink(body: String): Int {
+  if (!linkUsable(body)) {
+    return -1;
+  }
+  return linkKey(body);
+}
+
+export function rebootLine(timer: Int): String {
+  const seconds: Int = (timer / 50) % 60;
+  const minutes: Int = timer / 3000;
+  if (seconds < 10) {
+    return `System update in: ${minutes}:0${seconds}`;
+  }
+  return `System update in: ${minutes}:${seconds}`;
+}
+
+export function broadcastLine(timestamped: Boolean, body: String, timestamp: String, colour: String): String {
+  return affixTimestamp(timestamped, timestamp, `${colour}${broadcastText(body)}</col>`, 'null');
+}
+
+export function isSplitRow(type: Int): Boolean {
+  return type === ChatType.PRIVATE || type === ChatType.PRIVATE_OUT || type === ChatType.MOD_PRIVATE;
+}
+
+export function messagePrefix(
+  timestamped: Boolean,
+  type: Int,
+  sender: String,
+  timestamp: String,
+  colour: String,
+): String {
+  if (type === ChatType.PRIVATE || type === ChatType.MOD_PRIVATE) {
+    return affixTimestamp(timestamped, timestamp, `${colour}From ${sender}:</col>`, colour);
+  }
+  if (type === ChatType.PRIVATE_OUT) {
+    return affixTimestamp(timestamped, timestamp, `${colour}To ${sender}:</col>`, colour);
+  }
+  return '';
+}
+
+export function messageBody(timestamped: Boolean, type: Int, text: String, timestamp: String, colour: String): String {
+  if (isSplitRow(type)) {
+    return `${colour}${text}</col>`;
+  }
+  if (type === ChatType.LOGIN_NOTICE) {
+    return affixTimestamp(timestamped, timestamp, `${colour}${text}</col>`, colour);
+  }
+  return affixTimestamp(timestamped, timestamp, text, 'null');
+}
+
+export function singleHeight(line: String, width: Int): Int {
+  return textLineCount(line, width, PM_FONT) * PmLayout.LINE_HEIGHT;
+}
+
+export function prefixWidth(prefix: String): Int {
+  return textWidth(prefix, PmLayout.UNWRAPPED, PM_FONT) + PmLayout.PREFIX_GAP;
+}
+
+export function splitHeight(prefix: String, body: String, width: Int): Int {
+  return textLineCount(body, width - prefixWidth(prefix), PM_FONT) * PmLayout.LINE_HEIGHT;
+}
+
+export function messageHeight(timestamped: Boolean, uid: Int, colour: String, width: Int): Int {
+  const [type, _cycle, sender, _clan, text, _friend, timestamp, _mode] = CS2.chat_history_by_uid_get(uid);
+  const body: String = messageBody(timestamped, type, text, timestamp, colour);
+  if (isSplitRow(type)) {
+    return splitHeight(messagePrefix(timestamped, type, sender, timestamp, colour), body, width);
+  }
+  return singleHeight(body, width);
+}
+
+export function publishNoticeDeadline(deadline: Int): void {
+  if (deadline === -1) {
+    return;
+  }
+  const [, setDeadline] = useState(chatForceChatboxRebuild);
+  setDeadline(deadline);
+}
+
+export function messageInked(timestamped: Boolean, uid: Int, colour: String): Boolean {
+  const [type, _cycle, sender, _clan, text, _friend, timestamp, _mode] = CS2.chat_history_by_uid_get(uid);
+  if (isSplitRow(type)) {
+    return CS2.string_length(messagePrefix(timestamped, type, sender, timestamp, colour)) > 0;
+  }
+  return CS2.string_length(messageBody(timestamped, type, text, timestamp, colour)) > 0;
+}
+
+export function publishPaneFacts(deadline: Int, linesHeight: Int): void {
+  const [, setLinesHeight] = useState(pmChatLinesHeight);
+  setLinesHeight(linesHeight);
+  publishNoticeDeadline(deadline);
+}
+
+export function crownInfo(): void {
+  CS2.sound_effect(SELECT_SOUND, 1, 0);
+  CS2.url_open(CROWN_INFO_URL, true);
+}
+
+export function privateOp(op: Int, subject: String): void {
+  const name: String = CS2.tags_remove(subject);
+  if (op === PmOp.REPORT) {
+    const [, setReported] = useState(snapshotName);
+    setReported(name);
+  } else if (op === PmOp.CROWN_INFO) {
+    crownInfo();
+  } else if (CS2.friend_test(name)) {
+    if (op === PmOp.MESSAGE_OR_ADD || op === PmOp.ADD_IGNORE) {
+      if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 1) {
+        meslayerMode6(name);
+      } else {
+        CS2.message('You must set a name before you can do that.');
+      }
+    }
+  } else if (op === PmOp.MESSAGE_OR_ADD) {
+    if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 1) {
+      CS2.friend_add(name);
+    } else {
+      CS2.message('You must set a name before you can do that.');
+    }
+  } else if (op === PmOp.ADD_IGNORE) {
+    if (useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 1) {
+      CS2.ignore_add(name);
+    } else {
+      CS2.message('You must set a name before you can do that.');
+    }
+  }
+}
+
+export function broadcastOp(op: Int, clearOp: Int, url: String, link: Int): void {
+  if (op === clearOp) {
+    const [, setCleared] = useState(broadcastClearedTime);
+    setCleared(CS2.clientclock());
+    newestChatUid();
+    return;
+  }
+  if (CS2.string_length(url) <= 0) {
+    return;
+  }
+  let blocked: Boolean = false;
+  if (CS2.clienttype() === CLIENT_TYPE_BLOCKING_LINKS) {
+    blocked = BroadcastLinkBlocked.get(link) ?? true;
+  }
+  if (blocked) {
+    return;
+  }
+  if (link === POLL_LINK) {
+    if (op === PmOp.OPEN) {
+      const mount: ComponentId = layoutSlot(toplevelComponents(), componentOf(161, 84));
+      if (mount !== -1 && CS2.if_sub_has(mount)) {
+        CS2.if_triggerop(componentOf(109, 60), -1, 1);
+      } else {
+        CS2.message("You can't open the poll menu at the moment.");
+      }
+    } else {
+      CS2.message('This link attempts to open the poll menu.');
+    }
+  } else if (op === PmOp.OPEN) {
+    CS2.sound_effect(SELECT_SOUND, 1, 0);
+    CS2.url_open(url, true);
+  } else {
+    CS2.message(`Link destination: <col=ef1020>${url}</col>`);
+  }
+}
+
+function layoutSlot(layout: Int, component: ComponentId): ComponentId {
+  if (layout === ToplevelComponents.MOBILE) return MobileSlots.get(component) ?? -1;
+  if (layout === ToplevelComponents.STRETCH) return StretchSlots.get(component) ?? -1;
+  if (layout === ToplevelComponents.PRE_EOC) return PreEocSlots.get(component) ?? -1;
+  if (layout === ToplevelComponents.FIXED) return FixedSlots.get(component) ?? -1;
+  if (layout === ToplevelComponents.DISPLAY) return DisplaySlots.get(component) ?? -1;
+  if (layout === ToplevelComponents.SPECTATOR) return SpectatorSlots.get(component) ?? -1;
+  return -1;
+}

@@ -1,0 +1,98 @@
+import { useState } from 'ts2';
+
+import { TabSkins, TabState } from './trailblazer-areas.data';
+import { AreaColor } from './trailblazer-areas.constants';
+import { pickTab } from './trailblazer-areas.state';
+
+export function Tab({
+  index,
+  width,
+  height,
+  label,
+  font,
+  colour,
+  labelOffset,
+  icon,
+  iconW,
+  iconH,
+  iconX,
+  iconY,
+  selected,
+  last,
+  strip,
+}: {
+  index: Int;
+  width: Int;
+  height: Int;
+  label: String;
+  font: Font;
+  colour: Int;
+  labelOffset: Int;
+  icon: Sprite;
+  iconW: Int;
+  iconH: Int;
+  iconX: Int;
+  iconY: Int;
+  selected: Boolean;
+  last: Boolean;
+  strip: Int;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+
+  const left: Int = index * width;
+  const state: Int = selected ? TabState.SELECTED : hovered === 1 ? TabState.HOVERED : TabState.UNSELECTED;
+  const skin = TabSkins.at(state);
+  const fill: Sprite = skin === null ? -1 : skin.fill;
+  const edgeLeft: Sprite = skin === null ? -1 : skin.edgeLeft;
+  const edgeTop: Sprite = skin === null ? -1 : skin.edgeTop;
+  const edgeRight: Sprite = skin === null ? -1 : skin.edgeRight;
+  const cornerTl: Sprite = skin === null ? -1 : skin.cornerTl;
+  const cornerTr: Sprite = skin === null ? -1 : skin.cornerTr;
+  const side: Int = selected ? 4 : 7;
+  const leftSide: Int = left === 0 && selected ? 4 : side;
+  const rightSide: Int = last && selected ? 4 : side;
+
+  return (
+    <>
+      {selected ? (
+        <rect x={left + 1} y={1} w={width - 2} h={{ fill: 3 }} fill color={AreaColor.TAB} />
+      ) : (
+        <rect
+          x={left + 1}
+          y={1}
+          w={width - 2}
+          h={{ fill: 3 }}
+          fill
+          color={AreaColor.TAB}
+          options={['View']}
+          optionSubject={`<col=ff9040>${label}</col>`}
+          onOptionSelect={() => pickTab(strip, index)}
+          onMouseEnter={() => setHovered(1)}
+          onMouseLeave={() => setHovered(0)}
+        />
+      )}
+
+      <sprite x={left + 2} y={4} w={width - 4} h={{ fill: selected ? 4 : 7 }} sprite={fill} tiling />
+      <sprite x={left} y={4} w={4} h={{ fill: leftSide }} sprite={edgeLeft} tiling />
+      <sprite x={left + 4} y={0} w={width - 8} h={4} sprite={edgeTop} tiling />
+      <sprite x={left + width - 4} y={4} w={4} h={{ fill: rightSide }} sprite={edgeRight} tiling />
+      <sprite x={left} y={0} w={4} h={4} sprite={cornerTl} tiling />
+      <sprite x={left + width - 4} y={0} w={4} h={4} sprite={cornerTr} tiling />
+
+      <sprite x={left + 4 + iconX} y={(height + 1) / 2 - iconH / 2 + iconY} w={iconW} h={iconH} sprite={icon} tiling />
+
+      <text
+        x={left + 8 + iconW + labelOffset}
+        y={4}
+        w={width - 8 + iconW - labelOffset - 8}
+        h={{ fill: 7 }}
+        text={label}
+        font={font}
+        color={colour}
+        shadow
+        align={icon === -1 ? 'center' : 'left'}
+        valign="middle"
+      />
+    </>
+  );
+}

@@ -1,0 +1,608 @@
+import { useServerState, useState } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneButton } from '../lib/stone-button.component';
+import { StoneButtonPressed } from '../lib/stone-button-pressed.component';
+import { StructBoxFrame } from '../0823_forestry_kit_main/struct-box-frame.component';
+import { textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  responsiveCurrentBreakpoint,
+  leagueAreaDetailsCurrentSubtab,
+  leagueAreaDetailsCurrentTab,
+} from '../lib/game/varcs';
+import { regionName } from '../0656_league_side_panel/league-side-panel.helpers';
+
+import { Slideshow } from './slideshow.component';
+import { Tab } from './tab-strip.component';
+import { AreaInfo } from './area-info.data';
+import { TabSkins, TabState } from './trailblazer-areas.data';
+import { accent, hasEchoes, inTutorial, regionArt } from './trailblazer-areas.helpers';
+import { echoRefused, selectSound } from './trailblazer-areas.state';
+import {
+  AreaColor,
+  AreaFonts,
+  AreaSprites,
+  AreaText,
+  AreaVarbits,
+  Layout,
+  areaDetailsRef,
+  areaIconContentRef,
+  areaIconRef,
+  descriptionRef,
+  descriptionSubTabRef,
+  echoBossMapButtonRef,
+  selectButtonRef,
+  subTabInfoContentRef,
+  subTabInfoScrollbarRef,
+  tabInfoContentRef,
+  tabInfoScrollbarRef,
+} from './trailblazer-areas.constants';
+
+export function AreaDetails(): Component {
+  const region: Int = useServerState(AreaVarbits.LAST_VIEWED);
+  const art = regionArt(region);
+  const [breakpoint] = useState(responsiveCurrentBreakpoint);
+  const [tab] = useState(leagueAreaDetailsCurrentTab);
+  const tint: Int = accent();
+
+  return (
+    <layer ref={areaDetailsRef} w="fill" h="fill" hide noClickThrough>
+      <sprite
+        x={Layout.NAME_SHIELD_X}
+        y={Layout.NAME_SHIELD_Y}
+        w={Layout.NAME_SHIELD_SIZE}
+        h={Layout.NAME_SHIELD_SIZE}
+      />
+      <text
+        x={Layout.NAME_HEADER_X}
+        y={Layout.NAME_HEADER_Y}
+        w={Layout.NAME_HEADER_W}
+        h={Layout.NAME_HEADER_H}
+        font={AreaFonts.HEAVY}
+        color={AreaColor.TEXT}
+        shadow
+      />
+
+      <InfoLayer region={region} tab={tab} breakpoint={breakpoint} tint={tint} />
+
+      <TabStrip region={region} tab={tab} breakpoint={breakpoint} tint={tint} />
+
+      <EchoLocateButton region={region} />
+      <SelectButton />
+
+      <layer right={Layout.BACK_X} y={{ center: Layout.BUTTON_Y }} w={Layout.BUTTON_W} h={Layout.BUTTON_H} />
+
+      <IconBox from={art === null ? 0 : art.slideshowFrom} count={art === null ? 0 : art.slideshowCount} />
+    </layer>
+  );
+}
+
+function InfoLayer({
+  region,
+  tab,
+  breakpoint,
+  tint,
+}: {
+  region: Int;
+  tab: Int;
+  breakpoint: Int;
+  tint: Int;
+}): Component {
+  return (
+    <layer
+      x={Layout.INFOLAYER_X}
+      y={Layout.INFOLAYER_Y}
+      w={{ fill: Layout.INFOLAYER_W_INSET }}
+      h={{ fill: Layout.INFOLAYER_H_INSET }}
+    >
+      <rect w="fill" h="fill" fill color={AreaColor.MARKER_65} hide />
+
+      <InfoBackground breakpoint={breakpoint} />
+
+      <layer
+        ref={tabInfoContentRef}
+        x={Layout.PANE_X}
+        y={Layout.PANE_Y}
+        w={{ fill: Layout.PANE_W_INSET }}
+        h={{ fill: Layout.PANE_H_INSET }}
+        scrollHeight={overviewExtent(region, tab, breakpoint)}
+      >
+        <text
+          ref={descriptionRef}
+          x="center"
+          y={Layout.DESCRIPTION_Y}
+          w="fill"
+          h={{ fill: Layout.DESCRIPTION_H_INSET }}
+          text={overviewText(region, tab)}
+          font={AreaFonts.BODY}
+          color={tint}
+          lineHeight={Layout.LINE_HEIGHT}
+          shadow
+        />
+      </layer>
+
+      <layer
+        ref={tabInfoScrollbarRef}
+        right={Layout.SCROLLBAR_X}
+        y={Layout.SCROLLBAR_Y}
+        w={Layout.SCROLLBAR_W}
+        h={{ fill: Layout.SCROLLBAR_H_INSET }}
+      >
+        <rect w="fill" h="fill" fill color={AreaColor.MARKER_69} hide />
+        {tab === 0 && (
+          <ScrollbarVertical
+            content={tabInfoContentRef}
+            track={AreaSprites.SCROLL_THUMB_MIDDLE}
+            capTopSprite={AreaSprites.SCROLL_THUMB_TOP}
+            thumbSprite={AreaSprites.SCROLL_THUMB_BOTTOM}
+            capBottomSprite={AreaSprites.SCROLL_THUMB_GRIP}
+            arrowUp={AreaSprites.SCROLL_UP}
+            arrowDown={AreaSprites.SCROLL_DOWN}
+          />
+        )}
+      </layer>
+
+      <SubTabLayer region={region} tab={tab} breakpoint={breakpoint} tint={tint} />
+    </layer>
+  );
+}
+
+function InfoBackground({ breakpoint }: { breakpoint: Int }): Component {
+  const w: Int = infoLayerWidth(breakpoint);
+  const h: Int = infoLayerHeight(breakpoint);
+
+  return (
+    <layer w="fill" h="fill">
+      <rect x={1} y={1} w={w - 2} h={h - 2} fill color={AreaColor.TAB} />
+      <StructBoxFrame x={0} y={0} w={w} h={h} style={TabSkins.at(TabState.SELECTED)} />
+    </layer>
+  );
+}
+
+function overviewText(region: Int, tab: Int): String {
+  if (tab !== 0) {
+    return '';
+  }
+  const info: Int = regionInfoIndex(region);
+  if (info === -1) {
+    return '';
+  }
+  const row = AreaInfo.at(info);
+  return row === null ? '' : row.overview;
+}
+
+function overviewExtent(region: Int, tab: Int, breakpoint: Int): Int {
+  const body: String = overviewText(region, tab);
+  const width: Int = infoLayerWidth(breakpoint) - Layout.PANE_W_INSET;
+  const height: Int = infoLayerHeight(breakpoint) - Layout.PANE_H_INSET;
+  const wanted: Int = textLineCount(body, width, AreaFonts.BODY) * Layout.LINE_HEIGHT + 11;
+  if (wanted > height) {
+    return wanted;
+  }
+  return 0;
+}
+
+function regionInfoIndex(region: Int): Int {
+  const art = regionArt(region);
+  return art === null ? -1 : art.info;
+}
+
+function SubTabLayer({
+  region,
+  tab,
+  breakpoint,
+  tint,
+}: {
+  region: Int;
+  tab: Int;
+  breakpoint: Int;
+  tint: Int;
+}): Component {
+  const [subtab] = useState(leagueAreaDetailsCurrentSubtab);
+
+  return (
+    <layer y={Layout.SUBTAB_LAYER_Y} w="fill" h={{ fill: Layout.SUBTAB_LAYER_H_INSET }}>
+      <rect w="fill" h="fill" fill hide />
+
+      <layer y={Layout.SUBTAB_FRAME_Y} w="fill" h={{ fill: Layout.SUBTAB_FRAME_H_INSET }}>
+        <rect w="fill" h="fill" fill color={AreaColor.MARKER_73} hide />
+        {tab !== 0 && tab !== -1 && (
+          <>
+            <rect w="fill" h="fill" fill color={AreaColor.TAB_FRAME} />
+            <rect w="fill" h="fill" color={AreaColor.TAB} />
+          </>
+        )}
+      </layer>
+
+      <SubTabStrip tab={tab} subtab={subtab} breakpoint={breakpoint} tint={tint} />
+
+      <layer
+        ref={subTabInfoContentRef}
+        x={Layout.SUBPANE_X}
+        y={Layout.SUBPANE_Y}
+        w={{ fill: Layout.SUBPANE_W_INSET }}
+        h={{ fill: Layout.SUBPANE_H_INSET }}
+        scrollHeight={informationExtent(region, tab, subtab, breakpoint)}
+      >
+        <text
+          ref={descriptionSubTabRef}
+          x="center"
+          y={Layout.DESCRIPTION_Y}
+          w={{ fill: Layout.DESCRIPTION_W_INSET }}
+          h={{ fill: Layout.DESCRIPTION_H_INSET }}
+          text={informationText(tab, subtab, regionInfoIndex(region))}
+          font={AreaFonts.BODY}
+          color={tint}
+          lineHeight={Layout.LINE_HEIGHT}
+          shadow
+        />
+      </layer>
+
+      <layer
+        ref={subTabInfoScrollbarRef}
+        right={Layout.SUBTAB_SCROLLBAR_X}
+        y={Layout.SUBTAB_SCROLLBAR_Y}
+        w={Layout.SCROLLBAR_W}
+        h={{ fill: Layout.SUBTAB_SCROLLBAR_H_INSET }}
+      >
+        <rect w="fill" h="fill" fill color={AreaColor.MARKER_75} hide />
+        {tab === 1 && (
+          <ScrollbarVertical
+            content={subTabInfoContentRef}
+            track={AreaSprites.SCROLL_THUMB_MIDDLE}
+            capTopSprite={AreaSprites.SCROLL_THUMB_TOP}
+            thumbSprite={AreaSprites.SCROLL_THUMB_BOTTOM}
+            capBottomSprite={AreaSprites.SCROLL_THUMB_GRIP}
+            arrowUp={AreaSprites.SCROLL_UP}
+            arrowDown={AreaSprites.SCROLL_DOWN}
+          />
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+function SubTabStrip({
+  tab,
+  subtab,
+  breakpoint,
+  tint,
+}: {
+  tab: Int;
+  subtab: Int;
+  breakpoint: Int;
+  tint: Int;
+}): Component {
+  const width: Int = infoLayerWidth(breakpoint) - Layout.SUBTAB_STRIP_W_INSET;
+
+  if (tab === 1) {
+    const each: Int = width / 3;
+    return (
+      <layer x="center" y={Layout.SUBTAB_STRIP_Y} w={{ fill: Layout.SUBTAB_STRIP_W_INSET }} h={Layout.SUBTAB_STRIP_H}>
+        <rect x="center" w="fill" h="fill" fill color={AreaColor.MARKER_77} hide />
+        <Tab
+          index={0}
+          width={each}
+          height={Layout.SUBTAB_STRIP_H}
+          label={AreaText.SUB_KEY_INFO}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={0}
+          icon={-1}
+          iconW={0}
+          iconH={0}
+          iconX={0}
+          iconY={0}
+          selected={subtab === 0}
+          last={false}
+          strip={1}
+        />
+        <Tab
+          index={1}
+          width={each}
+          height={Layout.SUBTAB_STRIP_H}
+          label={AreaText.SUB_UNLOCKS}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={0}
+          icon={-1}
+          iconW={0}
+          iconH={0}
+          iconX={0}
+          iconY={0}
+          selected={subtab === 1}
+          last={false}
+          strip={1}
+        />
+        <Tab
+          index={2}
+          width={each}
+          height={Layout.SUBTAB_STRIP_H}
+          label={AreaText.SUB_DROPS}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={0}
+          icon={-1}
+          iconW={0}
+          iconH={0}
+          iconX={0}
+          iconY={0}
+          selected={subtab === 2}
+          last={false}
+          strip={1}
+        />
+      </layer>
+    );
+  }
+  if (tab === 2) {
+    const each: Int = width / 2;
+    return (
+      <layer x="center" y={Layout.SUBTAB_STRIP_Y} w={{ fill: Layout.SUBTAB_STRIP_W_INSET }} h={Layout.SUBTAB_STRIP_H}>
+        <rect x="center" w="fill" h="fill" fill color={AreaColor.MARKER_77} hide />
+        <Tab
+          index={0}
+          width={each}
+          height={Layout.SUBTAB_STRIP_H}
+          label={AreaText.SUB_BOSS}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={0}
+          icon={-1}
+          iconW={0}
+          iconH={0}
+          iconX={0}
+          iconY={0}
+          selected={subtab === 0}
+          last={false}
+          strip={1}
+        />
+        <Tab
+          index={1}
+          width={each}
+          height={Layout.SUBTAB_STRIP_H}
+          label={AreaText.SUB_ITEMS}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={0}
+          icon={-1}
+          iconW={0}
+          iconH={0}
+          iconX={0}
+          iconY={0}
+          selected={subtab === 1}
+          last={false}
+          strip={1}
+        />
+      </layer>
+    );
+  }
+  return (
+    <layer x="center" y={Layout.SUBTAB_STRIP_Y} w={{ fill: Layout.SUBTAB_STRIP_W_INSET }} h={Layout.SUBTAB_STRIP_H}>
+      <rect x="center" w="fill" h="fill" fill color={AreaColor.MARKER_77} hide />
+    </layer>
+  );
+}
+
+function informationExtent(region: Int, tab: Int, subtab: Int, breakpoint: Int): Int {
+  const body: String = informationText(tab, subtab, regionInfoIndex(region));
+  const width: Int = infoLayerWidth(breakpoint) - Layout.SUBPANE_W_INSET;
+  const height: Int = infoLayerHeight(breakpoint) - Layout.SUBTAB_LAYER_H_INSET - Layout.SUBPANE_H_INSET;
+  const wanted: Int = textLineCount(body, width, AreaFonts.BODY) * Layout.LINE_HEIGHT + 11;
+  if (wanted > height) {
+    return wanted;
+  }
+  return 0;
+}
+
+function informationText(tab: Int, subtab: Int, info: Int): String {
+  if (tab !== 1) {
+    return '';
+  }
+  if (info === -1) {
+    return '';
+  }
+  const row = AreaInfo.at(info);
+  if (subtab === 0) {
+    return row === null ? '' : row.keyInfo;
+  }
+  if (subtab === 1) {
+    return row === null ? '' : row.unlocks;
+  }
+  if (subtab === 2) {
+    return row === null ? '' : row.drops;
+  }
+  return '';
+}
+
+function TabStrip({ region, tab, breakpoint, tint }: { region: Int; tab: Int; breakpoint: Int; tint: Int }): Component {
+  const width: Int = infoLayerWidthOuter(breakpoint) - Layout.TAB_STRIP_W_INSET;
+  const each: Int = width / 3;
+  const nudge: Int = breakpoint >= 1 && breakpoint <= 3 ? each / 2 - 33 : each / 2 - 35;
+  const echoes: Boolean = hasEchoes() && region !== 1 && region !== 2;
+
+  return (
+    <layer x={Layout.TAB_STRIP_X} y={Layout.TAB_STRIP_Y} w={{ fill: Layout.TAB_STRIP_W_INSET }} h={Layout.TAB_STRIP_H}>
+      <rect w={{ fill: 2 }} h="fill" fill color={AreaColor.MARKER_79} hide />
+
+      <Tab
+        index={0}
+        width={each}
+        height={Layout.TAB_STRIP_H}
+        label={AreaText.TAB_OVERVIEW}
+        font={AreaFonts.BODY}
+        colour={tint}
+        labelOffset={0}
+        icon={-1}
+        iconW={0}
+        iconH={0}
+        iconX={0}
+        iconY={0}
+        selected={tab === 0}
+        last={false}
+        strip={0}
+      />
+      <Tab
+        index={1}
+        width={each}
+        height={Layout.TAB_STRIP_H}
+        label={AreaText.TAB_INFORMATION}
+        font={AreaFonts.BODY}
+        colour={tint}
+        labelOffset={0}
+        icon={-1}
+        iconW={0}
+        iconH={0}
+        iconX={0}
+        iconY={0}
+        selected={tab === 1}
+        last={false}
+        strip={0}
+      />
+      {echoes && (
+        <Tab
+          index={2}
+          width={each}
+          height={Layout.TAB_STRIP_H}
+          label={AreaText.TAB_ECHOES}
+          font={AreaFonts.BODY}
+          colour={tint}
+          labelOffset={nudge}
+          icon={AreaSprites.ECHO_ICON}
+          iconW={19}
+          iconH={19}
+          iconX={nudge}
+          iconY={-1}
+          selected={tab === 2}
+          last={false}
+          strip={0}
+        />
+      )}
+    </layer>
+  );
+}
+
+function SelectButton(): Component {
+  return (
+    <layer
+      ref={selectButtonRef}
+      right={Layout.BUTTON_X}
+      y={{ center: Layout.BUTTON_Y }}
+      w={Layout.BUTTON_W}
+      h={Layout.BUTTON_H}
+      options={['*']}
+    />
+  );
+}
+
+function EchoLocateButton({ region }: { region: Int }): Component {
+  const [tab] = useState(leagueAreaDetailsCurrentTab);
+  const [pressed, setPressed] = useState(0);
+  const locked: Boolean = inTutorial();
+  const desktop: Boolean = !onMobile();
+  const shown: Boolean = tab === 2;
+
+  return (
+    <layer
+      ref={echoBossMapButtonRef}
+      right={Layout.BUTTON_X}
+      y={{ center: Layout.BUTTON_Y }}
+      w={Layout.BUTTON_W}
+      h={Layout.BUTTON_H}
+      hide={shown ? false : true}
+      options={shown ? [AreaText.LOCATE] : ['']}
+      optionSubject={AreaText.ECHO_SUBJECT}
+      onMouseRepeat={() => setPressed(locked || !desktop ? 0 : 1)}
+      onMouseLeave={() => setPressed(0)}
+      onOptionSelect={() => echoOp(locked)}
+    >
+      {shown && <LocateSkin pressed={pressed} />}
+      <sprite x="center" y="center" w={Layout.LOCATE_SIZE} h={Layout.LOCATE_SIZE} sprite={AreaSprites.LOCATE_ICON} />
+    </layer>
+  );
+}
+
+function LocateSkin({ pressed }: { pressed: Int }): Component {
+  if (pressed === 1) {
+    return <StoneButtonPressed />;
+  }
+  return <StoneButton />;
+}
+
+function echoOp(locked: Boolean): void {
+  if (locked) {
+    echoRefused();
+    return;
+  }
+  selectSound();
+}
+
+function IconBox({ from, count }: { from: Int; count: Int }): Component {
+  return (
+    <layer
+      right={Layout.ICON_BOX_X}
+      y={{ center: Layout.ICON_BOX_Y }}
+      w={Layout.ICON_BOX_SIZE}
+      h={Layout.ICON_BOX_SIZE}
+    >
+      <sprite ref={areaIconContentRef} w="fill" h="fill" sprite={AreaSprites.ICON_BACKING} />
+      <text
+        x={0}
+        y={0}
+        w={Layout.PLACEHOLDER}
+        h={Layout.PLACEHOLDER}
+        font={AreaFonts.SMALL}
+        color={AreaColor.WHITE}
+        shadow
+      />
+      <rect x="center" y="center" w="fill" h="fill" color={AreaColor.BOX_OUTER} />
+      <rect
+        x={1}
+        y={1}
+        w={{ fill: Layout.BOX_INNER_INSET }}
+        h={{ fill: Layout.BOX_INNER_INSET }}
+        color={AreaColor.BOX_INNER}
+      />
+      <layer
+        ref={areaIconRef}
+        x={Layout.ICON_INSET}
+        y={Layout.ICON_INSET}
+        w={{ fill: Layout.ICON_W_INSET }}
+        h={{ fill: Layout.ICON_W_INSET }}
+        options={['View Next Image']}
+      >
+        {count > 0 && <Slideshow from={from} count={count} />}
+      </layer>
+    </layer>
+  );
+}
+
+function infoLayerWidth(breakpoint: Int): Int {
+  return infoLayerWidthOuter(breakpoint) - Layout.INFOLAYER_W_INSET;
+}
+
+function infoLayerWidthOuter(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Layout.WINDOW_W_MEDIUM - Layout.CONTENT_W_INSET;
+  }
+  if (breakpoint === 2) {
+    return Layout.WINDOW_W_LARGE - Layout.CONTENT_W_INSET;
+  }
+  if (breakpoint === 3) {
+    return Layout.WINDOW_W_LARGE - Layout.CONTENT_W_INSET;
+  }
+  return Layout.WINDOW_W - Layout.CONTENT_W_INSET;
+}
+
+function infoLayerHeight(breakpoint: Int): Int {
+  if (breakpoint === 1) {
+    return Layout.WINDOW_H_MEDIUM - 43 - Layout.INNER_H_INSET - Layout.INFOLAYER_H_INSET;
+  }
+  if (breakpoint === 2) {
+    return Layout.WINDOW_H_LARGE - 43 - Layout.INNER_H_INSET - Layout.INFOLAYER_H_INSET;
+  }
+  if (breakpoint === 3) {
+    return Layout.WINDOW_H_LARGE - 45 - Layout.INNER_H_INSET - Layout.INFOLAYER_H_INSET;
+  }
+  return Layout.WINDOW_H - 41 - Layout.INNER_H_INSET - Layout.INFOLAYER_H_INSET;
+}

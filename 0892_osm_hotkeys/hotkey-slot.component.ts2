@@ -1,0 +1,210 @@
+import { useDerived, useServerState } from 'ts2';
+
+import { membersWorld } from '../lib/lib.engine';
+import { Sprites } from '../lib/game/sprites';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import { Actions, ActionsRow } from '../0891_hotkey_settings_new/actions.data';
+import { HotkeyArt, Layout } from './osm-hotkeys.constants';
+import { SideChannelIcons, SideChannelLabels } from './side-channels.data';
+import { iconH, iconW, slotBacking, slotSelected } from './osm-hotkeys.helpers';
+
+export function HotkeySlot({ action, y, hide }: { action: Int; y: Int; hide: Boolean }): Component {
+  const row: ActionsRow | null = Actions.at(action - 1);
+
+  const selected: Int = useDerived(() => slotSelected(action));
+
+  const poison: Int = useServerState(Varps.POISON);
+  const disease: Int = useServerState(Varps.DISEASE);
+  const parasite: Int = useServerState(Varbits.PARASITE);
+  const poisoned: Boolean = poison > 0 || disease > 0 || parasite > 0;
+  const specUp: Boolean = useServerState(Varps.SA_ATTACK) > 0;
+
+  const specReady: Boolean = membersOrBountyWorld();
+
+  const backing: Sprite = slotBacking(action, selected, poisoned, specUp, specReady);
+
+  return (
+    <layer
+      w={Layout.SLOT}
+      h={Layout.SLOT}
+      x="center"
+      y={y}
+      hide={hide}
+      noClickThrough
+      optionSubject={action === 21 ? 'Quick-prayers' : ''}
+      options={[slotOp1(action, row, poisoned, specReady), slotOp2(action)]}
+    >
+      <sprite w="fill" h="fill" x="center" y="center" sprite={backing} tiling />
+      <sprite w={iconW(row)} h={iconH(row)} x="center" y="center" sprite={slotIcon(action, row, poisoned)} tiling />
+    </layer>
+  );
+}
+
+function membersOrBountyWorld(): Boolean {
+  if (useServerState(Varbits.BR_INGAME) !== 0) {
+    return true;
+  }
+  return membersWorld();
+}
+
+function slotIcon(action: Int, row: ActionsRow | null, poisoned: Boolean): Sprite {
+  switch (action) {
+    case 16:
+      if (useServerState(Varbits.FRIENDS_PANEL) === 0) {
+        return Sprites.SIDEICONS_INTERFACE_8;
+      }
+      return Sprites.SIDEICONS_INTERFACE_9;
+    case 11:
+      switch (useServerState(Varbits.SIDE_JOURNAL_TAB)) {
+        case 1:
+          return Sprites.SIDEICONS_INTERFACE_2;
+        case 2:
+          return Sprites.SIDEICONS_INTERFACE_16;
+        case 3:
+          return Sprites.SIDEICONS_INTERFACE_23;
+        case 4:
+          return Sprites.SIDEICONS_INTERFACE_35;
+      }
+      return Sprites.SIDEICONS_INTERFACE_30;
+    case 9:
+      switch (useServerState(Varbits.SPELLBOOK)) {
+        case 1:
+          return Sprites.SIDEICONS_INTERFACE_19;
+        case 2:
+          return Sprites.SIDEICONS_INTERFACE_20;
+        case 3:
+          return Sprites.SIDEICONS_INTERFACE_21;
+      }
+      return Sprites.SIDEICONS_INTERFACE_6;
+    case 15:
+      return SideChannelIcons.get(useServerState(Varbits.SIDE_CHANNELS_TAB_SELECTED)) ?? SIDE_CHANNEL_DEFAULT_ICON;
+    case 21:
+      if (useServerState(Varbits.CORRUPTION_TARGET_ITERATIONS) > 0) {
+        if (useServerState(Varbits.QUICKPRAYER_ACTIVE) === 1) {
+          return Sprites.ORB_ICON_9;
+        }
+        return Sprites.ORB_ICON_8;
+      }
+      if (useServerState(Varbits.QUICKPRAYER_ACTIVE) === 1) {
+        return Sprites.ORB_ICON_4;
+      }
+      return Sprites.ORB_ICON_1;
+    case 22:
+      if (useServerState(Varbits.STAMINA_ACTIVE) === 1) {
+        return Sprites.ORB_ICON_5;
+      }
+      if (useServerState(Varps.OPTION_RUN) === 1) {
+        return Sprites.ORB_ICON_3;
+      }
+      return Sprites.ORB_ICON_2;
+    case 20:
+      if (poisoned) {
+        return iconOf(row);
+      }
+      return Sprites.ORB_ICON_17;
+  }
+  return iconOf(row);
+}
+
+function slotOp1(action: Int, row: ActionsRow | null, poisoned: Boolean, specReady: Boolean): String {
+  switch (action) {
+    case 20:
+      if (poisoned) {
+        return nameOf(row);
+      }
+      return '';
+    case 23:
+      if (specReady) {
+        return nameOf(row);
+      }
+      return '';
+    case 16:
+      if (useServerState(Varbits.FRIENDS_PANEL) === 0) {
+        return 'Friends List';
+      }
+      return 'Ignore List';
+    case 11:
+      switch (useServerState(Varbits.SIDE_JOURNAL_TAB)) {
+        case 1:
+          return 'Quest List';
+        case 2:
+          return 'Achievement Diaries';
+        case 3:
+          return 'Adventure Paths';
+        case 4:
+          return 'Leagues';
+      }
+      return 'Character Summary';
+    case 15:
+      return SideChannelLabels.get(useServerState(Varbits.SIDE_CHANNELS_TAB_SELECTED)) ?? SIDE_CHANNEL_DEFAULT_LABEL;
+    case 3:
+      if (useServerState(Varbits.SETTINGS_MOBILE_TILE_HIGHLIGHT_ENABLED) === 0) {
+        return 'Mark highlighted tiles';
+      }
+      return 'Stop marking highlighted tiles';
+    case 21:
+      if (useServerState(Varbits.QUICKPRAYER_ACTIVE) === 1) {
+        return 'Deactivate';
+      }
+      return 'Activate';
+    case 25:
+      if (useServerState(Varbits.OPTION_NPC_INDICATORS_TAGGING_ENABLED) === 0) {
+        return 'Edit NPC tags';
+      }
+      return 'Stop editing NPC tags';
+    case 24:
+      if (useServerState(Varbits.GROUND_ITEMS_EDIT_MODE_ENABLED_MOBILE) === 0) {
+        return 'Edit ground items';
+      }
+      return 'Stop editing ground items';
+  }
+  return nameOf(row);
+}
+
+function slotOp2(action: Int): String {
+  switch (action) {
+    case 3:
+      if (useServerState(Varbits.SETTINGS_MOBILE_TILE_HIGHLIGHTS_HIDDEN) === 1) {
+        return 'Show tile highlights';
+      }
+      return 'Hide tile highlights';
+    case 21:
+      return 'Setup';
+    case 25:
+      if (useServerState(Varbits.OPTION_NPC_INDICATORS_ENABLED) === 0) {
+        return 'Show tagged NPCs';
+      }
+      return 'Hide tagged NPCs';
+    case 24:
+      if (useServerState(Varbits.GROUND_ITEMS_ENABLED) === 0) {
+        return 'Show ground items';
+      }
+      return 'Hide ground items';
+  }
+  return '';
+}
+
+function nameOf(row: ActionsRow | null): String {
+  if (row === null) {
+    return NO_NAME;
+  }
+  return row.name;
+}
+
+const NO_NAME = 'Empty';
+
+const SIDE_CHANNEL_DEFAULT_LABEL = 'Chat-channel';
+
+function iconOf(row: ActionsRow | null): Sprite {
+  if (row === null) {
+    return NO_SPRITE;
+  }
+  return row.icon;
+}
+
+const NO_SPRITE = -1;
+
+const SIDE_CHANNEL_DEFAULT_ICON = 781;
+
+export { SideChannelLabels };

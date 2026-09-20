@@ -1,4 +1,4 @@
-import { CS2, useDerived, useRef } from 'ts2';
+import { CS2, useDerived, useState } from 'ts2';
 import {
   Layout,
   SideColors,
@@ -8,27 +8,24 @@ import {
   SideSprites,
   Toggle,
 } from './adventurepath-side.constants';
-import { desktop, settingValue, toggleOn, togglePressedColour, toggleSetting } from './adventurepath-side.helpers';
+import { settingValue, toggleOn, togglePressedColour, toggleSetting } from './adventurepath-side.helpers';
 import { Frame } from '../lib/frame.component';
 import { StoneButton } from '../lib/stone-button.component';
 
 export function SettingsToggle({ label, index, width }: { label: String; index: Int; width: Int }): Component {
-  const up = useRef();
-  const down = useRef();
-  const text = useRef();
+  const [hovered, setHovered] = useState(0);
   const setting: Int = useDerived(() => settingValue(index));
   const on: Boolean = toggleOn(setting);
-  const swap: Boolean = desktop();
   const pressedColour: Int = togglePressedColour();
   const top: Int = index * Toggle.STEP;
 
   return (
     <layer x={0} y={top} w={width} h={Toggle.HEIGHT}>
-      <layer ref={up} w="fill" h="fill">
+      <layer w="fill" h="fill" hide={hovered === 1}>
         <sprite x={0} y={0} w="fill" h="fill" sprite={Toggle.BACKING_RAISED} tiling />
         <StoneButton />
       </layer>
-      <layer ref={down} w="fill" h="fill" hide>
+      <layer w="fill" h="fill" hide={hovered === 0}>
         <sprite x={0} y={0} w="fill" h="fill" sprite={Toggle.BACKING_PRESSED} tiling />
         <Frame
           topLeft={Toggle.IN_TL}
@@ -43,7 +40,6 @@ export function SettingsToggle({ label, index, width }: { label: String; index: 
       </layer>
 
       <text
-        ref={text}
         x={Toggle.LABEL_X}
         y={0}
         w={width - Toggle.RADIO_X}
@@ -51,7 +47,7 @@ export function SettingsToggle({ label, index, width }: { label: String; index: 
         text={label}
         font={SideFonts.BODY}
         shadow
-        color={SideColors.GOLD}
+        color={hovered === 1 ? pressedColour : SideColors.GOLD}
         align="center"
         valign="middle"
         lineHeight={Layout.BODY_LINE_H}
@@ -76,16 +72,8 @@ export function SettingsToggle({ label, index, width }: { label: String; index: 
           CS2.sound_effect(SideSounds.CLICK, 1, 0);
           toggleSetting(index, on);
         }}
-        onMouseEnter={() => {
-          text.color = pressedColour;
-          up.hide = true;
-          down.hide = false;
-        }}
-        onMouseLeave={() => {
-          text.color = SideColors.GOLD;
-          up.hide = false;
-          down.hide = true;
-        }}
+        onMouseEnter={() => setHovered(1)}
+        onMouseLeave={() => setHovered(0)}
       />
     </layer>
   );

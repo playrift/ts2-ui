@@ -1,0 +1,112 @@
+import { CS2, Engine, onMounted, onUpdated, useRef, useState, useWatch } from 'ts2';
+
+import { Varps } from '../lib/game/varps';
+import { chatView, osmChatboxDisabled } from '../lib/game/varcs';
+import { chatAlertSet } from './chat-buttons';
+import { chatboxRelayout } from './chatbox-chrome';
+import { chatboxVarTransmit } from './chatbox.init';
+import { chatboxAreaRef, chatmodalRef, chatoverlayRef, crmspaceRef } from './chatbox.constants';
+import { ChatTab } from './chatbox.data';
+import { CHAT_DISABLED_UNSEEN, chatDisabledApplied } from './chatbox.state';
+
+export function ChatSubscriptions(): Component {
+  const host = useRef();
+
+  const [chatDisabled] = useState(osmChatboxDisabled);
+  let chatOff: Boolean = false;
+  if (chatDisabled === 1) {
+    chatOff = true;
+  }
+
+  useWatch(Engine.SUB_CHANGE, () => chatMountsChanged());
+
+  useWatch(
+    [
+      Varps.CHAT_FILTER_CLAN,
+      Varps.CHAT_FILTER_ASSIST,
+      Varps.TOPLEVEL_TEMP,
+      Varps.MAGIC_CARPET_VAR,
+      Varps.TOB_TEMP_TRANSMIT_2,
+      Varps.OPTION_CHAT_COLOUR_PUBLIC_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_PRIVATE_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_AUTOCHAT_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_BROADCAST_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_FRIENDSCHAT_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_CLANCHAT_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_TRADEREQ_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_CHALLENGEREQ_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_GUESTCLAN_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_GIMCHAT_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_CLANBROADCAST_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_GIMBROADCAST_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_PUBLIC_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_PRIVATE_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_AUTOCHAT_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_BROADCAST_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_FRIENDSCHAT_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_CLANCHAT_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_TRADEREQ_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_CHALLENGEREQ_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_GUESTCLAN_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_GIMCHAT_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_CLANBROADCAST_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_GIMBROADCAST_TRANSPARENT,
+      Varps.OPTION_CHAT_COLOUR_PRIVATE_SPLIT,
+      Varps.OPTION_CHAT_COLOUR_BROADCAST_SPLIT,
+      Varps.OPTION_CHAT_COLOUR_DIDYOUKNOW_OPAQUE,
+      Varps.OPTION_CHAT_COLOUR_DIDYOUKNOW_TRANSPARENT,
+    ],
+    () => chatboxVarTransmit(),
+    host,
+  );
+
+  onMounted(() => chatToggleChanged(chatOff));
+  onUpdated(() => chatToggleChanged(chatOff));
+
+  return <layer ref={host} x={0} y={0} w={1} h={1} />;
+}
+
+export function chatMountsChanged(): void {
+  const modalOpen: Boolean = CS2.if_sub_has(chatmodalRef);
+  const overlayOpen: Boolean = CS2.if_sub_has(chatoverlayRef);
+
+  let hideModal: Boolean = true;
+  let hideOverlay: Boolean = true;
+  let hideChat: Boolean = true;
+  if (modalOpen) {
+    hideModal = false;
+  } else if (overlayOpen) {
+    hideOverlay = false;
+  } else {
+    hideChat = false;
+  }
+
+  chatmodalRef.hide = hideModal;
+  chatoverlayRef.hide = hideOverlay;
+  crmspaceRef.hide = hideChat;
+  chatboxAreaRef.hide = hideChat;
+}
+
+export function chatToggleChanged(off: Boolean): void {
+  const [applied, setApplied] = useState(chatDisabledApplied);
+  const [view] = useState(chatView);
+
+  let now: Int = 0;
+  if (off) {
+    now = 1;
+  }
+  if (applied === now) {
+    return;
+  }
+  const first: Boolean = applied === CHAT_DISABLED_UNSEEN;
+  setApplied(now);
+  if (first) {
+    return;
+  }
+
+  if (!off && view === ChatTab.ALL) {
+    chatAlertSet(ChatTab.ALL, 0);
+  }
+
+  chatboxRelayout();
+}

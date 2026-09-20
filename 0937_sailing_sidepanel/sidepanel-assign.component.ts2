@@ -1,0 +1,614 @@
+import { onMounted, onUpdated, useInterval, useRef, useServerState, useState } from 'ts2';
+import { soundSynth } from '../0874_quetzal_menu/quetzal-menu.helpers';
+import { clientClock, playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import {
+  ButtonSprites,
+  SidepanelColor,
+  SidepanelFont,
+  SidepanelVarbits,
+  assignPaneRef,
+} from './sailing-sidepanel.constants';
+import {
+  sidepanelAssignCount,
+  sidepanelAssignDim0,
+  sidepanelAssignDim1,
+  sidepanelAssignDim2,
+  sidepanelAssignDim3,
+  sidepanelAssignDim4,
+  sidepanelAssignExperienced,
+  sidepanelAssignIcon0,
+  sidepanelAssignIcon1,
+  sidepanelAssignIcon2,
+  sidepanelAssignIcon3,
+  sidepanelAssignIcon4,
+  sidepanelAssignId0,
+  sidepanelAssignId1,
+  sidepanelAssignId2,
+  sidepanelAssignId3,
+  sidepanelAssignId4,
+  sidepanelAssignLit0,
+  sidepanelAssignLit1,
+  sidepanelAssignLit2,
+  sidepanelAssignLit3,
+  sidepanelAssignLit4,
+  sidepanelAssignMax,
+  sidepanelAssignRows,
+  sidepanelAssignUnassignLit,
+  sidepanelCrewWhirlpool,
+  sidepanelTab,
+} from './sailing-sidepanel.state';
+import { Message, SidepanelPage, sidepanelBlocked, sidepanelPageShown } from './sidepanel-content.component';
+import { crewPortrait, crewRowText } from './sidepanel-crew.helpers';
+import { Pane, PaneScrollbar } from './sidepanel-scrollbar.component';
+
+function assignExtent(count: Int, rows: Int): Int {
+  return count === 0 ? TOP : TOP + (rows + 1) * ROW_H;
+}
+
+export function AssignBacking(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.ASSIGN);
+  const shipyard: Boolean = useServerState(SidepanelVarbits.SHIPYARD) === 1;
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {blocked ? (
+        <Message
+          text={
+            shipyard
+              ? 'Facilities are not available while customising your boat in the shipyard.'
+              : 'Facilities can only be viewed while on a boat.'
+          }
+        />
+      ) : (
+        <>
+          <rect x={0} y={0} w="fill" h="fill" fill color={AssignColor.BACKING} />
+          <rect x="center" y="center" w="fill" h="fill" color={AssignColor.BOX_OUTER} />
+          <rect x="center" y="center" w={{ fill: 2 }} h={{ fill: 2 }} color={AssignColor.BOX_INNER} />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function AssignRows(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.ASSIGN);
+  const [count] = useState(sidepanelAssignCount);
+  const [experienced] = useState(sidepanelAssignExperienced);
+  const [rows] = useState(sidepanelAssignRows);
+  const [unassignLit] = useState(sidepanelAssignUnassignLit);
+  const [whirlpoolCell] = useState(sidepanelCrewWhirlpool);
+  const [c0] = useState(sidepanelAssignId0);
+  const [c1] = useState(sidepanelAssignId1);
+  const [c2] = useState(sidepanelAssignId2);
+  const [c3] = useState(sidepanelAssignId3);
+  const [c4] = useState(sidepanelAssignId4);
+  const [i0] = useState(sidepanelAssignIcon0);
+  const [i1] = useState(sidepanelAssignIcon1);
+  const [i2] = useState(sidepanelAssignIcon2);
+  const [i3] = useState(sidepanelAssignIcon3);
+  const [i4] = useState(sidepanelAssignIcon4);
+  const [d0] = useState(sidepanelAssignDim0);
+  const [d1] = useState(sidepanelAssignDim1);
+  const [d2] = useState(sidepanelAssignDim2);
+  const [d3] = useState(sidepanelAssignDim3);
+  const [d4] = useState(sidepanelAssignDim4);
+  const [l0] = useState(sidepanelAssignLit0);
+  const [l1] = useState(sidepanelAssignLit1);
+  const [l2] = useState(sidepanelAssignLit2);
+  const [l3] = useState(sidepanelAssignLit3);
+  const [l4] = useState(sidepanelAssignLit4);
+  const [hover, setHover] = useState(-1);
+  const blocked: Boolean = sidepanelBlocked();
+
+  const whirlpool: Boolean = whirlpoolCell === 1;
+  const empty: Boolean = count === 0;
+  const extent: Int = assignExtent(count, rows);
+  const scrolls: Boolean = !blocked && extent > PANE_H;
+  const paneExtent: Int = scrolls ? extent : 0;
+  const mobile: Boolean = onMobile();
+  const drawn: Boolean = !blocked && !empty;
+
+  onMounted(() => {
+    assignPaneRef.scrollHeight = paneExtent;
+  });
+  onUpdated(() => {
+    assignPaneRef.scrollHeight = paneExtent;
+  });
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <layer x={0} y={0} w="fill" h="fill">
+        {drawn && (
+          <rect
+            x={0}
+            y={TOP + 0 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Unassign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(0)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 0 && c0 !== 0 && (
+          <rect
+            x={0}
+            y={TOP + 1 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Assign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(1)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 0 && c0 === 0 && (
+          <rect
+            x={0}
+            y={TOP + 1 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(1)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 1 && c1 !== 0 && (
+          <rect
+            x={0}
+            y={TOP + 2 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Assign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(2)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 1 && c1 === 0 && (
+          <rect
+            x={0}
+            y={TOP + 2 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(2)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 2 && c2 !== 0 && (
+          <rect
+            x={0}
+            y={TOP + 3 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Assign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(3)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 2 && c2 === 0 && (
+          <rect
+            x={0}
+            y={TOP + 3 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(3)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 3 && c3 !== 0 && (
+          <rect
+            x={0}
+            y={TOP + 4 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Assign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(4)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 3 && c3 === 0 && (
+          <rect
+            x={0}
+            y={TOP + 4 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(4)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 4 && c4 !== 0 && (
+          <rect
+            x={0}
+            y={TOP + 5 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            options={['Assign']}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(5)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+        {drawn && rows > 4 && c4 === 0 && (
+          <rect
+            x={0}
+            y={TOP + 5 * ROW_H}
+            w="fill"
+            h={ROW_H}
+            fill
+            color={0}
+            onOptionSelect={() => soundSynth(CLICK, 1, 0)}
+            onMouseEnter={mobile ? undefined : () => setHover(5)}
+            onMouseLeave={mobile ? undefined : () => setHover(-1)}
+          />
+        )}
+      </layer>
+      <layer x={0} y={0} w="fill" h={scrolls ? extent : PANE_H}>
+        {!blocked && empty && (
+          <text
+            x="center"
+            y="center"
+            w="fill"
+            h="fill"
+            text={
+              experienced === 1
+                ? 'No crewmates available.<br><br>You can manage your crewmates with the Crew Registrar.'
+                : 'You are not yet an experienced enough sailor to manage a crew.'
+            }
+            font={SidepanelFont.SMALL}
+            color={SidepanelColor.ORANGE}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={13}
+          />
+        )}
+        {drawn && (
+          <AssignRow
+            index={0}
+            crewId={0}
+            unassign
+            icon={NO_ICON as Sprite}
+            dim={false}
+            band={unassignLit === 1 || hover === 0}
+            base={AssignColor.ROW_ODD}
+            whirlpool={whirlpool}
+          />
+        )}
+        {drawn && rows > 0 && (
+          <AssignRow
+            index={1}
+            crewId={c0}
+            unassign={false}
+            icon={i0 as Sprite}
+            dim={d0 === 1}
+            band={l0 === 1 || hover === 1}
+            base={AssignColor.ROW_EVEN}
+            whirlpool={whirlpool}
+          />
+        )}
+        {drawn && rows > 1 && (
+          <AssignRow
+            index={2}
+            crewId={c1}
+            unassign={false}
+            icon={i1 as Sprite}
+            dim={d1 === 1}
+            band={l1 === 1 || hover === 2}
+            base={AssignColor.ROW_ODD}
+            whirlpool={whirlpool}
+          />
+        )}
+        {drawn && rows > 2 && (
+          <AssignRow
+            index={3}
+            crewId={c2}
+            unassign={false}
+            icon={i2 as Sprite}
+            dim={d2 === 1}
+            band={l2 === 1 || hover === 3}
+            base={AssignColor.ROW_EVEN}
+            whirlpool={whirlpool}
+          />
+        )}
+        {drawn && rows > 3 && (
+          <AssignRow
+            index={4}
+            crewId={c3}
+            unassign={false}
+            icon={i3 as Sprite}
+            dim={d3 === 1}
+            band={l3 === 1 || hover === 4}
+            base={AssignColor.ROW_ODD}
+            whirlpool={whirlpool}
+          />
+        )}
+        {drawn && rows > 4 && (
+          <AssignRow
+            index={5}
+            crewId={c4}
+            unassign={false}
+            icon={i4 as Sprite}
+            dim={d4 === 1}
+            band={l4 === 1 || hover === 5}
+            base={AssignColor.ROW_EVEN}
+            whirlpool={whirlpool}
+          />
+        )}
+      </layer>
+    </layer>
+  );
+}
+
+export function AssignCapacity(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.ASSIGN);
+  const [count] = useState(sidepanelAssignCount);
+  const [max] = useState(sidepanelAssignMax);
+  const blocked: Boolean = sidepanelBlocked();
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {!blocked && (
+        <text
+          x="center"
+          y="center"
+          w="fill"
+          h="fill"
+          text={`Crew capacity: ${count}/${max}`}
+          font={SidepanelFont.SMALL}
+          color={SidepanelColor.ORANGE}
+          shadow
+          align="center"
+          valign="middle"
+          lineHeight={13}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function AssignBack(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.ASSIGN);
+  const [backHover, setBackHover] = useState(0);
+  const [pressed, setPressed] = useState(0);
+  const [pressedAt, setPressedAt] = useState(0);
+  const blocked: Boolean = sidepanelBlocked();
+
+  const pressHost = useRef();
+  useInterval(() => {
+    if (clientClock() >= pressedAt + PRESS_CYCLES) {
+      setPressed(0);
+    }
+  }, pressHost);
+
+  const mobile: Boolean = onMobile();
+  const backLit: Boolean = pressed === 1;
+  const backHot: Boolean = !backLit && backHover === 1;
+
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      <layer ref={pressHost} x={0} y={0} w={1} h={1} hide={pressed === 0} />
+      {!blocked && (
+        <>
+          <sprite
+            x={0}
+            y={0}
+            w={32}
+            h={20}
+            sprite={backLit ? ButtonSprites.LIT_CENTRE : ButtonSprites.IDLE_CENTRE}
+            tiling
+          />
+          <sprite
+            x={0}
+            y={0}
+            w={5}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_NW : backHot ? ButtonSprites.HOVER_NW : ButtonSprites.IDLE_NW}
+            tiling
+          />
+          <sprite
+            x={27}
+            y={0}
+            w={5}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_NE : backHot ? ButtonSprites.HOVER_NE : ButtonSprites.IDLE_NE}
+            tiling
+          />
+          <sprite
+            x={0}
+            y={15}
+            w={5}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_SW : backHot ? ButtonSprites.HOVER_SW : ButtonSprites.IDLE_SW}
+            tiling
+          />
+          <sprite
+            x={27}
+            y={15}
+            w={5}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_SE : backHot ? ButtonSprites.HOVER_SE : ButtonSprites.IDLE_SE}
+            tiling
+          />
+          <sprite
+            x={0}
+            y={5}
+            w={5}
+            h={10}
+            sprite={backLit ? ButtonSprites.LIT_W : backHot ? ButtonSprites.HOVER_W : ButtonSprites.IDLE_W}
+            tiling
+          />
+          <sprite
+            x={5}
+            y={0}
+            w={22}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_N : backHot ? ButtonSprites.HOVER_N : ButtonSprites.IDLE_N}
+            tiling
+          />
+          <sprite
+            x={27}
+            y={5}
+            w={5}
+            h={10}
+            sprite={backLit ? ButtonSprites.LIT_E : backHot ? ButtonSprites.HOVER_E : ButtonSprites.IDLE_E}
+            tiling
+          />
+          <sprite
+            x={5}
+            y={15}
+            w={22}
+            h={5}
+            sprite={backLit ? ButtonSprites.LIT_S : backHot ? ButtonSprites.HOVER_S : ButtonSprites.IDLE_S}
+            tiling
+          />
+          <sprite x={8} y={2} w={16} h={16} sprite={BACK_ICON} transparency={0} />
+          <text
+            x={3}
+            y={3}
+            w={26}
+            h={14}
+            text=""
+            font={SidepanelFont.TITLE}
+            color={SidepanelColor.BUTTON_TEXT}
+            shadow
+            align="center"
+            valign="middle"
+            lineHeight={20}
+          />
+          <rect
+            x={0}
+            y={0}
+            w={32}
+            h={20}
+            fill
+            color={0}
+            transparency={255}
+            options={['Back']}
+            onOptionSelect={
+              backLit
+                ? undefined
+                : () => {
+                    playSound(CLICK);
+                    setBackHover(0);
+                    setPressed(1);
+                    setPressedAt(clientClock());
+                  }
+            }
+            onMouseEnter={backLit || mobile ? undefined : () => setBackHover(1)}
+            onMouseLeave={backLit ? undefined : () => setBackHover(0)}
+          />
+        </>
+      )}
+    </layer>
+  );
+}
+
+export function AssignScrollbar(): Component {
+  const [pageTab] = useState(sidepanelTab);
+  const shown: Boolean = sidepanelPageShown(pageTab, SidepanelPage.ASSIGN);
+  const [count] = useState(sidepanelAssignCount);
+  const [rows] = useState(sidepanelAssignRows);
+  const blocked: Boolean = sidepanelBlocked();
+  const extent: Int = assignExtent(count, rows);
+  const paneExtent: Int = extent > PANE_H ? extent : 0;
+  const drawn: Boolean = !blocked;
+  return (
+    <layer x={0} y={0} w="fill" h="fill" hide={!shown}>
+      {drawn && <PaneScrollbar which={Pane.ASSIGN} extent={paneExtent} height={PANE_H} />}
+    </layer>
+  );
+}
+
+const TOP = 2;
+const ROW_H = 34;
+const PANE_H = 146;
+const PRESS_CYCLES = 30;
+const CLICK = 2266;
+const BACK_ICON = 1122;
+const NO_ICON = 7086;
+
+const AssignColor = {
+  BACKING: 0x595046,
+  BOX_OUTER: 0x0e0e0c,
+  BOX_INNER: 0x474745,
+  ROW_ODD: 0x595046,
+  ROW_EVEN: 0x4e453a,
+  BAND: 0x968776,
+  DIM: 0x9f9f9f,
+} as const;
+
+function AssignRow({
+  index,
+  crewId,
+  unassign,
+  icon,
+  dim,
+  band,
+  base,
+  whirlpool,
+}: {
+  index: Int;
+  crewId: Int;
+  unassign: Boolean;
+  icon: Sprite;
+  dim: Boolean;
+  band: Boolean;
+  base: Int;
+  whirlpool: Boolean;
+}): Component {
+  const y: Int = TOP + index * ROW_H;
+  let text: String = 'Unassign';
+  if (!unassign) {
+    text = crewId !== 0 ? crewRowText(crewId, whirlpool) : 'No Crewmate';
+  }
+  return (
+    <>
+      <rect x={0} y={y} w="fill" h={ROW_H} fill color={band ? AssignColor.BAND : base} />
+      <sprite x={5} y={y + 8} w={18} h={18} sprite={crewPortrait(crewId)} />
+      <text
+        x={28}
+        y={y}
+        w={{ fill: 56 }}
+        h={ROW_H}
+        text={text}
+        font={SidepanelFont.SMALL}
+        color={dim ? AssignColor.DIM : SidepanelColor.WHITE}
+        shadow
+        align="left"
+        valign="middle"
+        lineHeight={13}
+      />
+      <sprite x={{ right: 5 }} y={y + 5} w={24} h={24} sprite={icon} hide={unassign} />
+    </>
+  );
+}

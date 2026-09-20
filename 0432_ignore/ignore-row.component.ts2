@@ -1,0 +1,101 @@
+import { CS2, useInterval, useRef, useState } from 'ts2';
+
+import { clientClock, playSound, textWidth } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { tooltipHide } from '../lib/tooltip.component';
+import { IgnoreColor, IgnoreFonts, IgnoreRowLayout, IgnoreSprites } from './ignore.constants';
+
+const MENU_PLAIN = ['Delete'] as const;
+const MENU_WITH_REVEAL = ['Delete', '', '', '', '', '', '', '', '', 'Reveal previous name'] as const;
+
+export function IgnoreRow({
+  index,
+  top,
+  rowHeight,
+  mobile,
+}: {
+  index: Int;
+  top: Int;
+  rowHeight: Int;
+  mobile: Int;
+}): Component {
+  const [name, previousName] = CS2.ignore_name_get(index);
+
+  const badge = useRef();
+
+  const [revealUntil, setRevealUntil] = useState(0);
+
+  const subject: String = `<col=ff9040>${name}</col>`;
+
+  let renamed: Int = 0;
+  let badgeHidden: Boolean = true;
+  if (previousName.length > 0) {
+    renamed = 1;
+    badgeHidden = false;
+  }
+
+  const badgeX: Int = textWidth(name, IgnoreRowLayout.BADGE_MEASURE, IgnoreFonts.BODY) + IgnoreRowLayout.BADGE_GAP;
+  const badgeY: Int = top + (rowHeight - IgnoreRowLayout.BADGE) / 2;
+
+  let revealable: Int = 0;
+  if (renamed === 1 && mobile === 1) {
+    revealable = 1;
+  }
+  let tipLeave: Int = 0;
+  if (renamed === 1 && mobile === 0) {
+    tipLeave = 1;
+  }
+
+  useInterval(
+    revealUntil !== 0
+      ? () => {
+          if (clientClock() >= revealUntil) {
+            setRevealUntil(0);
+          }
+        }
+      : undefined,
+    badge,
+  );
+
+  return (
+    <>
+      <text
+        x="center"
+        y={top}
+        w={{ fill: IgnoreRowLayout.NAME_INSET }}
+        h={rowHeight}
+        text={revealUntil !== 0 ? `<col=ff2020>${previousName}</col>` : name}
+        font={IgnoreFonts.BODY}
+        color={IgnoreColor.NAME}
+        align="left"
+        valign="middle"
+        shadow
+        optionSubject={subject}
+        options={revealable === 1 ? MENU_WITH_REVEAL : MENU_PLAIN}
+        onOptionSelect={(event) => {
+          playSound(Sounds.CLICK);
+          if (event.option === 1) {
+            CS2.ignore_del(CS2.tags_remove(event.optionSubject));
+          } else if (event.option === 10) {
+            playSound(Sounds.CLICK);
+            setRevealUntil(clientClock() + IgnoreRowLayout.REVEAL_CYCLES);
+          }
+        }}
+        onMouseLeave={tipLeave === 1 ? () => tooltipHide() : undefined}
+        onMouseEnter={renamed === 0 ? () => tooltipHide() : undefined}
+      />
+
+      <sprite
+        ref={badge}
+        x={badgeX}
+        y={badgeY}
+        w={IgnoreRowLayout.BADGE}
+        h={IgnoreRowLayout.BADGE}
+        sprite={IgnoreSprites.CHANGED_NAME}
+        shadowColor={IgnoreColor.BADGE_SHADOW}
+        transparency={revealUntil !== 0 ? IgnoreRowLayout.BADGE_HIDDEN : IgnoreRowLayout.BADGE_SHOWN}
+        hide={badgeHidden}
+      />
+    </>
+  );
+}

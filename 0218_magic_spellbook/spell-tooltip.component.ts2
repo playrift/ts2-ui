@@ -1,0 +1,460 @@
+import { CS2, useInventory, useServerState, useSkill, useState } from 'ts2';
+
+import { magicToString } from '../0126_farming_tools_side/carried-tools.shared';
+import { stringFindAndReplace } from '../0491_barbassault_reward_shop/string-find-and-replace';
+import { magicSpellbookTooltip } from '../lib/game/varcs';
+import { Varbits } from '../lib/game/varbits';
+import { textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { blightedItemsAllowed, leagueToggleOn, MagicItem, magicRuneCount } from '../lib/lib.magic';
+import { LeagueToggle } from '../lib/league-toggles.data';
+import { SkillIcons } from '../lib/skills.data';
+import { membersWorld } from '../lib/lib.engine';
+import {
+  Layout,
+  ON_COOLDOWN,
+  PanelMode,
+  SpellbookColour,
+  SpellbookFonts,
+  SpellbookInventories,
+} from './magic-spellbook.constants';
+import { Spells } from './magic-spellbook.data';
+import type { SpellRow } from './magic-spellbook.data';
+import {
+  activeSpellBook,
+  GridKind,
+  gridAreaH,
+  gridKind,
+  spellHasLockText,
+  spellLockText,
+  spellShown,
+  wornShield,
+  wornWeapon,
+} from './magic-spellbook.helpers';
+import { spellbookHoverSpell, spellbookPanelMode, spellbookTipCellY } from './magic-spellbook.state';
+
+const enum TipItem {
+  HEAL_GROUP = 9137,
+  MAGIC_IMBUE = 9124,
+  FERTILE_SOIL = 9125,
+  ICE_RUSH = 4633,
+  ICE_BURST = 4639,
+  ICE_BLITZ = 4645,
+  ICE_BARRAGE = 4651,
+  BIND = 3283,
+  SNARE = 3300,
+  ENTANGLE = 3322,
+  TELE_BLOCK = 4555,
+  TELEPORT_TO_TARGET = 17152,
+  VENGEANCE_OTHER = 9135,
+  VENGEANCE = 9136,
+  CONFUSE = 3274,
+  WEAKEN = 3278,
+  CURSE = 3282,
+  VULNERABILITY = 3317,
+  ENFEEBLE = 3320,
+  STUN = 3324,
+  CORRUPTION_LESSER = 10511,
+  CORRUPTION_GREATER = 20762,
+  DARK_LURE = 15303,
+  DEATH_CHARGE = 15309,
+  SHADOW_VEIL = 15344,
+  VILE_VIGOUR = 15304,
+  WARD = 20763,
+  OFFERING_DEMONIC = 15346,
+  OFFERING_SINISTER = 8796,
+  RESURRECT_1 = 25506,
+  RESURRECT_2 = 25507,
+  RESURRECT_3 = 25508,
+  RESURRECT_4 = 25509,
+  RESURRECT_5 = 25510,
+  RESURRECT_6 = 25511,
+  RESURRECT_7 = 25512,
+  RESURRECT_8 = 25513,
+  RESURRECT_9 = 25514,
+}
+
+function blightedSack(sack: Item): Boolean {
+  const inv = useInventory(SpellbookInventories.INV);
+  if (blightedItemsAllowed() === 1 && inv.total(sack) > 0) {
+    return true;
+  }
+  return false;
+}
+
+function tipRune3(spell: Item): Item {
+  if (spell === MagicItem.SPELL_WIND_WAVE || spell === MagicItem.SPELL_WIND_SURGE) {
+    if (blightedSack(MagicItem.BLIGHTED_SACK_SURGE)) {
+      return MagicItem.BLIGHTED_SACK_SURGE;
+    }
+  }
+  return spell.magicRunetype3!;
+}
+
+function tipCount3(spell: Item): Int {
+  if (spell === MagicItem.SPELL_WIND_WAVE || spell === MagicItem.SPELL_WIND_SURGE) {
+    if (blightedSack(MagicItem.BLIGHTED_SACK_SURGE)) {
+      return 1;
+    }
+  }
+  return spell.magicRunecount3!;
+}
+
+function tipSack4(spell: Item): Item {
+  switch (spell) {
+    case TipItem.ICE_RUSH:
+    case TipItem.ICE_BURST:
+    case TipItem.ICE_BLITZ:
+    case TipItem.ICE_BARRAGE:
+      return MagicItem.BLIGHTED_SACK_ICEBARRAGE;
+    case TipItem.BIND:
+    case TipItem.SNARE:
+    case TipItem.ENTANGLE:
+      return MagicItem.BLIGHTED_SACK_ENTANGLE;
+    case TipItem.TELE_BLOCK:
+    case TipItem.TELEPORT_TO_TARGET:
+      return MagicItem.BLIGHTED_SACK_TELEBLOCK;
+    case TipItem.VENGEANCE_OTHER:
+    case TipItem.VENGEANCE:
+      return MagicItem.BLIGHTED_SACK_VENGEANCE;
+    case MagicItem.SPELL_WATER_WAVE:
+    case MagicItem.SPELL_EARTH_WAVE:
+    case MagicItem.SPELL_FIRE_WAVE:
+    case MagicItem.SPELL_WATER_SURGE:
+    case MagicItem.SPELL_EARTH_SURGE:
+    case MagicItem.SPELL_FIRE_SURGE:
+      return MagicItem.BLIGHTED_SACK_SURGE;
+  }
+  return -1;
+}
+
+function tipRune4(spell: Item): Item {
+  const sack: Item = tipSack4(spell);
+  if (sack !== -1) {
+    if (blightedSack(sack)) {
+      return sack;
+    }
+  }
+  return spell.magicRunetype4!;
+}
+
+function tipCount4(spell: Item): Int {
+  const sack: Item = tipSack4(spell);
+  if (sack !== -1) {
+    if (blightedSack(sack)) {
+      return 1;
+    }
+  }
+  return spell.magicRunecount4!;
+}
+
+function withCooldown(text: String, on: Boolean): String {
+  if (on) {
+    return `${text}${ON_COOLDOWN}`;
+  }
+  return text;
+}
+
+function tipDescription(spell: Item): String {
+  let text: String = spell.spellDesc!;
+  switch (spell) {
+    case TipItem.HEAL_GROUP:
+      text = withCooldown(text, useServerState(Varbits.HEAL_GROUP_TIMELIMIT) === 1);
+      break;
+    case TipItem.MAGIC_IMBUE:
+      text = withCooldown(text, useServerState(Varbits.MAGIC_IMBUE_ACTIVE) > 0);
+      break;
+    case TipItem.FERTILE_SOIL:
+      if (useServerState(Varbits.FOSSIL_MINE_UNLOCKED_ULTRAFERTILESOIL) === 1) {
+        text = 'Fertilise a farming patch with super or ultra compost, consuming 2 volcanic ash to do so.';
+      }
+      break;
+    case TipItem.VENGEANCE_OTHER:
+    case TipItem.VENGEANCE:
+      text = withCooldown(text, useServerState(Varbits.VENGEANCE_TIMELIMIT) === 1);
+      break;
+    case TipItem.CORRUPTION_LESSER:
+    case TipItem.CORRUPTION_GREATER:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_CORRUPTION_COOLDOWN) === 1);
+      break;
+    case TipItem.DARK_LURE:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_DARK_LURE_COOLDOWN) === 1);
+      break;
+    case TipItem.DEATH_CHARGE:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_DEATH_CHARGE_COOLDOWN) === 1);
+      break;
+    case TipItem.RESURRECT_1:
+    case TipItem.RESURRECT_2:
+    case TipItem.RESURRECT_3:
+    case TipItem.RESURRECT_4:
+    case TipItem.RESURRECT_5:
+    case TipItem.RESURRECT_6:
+    case TipItem.RESURRECT_7:
+    case TipItem.RESURRECT_8:
+    case TipItem.RESURRECT_9:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_RESURRECTION_COOLDOWN) === 1);
+      break;
+    case TipItem.SHADOW_VEIL:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_SHADOW_VEIL_COOLDOWN) === 1);
+      break;
+    case TipItem.VILE_VIGOUR:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_VILE_VIGOUR_COOLDOWN) === 1);
+      break;
+    case TipItem.WARD:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_WARD_COOLDOWN) === 1);
+      break;
+    case TipItem.OFFERING_DEMONIC:
+    case TipItem.OFFERING_SINISTER:
+      text = withCooldown(text, useServerState(Varbits.ARCEUUS_OFFERING_COOLDOWN) === 1);
+      break;
+    case TipItem.CONFUSE:
+    case TipItem.WEAKEN:
+    case TipItem.CURSE:
+      if (wornShield() === MagicItem.TOME_OF_WATER && membersWorld()) {
+        text = stringFindAndReplace(text, '5%', `<col=ffffff>${stringOf(CS2.percent_add(5, 50))}%</col>`);
+      }
+      break;
+    case TipItem.VULNERABILITY:
+    case TipItem.ENFEEBLE:
+    case TipItem.STUN:
+      if (wornShield() === MagicItem.TOME_OF_WATER && membersWorld()) {
+        text = stringFindAndReplace(text, '10%', `<col=ffffff>${stringOf(CS2.percent_add(10, 50))}%</col>`);
+      }
+      break;
+    case MagicItem.SPELL_ALCHEMIC_DIVERGENCE:
+      if (leagueToggleOn(LeagueToggle.TRANSMUTATION_ALCHEMY) === false) {
+        const high: Item = MagicItem.SPELL_HIGH_ALCHEMY;
+        text = high.spellDesc!;
+      }
+      break;
+    case MagicItem.SPELL_ALCHEMIC_CONVERGENCE:
+      if (leagueToggleOn(LeagueToggle.TRANSMUTATION_ALCHEMY) === false) {
+        const low: Item = MagicItem.SPELL_LOW_ALCHEMY;
+        text = low.spellDesc!;
+      }
+      break;
+  }
+  if (spellHasLockText(spell)) {
+    text = `${text}<br><col=ff0000>${spellLockText(spell)}</col>`;
+  }
+  return text;
+}
+
+function tipTitle(spell: Item): String {
+  const level: Int = spell.spellLevelreq!;
+  if (level > 0 && spell.spellHideLevelreq! === false) {
+    return `Level ${stringOf(level)}: ${spell.spellName!}`;
+  }
+  return spell.spellName!;
+}
+
+function tapStillShown(spell: Int, book: Int, unfiltered: Boolean): Boolean {
+  let i: Int = 0;
+  let row: SpellRow | null = Spells.at(i);
+  while (row !== null) {
+    if ((row.spell as Int) === spell && spellShown(row, book, unfiltered)) {
+      return true;
+    }
+    i = i + 1;
+    row = Spells.at(i);
+  }
+  return false;
+}
+
+export function SpellTooltip(): Component {
+  const [hover] = useState(spellbookHoverSpell);
+  const [tapped] = useState(magicSpellbookTooltip);
+  const [cellY] = useState(spellbookTipCellY);
+  const [mode] = useState(spellbookPanelMode);
+  const mobile: Boolean = onMobile();
+  const kind: Int = gridKind(mobile);
+  const areaH: Int = gridAreaH(kind);
+
+  let spellId: Int = hover;
+  if (mobile) {
+    spellId = -1;
+    if (mode === PanelMode.INFO && tapped !== -1) {
+      if (tapStillShown(tapped, activeSpellBook(), kind === GridKind.TABLE)) {
+        spellId = tapped;
+      }
+    }
+  }
+  const spell: Item = spellId as Item;
+  const shown: Boolean = spellId !== -1;
+
+  const title: String = shown ? tipTitle(spell) : '';
+  const body: String = shown ? tipDescription(spell) : '';
+  const titleMeasure: String = shown ? `Level ${stringOf(spell.spellLevelreq!)}: ${spell.spellName!}` : '';
+  let titleH: Int = 2 + 13 * textLineCount(titleMeasure, Layout.TIP_TITLE_W, SpellbookFonts.BODY);
+  if (shown) {
+    if (spell.spellLevelreq! <= 0 || spell.spellHideLevelreq! === true) {
+      titleH = 2 + 13 * textLineCount(spell.spellName!, Layout.TIP_TITLE_W, SpellbookFonts.BODY);
+    }
+  }
+  const bodyH: Int = 2 + 13 * textLineCount(body, Layout.TIP_BODY_W, SpellbookFonts.SMALL);
+  const rune1: Item = shown ? spell.magicRunetype1! : -1;
+  const rune2: Item = shown ? spell.magicRunetype2! : -1;
+  const rune3: Item = shown ? tipRune3(spell) : -1;
+  const rune4: Item = shown ? tipRune4(spell) : -1;
+  const skill: Skill = shown ? spell.spellReqSkill! : -1;
+  let boxH: Int = 2 + titleH + bodyH + Layout.TIP_RUNE_H + Layout.TIP_COUNT_H + 2;
+  if (rune1 === -1) {
+    boxH = boxH - Layout.TIP_RUNE_H - Layout.TIP_COUNT_H;
+  }
+  let boxY: Int = 5;
+  if (cellY < Layout.TIP_FLIP_Y) {
+    boxY = areaH - boxH;
+    if (areaH >= Layout.ROOT_H) {
+      boxY = boxY - 5;
+    }
+  }
+  let columns: Int = 1;
+  if (rune2 !== -1) {
+    columns = 2;
+  }
+  if (rune3 !== -1) {
+    columns = 3;
+  }
+  if (rune4 !== -1) {
+    columns = 4;
+  }
+  if (skill !== -1) {
+    columns = columns + 1;
+  }
+  const pad: Int = (Layout.ROOT_W - columns * Layout.TIP_RUNE_W) / (columns + 1);
+  const runeY: Int = boxY + 2 + titleH + bodyH;
+  const weapon: Item = wornWeapon();
+  const shield: Item = wornShield();
+
+  if (!shown) {
+    return <layer x="center" y="center" w="fill" h="fill" />;
+  }
+
+  return (
+    <layer x="center" y="center" w="fill" h="fill">
+      <rect
+        x={Layout.TIP_X}
+        y={boxY}
+        w={Layout.TIP_W}
+        h={boxH}
+        fill
+        color={SpellbookColour.TIP_FILL}
+        transparency={42}
+      />
+      <rect x={Layout.TIP_X + 1} y={boxY + 1} w={Layout.TIP_W - 1} h={boxH - 1} color={SpellbookColour.TIP_INNER} />
+      <rect x={Layout.TIP_X} y={boxY} w={Layout.TIP_W - 1} h={boxH - 1} color={SpellbookColour.TIP_OUTER} />
+      <text
+        x={Layout.TIP_X + 2}
+        y={boxY + 2}
+        w={Layout.TIP_TITLE_W}
+        h={titleH}
+        text={title}
+        font={SpellbookFonts.BODY}
+        color={SpellbookColour.LABEL}
+        align="center"
+        valign="middle"
+      />
+      <text
+        x={Layout.TIP_X + 2}
+        y={boxY + 3 + titleH}
+        w={Layout.TIP_BODY_W}
+        h={bodyH}
+        text={body}
+        font={SpellbookFonts.SMALL}
+        color={SpellbookColour.TIP_BODY}
+        align="center"
+        valign="middle"
+        lineHeight={12}
+      />
+      {rune1 !== -1 ? (
+        <RuneColumn x={pad} y={runeY} rune={rune1} need={spell.magicRunecount1!} weapon={weapon} shield={shield} />
+      ) : null}
+      {rune2 !== -1 ? (
+        <RuneColumn
+          x={pad * 2 + 35}
+          y={runeY}
+          rune={rune2}
+          need={spell.magicRunecount2!}
+          weapon={weapon}
+          shield={shield}
+        />
+      ) : null}
+      {rune3 !== -1 ? (
+        <RuneColumn x={pad * 3 + 70} y={runeY} rune={rune3} need={tipCount3(spell)} weapon={weapon} shield={shield} />
+      ) : null}
+      {rune4 !== -1 ? (
+        <RuneColumn x={pad * 4 + 105} y={runeY} rune={rune4} need={tipCount4(spell)} weapon={weapon} shield={shield} />
+      ) : null}
+      {skill !== -1 ? (
+        <SkillColumn columns={columns} pad={pad} y={runeY} skill={skill} need={spell.spellReqLevel!} />
+      ) : null}
+    </layer>
+  );
+}
+
+function RuneColumn({
+  x,
+  y,
+  rune,
+  need,
+  weapon,
+  shield,
+}: {
+  x: Int;
+  y: Int;
+  rune: Item;
+  need: Int;
+  weapon: Item;
+  shield: Item;
+}): Component {
+  const count: Int = magicRuneCount(rune, weapon, shield);
+  return (
+    <>
+      <sprite x={x} y={y} w={Layout.TIP_RUNE_W} h={Layout.TIP_RUNE_H} item={rune} itemCount={-1} />
+      <text
+        x={x}
+        y={y + Layout.TIP_RUNE_H}
+        w={Layout.TIP_RUNE_W}
+        h={Layout.TIP_COUNT_H}
+        text={`${magicToString(count)}/${stringOf(need)}`}
+        font={SpellbookFonts.SMALL}
+        color={count >= need ? SpellbookColour.ENOUGH : SpellbookColour.SHORT}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}
+
+function SkillColumn({
+  columns,
+  pad,
+  y,
+  skill,
+  need,
+}: {
+  columns: Int;
+  pad: Int;
+  y: Int;
+  skill: Skill;
+  need: Int;
+}): Component {
+  const level: Int = CS2.stat(skill);
+  const icon: Sprite = SkillIcons.get(skill) ?? -1;
+  return (
+    <>
+      <sprite x={pad * columns + 35 * (columns - 1)} y={y} w={26} h={26} sprite={icon} />
+      <text
+        x={pad * columns + 34 * (columns - 1)}
+        y={y + Layout.TIP_RUNE_H}
+        w={Layout.TIP_RUNE_W}
+        h={Layout.TIP_COUNT_H}
+        text={`${magicToString(level)}/${stringOf(need)}`}
+        font={SpellbookFonts.SMALL}
+        color={level >= need ? SpellbookColour.ENOUGH : SpellbookColour.SHORT}
+        align="center"
+        valign="middle"
+      />
+    </>
+  );
+}

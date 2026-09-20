@@ -1,0 +1,188 @@
+import { CS2, intArray, useUniverse } from 'ts2';
+import { flashFor } from '../lib.components';
+import { itemName } from '../lib.engine';
+import { ThinBoxOutline } from '../thin-box.component';
+import { loadoutInvItem } from '../../0421_pvp_arena_stagingarea_shareloadout/pvp-arena-stagingarea-shareloadout.helpers';
+import { dropZone } from './drop-zone';
+import { invMarked, rearrange } from './loadout-edit';
+import { itemOf } from './loadout-state';
+import {
+  DRAG_DEAD,
+  FillerCamera,
+  Grid,
+  STACK_SHOWN,
+  SuppliesColor,
+  SuppliesItems,
+  SuppliesModels,
+  Wash,
+} from '../../0758_pvp_arena_stagingarea_supplies/pvp-arena-stagingarea-supplies.constants';
+
+export function InventoryGrid({
+  build,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  build: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const box = useUniverse();
+  const strideX: Int = (box.width - Grid.X_PAD - Grid.COLUMNS * Grid.W) / (Grid.COLUMNS - 1) + Grid.W;
+  const strideY: Int = (box.height - Grid.Y_PAD - Grid.ROWS * Grid.H) / (Grid.ROWS - 1) + Grid.H;
+
+  const held = intArray<Item>(Grid.SLOTS);
+  const marked = intArray(Grid.SLOTS);
+  let slot: Int = 0;
+  while (slot < Grid.SLOTS) {
+    held[slot] = itemOf(loadoutInvItem(build, slot));
+    marked[slot] = invMarked(build, slot);
+    slot = slot + 1;
+  }
+
+  return (
+    <layer w="fill" h="fill">
+      {held.map((item, i) => (
+        <InventorySlot
+          build={build}
+          slot={i}
+          item={item}
+          x={Grid.ORIGIN_X + strideX * (i % Grid.COLUMNS)}
+          y={Grid.ORIGIN_Y + strideY * (i / Grid.COLUMNS)}
+          proxy={proxy}
+          bin={bin}
+          grid={grid}
+          w0={w0}
+          w1={w1}
+          w2={w2}
+          w3={w3}
+          w4={w4}
+          w5={w5}
+          w7={w7}
+          w9={w9}
+          w10={w10}
+          w12={w12}
+          w13={w13}
+        />
+      ))}
+      {marked.map(
+        (over, i) =>
+          over === 1 && (
+            <model
+              x={Grid.ORIGIN_X + strideX * (i % Grid.COLUMNS)}
+              y={Grid.ORIGIN_Y + strideY * (i / Grid.COLUMNS)}
+              w={Grid.W}
+              h={Grid.H}
+              model={SuppliesModels.FILLER}
+              offsetX={FillerCamera.OFFSET_X}
+              offsetY={FillerCamera.OFFSET_Y}
+              pitch={FillerCamera.PITCH}
+              yaw={FillerCamera.YAW}
+              roll={FillerCamera.ROLL}
+              zoom={FillerCamera.ZOOM}
+            />
+          ),
+      )}
+      <ThinBoxOutline />
+    </layer>
+  );
+}
+
+function InventorySlot({
+  build,
+  slot,
+  item,
+  x,
+  y,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  build: Int;
+  slot: Int;
+  item: Item;
+  x: Int;
+  y: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  if (item === -1) {
+    return <sprite x={x} y={y} w={Grid.W} h={Grid.H} transparency={Wash.CLEAR} />;
+  }
+  const configure: String = item === SuppliesItems.RUNE_REPLACEMENT ? 'Configure' : '';
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={Grid.W}
+      h={Grid.H}
+      item={item}
+      itemCount={CS2.item_stackable(item) ? STACK_SHOWN : 1}
+      transparency={Wash.OPAQUE}
+      outline={1}
+      shadowColor={SuppliesColor.ITEM_SHADOW}
+      options={[configure, 'Discard', '', '', '', '', '', '', '', 'Examine']}
+      optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+      onOptionSelect={(event) => {
+        flashFor(event.self, Wash.PRESS, Wash.OPAQUE);
+      }}
+      draggable={proxy}
+      dragDeadZone={DRAG_DEAD}
+      dragDeadTime={DRAG_DEAD}
+      onDragComplete={(event) => {
+        rearrange(
+          build,
+          -1,
+          slot,
+          dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13),
+        );
+      }}
+    />
+  );
+}

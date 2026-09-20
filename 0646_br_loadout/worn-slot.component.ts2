@@ -1,0 +1,106 @@
+import { CS2, useDerived } from 'ts2';
+import { flashFor } from '../lib/lib.components';
+import { DRAG_DEAD, FillerAngle, LoadoutColor, LoadoutModels, LoadoutSprites, Wash } from './br-loadout.constants';
+import { itemOf, itemOpBase, loadoutWorn } from './br-loadout.helpers';
+import { SlotPlaceholders } from './loadout-tables.data';
+import { dropZone } from './drop-zone';
+import { rearrange, wornOverCap } from './loadout-edit';
+
+export function WornSlot({
+  tab,
+  slot,
+  proxy,
+  bin,
+  grid,
+  w0,
+  w1,
+  w2,
+  w3,
+  w4,
+  w5,
+  w7,
+  w9,
+  w10,
+  w12,
+  w13,
+}: {
+  tab: Int;
+  slot: Int;
+  proxy: Ref;
+  bin: Ref;
+  grid: Ref;
+  w0: Ref;
+  w1: Ref;
+  w2: Ref;
+  w3: Ref;
+  w4: Ref;
+  w5: Ref;
+  w7: Ref;
+  w9: Ref;
+  w10: Ref;
+  w12: Ref;
+  w13: Ref;
+}): Component {
+  const key: Int = useDerived(() => loadoutWorn(tab, slot));
+  const held: Item = itemOf(tab, key);
+  const over: Int = useDerived(() => wornOverCap(tab, slot));
+  const placeholder: Sprite = SlotPlaceholders.get(slot) ?? -1;
+
+  if (held === -1) {
+    return (
+      <>
+        <sprite x="center" y="center" w={36} h={36} sprite={LoadoutSprites.SLOT_BACK} />
+        <sprite x={{ center: 2 }} y="center" w={36} h={32} transparency={Wash.EMPTY} />
+        <sprite x="center" y="center" w={32} h={32} sprite={placeholder} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <sprite x="center" y="center" w={36} h={36} sprite={LoadoutSprites.SLOT_BACK} />
+      <sprite
+        x={{ center: 2 }}
+        y="center"
+        w={36}
+        h={32}
+        item={held}
+        itemCount={CS2.item_stackable(held) ? 5000 : 1}
+        transparency={Wash.ITEM}
+        outline={1}
+        shadowColor={LoadoutColor.ITEM_SHADOW}
+        options={['Discard', '', '', '', '', '', '', '', '', 'Examine']}
+        optionSubject={itemOpBase(held)}
+        onOptionSelect={(event) => {
+          flashFor(event.self, Wash.PRESS, Wash.ITEM);
+        }}
+        draggable={proxy}
+        dragDeadZone={DRAG_DEAD}
+        dragDeadTime={DRAG_DEAD}
+        onDragComplete={(event) => {
+          rearrange(
+            tab,
+            slot,
+            -1,
+            dropZone(event.dragTarget, bin, grid, w0, w1, w2, w3, w4, w5, w7, w9, w10, w12, w13),
+          );
+        }}
+      />
+      {over === 1 && (
+        <model
+          x={{ center: 1 }}
+          y="center"
+          w={36}
+          h={32}
+          model={LoadoutModels.FILLER}
+          pitch={FillerAngle.PITCH}
+          yaw={FillerAngle.YAW}
+          roll={FillerAngle.ROLL}
+          zoom={FillerAngle.ZOOM}
+          offsetX={FillerAngle.OFFSET_X}
+          offsetY={FillerAngle.OFFSET_Y}
+        />
+      )}
+    </>
+  );
+}

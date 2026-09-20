@@ -1,0 +1,333 @@
+import { useRef, useState, useServerState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import {
+  hiscoresTabActivitiesClosed,
+  hiscoresTabBossesClosed,
+  hiscoresTabSkillsClosed,
+  hiscoresType,
+} from '../lib/game/varcs';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { StoneButtonFilled } from '../lib/stone-button-filled.component';
+import { StoneButtonDraw } from '../0705_clans_creation_sidepanel/stone-button.component';
+import { playSound } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import { Sounds } from '../lib/game/sounds';
+
+import {
+  Cell,
+  Frame,
+  HiscoresArt,
+  HiscoresColour,
+  HiscoresFonts,
+  HiscoresScrollbar,
+  Input,
+  Layout,
+  Totals,
+} from './hiscores.constants';
+import { HiscoresActivities, HiscoresBosses, HiscoresSkills } from './hiscores.data';
+import { HiscoresTypeControl } from './hiscores-dropdown.component';
+import { SectionBodyPlate, SectionHeaderPlate } from './hiscores-section.component';
+import { ActivityCells, BossCells, SkillCells } from './hiscores-grid.component';
+import { clampType, isGroupType } from './hiscores.helpers';
+import { onEnhancedMobile } from '../0134_settings/settings.helpers';
+
+const TOGGLE_OPSOUND_MASK = 2046;
+
+export function HiscoresPanel(): Component {
+  const content = useRef();
+  const container = useRef();
+
+  const [rawType] = useState(hiscoresType);
+  const [skillsClosed, setSkillsClosed] = useState(hiscoresTabSkillsClosed);
+  const [activitiesClosed, setActivitiesClosed] = useState(hiscoresTabActivitiesClosed);
+  const [bossesClosed, setBossesClosed] = useState(hiscoresTabBossesClosed);
+  const inWorld: Int = useServerState(Varbits.POPOUT_HISCORES_GLOBALCLICK_ENABLED);
+  const mobile: Boolean = onEnhancedMobile();
+
+  const type: Int = clampType(rawType);
+
+  const skillsHeight: Int =
+    Frame.CLOSED_H +
+    (HiscoresSkills.length / 3) * Cell.PITCH +
+    (HiscoresSkills.length % 3 > 0 ? Cell.PITCH : 0) +
+    Totals.ADVANCE +
+    Frame.BODY_LIP;
+
+  const activitiesHeight: Int =
+    Frame.CLOSED_H +
+    (HiscoresActivities.length / 3) * Cell.PITCH +
+    (HiscoresActivities.length % 3 > 0 ? Cell.PITCH : 0) +
+    Frame.BODY_LIP;
+
+  const bossesHeight: Int =
+    Frame.CLOSED_H +
+    (HiscoresBosses.length / 3) * Cell.PITCH +
+    (HiscoresBosses.length % 3 > 0 ? Cell.PITCH : 0) +
+    Frame.BODY_LIP;
+
+  const skillsTop: Int = Layout.SECTIONS_TOP;
+  const skillsExtent: Int = skillsClosed === 1 ? Frame.CLOSED_H : skillsHeight;
+  const activitiesTop: Int = skillsTop + skillsExtent;
+  const activitiesExtent: Int = activitiesClosed === 1 ? Frame.CLOSED_H : activitiesHeight;
+  const bossesTop: Int = activitiesTop + activitiesExtent;
+  const bossesExtent: Int = bossesClosed === 1 ? Frame.CLOSED_H : bossesHeight;
+  const extent: Int = bossesTop + bossesExtent;
+
+  return (
+    <>
+      <layer ref={content} x={{ right: 0 }} y={{ bottom: 0 }} w={Layout.CONTENT_W} h="fill">
+        <layer
+          ref={container}
+          x={Layout.CONTAINER_X}
+          y={{ bottom: Layout.CONTAINER_INSET_Y }}
+          w={{ fill: Layout.CONTAINER_INSET_W }}
+          h={{ fill: Layout.CONTAINER_INSET_H }}
+          scrollHeight={extent > content.height - Layout.CONTAINER_INSET_H ? extent : 0}
+        >
+          <layer
+            x={Layout.DROPDOWN_X}
+            y={Layout.DROPDOWN_Y}
+            w={{ fill: Layout.DROPDOWN_INSET_W }}
+            h={Layout.DROPDOWN_H}
+            options={['Select <col=ff981f>Hiscores type']}
+          >
+            <HiscoresTypeControl type={type} open={false} />
+          </layer>
+
+          <layer
+            x={{ right: Layout.SETTINGS_X }}
+            y={Layout.SETTINGS_Y}
+            w={Layout.SETTINGS_W}
+            h={Layout.SETTINGS_H}
+            options={['Settings']}
+            onOptionSelect={() => playSound(Sounds.INTERFACE_SELECT1)}
+          >
+            <StoneButtonFilled>
+              <sprite x="center" y="center" w={22} h={22} sprite={HiscoresArt.SETTINGS_COG} />
+            </StoneButtonFilled>
+          </layer>
+
+          <layer x={Layout.INPUT_X} y={Layout.INPUT_Y} w={{ fill: Layout.INPUT_INSET_W }} h={Layout.INPUT_H}>
+            <rect
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              fill
+              color={HiscoresColour.BLACK}
+              transparency={Input.PLATE}
+            />
+            <rect
+              x="center"
+              y="center"
+              w="fill"
+              h="fill"
+              fill={false}
+              color={HiscoresColour.BLACK}
+              transparency={Input.INNER}
+            />
+            <input
+              x="center"
+              y="center"
+              w={{ fill: Input.FIELD_INSET }}
+              h={{ fill: Input.FIELD_INSET }}
+              text=""
+              font={HiscoresFonts.VALUE}
+              shadow
+              color={0xffffff}
+              align="left"
+              valign="middle"
+              selectColor={HiscoresColour.BLACK}
+              selectBgColor={0xffffff}
+              lineCountLimit={Input.LINE_LIMIT}
+              lineWidthLimit={Input.WIDTH_LIMIT}
+            />
+          </layer>
+
+          <layer x={Layout.FAIL_X} y={Layout.FAIL_Y} w={Layout.FAIL_W} h={Layout.FAIL_H} hide>
+            <sprite y="center" w={Layout.FAIL_ICON_W} h={Layout.FAIL_H} sprite={937} />
+            <text
+              x={Layout.FAIL_TEXT_X}
+              y="center"
+              w={Layout.FAIL_TEXT_W}
+              h={{ fill: Layout.FAIL_TEXT_INSET_H }}
+              font={HiscoresFonts.VALUE}
+              shadow
+              color={HiscoresColour.FAIL_RED}
+              align="center"
+              valign="middle"
+              text="Lookup failed!"
+            />
+          </layer>
+
+          <layer
+            x="center"
+            y={Layout.TOGGLE_Y}
+            w={{ fill: Layout.TOGGLE_INSET_W }}
+            h={Layout.TOGGLE_H}
+            options={[inWorld === 1 ? 'Disable in-world lookup' : 'Enable in-world lookup']}
+            onOptionSelect={(event) => opsound(event.option, TOGGLE_OPSOUND_MASK)}
+          >
+            <StoneButtonDraw
+              label={
+                inWorld === 1
+                  ? '<col=ff981f>In-world lookup: </col><col=00ff00>Enabled</col>'
+                  : '<col=ff981f>In-world lookup: </col><col=ff0000>Disabled</col>'
+              }
+              font={HiscoresFonts.VALUE}
+              flags={-1}
+            />
+          </layer>
+
+          <layer y={skillsTop} w="fill" h={skillsClosed === 1 ? Frame.CLOSED_H : skillsHeight}>
+            <SectionHeaderPlate title="Skills" closed={skillsClosed === 1} />
+            {mobile ? (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                onClick={() => setSkillsClosed(skillsClosed === 1 ? 0 : 1)}
+              />
+            ) : (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                hover={{ transparency: Frame.HEADER_HOVER }}
+                onClick={() => setSkillsClosed(skillsClosed === 1 ? 0 : 1)}
+              />
+            )}
+            <SectionBodyPlate />
+            <SkillCells third={container.width / 3} top={Frame.CLOSED_H} />
+            <sprite
+              x={container.width / 2 / 2 - Totals.OFFSET}
+              y={skillsHeight - Frame.BODY_LIP - Totals.ADVANCE}
+              w={Totals.ICON_W}
+              h={Totals.H}
+              sprite={HiscoresArt.COMBAT}
+              tiling
+            />
+            <text
+              x={container.width / 2 / 2}
+              y={skillsHeight - Frame.BODY_LIP - Totals.ADVANCE}
+              w={Totals.ICON_W}
+              h={Totals.H}
+              font={HiscoresFonts.VALUE}
+              shadow
+              color={HiscoresColour.ORANGE}
+              align="center"
+              valign="middle"
+              text={Cell.PLACEHOLDER}
+            />
+            <sprite
+              x={{ right: container.width / 2 / 2 }}
+              y={skillsHeight - Frame.BODY_LIP - Totals.ADVANCE}
+              w={Totals.ICON_W}
+              h={Totals.H}
+              sprite={HiscoresArt.TOTAL}
+              tiling
+            />
+            <text
+              x={{ right: container.width / 2 / 2 - Totals.OFFSET }}
+              y={skillsHeight - Frame.BODY_LIP - Totals.ADVANCE}
+              w={Totals.ICON_W}
+              h={Totals.H}
+              font={HiscoresFonts.VALUE}
+              shadow
+              color={HiscoresColour.ORANGE}
+              align="center"
+              valign="middle"
+              text={Cell.PLACEHOLDER}
+            />
+          </layer>
+
+          <layer y={activitiesTop} w="fill" h={activitiesClosed === 1 ? Frame.CLOSED_H : activitiesHeight}>
+            <SectionHeaderPlate title="Activities" closed={activitiesClosed === 1} />
+            {mobile ? (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                onClick={() => setActivitiesClosed(activitiesClosed === 1 ? 0 : 1)}
+              />
+            ) : (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                hover={{ transparency: Frame.HEADER_HOVER }}
+                onClick={() => setActivitiesClosed(activitiesClosed === 1 ? 0 : 1)}
+              />
+            )}
+            <SectionBodyPlate />
+            <ActivityCells third={container.width / 3} top={Frame.CLOSED_H} />
+          </layer>
+
+          <layer y={bossesTop} w="fill" h={bossesClosed === 1 ? Frame.CLOSED_H : bossesHeight}>
+            <SectionHeaderPlate title="Bosses" closed={bossesClosed === 1} />
+            {mobile ? (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                onClick={() => setBossesClosed(bossesClosed === 1 ? 0 : 1)}
+              />
+            ) : (
+              <rect
+                x="center"
+                y="top"
+                w="fill"
+                h={Frame.HEADER_H}
+                fill={false}
+                color={HiscoresColour.BLACK}
+                hover={{ transparency: Frame.HEADER_HOVER }}
+                onClick={() => setBossesClosed(bossesClosed === 1 ? 0 : 1)}
+              />
+            )}
+            <SectionBodyPlate />
+            <BossCells third={container.width / 3} top={Frame.CLOSED_H} />
+          </layer>
+        </layer>
+
+        <layer
+          x={{ right: Layout.SCROLLBAR_X }}
+          y={{ bottom: Layout.CONTAINER_INSET_Y }}
+          w={Layout.SCROLLBAR_W}
+          h={{ fill: Layout.CONTAINER_INSET_H }}
+        >
+          <ScrollbarVertical
+            content={container}
+            track={HiscoresScrollbar.TRACK}
+            capTopSprite={HiscoresScrollbar.CAP_TOP}
+            thumbSprite={HiscoresScrollbar.THUMB}
+            capBottomSprite={HiscoresScrollbar.CAP_BOTTOM}
+            arrowUp={HiscoresScrollbar.ARROW_UP}
+            arrowDown={HiscoresScrollbar.ARROW_DOWN}
+          />
+        </layer>
+      </layer>
+
+      <layer w={Layout.TOOLTIP_ANCHOR} h={Layout.TOOLTIP_ANCHOR} />
+
+      <layer x={{ right: 0 }} w={266} h="fill" hide>
+        <rect x="center" y="center" w="fill" h="fill" fill transparency={100} />
+      </layer>
+    </>
+  );
+}

@@ -1,0 +1,280 @@
+import { CS2, useInterval, useState } from 'ts2';
+
+import { chatMessage, clientClock, itemName, playSound } from '../lib/lib.engine';
+import {
+  Copy,
+  DuelBit,
+  DuelColor,
+  DuelContainer,
+  DuelFonts,
+  DuelLayout,
+  DuelSounds,
+  DuelSprites,
+  FLASH_CYCLES,
+  FLASHER_LIFE,
+  RowWash,
+} from './pvp-arena-legacyduel-options.constants';
+import { DuelTips } from './pvp-arena-legacyduel-options.data';
+import { flasherAlpha, hideDuelTooltip, showDuelTooltip, toggleDuelBit } from './pvp-arena-legacyduel-options.state';
+
+export function DuelRuleRow({
+  bit,
+  tip,
+  name,
+  label,
+  radio,
+  since,
+  mobile,
+  disabled,
+}: {
+  bit: Int;
+  tip: Int;
+  name: String;
+  label: String;
+  radio: Sprite;
+  since: Int;
+  mobile: Boolean;
+  disabled: Boolean;
+}): Component {
+  const [hover, setHover] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(-1);
+
+  useInterval(
+    pressedUntil >= 0
+      ? () => {
+          if (clientClock() >= pressedUntil) {
+            setPressedUntil(-1);
+            setHover(0);
+          }
+        }
+      : undefined,
+  );
+
+  let wash: Int = RowWash.REST;
+  if (pressedUntil >= 0) {
+    wash = RowWash.PRESSED;
+  } else if (hover === 1) {
+    wash = RowWash.HOVER;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h={DuelLayout.optionRow.h}
+      options={mobile ? [Copy.TOGGLE, Copy.INFO] : [Copy.TOGGLE]}
+      optionSubject={`<col=ff9040>${name}</col>`}
+      onMouseRepeat={
+        mobile || pressedUntil >= 0
+          ? null
+          : () => {
+              setHover(1);
+              showDuelTooltip(tip);
+            }
+      }
+      onMouseLeave={() => {
+        setHover(0);
+        hideDuelTooltip();
+      }}
+      onOptionSelect={(event) => {
+        if (event.option === 2) {
+          if (mobile) {
+            const row = DuelTips.at(tip);
+            if (row !== null) {
+              playSound(DuelSounds.SELECT);
+              chatMessage(`${name}: ${row.text}`);
+            }
+          }
+          return;
+        }
+        if (event.option !== 1) {
+          return;
+        }
+        if (disabled) {
+          return;
+        }
+        playSound(DuelSounds.SELECT);
+        if (bit !== DuelBit.NONE) {
+          toggleDuelBit(bit);
+        }
+        setPressedUntil(clientClock() + FLASH_CYCLES);
+        hideDuelTooltip();
+      }}
+    >
+      <rect
+        right={0}
+        y="center"
+        w={{ fill: DuelLayout.optionRow.washInset }}
+        h="fill"
+        fill
+        color={DuelColor.HIGHLIGHT}
+        transparency={wash}
+      />
+      <sprite
+        x={DuelLayout.optionRow.radioX}
+        y="center"
+        w={DuelLayout.optionRow.radio}
+        h={DuelLayout.optionRow.radio}
+        sprite={radio}
+      />
+      <DuelFlashSign x={0} y="center" w={DuelLayout.optionRow.signW} h={DuelLayout.optionRow.signH} since={since} />
+      <text
+        right={0}
+        y="center"
+        w={{ fill: DuelLayout.optionRow.labelInset }}
+        h={DuelLayout.optionRow.labelH}
+        text={label}
+        font={DuelFonts.LABEL}
+        color={DuelColor.OPTION}
+        shadow
+        align="left"
+        valign="middle"
+      />
+    </layer>
+  );
+}
+
+export function DuelPresetRow({
+  tip,
+  verb,
+  label,
+  icon,
+  mobile,
+}: {
+  tip: Int;
+  verb: String;
+  label: String;
+  icon: Sprite;
+  mobile: Boolean;
+}): Component {
+  const [hover, setHover] = useState(0);
+  const [pressedUntil, setPressedUntil] = useState(-1);
+
+  useInterval(
+    pressedUntil >= 0
+      ? () => {
+          if (clientClock() >= pressedUntil) {
+            setPressedUntil(-1);
+            setHover(0);
+          }
+        }
+      : undefined,
+  );
+
+  let wash: Int = RowWash.REST;
+  if (pressedUntil >= 0) {
+    wash = RowWash.PRESSED;
+  } else if (hover === 1) {
+    wash = RowWash.HOVER;
+  }
+
+  return (
+    <layer
+      w="fill"
+      h={DuelLayout.presetRow.h}
+      options={mobile ? [verb, Copy.INFO] : [verb]}
+      onMouseRepeat={
+        mobile || pressedUntil >= 0
+          ? null
+          : () => {
+              setHover(1);
+              showDuelTooltip(tip);
+            }
+      }
+      onMouseLeave={() => {
+        setHover(0);
+        hideDuelTooltip();
+      }}
+      onOptionSelect={(event) => {
+        if (event.option === 2) {
+          if (mobile) {
+            const row = DuelTips.at(tip);
+            if (row !== null) {
+              playSound(DuelSounds.SELECT);
+              chatMessage(`${row.label}: ${row.text}`);
+            }
+          }
+          return;
+        }
+        if (event.option !== 1) {
+          return;
+        }
+        playSound(DuelSounds.SELECT);
+        setPressedUntil(clientClock() + FLASH_CYCLES);
+        hideDuelTooltip();
+      }}
+    >
+      <rect right={0} y="center" w="fill" h="fill" fill color={DuelColor.HIGHLIGHT} transparency={wash} />
+      <text
+        right={0}
+        y="center"
+        w={{ fill: DuelLayout.presetRow.textInset }}
+        h="fill"
+        text={label}
+        font={DuelFonts.LABEL}
+        color={DuelColor.OPTION}
+        shadow
+        align="left"
+        valign="middle"
+      />
+      {icon !== -1 && (
+        <sprite
+          x={DuelLayout.presetRow.iconX}
+          y="center"
+          w={DuelLayout.presetRow.icon}
+          h={DuelLayout.presetRow.icon}
+          sprite={icon}
+        />
+      )}
+    </layer>
+  );
+}
+
+export function DuelFlashSign({ since }: { since: Int }): Component {
+  const [frame, setFrame] = useState(0);
+  const now: Int = Math.max(frame, clientClock());
+
+  let hidden: Boolean = true;
+  let alpha: Int = 0;
+  let running: Int = 0;
+  if (since >= 0) {
+    hidden = false;
+    alpha = flasherAlpha(now, since);
+    if (now - since < FLASHER_LIFE) {
+      running = 1;
+    }
+  }
+
+  useInterval(running === 1 ? () => setFrame(clientClock()) : undefined);
+
+  return <sprite w="fill" h="fill" sprite={DuelSprites.EXCLAMATION} hide={hidden} transparency={alpha} />;
+}
+
+export function DuelWornSlot({ slot, placeholder }: { slot: Int; placeholder: Sprite }): Component {
+  const item: Item = CS2.inv_item_get(DuelContainer.WORN, slot);
+  const count: Int = CS2.inv_num_get(DuelContainer.WORN, slot);
+
+  return (
+    <layer w={DuelLayout.wornSlot.itemW} h={DuelLayout.wornSlot.itemH}>
+      <sprite
+        x={0}
+        y={0}
+        w={DuelLayout.wornSlot.icon}
+        h={DuelLayout.wornSlot.icon}
+        sprite={item === -1 ? placeholder : -1}
+      />
+      {item !== -1 && (
+        <sprite
+          x={0}
+          y={0}
+          w={DuelLayout.wornSlot.itemW}
+          h={DuelLayout.wornSlot.itemH}
+          item={item}
+          itemCount={count}
+          outline={1}
+          shadowColor={DuelColor.ITEM_SHADOW}
+          optionSubject={`<col=ff9040>${itemName(item)}</col>`}
+        />
+      )}
+    </layer>
+  );
+}

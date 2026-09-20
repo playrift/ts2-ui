@@ -1,0 +1,297 @@
+import { CS2, intArray, useState } from 'ts2';
+
+import { ShortcutLower, ShortcutUpper } from '../0590_poh_jewellery_box/poh-jewellery-box.data';
+import { chatDefaultStopInput } from '../0608_fossil_mushtrees/chatdefault-input';
+import { BarSprite, scrollTo, scrollbarVertical } from './scrollbar-vertical.skins';
+import { pohCostumeRoomScroll } from '../lib/game/varcs';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { chatMessage, clientClock, itemName, playSound } from '../lib/lib.engine';
+import { padGroup, pipeHead, pipeTail } from '../lib/lib.format';
+import {
+  CANNOT_BUILD,
+  Colour,
+  ComponentType,
+  Font,
+  Layout,
+  SELECT_SOUND,
+  contentsRef,
+  listRef,
+  pohFurnitureCreationRef,
+  rowComponent,
+  scrollbarRef,
+} from './poh-furniture-creation.constants';
+
+export function pohFurnitureRow(slot: Int, piece: Item, level: Int, buildable: Int, text: String): void {
+  const row: ComponentId = rowComponent(slot);
+  if (row === -1) {
+    return;
+  }
+  CS2.cc_all_delete(row);
+  CS2.cc_create(row, ComponentType.TEXT, 0, false);
+  CS2.cc_hide_set(true);
+  CS2.cc_text_font_set(Font.ROW);
+  CS2.cc_text_set(`${padGroup(level)}${padGroup(slot)}`);
+
+  CS2.cc_create(row, ComponentType.TEXT, 1, false);
+  CS2.cc_size_set(Layout.LABEL_W, Layout.LEVEL_H, 0, 1);
+  CS2.cc_position_set(0, 0, 0, 2);
+  CS2.cc_colour_set(Colour.ORANGE);
+  CS2.cc_text_font_set(Font.ROW);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(1, 0, 0);
+  CS2.cc_text_set(`Level ${stringOf(level)}`);
+
+  CS2.cc_create(row, ComponentType.TEXT, 2, false);
+  CS2.cc_size_set(Layout.LABEL_W, Layout.LINE_H, 1, 0);
+  CS2.cc_position_set(0, 0, 2, 0);
+  CS2.cc_colour_set(Colour.ORANGE);
+  CS2.cc_text_font_set(Font.ROW);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(0, 0, 0);
+  CS2.cc_text_set(pipeHead(text));
+
+  CS2.cc_create(row, ComponentType.TEXT, 3, false);
+  CS2.cc_size_set(Layout.LABEL_W, Layout.LINE_H, 1, 1);
+  CS2.cc_position_set(0, 0, 2, 2);
+  CS2.cc_colour_set(Colour.LILAC);
+  CS2.cc_text_font_set(Font.ROW);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(0, 0, 0);
+  CS2.cc_text_set(pipeTail(text));
+
+  CS2.cc_create(row, ComponentType.SPRITE, 4, false);
+  CS2.cc_size_set(Layout.ITEM_W, Layout.ITEM_H, 0, 0);
+  CS2.cc_position_set(Layout.ITEM_X, 0, 0, 0);
+  CS2.cc_item_nonum_set(piece, 1);
+  CS2.cc_sprite_shadow_set(Colour.ITEM_SHADOW);
+  CS2.cc_outline_set(1);
+  CS2.if_op_set(1, 'Build', row);
+  CS2.if_op_set(10, 'Examine', row);
+  CS2.if_op_base_set(`<col=ff9040>${itemName(piece)}</col>`, row);
+  CS2.if_onop_set((event) => pieceOp(event.option, slot, piece, row, 4), row);
+
+  CS2.cc_create(row, ComponentType.SPRITE, 5, false);
+  CS2.cc_size_set(Layout.MARK_WH, Layout.MARK_WH, 0, 0);
+  CS2.cc_position_set(Layout.MARK_X, 0, 0, 0);
+  CS2.cc_sprite_set(CANNOT_BUILD);
+  if (buildable === 1) {
+    CS2.cc_hide_set(true);
+    CS2.cc_create(row, ComponentType.TEXT, 6, false);
+    CS2.cc_size_set(Layout.LABEL_W, Layout.LEVEL_H, 0, 0);
+    CS2.cc_position_set(0, 0, 0, 0);
+    CS2.cc_colour_set(Colour.LILAC);
+    CS2.cc_text_font_set(Font.ROW);
+    CS2.cc_text_shadow_set(true);
+    CS2.cc_text_align_set(0, 0, 0);
+    CS2.cc_text_set('');
+  } else {
+    CS2.cc_hide_set(false);
+  }
+}
+
+function pieceOp(option: Int, slot: Int, piece: Item, row: ComponentId, icon: Int): void {
+  if (option !== 1) {
+    if (option === 10) {
+      chatMessage(`${itemName(piece)}.`);
+    }
+    return;
+  }
+  flashIcon(row, icon);
+  playSound(SELECT_SOUND);
+  if (CS2.cc_find(contentsRef, slot)) {
+    CS2.cc_resume_pausebutton();
+  }
+}
+
+function flashIcon(row: ComponentId, icon: Int): void {
+  if (CS2.cc_find(row, icon)) {
+    CS2.cc_transparency_set(Layout.FLASH);
+    const until: Int = clientClock() + Layout.FLASH_CYCLES;
+    CS2.cc_on_timer_set(() => flashEnd(row, icon, until));
+  }
+}
+
+function flashEnd(row: ComponentId, icon: Int, until: Int): void {
+  if (clientClock() < until) {
+    return;
+  }
+  if (CS2.cc_find(row, icon)) {
+    CS2.cc_transparency_set(0);
+    CS2.cc_on_timer_set(null);
+  }
+}
+
+function sortKey(slot: Int): String {
+  if (CS2.cc_find(rowComponent(slot), 0)) {
+    return CS2.cc_text_get();
+  }
+  return '';
+}
+
+export function pohFurnitureLayout(requested: Int, relayout: Boolean): void {
+  const count: Int = Math.min(Layout.SLOTS, requested);
+  CS2.cc_all_delete(contentsRef);
+  CS2.cc_create(contentsRef, ComponentType.RECTANGLE, 0, false);
+  CS2.cc_hide_set(true);
+
+  const filled = intArray(31);
+  const empty = intArray(31);
+  let filledCount: Int = 0;
+  let emptyCount: Int = 0;
+  let slot: Int = 1;
+  while (slot <= Layout.SLOTS) {
+    let has: Boolean = false;
+    if (slot <= count) {
+      if (CS2.cc_find(rowComponent(slot), 0)) {
+        has = true;
+      }
+    }
+    if (has) {
+      filled[filledCount] = slot;
+      filledCount = filledCount + 1;
+    } else {
+      empty[emptyCount] = slot;
+      emptyCount = emptyCount + 1;
+    }
+    CS2.cc_create(contentsRef, ComponentType.RECTANGLE, slot, false);
+    CS2.cc_hide_set(true);
+    slot = slot + 1;
+  }
+
+  let a: Int = 1;
+  while (a < filledCount) {
+    let b: Int = a;
+    let moving: Boolean = true;
+    while (moving) {
+      moving = false;
+      if (b > 0) {
+        if (CS2.compare(sortKey(filled[b - 1]), sortKey(filled[b])) > 0) {
+          const swap: Int = filled[b - 1];
+          filled[b - 1] = filled[b];
+          filled[b] = swap;
+          b = b - 1;
+          moving = true;
+        }
+      }
+    }
+    a = a + 1;
+  }
+
+  let perColumn: Int = 2147483647;
+  let top: Int = 0;
+  let gap: Int = Layout.GAP;
+  if (filledCount <= Layout.SHORT_MAX) {
+    top = Layout.HINT_H;
+    gap = Layout.SHORT_GAP;
+    CS2.cc_all_delete(listRef);
+    CS2.cc_create(listRef, ComponentType.TEXT, 0, false);
+    CS2.cc_size_set(0, top, 1, 0);
+    CS2.cc_position_set(0, 0, 1, 0);
+    CS2.cc_colour_set(Colour.ORANGE);
+    CS2.cc_text_font_set(Font.HINT);
+    CS2.cc_text_shadow_set(true);
+    CS2.cc_text_align_set(0, 0, 0);
+    CS2.cc_text_set('Select a piece of furniture to build.');
+  } else if (filledCount <= Layout.FOUR_MAX) {
+    perColumn = Layout.FOUR;
+  } else {
+    perColumn = filledCount / 2 + (filledCount % 2);
+  }
+
+  let y: Int = top;
+  let placed: Int = 0;
+  while (placed < filledCount && placed < perColumn) {
+    const card: ComponentId = rowComponent(filled[placed]);
+    CS2.if_hide_set(false, card);
+    CS2.if_position_set(0, y, 0, 0, card);
+    if (!relayout) {
+      shortcutLabel(placed + 1, filled[placed], card);
+    }
+    y = y + CS2.if_height_get(card) + gap;
+    placed = placed + 1;
+  }
+  if (placed > 0) {
+    y = y - gap;
+  }
+  CS2.if_scroll_pos_set(0, 0, listRef);
+  const [remembered, setRemembered] = useState(pohCostumeRoomScroll);
+  if (y > CS2.if_height_get(listRef)) {
+    CS2.if_scroll_size_set(0, y, listRef);
+  } else {
+    CS2.if_scroll_size_set(0, 0, listRef);
+    setRemembered(0);
+  }
+  scrollbarVertical(
+    scrollbarRef,
+    listRef,
+    BarSprite.STEEL_TRACK,
+    BarSprite.STEEL_CAP_TOP,
+    BarSprite.STEEL_THUMB,
+    BarSprite.STEEL_CAP_BOTTOM,
+    BarSprite.STEEL_UP,
+    BarSprite.STEEL_DOWN,
+    1,
+  );
+  if (CS2.cc_find(scrollbarRef, 1)) {
+    scrollTo(scrollbarRef, listRef, remembered, 1, 1);
+  }
+
+  y = top;
+  while (placed < filledCount) {
+    const card: ComponentId = rowComponent(filled[placed]);
+    CS2.if_hide_set(false, card);
+    CS2.if_position_set(0, y, 2, 0, card);
+    if (!relayout) {
+      shortcutLabel(placed + 1, filled[placed], card);
+    }
+    y = y + CS2.if_height_get(card) + gap;
+    placed = placed + 1;
+  }
+  while (emptyCount > 0) {
+    emptyCount = emptyCount - 1;
+    CS2.if_hide_set(true, rowComponent(empty[emptyCount]));
+  }
+  if (!relayout) {
+    chatDefaultStopInput();
+  }
+}
+
+function shortcutLabel(order: Int, slot: Int, card: ComponentId): void {
+  if (order < 1 || card === -1 || order > Layout.SLOTS) {
+    return;
+  }
+  if (CS2.cc_find(card, 6)) {
+    let upper: String = '';
+    let lower: String = '';
+    if (order <= Layout.DIGITS) {
+      upper = stringOf(order);
+    } else {
+      upper = ShortcutUpper.get(order - Layout.LETTER_BASE) ?? '';
+      lower = ShortcutLower.get(order - Layout.LETTER_BASE) ?? '';
+    }
+    CS2.cc_text_set(`${upper}:`);
+    CS2.if_on_key_set((event) => cardKey(event.keyChar, slot, card, upper, lower, 0), card);
+  }
+}
+
+function cardKey(key: Char, slot: Int, card: ComponentId, upper: String, lower: String, notBefore: Int): void {
+  if (clientClock() < notBefore) {
+    return;
+  }
+  if (dialogueMayAdvance(interfaceOf(pohFurnitureCreationRef) as Interface, -1) === false) {
+    return;
+  }
+  if (key === -1) {
+    return;
+  }
+  if (CS2.string_indexof_char(upper, key) === -1 && CS2.string_indexof_char(lower, key) === -1) {
+    return;
+  }
+  const again: Int = clientClock() + Layout.KEY_REARM;
+  CS2.if_on_key_set((event) => cardKey(event.keyChar, slot, card, upper, lower, again), card);
+  flashIcon(card, 4);
+  playSound(SELECT_SOUND);
+  if (CS2.cc_find(contentsRef, slot)) {
+    CS2.cc_resume_pausebutton();
+  }
+}

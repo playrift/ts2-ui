@@ -1,0 +1,429 @@
+import { CS2, predictServerState, useServerState, useState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import {
+  Layout,
+  ViewerArt,
+  ViewerColour,
+  ViewerVarbits,
+  anyRoomCellIs,
+  floorHighest,
+  floorLowest,
+  floorShown,
+  layerButtonsRef,
+  level0Ref,
+  level1Ref,
+  level2Ref,
+  mapCellSize,
+  mapOffsetX,
+  mapOffsetY,
+  mapRef,
+  previewRef,
+  roomCell,
+  roomComponent,
+  setRoomCell,
+} from './poh-viewer.constants';
+import { buttonSkin } from './poh-viewer.side';
+
+export function pohViewerMap(rooms: Int, from: Coord, to: Coord, floor: Int): void {
+  const x0: Int = from.x;
+  const z0: Int = from.z;
+  const width: Int = to.x - x0 + 1;
+  const depth: Int = to.z - z0 + 1;
+  let span: Int = width;
+  if (depth > span) {
+    span = depth;
+  }
+  let cell: Int = 32;
+  if (span <= 2) {
+    cell = cell * 2;
+  } else if (span <= 4) {
+    cell = CS2.interpolate(0, 3, 0, 2, cell);
+  }
+  let offsetX: Int = 0;
+  let offsetY: Int = 0;
+  let size: Int = 0;
+  if (width >= 7 && depth >= 7) {
+    offsetX = cell;
+    offsetY = cell;
+    size = 7 * cell;
+  } else {
+    offsetX = (x0 - 1) * cell;
+    offsetY = (z0 - 1) * cell;
+    size = (span + 2) * cell;
+    const full: Int = Layout.GRID * cell;
+    let over: Int = offsetX + size - full;
+    if (over > 0) {
+      offsetX = offsetX - over;
+      if (offsetX < 0) {
+        offsetX = 0;
+      }
+    }
+    over = offsetY + size - full;
+    if (over > 0) {
+      offsetY = offsetY - over;
+      if (offsetY < 0) {
+        offsetY = 0;
+      }
+    }
+  }
+  CS2.if_size_set(size, size, 0, 0, mapRef);
+  CS2.cc_all_delete(mapRef);
+  let index: Int = 0;
+  let floorPass: Int = 0;
+  while (floorPass < 3) {
+    let k: Int = 0;
+    while (k < Layout.FLOOR_CELLS) {
+      CS2.cc_create(mapRef, 3, index, false);
+      index = index + 1;
+      CS2.cc_size_set(cell, cell, 0, 0);
+      CS2.cc_position_set((k % Layout.GRID) * cell - offsetX, (k / Layout.GRID) * cell - offsetY, 0, 2);
+      CS2.cc_fill_set(false);
+      CS2.cc_hide_set(true);
+      k = k + 1;
+    }
+    floorPass = floorPass + 1;
+  }
+  let n: Int = 1;
+  while (n <= 38) {
+    placeRoom(n, rooms, cell, offsetX, offsetY);
+    n = n + 1;
+  }
+
+  CS2.if_size_set(cell, cell, 0, 0, previewRef);
+  const [, setCell] = useState(mapCellSize);
+  const [, setOffsetX] = useState(mapOffsetX);
+  const [, setOffsetY] = useState(mapOffsetY);
+  setCell(cell);
+  setOffsetX(offsetX);
+  setOffsetY(offsetY);
+  CS2.cc_all_delete(previewRef);
+  CS2.cc_create(previewRef, 5, 0, false);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_sprite_set(-1);
+  pulseRing(1, 2);
+  pulseRing(2, 4);
+  pulseRing(3, 6);
+  CS2.if_hide_set(true, previewRef);
+  pohViewerFloor(floor, from.plane, to.plane);
+}
+
+function pulseRing(index: Int, inset: Int): void {
+  CS2.cc_create(previewRef, 3, index, false);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_size_set(inset, inset, 1, 1);
+  CS2.cc_colour_set(ViewerColour.YELLOW);
+  CS2.cc_fill_set(false);
+  CS2.cc_transparency_set(255);
+}
+
+function placeRoom(n: Int, rooms: Int, cell: Int, offsetX: Int, offsetY: Int): void {
+  if (n > rooms) {
+    setRoomCell(n, packRoom(0, 3, 0));
+    return;
+  }
+  const room: ComponentId = roomComponent(n);
+  if (room === -1) {
+    return;
+  }
+  CS2.if_hide_set(true, room);
+  const packed: Int = roomCell(n);
+  CS2.if_size_set(cell, cell, 0, 0, room);
+  CS2.if_position_set(roomX(packed) * cell - offsetX, roomZ(packed) * cell - offsetY, 0, 2, room);
+}
+
+function packRoom(x: Int, level: Int, z: Int): Int {
+  return level * Math.pow(2, 28) + x * Math.pow(2, 14) + z;
+}
+
+function roomLevel(packed: Int): Int {
+  return packed / Math.pow(2, 28);
+}
+
+function roomX(packed: Int): Int {
+  return (packed % Math.pow(2, 28)) / Math.pow(2, 14);
+}
+
+function roomZ(packed: Int): Int {
+  return (packed % Math.pow(2, 28)) % Math.pow(2, 14);
+}
+
+export function pohViewerPreviewFollow(): void {
+  const [cell] = useState(mapCellSize);
+  if (cell === -1) {
+    return;
+  }
+  const [offsetX] = useState(mapOffsetX);
+  const [offsetY] = useState(mapOffsetY);
+  const at: Int = (useServerState(ViewerVarbits.DESTINATION) - 1) % Layout.CELLS;
+  CS2.if_position_set((at % Layout.GRID) * cell - offsetX, (at / Layout.GRID) * cell - offsetY, 0, 2, previewRef);
+}
+
+export function pohViewerFloorWatch(): void {
+  const [shown] = useState(floorShown);
+  if (shown === -1) {
+    return;
+  }
+  const [lowest] = useState(floorLowest);
+  const [highest] = useState(floorHighest);
+  pohViewerFloor(shown, lowest, highest);
+}
+
+function floorPressed(floor: Int, lowest: Int, highest: Int): void {
+  playSound(ViewerArt.SELECT_SOUND);
+  pohViewerFloor(floor, lowest, highest);
+}
+
+function pohViewerFloor(requested: Int, lowest: Int, highest: Int): void {
+  const [, setShown] = useState(floorShown);
+  const [, setLowest] = useState(floorLowest);
+  const [, setHighest] = useState(floorHighest);
+  setShown(requested);
+  setLowest(lowest);
+  setHighest(highest);
+
+  let shown: Int = requested;
+  if (shown < lowest) {
+    shown = lowest;
+  } else if (shown > highest) {
+    shown = highest;
+  }
+  let index: Int = 0;
+  let k: Int = 0;
+  while (k < Layout.FLOOR_CELLS) {
+    if (CS2.cc_find(mapRef, index)) {
+      CS2.cc_hide_set(shown !== 0);
+    }
+    k = k + 1;
+    index = index + 1;
+  }
+  k = 0;
+  while (k < Layout.FLOOR_CELLS) {
+    if (CS2.cc_find(mapRef, index)) {
+      CS2.cc_hide_set(shown !== 1);
+    }
+    k = k + 1;
+    index = index + 1;
+  }
+  k = 0;
+  while (k < Layout.FLOOR_CELLS) {
+    if (CS2.cc_find(mapRef, index)) {
+      CS2.cc_hide_set(true);
+    }
+    k = k + 1;
+    index = index + 1;
+  }
+
+  let placing: Int = -1;
+  const target: Int = useServerState(ViewerVarbits.DESTINATION) - 1;
+  if (target >= 0 && target < Layout.FLOOR_CELLS) {
+    placing = 0;
+  } else if (target >= Layout.FLOOR_CELLS && target < Layout.FLOOR_CELLS * 2) {
+    placing = 1;
+  } else if (target >= Layout.FLOOR_CELLS * 2 && target < Layout.CELLS) {
+    placing = 2;
+  }
+  if (shown === placing) {
+    CS2.if_hide_set(false, previewRef);
+    let ring: Boolean = false;
+    if (CS2.cc_find(previewRef, 1)) {
+      ring = true;
+    }
+    if (CS2.cc_find(previewRef, 2)) {
+      ring = true;
+    }
+    if (CS2.cc_find(previewRef, 3)) {
+      ring = true;
+    }
+    if (ring && CS2.cc_trans_get() >= 255) {
+      const started: Int = clientClock();
+      CS2.if_on_timer_set(() => pulse(started), previewRef);
+      pulse(started);
+    }
+  } else {
+    CS2.if_hide_set(true, previewRef);
+    if (CS2.cc_find(previewRef, 1)) {
+      CS2.cc_transparency_set(255);
+    }
+    if (CS2.cc_find(previewRef, 2)) {
+      CS2.cc_transparency_set(255);
+    }
+    if (CS2.cc_find(previewRef, 3)) {
+      CS2.cc_transparency_set(255);
+    }
+  }
+
+  let dungeonW: Int = 0;
+  if (lowest <= 0) {
+    dungeonW = floorButton(level0Ref, 0, 'Dungeon', shown, lowest, highest, placing);
+  } else {
+    dungeonW = floorButtonOff(level0Ref, 'Dungeon');
+  }
+  let upstairsW: Int = 0;
+  if (highest >= 2) {
+    upstairsW = floorButton(level2Ref, 2, 'Upstairs', shown, lowest, highest, placing);
+  } else {
+    upstairsW = floorButtonOff(level2Ref, 'Upstairs');
+  }
+  const groundW: Int = floorButton(level1Ref, 1, 'Ground', shown, lowest, highest, placing);
+  const slack: Int = CS2.if_width_get(layerButtonsRef) - (dungeonW + groundW + upstairsW);
+  CS2.if_position_set(dungeonW + slack / 2, 0, 0, 1, level1Ref);
+
+  let n: Int = 1;
+  while (n <= 38) {
+    roomVisibility(n, shown);
+    n = n + 1;
+  }
+  if (target !== -1 && CS2.cc_find(mapRef, target)) {
+    CS2.cc_hide_set(true);
+  }
+}
+
+function roomVisibility(n: Int, shown: Int): void {
+  const room: ComponentId = roomComponent(n);
+  if (room === -1) {
+    return;
+  }
+  const packed: Int = roomCell(n);
+  const level: Int = roomLevel(packed);
+  const x: Int = roomX(packed);
+  const z: Int = roomZ(packed);
+  if (level === 3) {
+    CS2.if_hide_set(true, room);
+    CS2.if_ops_clear(room);
+    CS2.if_onop_set(null, room);
+    return;
+  }
+  if (level === shown) {
+    CS2.if_hide_set(false, room);
+    CS2.if_op_set(1, 'View', room);
+    CS2.if_onop_set((event) => viewRoom(event.option, room, n), room);
+    if (CS2.cc_find(mapRef, shown * Layout.FLOOR_CELLS + z * Layout.GRID + x)) {
+      CS2.cc_hide_set(true);
+    }
+    if (CS2.cc_find(room, 1)) {
+      CS2.cc_hide_set(true);
+    }
+    return;
+  }
+  if (level === 1 && shown === 2) {
+    if (!anyRoomCellIs(packRoom(x, 2, z))) {
+      CS2.if_hide_set(false, room);
+      CS2.if_ops_clear(room);
+      CS2.if_onop_set(null, room);
+      if (CS2.cc_find(mapRef, shown * Layout.FLOOR_CELLS + z * Layout.GRID + x)) {
+        CS2.cc_hide_set(false);
+      }
+      if (CS2.cc_find(room, 1)) {
+        CS2.cc_hide_set(false);
+      }
+      return;
+    }
+  }
+  CS2.if_hide_set(true, room);
+  CS2.if_ops_clear(room);
+  CS2.if_onop_set(null, room);
+}
+
+function viewRoom(option: Int, room: ComponentId, n: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(ViewerArt.SELECT_SOUND);
+  predictServerState(ViewerVarbits.SELECTED_ROOM, n);
+  if (CS2.cc_find(room, 2)) {
+    CS2.cc_hide_set(useServerState(ViewerVarbits.SELECTED_ROOM) !== n);
+  }
+}
+
+function floorButton(
+  button: ComponentId,
+  floor: Int,
+  label: String,
+  shown: Int,
+  lowest: Int,
+  highest: Int,
+  placing: Int,
+): Int {
+  const width: Int = CS2.parawidth(label, 512, ViewerArt.FONT_FLOOR) + 10;
+  CS2.if_size_set(width, CS2.if_height_get(button), 0, 0, button);
+  CS2.cc_all_delete(button);
+  const text: Int = buttonSkin(button, floor === shown);
+  CS2.cc_create(button, 4, text, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_text_font_set(ViewerArt.FONT_FLOOR);
+  CS2.cc_text_align_set(1, 1, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(label);
+  if (floor === shown) {
+    if (floor === placing) {
+      CS2.cc_colour_set(ViewerColour.YELLOW);
+    } else {
+      CS2.cc_colour_set(ViewerColour.WHITE);
+    }
+    CS2.if_on_mouserepeat_set(null, button);
+    CS2.if_on_mouseleave_set(null, button);
+    CS2.if_onop_set(null, button);
+    CS2.if_ops_clear(button);
+    return width;
+  }
+  if (floor === placing) {
+    CS2.cc_colour_set(ViewerColour.YELLOW);
+    CS2.if_on_mouseleave_set(() => recolour(button, text, ViewerColour.YELLOW), button);
+  } else {
+    CS2.cc_colour_set(ViewerColour.LABEL);
+    CS2.if_on_mouseleave_set(() => recolour(button, text, ViewerColour.LABEL), button);
+  }
+  CS2.if_on_mouserepeat_set(() => recolour(button, text, ViewerColour.WHITE), button);
+  CS2.if_onop_set(() => floorPressed(floor, lowest, highest), button);
+  CS2.if_op_set(1, label, button);
+  return width;
+}
+
+function floorButtonOff(button: ComponentId, label: String): Int {
+  const width: Int = CS2.parawidth(label, 512, ViewerArt.FONT_FLOOR) + 10;
+  CS2.if_size_set(width, CS2.if_height_get(button), 0, 0, button);
+  CS2.cc_all_delete(button);
+  const text: Int = buttonSkin(button, false);
+  CS2.cc_create(button, 4, text, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_colour_set(ViewerColour.GREY);
+  CS2.cc_text_font_set(ViewerArt.FONT_FLOOR);
+  CS2.cc_text_align_set(1, 1, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(label);
+  CS2.if_on_mouserepeat_set(null, button);
+  CS2.if_on_mouseleave_set(null, button);
+  CS2.if_onop_set(null, button);
+  CS2.if_ops_clear(button);
+  return width;
+}
+
+function pulse(started: Int): void {
+  const phase: Int = (clientClock() - started) % 40;
+  let inner: Int = 0;
+  if (phase <= 20) {
+    inner = 120 + CS2.interpolate(0, phase, 0, 20, 100);
+  } else {
+    inner = 120 + (100 - CS2.interpolate(0, phase - 20, 0, 20, 100));
+  }
+  const outer: Int = inner + 30;
+  if (CS2.cc_find(previewRef, 1)) {
+    CS2.cc_transparency_set(outer);
+  }
+  if (CS2.cc_find(previewRef, 2)) {
+    CS2.cc_transparency_set(inner);
+  }
+  if (CS2.cc_find(previewRef, 3)) {
+    CS2.cc_transparency_set(outer);
+  }
+}
+
+function recolour(container: ComponentId, index: Int, colour: Int): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_colour_set(colour);
+  }
+}

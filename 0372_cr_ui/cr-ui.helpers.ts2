@@ -1,0 +1,367 @@
+import { CS2, intArray, useServerState, useState } from 'ts2';
+import { debugMessage } from '../lib/lib.debug';
+import { clientClock } from '../lib/lib.engine';
+import { Quest, questComplete, questProgress } from '../lib/lib.quests';
+import { Varbits } from '../lib/game/varbits';
+import { Varps } from '../lib/game/varps';
+import {
+  crActiveModule,
+  crQuestsClientCachedRecommendations,
+  crQuestsUiAwaitingData,
+  crQuestsUiClickedRecommendationIndex,
+  crQuestsUiExpandedStates,
+  crQuestsUiRecommendationsListBuilt,
+  crUiOpen,
+  crUiWindowHeight,
+  crUiWindowWidth,
+  crUiWindowX,
+  crUiWindowY,
+} from '../lib/game/varcs';
+import { rentalWorld } from '../0134_settings/settings.helpers';
+import { totalLevel } from '../0712_account_summary_sidepanel/account-summary-sidepanel.helpers';
+import { debugWarn } from '../0922_jigsaw/jigsaw.state';
+import {
+  QuestOverviewRow,
+  QuestOverviews,
+  QuestSeriesNames,
+} from '../0782_questjournal_overview/questjournal-overview.data';
+import { warriorsGuildAccess } from '../0782_questjournal_overview/questjournal-overview.helpers';
+import { CrLimit, Layout } from './cr-ui.constants';
+import { CrQuestRow, CrQuestRows } from './cr-ui.data';
+import {
+  QuestsView,
+  crQuestsGeneration,
+  crQuestsRefreshArmedAt,
+  crQuestsRefreshPressedAt,
+  crQuestsRefreshShown,
+  crQuestsTabsAll,
+  crQuestsView,
+  crUiAnchorBound,
+} from './cr-ui.state';
+import { FloaterKind, floaterPlaced } from './floater';
+
+export function crUiOpenEntry(): void {
+  const [, setOpen] = useState(crUiOpen);
+  const [module, setModule] = useState(crActiveModule);
+  setOpen(1);
+  if (module === -1) {
+    setModule(0);
+  }
+  crQuestsModuleInit();
+
+  const [x] = useState(crUiWindowX);
+  const [y] = useState(crUiWindowY);
+  const [w] = useState(crUiWindowWidth);
+  const [h] = useState(crUiWindowHeight);
+  const [placedX, placedY, placedW, placedH] = floaterPlaced(FloaterKind.CR_UI, x, y, w, h);
+  const resized: Boolean = placedW !== Layout.WINDOW_W - Layout.TABS_W || placedH !== Layout.WINDOW_H;
+  const [data] = useState(crQuestsClientCachedRecommendations);
+  const [, setView] = useState(crQuestsView);
+  const [, setAnchorBound] = useState(crUiAnchorBound);
+  if (resized && isNullOrEmpty(data)) {
+    setView(QuestsView.NONE);
+    setAnchorBound(0);
+  } else {
+    setAnchorBound(1);
+  }
+}
+
+export function crQuestsModuleInit(): void {
+  const [data] = useState(crQuestsClientCachedRecommendations);
+  const [built, setBuilt] = useState(crQuestsUiRecommendationsListBuilt);
+  const [, setAwaiting] = useState(crQuestsUiAwaitingData);
+  const [, setClicked] = useState(crQuestsUiClickedRecommendationIndex);
+  const [, setView] = useState(crQuestsView);
+  setClicked(-1);
+  if (isNullOrEmpty(data)) {
+    setAwaiting(1);
+    setView(QuestsView.LOADING);
+    return;
+  }
+  if (built === 1) {
+    setView(QuestsView.NONE);
+    return;
+  }
+  setAwaiting(0);
+  crQuestsCaptureTabs();
+  crQuestsBumpGeneration();
+  setView(QuestsView.LIST);
+  setBuilt(1);
+}
+
+export function crQuestsReceive(data: String): void {
+  const [, setData] = useState(crQuestsClientCachedRecommendations);
+  const [awaiting] = useState(crQuestsUiAwaitingData);
+  const [built] = useState(crQuestsUiRecommendationsListBuilt);
+  const [, setExpanded] = useState(crQuestsUiExpandedStates);
+  const [, setRefreshShown] = useState(crQuestsRefreshShown);
+  setData(data);
+  setRefreshShown(0);
+  if (awaiting === 1) {
+    crQuestsModuleInit();
+  } else if (built === 1) {
+    crQuestsCaptureTabs();
+    setExpanded('');
+    crQuestsBumpGeneration();
+  }
+}
+
+function crQuestsCaptureTabs(): void {
+  const [, setTabsAll] = useState(crQuestsTabsAll);
+  setTabsAll(useServerState(Varbits.CR_QUESTS_INCLUDE_MEMBERS));
+}
+
+function crQuestsBumpGeneration(): void {
+  const [generation, setGeneration] = useState(crQuestsGeneration);
+  setGeneration(generation + 1);
+}
+
+export function crQuestsToggle(index: Int, rows: Int, expand: Boolean): void {
+  const [expanded, setExpanded] = useState(crQuestsUiExpandedStates);
+  const [, setClicked] = useState(crQuestsUiClickedRecommendationIndex);
+  setExpanded(withExpanded(index, rows, expand, expanded));
+  setClicked(index);
+  crQuestsBumpGeneration();
+}
+
+export function crQuestsSkillTransmit(): void {
+  if (totalLevel() === useServerState(Varbits.CR_QUESTS_CACHED_TOTAL_LEVEL)) {
+    return;
+  }
+  crQuestsArmRefresh();
+}
+
+export function crQuestsVarTransmit(): void {
+  if (
+    useServerState(Varbits.CR_QUESTS_UPDATE_CACHE) === 1 ||
+    useServerState(Varbits.QUESTS_COMPLETED_COUNT) !== useServerState(Varbits.CR_QUESTS_CACHED_QUESTS_COMPLETED) ||
+    useServerState(Varbits.SUBQUESTS_COMPLETED_COUNT) !==
+      useServerState(Varbits.CR_QUESTS_CACHED_SUBQUESTS_COMPLETED) ||
+    useServerState(Varbits.MINIQUESTS_COMPLETED_COUNT) !== useServerState(Varbits.CR_QUESTS_CACHED_MINIQUESTS_COMPLETED)
+  ) {
+    crQuestsArmRefresh();
+  }
+}
+
+function crQuestsArmRefresh(): void {
+  const [, setArmedAt] = useState(crQuestsRefreshArmedAt);
+  setArmedAt(clientClock());
+}
+
+export function crQuestsRefreshTick(): void {
+  const [armedAt, setArmedAt] = useState(crQuestsRefreshArmedAt);
+  if (armedAt < 0 || clientClock() < armedAt + 50 * 2) {
+    return;
+  }
+  const [, setShown] = useState(crQuestsRefreshShown);
+  const [, setPressedAt] = useState(crQuestsRefreshPressedAt);
+  setArmedAt(-1);
+  setShown(1);
+  setPressedAt(-1);
+}
+
+export function isNullOrEmpty(text: String): Boolean {
+  return text.length === 0 || CS2.compare(text, 'null') === 0;
+}
+
+export function serialisedLength(text: String): [Int, Int] {
+  const bar: Int = text.indexOf('||', 0);
+  if (bar < 0) {
+    debugError('Array Serialisation', `ERROR: Attempted to get array length from an invalid serialised array: ${text}`);
+    return [0, 0];
+  }
+  return [parseInt(text.substring(0, bar)), bar + 2];
+}
+
+export function serialisedValue(text: String, from: Int): [Int, Int] {
+  let end: Int = text.indexOf('||', from);
+  if (end < 0) {
+    end = text.length;
+  }
+  return [parseInt(text.substring(from, end)), end + 2];
+}
+
+function appendValue(text: String, value: Int): String {
+  return `${text}||${value}`;
+}
+
+export function expandedOffset(flags: String): Int {
+  if (isNullOrEmpty(flags)) {
+    return 0;
+  }
+  return flags.indexOf('||', 0) + 2;
+}
+
+export function entryExpanded(index: Int, flags: String, offset: Int): Boolean {
+  if (offset === 0) {
+    return false;
+  }
+  const at: Int = offset + index + 2 * index;
+  return CS2.compare(flags.substring(at, at + 1), '1') === 0;
+}
+
+export function withExpanded(index: Int, rows: Int, value: Boolean, flags: String): String {
+  const cells = intArray(CrLimit.ROWS);
+  if (!isNullOrEmpty(flags)) {
+    const [count, start] = serialisedLength(flags);
+    let at: Int = start;
+    let i: Int = 0;
+    let done: Boolean = false;
+    while (!done && i < CrLimit.ROWS) {
+      const [v, next] = serialisedValue(flags, at);
+      cells[i] = v;
+      at = next;
+      i = i + 1;
+      if (at >= flags.length) {
+        done = true;
+      }
+    }
+    if (i !== count) {
+      debugError(
+        'Array Serialisation',
+        'Number of serialised array values does not match the serialised array length!',
+      );
+    }
+  }
+  cells[index] = value ? 1 : 0;
+  let text: String = `${rows}`;
+  let j: Int = 0;
+  while (j < rows && j < CrLimit.ROWS) {
+    text = appendValue(text, cells[j]);
+    j = j + 1;
+  }
+  return text;
+}
+
+export function questById(id: Int): Int {
+  let q: Int = 0;
+  while (q < CrQuestRows.length) {
+    const row: CrQuestRow | null = CrQuestRows.at(q);
+    if (row !== null) {
+      if (row.id === id) {
+        return q;
+      }
+    }
+    q = q + 1;
+  }
+  debugWarn('Quests', `No quest found with ID ${id}`);
+  return -1;
+}
+
+export function questStatus(quest: Int): Int {
+  const row: QuestOverviewRow | null = QuestOverviews.at(quest);
+  if (row === null) {
+    return 1;
+  }
+  if (row.releaseType !== 2) {
+    return 1;
+  }
+  const progress: Int = questProgress(quest as Quest);
+  if (row.unstartedState === -1 || row.endState === -1 || progress === -1 || row.endState <= row.unstartedState) {
+    return 1;
+  }
+  if (progress >= row.endState) {
+    return 2;
+  }
+  if (progress <= row.unstartedState) {
+    return 1;
+  }
+  return 0;
+}
+
+export function requiredQuestDone(quest: Int): Boolean {
+  if (quest < 0) {
+    return true;
+  }
+  return questComplete(quest as Quest);
+}
+
+export function miscRequirementsMet(quest: Int): Boolean {
+  const clue: Int = useServerState(Varbits.CLUEQUEST_REQ);
+  if (
+    quest === Quest.TALE_OF_THE_RIGHTEOUS ||
+    quest === Quest.ASCENT_OF_ARCEUUS_THE ||
+    quest === Quest.FORSAKEN_TOWER_THE ||
+    quest === Quest.QUEEN_OF_THIEVES_THE ||
+    quest === Quest.DEPTHS_OF_DESPAIR_THE
+  ) {
+    if (clue === 2 && !questComplete(Quest.X_MARKS_THE_SPOT)) {
+      return false;
+    }
+  } else if (quest === Quest.CLIENT_OF_KOUREND) {
+    if (clue === 1 && !questComplete(Quest.X_MARKS_THE_SPOT)) {
+      return false;
+    }
+  } else if (quest === Quest.KINGDOM_DIVIDED_A) {
+    if (clue <= 0 && !questComplete(Quest.X_MARKS_THE_SPOT)) {
+      return false;
+    }
+  } else if (quest === Quest.BONE_VOYAGE) {
+    if (useServerState(Varbits.VM_KUDOS) < 100) {
+      return false;
+    }
+  } else if (quest === Quest.MONKEY_MADNESS_II) {
+    if (useServerState(Varbits.ZEP_MULTI_GNO) < 1) {
+      return false;
+    } else if (useServerState(Varbits.HUNDRED_ILM_QUEST) < 50) {
+      return false;
+    }
+  } else if (quest === Quest.MY_ARM_S_BIG_ADVENTURE) {
+    if (useServerState(Varbits.CLEANUP_PROGRESS) < 1) {
+      return false;
+    }
+  } else if (quest === Quest.GREAT_BRAIN_ROBBERY_THE || quest === Quest.ROW_7108) {
+    if (useServerState(Varbits._100_PIRATE_QUEST_VAR) < 110) {
+      return false;
+    }
+  } else if (quest === Quest.MAGE_ARENA_II) {
+    if (useServerState(Varps.GUTHMAGE) < 1000) {
+      return false;
+    } else if (useServerState(Varps.SARAMAGE) < 1000) {
+      return false;
+    } else if (useServerState(Varps.ZAMOMAGE) < 1000) {
+      return false;
+    }
+  } else if (quest === Quest.WHILE_GUTHIX_SLEEPS) {
+    if (!warriorsGuildAccess()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function recommendationReason(quest: Int, reason: Int): String {
+  if (reason === 1 || reason === 7 || reason === 2) {
+    const row: CrQuestRow | null = CrQuestRows.at(quest);
+    if (row !== null) {
+      if (!isNullOrEmpty(row.reason)) {
+        return row.reason;
+      }
+    }
+  } else if (reason === 5) {
+    return 'Gain great XP.';
+  } else if (reason === 3) {
+    const overview: QuestOverviewRow | null = QuestOverviews.at(quest);
+    const series: Int = overview === null ? -1 : overview.series;
+    return `Continue the ${QuestSeriesNames.at(series) ?? 'Standalone'} storyline.`;
+  } else if (reason === 4) {
+    return 'Pick up where you left off.';
+  } else if (reason === 6) {
+    return 'Required for other quests.';
+  }
+  return 'Explore a new story.';
+}
+
+export function debugInfo(tag: String, text: String): void {
+  if (!rentalWorld()) {
+    return;
+  }
+  debugMessage(`[${tag}-CLIENT][INFO] ${text}`);
+}
+
+export function debugError(tag: String, text: String): void {
+  if (!rentalWorld()) {
+    return;
+  }
+  debugMessage(`[${tag}-CLIENT]<col=d30b0b>[ERROR]</col> ${text}`);
+}

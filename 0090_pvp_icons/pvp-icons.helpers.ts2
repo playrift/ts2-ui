@@ -1,0 +1,337 @@
+import { useServerState, useState } from 'ts2';
+
+import { deadmanWorld, privateEventWorld } from '../0226_deadmanprotect/deadman-world.helpers';
+import { pvpArenaWorld } from '../0134_settings/settings.helpers';
+import { targetWorld } from '../0218_magic_spellbook/magic-spellbook.helpers';
+import { combatInsidewilderness, deadmanInsidesafezone } from '../lib/game/varcs';
+import { groupDigits } from '../lib/lib.format';
+import { coordInBox, onMobile } from '../lib/lib.helpers';
+import { hasBit, playerCoord, scaled } from '../lib/lib.engine';
+import { enhancedAny } from '../0134_settings/settings.helpers';
+import {
+  LEVEL_BUFFER,
+  LEVEL_DEADMAN,
+  LEVEL_GUARDED,
+  LEVEL_NO_PVP,
+  LEVEL_PREFIX,
+  LEVEL_PROTECTION,
+  PvpVarbits,
+  PvpVarps,
+} from './pvp-icons.constants';
+import { SkullTypeNames } from './pvp-icons.data';
+
+export const enum LayoutMode {
+  DEADMAN_SPECTATING = 0,
+  PVP_WORLD = 1,
+  BATTLE_ROYALE = 2,
+  DEADMAN = 3,
+  PVP_ARENA = 4,
+  WILDERNESS = 5,
+}
+
+export function pvpWorld(): Boolean {
+  if (hasBit(useServerState(PvpVarps.WORLD_FLAGS), 2)) {
+    return true;
+  }
+  return false;
+}
+
+export function clanwarsArena(): Boolean {
+  return coordInBox(tileOf(3264, 4736, 0), tileOf(3391, 4863, 3), playerCoord());
+}
+
+export function clanwarsLobby(): Boolean {
+  return coordInBox(tileOf(3264, 4736, 0), tileOf(3391, 4759, 3), playerCoord());
+}
+
+export function wildernessLevel(): Int {
+  const at: Coord = playerCoord();
+  if (
+    coordInBox(tileOf(3328, 3968, 0), tileOf(3519, 4159, 3), at) &&
+    !coordInBox(tileOf(3413, 4053, 0), tileOf(3434, 4074, 3), at)
+  ) {
+    return 5;
+  }
+  if (coordInBox(tileOf(2944, 3520, 0), tileOf(3391, 4351, 3), at)) {
+    return (at.z - 55 * 64) / 8 + 1;
+  }
+  if (coordInBox(tileOf(3008, 10112, 0), tileOf(3071, 10175, 3), at)) {
+    return (at.z - 155 * 64) / 8 - 1;
+  }
+  if (coordInBox(tileOf(3264, 10176, 0), tileOf(3327, 10239, 3), at)) {
+    return 35;
+  }
+  if (coordInBox(tileOf(3392, 10176, 0), tileOf(3455, 10239, 3), at)) {
+    return 35;
+  }
+  if (coordInBox(tileOf(3328, 10304, 0), tileOf(3391, 10367, 3), at)) {
+    return 40;
+  }
+  if (coordInBox(tileOf(1728, 11520, 0), tileOf(1791, 11583, 3), at)) {
+    return 21;
+  }
+  if (coordInBox(tileOf(1856, 11520, 0), tileOf(1919, 11583, 3), at)) {
+    return 21;
+  }
+  if (coordInBox(tileOf(1600, 11520, 0), tileOf(1663, 11583, 3), at)) {
+    return 29;
+  }
+  if (coordInBox(tileOf(3328, 10240, 0), tileOf(3391, 10303, 3), at)) {
+    return 33 + scaled((at.z % 64) - 6, 50, 7);
+  }
+  if (coordInBox(tileOf(2944, 9920, 0), tileOf(3455, 10879, 3), at)) {
+    return (at.z - 155 * 64) / 8 + 1;
+  }
+  return 0;
+}
+
+export function layoutMode(spectating: Boolean): Int {
+  const deadman: Int = deadmanWorld();
+  if (deadman !== 0 && spectating) {
+    return LayoutMode.DEADMAN_SPECTATING;
+  }
+  if (pvpWorld()) {
+    return LayoutMode.PVP_WORLD;
+  }
+  if (useServerState(PvpVarbits.BR_INGAME) === 1) {
+    return LayoutMode.BATTLE_ROYALE;
+  }
+  if (deadman !== 0) {
+    return LayoutMode.DEADMAN;
+  }
+  if (useServerState(PvpVarbits.PVPA_ARENA) === 1 || pvpArenaWorld()) {
+    return LayoutMode.PVP_ARENA;
+  }
+  return LayoutMode.WILDERNESS;
+}
+
+export function rangeLow(level: Int): Int {
+  const deadman: Int = deadmanWorld();
+  if (deadman === 3 && privateEventWorld() === 0) {
+    const bracket: Int = useServerState(PvpVarbits.DEADMAN_BRACKET);
+    if (bracket === 9 || bracket === 3) {
+      return 96;
+    }
+    if (bracket === 8 || bracket === 2) {
+      return 81;
+    }
+    if (bracket === 7 || bracket === 1) {
+      return 61;
+    }
+    if (bracket === 6) {
+      return 45;
+    }
+    return 3;
+  }
+  if (deadman === 1 && privateEventWorld() === 0) {
+    const combat: Int = useServerState(PvpVarbits.COMBAT_LEVEL);
+    if (combat <= 75) {
+      return 3;
+    }
+    if (combat <= 85) {
+      return 76;
+    }
+    return 86;
+  }
+  if (deadman !== 0) {
+    return 3;
+  }
+  let reach: Int = level;
+  if (pvpWorld()) {
+    reach = 15 + level;
+  }
+  const low: Int = useServerState(PvpVarbits.COMBAT_LEVEL) - reach;
+  if (low < 3) {
+    return 3;
+  }
+  return low;
+}
+
+export function rangeHigh(level: Int): Int {
+  const deadman: Int = deadmanWorld();
+  if (deadman === 3 && privateEventWorld() === 0) {
+    const bracket: Int = useServerState(PvpVarbits.DEADMAN_BRACKET);
+    if (bracket === 9 || bracket === 3) {
+      return 126;
+    }
+    if (bracket === 8 || bracket === 2) {
+      return 95;
+    }
+    if (bracket === 7 || bracket === 1) {
+      return 80;
+    }
+    return 60;
+  }
+  if (deadman === 1 && privateEventWorld() === 0) {
+    const combat: Int = useServerState(PvpVarbits.COMBAT_LEVEL);
+    if (combat <= 75) {
+      return 75;
+    }
+    if (combat <= 85) {
+      return 85;
+    }
+    return 126;
+  }
+  if (deadman !== 0) {
+    return 126;
+  }
+  let reach: Int = level;
+  if (pvpWorld()) {
+    reach = 15 + level;
+  }
+  const high: Int = useServerState(PvpVarbits.COMBAT_LEVEL) + reach;
+  if (high > 126) {
+    return 126;
+  }
+  return high;
+}
+
+export function rangeText(level: Int): String {
+  if (deadmanWorld() !== 0) {
+    if (useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+      return '';
+    }
+    const [safe] = useState(deadmanInsidesafezone);
+    if (safe === 2 || useServerState(PvpVarbits.SPECTATOR) === 1) {
+      return '';
+    }
+  }
+  return `${stringOf(rangeLow(level))}-${stringOf(rangeHigh(level))}`;
+}
+
+export function rangeHidden(): Boolean {
+  if (deadmanWorld() !== 0 && useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function levelText(level: Int): String {
+  if (deadmanWorld() !== 0) {
+    if (useServerState(PvpVarbits.SPECTATOR) === 1) {
+      return '';
+    }
+    if (useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE) > 4) {
+      if (level > 0 && useServerState(PvpVarbits.DEADMAN_IN_WILDERNESS) === 1) {
+        return `${LEVEL_PREFIX}${stringOf(level)}`;
+      }
+      return LEVEL_DEADMAN;
+    }
+    if (useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+      return LEVEL_PROTECTION;
+    }
+    if (level > 0 && useServerState(PvpVarbits.DEADMAN_IN_WILDERNESS) === 1) {
+      return `${LEVEL_PREFIX}${stringOf(level)}`;
+    }
+    const [safe] = useState(deadmanInsidesafezone);
+    if (safe === 1) {
+      return LEVEL_GUARDED;
+    }
+    if (safe === 2) {
+      return LEVEL_NO_PVP;
+    }
+    return LEVEL_DEADMAN;
+  }
+  if (useServerState(PvpVarbits.HUB_BUFFER) === 1) {
+    return LEVEL_BUFFER;
+  }
+  if (level > 0) {
+    return `${LEVEL_PREFIX}${stringOf(level)}`;
+  }
+  return '';
+}
+
+export function levelProtectionArm(): Boolean {
+  if (deadmanWorld() === 0 || useServerState(PvpVarbits.SPECTATOR) === 1) {
+    return false;
+  }
+  if (useServerState(PvpVarps.DEADMAN_TOURNAMENT_MODE) > 4) {
+    return false;
+  }
+  if (useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function skullDurationText(): String {
+  const left: Int = useServerState(PvpVarbits.DEADMAN_SKULL);
+  if (left <= 0) {
+    return '';
+  }
+  const skull: String = SkullTypeNames.at(useServerState(PvpVarbits.DEADMAN_SKULL_TYPE)) ?? '';
+  if (left >= 255) {
+    return `${skull} Ages!`;
+  }
+  if (left % 2 === 1) {
+    return `${skull} ${stringOf(left / 2)}:30`;
+  }
+  return `${skull} ${stringOf(left / 2)}:00`;
+}
+
+export function protectionText(): String {
+  const minutes: Int = useServerState(PvpVarbits.DEADMAN_PROTECTION);
+  if (minutes >= 60) {
+    return `${stringOf(minutes / 60)}h ${stringOf(minutes % 60)}m`;
+  }
+  return `${stringOf(minutes % 60)}min`;
+}
+
+function kdrWorld(): Boolean {
+  if (pvpWorld() || deadmanWorld() !== 0) {
+    return true;
+  }
+  return false;
+}
+
+export function kdrText(): String {
+  if (
+    useServerState(PvpVarbits.KD_TOGGLE) === 0 ||
+    (useServerState(PvpVarbits.INSIDE_WILDERNESS) === 0 && kdrWorld() === false)
+  ) {
+    return '';
+  }
+  if (deadmanWorld() !== 0 && useServerState(PvpVarbits.DEADMAN_PROTECTION) > 0) {
+    return '';
+  }
+  const kills: Int = useServerState(PvpVarbits.KDR_KILLS);
+  const deaths: Int = useServerState(PvpVarbits.KDR_DEATHS);
+  if (deaths === 0) {
+    return `Kills: ${groupDigits(kills, ',')}<br>Deaths: 0<br>K/D Ratio: 0.0`;
+  }
+  let whole: Int = 0;
+  let tenth: Int = 0;
+  if (kills < 2147483647 / 10) {
+    const scaledRatio: Int = scaled(kills, deaths, 10);
+    whole = scaledRatio / 10;
+    tenth = scaledRatio % 10;
+  } else {
+    whole = kills / deaths;
+  }
+  return `Kills: ${groupDigits(kills, ',')}<br>Deaths: ${groupDigits(deaths, ',')}<br>K/D Ratio: ${groupDigits(whole, ',')}.${stringOf(tenth)}`;
+}
+
+export function enhancedRange(): Boolean {
+  const [inside] = useState(combatInsidewilderness);
+  if (enhancedAny() && inside === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function targetPanelShown(mode: Int): Boolean {
+  if (mode !== LayoutMode.WILDERNESS) {
+    return false;
+  }
+  if (clanwarsArena()) {
+    return false;
+  }
+  if (targetWorld() && useServerState(PvpVarbits.BH_IN_BH) === 1) {
+    return true;
+  }
+  return false;
+}
+
+export function mobileClient(): Boolean {
+  return onMobile();
+}

@@ -1,0 +1,170 @@
+import { useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { SteelFrame } from '../0032_boardgames_draughts/steel-frame.component';
+import { playSound } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+
+import { CaArt, CaBurger, CaColour, CaFont, CaSound, CaView } from './ca-shared.constants';
+import { caBossDisableSearch } from './ca-shared.search';
+
+export function CaBurgerMenu({ current }: { current: Int }): Component {
+  const [open, setOpen] = useState(0);
+  const [lit, setLit] = useState(0);
+  const mobile: Boolean = onMobile();
+
+  const buttonSize: Int = mobile ? CaBurger.BUTTON_SIZE_MOBILE : CaBurger.BUTTON_SIZE;
+  const buttonXY: Int = mobile ? CaBurger.BUTTON_XY_MOBILE : CaBurger.BUTTON_XY;
+  const menuW: Int = mobile ? CaBurger.MENU_W_MOBILE : CaBurger.MENU_W;
+  const menuH: Int = mobile ? CaBurger.MENU_H_MOBILE : CaBurger.MENU_H;
+  const rowH: Int = mobile ? CaBurger.ROW_H_MOBILE : CaBurger.ROW_H;
+  const rowW: Int = menuW - CaBurger.ROW_INSET;
+
+  return (
+    <>
+      <layer
+        x={buttonXY}
+        y={buttonXY}
+        w={buttonSize}
+        h={buttonSize}
+        options={['Show Menu']}
+        onOptionSelect={(event) => {
+          caBurgerSearchOff();
+          if (event.option === 1) {
+            const next: Int = open === 1 ? 0 : 1;
+            setOpen(next);
+            setLit(next);
+          }
+        }}
+      >
+        <sprite
+          x="center"
+          y="center"
+          w={CaBurger.ICON_SIZE}
+          h={CaBurger.ICON_SIZE}
+          sprite={lit === 1 ? CaArt.BURGER_LIT : CaArt.BURGER}
+          onMouseRepeat={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(1);
+                }
+          }
+          onMouseLeave={
+            mobile
+              ? undefined
+              : () => {
+                  setLit(0);
+                }
+          }
+        />
+      </layer>
+
+      {open === 1 ? (
+        <layer
+          w="fill"
+          h="fill"
+          noClickThrough
+          onClick={() => {
+            caBurgerCloseEffects();
+            setOpen(0);
+            setLit(0);
+          }}
+        />
+      ) : null}
+
+      {open === 1 ? (
+        <layer x={0} y={29} w={menuW} h={menuH} noClickThrough>
+          <sprite w="fill" h="fill" sprite={CaArt.DROPDOWN_BACKDROP} />
+          <SteelFrame backdrop={false} />
+          <layer w="fill" h="fill">
+            {CaBurgerEntries.map((entry, i) => (
+              <>
+                <rect
+                  x={CaBurger.ROW_X}
+                  y={CaBurger.ROW_Y + rowH * i}
+                  w={rowW}
+                  h={rowH}
+                  color={CaColour.WHITE}
+                  fill
+                  transparency={entry.view === current ? CaBurger.WASH_CURRENT : CaBurger.WASH_HIDDEN}
+                />
+                {entry.view === current ? (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.DROPDOWN_CURRENT}
+                    align="center"
+                    valign="middle"
+                  />
+                ) : mobile ? (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.AMBER}
+                    align="center"
+                    valign="middle"
+                    options={[entry.op]}
+                    onOptionSelect={() => {
+                      caBurgerCloseEffects();
+                      setOpen(0);
+                      setLit(0);
+                    }}
+                  />
+                ) : (
+                  <text
+                    x={CaBurger.ROW_X}
+                    y={CaBurger.ROW_Y + rowH * i}
+                    w={rowW}
+                    h={rowH}
+                    text={entry.label}
+                    font={CaFont.BODY}
+                    shadow
+                    color={CaColour.AMBER}
+                    align="center"
+                    valign="middle"
+                    hover={{ color: CaColour.WHITE }}
+                    options={[entry.op]}
+                    onOptionSelect={() => {
+                      caBurgerCloseEffects();
+                      setOpen(0);
+                      setLit(0);
+                    }}
+                  />
+                )}
+              </>
+            ))}
+          </layer>
+        </layer>
+      ) : null}
+    </>
+  );
+}
+
+const CaBurgerEntries = [
+  { label: 'Overview', op: 'View Overview', view: CaView.OVERVIEW },
+  { label: 'Tasks', op: 'View Tasks', view: CaView.TASKS },
+  { label: 'Bosses', op: 'View Bosses', view: CaView.BOSSES },
+  { label: 'Rewards', op: 'View Rewards', view: CaView.REWARDS },
+] as const;
+
+function caBurgerSearchOff(): void {
+  if (useServerState(Varbits.CA_BOSSES_IS_SEARCHING) === 1) {
+    caBossDisableSearch();
+  }
+}
+
+function caBurgerCloseEffects(): void {
+  caBurgerSearchOff();
+  playSound(CaSound.SELECT);
+}

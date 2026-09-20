@@ -1,6 +1,5 @@
-import { CS2, useInventory, useServerState } from 'ts2';
+import { CS2, useInventory, useServerState, useState, useWatch } from 'ts2';
 
-import { graphicSwapper } from '../lib/lib.helpers';
 import {
   LootColors,
   LootFonts,
@@ -74,37 +73,15 @@ function TabPlate({
   held: Int;
   current: Int;
 }): Component {
+  const [hot, setHot] = useState(0);
   const x: Int = index * LootLayout.TAB_PITCH;
-
-  if (selected === 1) {
-    return (
-      <sprite
-        x={x}
-        y={0}
-        w={LootLayout.TAB_W}
-        h={LootLayout.TAB_H}
-        sprite={LootSprites.TAB_SELECTED}
-        tiling={false}
-        options={[LootText.VIEW_TAB]}
-        optionSubject={CS2.tostring(index)}
-      />
-    );
-  }
-
-  if (held <= 0) {
-    return (
-      <sprite
-        x={x}
-        y={0}
-        w={LootLayout.TAB_W}
-        h={LootLayout.TAB_H}
-        sprite={LootSprites.TAB_EMPTY}
-        tiling={false}
-        options={[LootText.NO_OP]}
-        optionSubject={CS2.tostring(index)}
-      />
-    );
-  }
+  useWatch(
+    [LootInventories.TIER0, LootInventories.TIER1, LootInventories.TIER2, LootInventories.TIER3, LootInventories.TIER4],
+    () => {
+      setHot(0);
+    },
+  );
+  const live: Int = selected === 0 && held > 0 ? 1 : 0;
 
   return (
     <sprite
@@ -112,19 +89,36 @@ function TabPlate({
       y={0}
       w={LootLayout.TAB_W}
       h={LootLayout.TAB_H}
-      sprite={LootSprites.TAB_REST}
+      sprite={
+        selected === 1
+          ? LootSprites.TAB_SELECTED
+          : held <= 0
+            ? LootSprites.TAB_EMPTY
+            : hot === 1
+              ? LootSprites.TAB_HOVER
+              : LootSprites.TAB_REST
+      }
       tiling={false}
-      options={[LootText.VIEW_TAB]}
+      options={[live === 1 || selected === 1 ? LootText.VIEW_TAB : LootText.NO_OP]}
       optionSubject={CS2.tostring(index)}
-      onMouseRepeat={(event) => {
-        graphicSwapper(event.self, LootSprites.TAB_HOVER);
+      onMouseRepeat={
+        live === 1
+          ? () => {
+              setHot(1);
+            }
+          : null
+      }
+      onMouseLeave={() => {
+        setHot(0);
       }}
-      onMouseLeave={(event) => {
-        graphicSwapper(event.self, LootSprites.TAB_REST);
-      }}
-      onOptionSelect={() => {
-        selectTab(index, current);
-      }}
+      onOptionSelect={
+        live === 1
+          ? () => {
+              setHot(0);
+              selectTab(index, current);
+            }
+          : null
+      }
     />
   );
 }

@@ -1,0 +1,226 @@
+import { useServerState } from 'ts2';
+import { Varbits } from '../lib/game/varbits';
+import { PortTasks } from './port-tasks.data';
+import { SailingDocks } from './sailing-docks.data';
+
+export const enum PortTaskId {
+  BLANK = 601,
+  LOCKED = 602,
+}
+
+export function portTaskIndex(taskId: Int): Int {
+  if (taskId <= 0) {
+    return -1;
+  }
+  const count: Int = PortTasks.length;
+  let index: Int = 0;
+  let found: Int = -1;
+  while (index < count) {
+    const row = PortTasks.at(index);
+    let hit: Boolean = false;
+    if (row !== null) {
+      if (row.taskId === taskId) {
+        hit = true;
+      }
+    }
+    if (hit) {
+      found = index;
+      index = count;
+    } else {
+      index = index + 1;
+    }
+  }
+  return found;
+}
+
+export function portTaskSlotId(slot: Int): Int {
+  switch (slot) {
+    case 0:
+      return useServerState(Varbits.PORT_TASK_SLOT_0_ID);
+    case 1:
+      return useServerState(Varbits.PORT_TASK_SLOT_1_ID);
+    case 2:
+      return useServerState(Varbits.PORT_TASK_SLOT_2_ID);
+    case 3:
+      return useServerState(Varbits.PORT_TASK_SLOT_3_ID);
+    case 4:
+      return useServerState(Varbits.PORT_TASK_SLOT_4_ID);
+  }
+  return -1;
+}
+
+export function portTaskSlotOf(taskId: Int): Int {
+  let slot: Int = 0;
+  let found: Int = -1;
+  while (slot < 5) {
+    if (portTaskSlotId(slot) === taskId) {
+      found = slot;
+      slot = 5;
+    } else {
+      slot = slot + 1;
+    }
+  }
+  return found;
+}
+
+export function portTaskAcceptedSlot(index: Int): Int {
+  const row = PortTasks.at(index);
+  if (row === null) {
+    return -1;
+  }
+  const taskId: Int = row.taskId;
+  if (taskId <= 0 || taskId > PortTasks.length) {
+    return -1;
+  }
+  return portTaskSlotOf(taskId);
+}
+
+export function portTaskNotCancellable(index: Int): Boolean {
+  const row = PortTasks.at(index);
+  if (row === null) {
+    return true;
+  }
+  if (!row.cancellable) {
+    return true;
+  }
+  return false;
+}
+
+export function logSlotTask(slot: Int): Int {
+  const extra: Int = useServerState(Varbits.PORT_TASK_EXTRA_SLOTS_UNLOCKED);
+  if (slot >= 1 && extra < slot) {
+    return portTaskIndex(PortTaskId.LOCKED);
+  }
+  const index: Int = portTaskIndex(portTaskSlotId(slot));
+  if (index < 0) {
+    return portTaskIndex(PortTaskId.BLANK);
+  }
+  return index;
+}
+
+export function dockName(dock: Int): String {
+  if (dock < 0) {
+    return '';
+  }
+  const row = SailingDocks.at(dock);
+  if (row === null) {
+    return '';
+  }
+  return row.name;
+}
+
+export function dockIcon(dock: Int): Model {
+  const row = SailingDocks.at(dock);
+  if (row === null) {
+    return PortTaskModel.ICON_DEFAULT;
+  }
+  if (row.icon === -1) {
+    return PortTaskModel.ICON_DEFAULT;
+  }
+  return row.icon;
+}
+
+export const enum PortTaskModel {
+  ICON_DEFAULT = 57883,
+  ACCEPTED = 57852,
+  BACKING_BOARD = 57848,
+  BACKING_LOG = 57841,
+  PLACEHOLDER_ICON = 16238,
+  BOARD_FRAME = 57846,
+}
+
+export function taskBackingBoard(graphic: Model): Model {
+  return PortTaskModel.BACKING_BOARD + taskBackingTier(graphic);
+}
+
+export function taskBackingLog(graphic: Model): Model {
+  return PortTaskModel.BACKING_LOG + taskBackingTier(graphic);
+}
+
+function taskBackingTier(graphic: Model): Int {
+  switch (graphic) {
+    case 57808:
+    case 57801:
+    case 57806:
+    case 57785:
+    case 57793:
+    case 57779:
+    case 57777:
+    case 57791:
+      return 1;
+    case 57797:
+    case 57807:
+    case 57788:
+    case 57787:
+    case 57786:
+    case 57800:
+    case 57794:
+    case 57803:
+    case 57778:
+    case 57775:
+      return 2;
+  }
+  return 0;
+}
+
+export function isLargeBreakpoint(breakpoint: Int): Boolean {
+  return breakpoint === 2 || breakpoint === 3;
+}
+
+export function infoModelZoom(large: Boolean): Int {
+  return large ? 600 : 750;
+}
+
+export function taskTextFont(large: Boolean): Font {
+  return large ? 495 : 494;
+}
+
+export function taskTextLineHeight(large: Boolean): Int {
+  return large ? 18 : 15;
+}
+
+export function infoIconX(large: Boolean): Int {
+  return large ? 87 : 72;
+}
+
+export function infoIconY(large: Boolean): Int {
+  return large ? 304 : 247;
+}
+
+export function infoIconZoom(large: Boolean): Int {
+  return large ? 575 : 700;
+}
+
+export function infoIconBountyDx(large: Boolean): Int {
+  return large ? 15 : 12;
+}
+
+export function infoIconBountyDy(large: Boolean): Int {
+  return large ? 24 : 20;
+}
+
+export function infoTextX(large: Boolean): Int {
+  return large ? 35 : 30;
+}
+
+export function infoTextY(large: Boolean): Int {
+  return large ? 40 : 32;
+}
+
+export function infoTextInsetW(large: Boolean): Int {
+  return large ? 70 : 58;
+}
+
+export const INFO_TEXT_INSET_H = 193;
+
+export function infoButtonDx(large: Boolean): Int {
+  return large ? 55 : 50;
+}
+
+export function infoButtonBottom(large: Boolean): Int {
+  return large ? 45 : 35;
+}
+
+export function infoTickY(large: Boolean): Int {
+  return large ? -64 : -50;
+}

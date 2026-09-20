@@ -1,0 +1,140 @@
+import { useState, useUniverse } from 'ts2';
+
+import { onMobile } from '../lib/lib.helpers';
+import { CaColour, CaFonts } from '../0717_ca_overview/ca-overview.constants';
+import { CaTierRow, CaTiers } from '../0717_ca_overview/ca-tiers.data';
+
+import { Layout, TabArt } from './ca-rewards.constants';
+import { caTierCompletionStatus, selectTier, tabBodyHeight } from './ca-rewards.helpers';
+
+export function CaRewardsTabs({ selected }: { selected: Int }): Component {
+  const universe = useUniverse();
+  const tabsW: Int = universe.width;
+
+  return (
+    <>
+      {CaTiers.scan(
+        (row, index, top) => (
+          <RewardsTab row={row} index={index} top={top} tabsW={tabsW} current={index === selected} />
+        ),
+        (row) => tabBodyHeight(row.name, tabsW) + Layout.TAB_PAD,
+      )}
+    </>
+  );
+}
+
+function RewardsTab({
+  row,
+  index,
+  top,
+  tabsW,
+  current,
+}: {
+  row: CaTierRow;
+  index: Int;
+  top: Int;
+  tabsW: Int;
+  current: Boolean;
+}): Component {
+  const [hovered, setHovered] = useState(0);
+  const lit: Int = hovered;
+  const mobile: Boolean = onMobile();
+
+  const name: String = row.name;
+  const bodyH: Int = tabBodyHeight(name, tabsW);
+  const tabH: Int = bodyH + Layout.TAB_PAD;
+  const bottomY: Int = bodyH + Layout.TAB_CORNER;
+  const rightInset: Int = current ? 0 : Layout.TAB_RIGHT_INSET;
+  const middleShift: Int = current ? Layout.TAB_MIDDLE_SHIFT : 0;
+  const middleInset: Int = Layout.TAB_MIDDLE_INSET + rightInset;
+  const status: Int = caTierCompletionStatus(index);
+  const colour: Int = status === 2 ? CaColour.GREEN : CaColour.ORANGE;
+  const hoverable: Boolean = !mobile && !current;
+
+  return (
+    <layer
+      x={0}
+      y={top}
+      w="fill"
+      h={tabH}
+      onMouseEnter={hoverable ? () => setHovered(1) : undefined}
+      onMouseLeave={hoverable ? () => setHovered(0) : undefined}
+    >
+      <rect
+        x={0}
+        y={0}
+        w="fill"
+        h={tabH}
+        fill
+        color={CaColour.WHITE}
+        transparency={Layout.CLICK_ALPHA}
+        options={[`Select <col=ff981f>${name}`]}
+        onOptionSelect={current ? undefined : () => selectTier(index)}
+      />
+      <sprite
+        x={Layout.TAB_CORNER}
+        y={0}
+        w={Layout.TAB_CORNER}
+        h={Layout.TAB_CORNER}
+        sprite={current ? TabArt.TOP_LEFT_ON : TabArt.TOP_LEFT_OFF}
+      />
+      <sprite x={{ right: rightInset }} y={0} w={Layout.TAB_CORNER} h={Layout.TAB_CORNER} sprite={TabArt.TOP_RIGHT} />
+      <sprite
+        x={Layout.TAB_CORNER}
+        y={bottomY}
+        w={Layout.TAB_CORNER}
+        h={Layout.TAB_CORNER}
+        sprite={current ? TabArt.BOTTOM_LEFT_ON : TabArt.BOTTOM_LEFT_OFF}
+      />
+      <sprite
+        x={{ right: rightInset }}
+        y={bottomY}
+        w={Layout.TAB_CORNER}
+        h={Layout.TAB_CORNER}
+        sprite={TabArt.BOTTOM_RIGHT}
+      />
+      <sprite
+        x={{ center: middleShift }}
+        y={0}
+        w={{ fill: middleInset }}
+        h={Layout.TAB_CORNER}
+        sprite={current ? TabArt.TOP_ON : TabArt.TOP_OFF}
+      />
+      <sprite
+        x={{ center: middleShift }}
+        y={bottomY}
+        w={{ fill: middleInset }}
+        h={Layout.TAB_CORNER}
+        sprite={current ? TabArt.BOTTOM_ON : TabArt.BOTTOM_OFF}
+      />
+      <sprite
+        x={Layout.TAB_CORNER}
+        y={Layout.TAB_CORNER}
+        w={Layout.TAB_CORNER}
+        h={bodyH}
+        sprite={current ? TabArt.LEFT_ON : TabArt.LEFT_OFF}
+      />
+      <sprite x={{ right: rightInset }} y={Layout.TAB_CORNER} w={Layout.TAB_CORNER} h={bodyH} sprite={TabArt.RIGHT} />
+      <sprite
+        x={{ center: middleShift }}
+        y={Layout.TAB_CORNER}
+        w={{ fill: middleInset }}
+        h={bodyH}
+        sprite={current ? TabArt.MIDDLE_ON : TabArt.MIDDLE_OFF}
+      />
+      <sprite x={Layout.TAB_ICON_X} y={Layout.TAB_CORNER} w={Layout.TAB_ICON} h={Layout.TAB_ICON} sprite={row.icon} />
+      <text
+        x={Layout.TAB_ICON}
+        y={Layout.TAB_CORNER}
+        w={tabsW - Layout.TAB_ICON}
+        h={bodyH}
+        text={name}
+        font={CaFonts.BODY}
+        shadow
+        color={lit === 1 ? CaColour.WHITE : colour}
+        align="center"
+        valign="middle"
+      />
+    </layer>
+  );
+}

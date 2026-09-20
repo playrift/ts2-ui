@@ -1,0 +1,175 @@
+import { onMounted, onUpdated, useInterval, useServerState, useState } from 'ts2';
+
+import { ThinStoneBox } from '../lib/thin-stone-box.component';
+import { clientClock } from '../lib/lib.engine';
+import {
+  BR_FONT,
+  BrBacking,
+  BrFog,
+  BrLayout,
+  BrTimerTransmit,
+  BrVarbits,
+  dodgerRef,
+  fogRef,
+  plateRef,
+  timerRef,
+} from './br-overlay.constants';
+import { brFogStep, brHudInit, timerText, timerTransmit } from './br-overlay.helpers';
+import { brTimerDrawn, brTimerLoadedAt } from './br-overlay.state';
+
+export function BrOverlay(): Component {
+  return (
+    <>
+      <layer ref={fogRef} x="center" y={0} w="fill" h="60%" hide>
+        <FogWash />
+      </layer>
+
+      <layer x={0} y={0} w="fill" h="fill">
+        <layer ref={dodgerRef} x={0} y={0} w="fill" h="fill" onLoad={() => brHudInit()}>
+          <layer ref={plateRef} x={{ right: 0 }} y={0} w={BrLayout.PLATE_W} h={BrLayout.PLATE_H}>
+            <layer x="center" y="center" w={BrLayout.BOX_W} h={BrLayout.BOX_H}>
+              <sprite
+                x="center"
+                y="center"
+                w={{ fill: BrLayout.BACKING_INSET }}
+                h={{ fill: BrLayout.BACKING_INSET }}
+                sprite={BrBacking.SPRITE}
+                tiling
+                transparency={BrBacking.TRANSPARENCY}
+              />
+              <text
+                x={BrLayout.LABEL_X}
+                y={{ center: BrLayout.ROW_1_Y }}
+                w={BrLayout.SURVIVORS_W}
+                h={BrLayout.LABEL_H}
+                text="Survivors:"
+                font={BR_FONT}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+              />
+              <text
+                x={{ right: 0 }}
+                y={{ center: BrLayout.ROW_1_Y }}
+                w={{ fill: BrLayout.SURVIVORS_VALUE_INSET }}
+                h={BrLayout.LABEL_H}
+                text=""
+                font={BR_FONT}
+                color={0xffffff}
+                align="left"
+                valign="top"
+              />
+              <text
+                x={BrLayout.LABEL_X}
+                y={{ center: BrLayout.ROW_2_Y }}
+                w={BrLayout.KILLS_W}
+                h={BrLayout.LABEL_H}
+                text="Kills:"
+                font={BR_FONT}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+              />
+              <text
+                x={{ right: 0 }}
+                y={{ center: BrLayout.ROW_2_Y }}
+                w={{ fill: BrLayout.VALUE_INSET }}
+                h={BrLayout.LABEL_H}
+                text=""
+                font={BR_FONT}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+              />
+              <text
+                x={BrLayout.LABEL_X}
+                y={{ center: BrLayout.ROW_3_Y }}
+                w={BrLayout.KILLS_W}
+                h={BrLayout.LABEL_H}
+                text="Fog:"
+                font={BR_FONT}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+              />
+              <text
+                x={{ right: 0 }}
+                y={{ center: BrLayout.ROW_3_Y }}
+                w={{ fill: BrLayout.VALUE_INSET }}
+                h={BrLayout.LABEL_H}
+                text=""
+                font={BR_FONT}
+                color={0xffffff}
+                shadow
+                align="left"
+                valign="top"
+              />
+              <ThinStoneBox />
+            </layer>
+          </layer>
+        </layer>
+      </layer>
+
+      <layer
+        ref={timerRef}
+        x={{ right: BrLayout.TIMER_INSET }}
+        y={{ bottom: BrLayout.TIMER_INSET }}
+        w={BrLayout.TIMER_W}
+        h={BrLayout.TIMER_H}
+      >
+        <BrTimer />
+      </layer>
+    </>
+  );
+}
+
+function BrTimer(): Component {
+  const live: Int = useServerState(BrVarbits.TIME_DISPLAY);
+  const [loadedAt] = useState(brTimerLoadedAt);
+  const [drawn] = useState(brTimerDrawn);
+  let shown: Int = drawn;
+  if (timerTransmit(loadedAt, clientClock()) === BrTimerTransmit.HUD) {
+    shown = live;
+  }
+  onMounted(() => {
+    const [, setDrawn] = useState(brTimerDrawn);
+    setDrawn(shown);
+  });
+  onUpdated(() => {
+    const [, setDrawn] = useState(brTimerDrawn);
+    setDrawn(shown);
+  });
+
+  return (
+    <text
+      x={0}
+      y={0}
+      w="fill"
+      h="fill"
+      text={timerText(shown)}
+      font={BR_FONT}
+      color={0xffffff}
+      shadow
+      align="center"
+      valign="top"
+    />
+  );
+}
+
+function FogWash(): Component {
+  const [colour, setColour] = useState(BrFog.DUMP_COLOUR);
+  const [wash, setWash] = useState(BrFog.CLEAR);
+  const [bottom, setBottom] = useState(0);
+  useInterval(() => {
+    const [nextColour, nextWash] = brFogStep(colour, wash);
+    setColour(nextColour);
+    setWash(nextWash);
+    setBottom(BrFog.CLEAR);
+  });
+
+  return <rect x={0} y={0} w="fill" h="fill" fill color={colour} transparency={wash} transparencyBottom={bottom} />;
+}

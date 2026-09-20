@@ -2,19 +2,35 @@ import { useState } from 'ts2';
 import { StoneButtonFilled } from '../lib/stone-button-filled.component';
 import { StoneButtonPressedFilled } from '../lib/stone-button-pressed-filled.component';
 import { onMobile } from '../lib/lib.helpers';
-import { highlightNext } from './screenhighlight.state';
+import { highlightButtonHover, highlightNext } from './screenhighlight.helpers';
+import { HighlightFonts, HighlightTextbox } from './screenhighlight.constants';
 import {
-  HighlightFonts,
+  highlightNextDisarmed,
+  highlightNextHovered,
   highlightNextLabel,
   highlightNextMode,
   highlightNextResumes,
+  highlightPrevDisarmed,
+  highlightPrevHovered,
   highlightPrevLabel,
   highlightPrevMode,
-} from './screenhighlight.constants';
+} from './screenhighlight.state';
 
-function HighlightButtonFace({ label, mode, resumes }: { label: String; mode: Int; resumes: Int }): Component {
-  const [hovered, setHovered] = useState(0);
-
+function HighlightButtonFace({
+  slot,
+  label,
+  mode,
+  resumes,
+  disarmed,
+  hovered,
+}: {
+  slot: Int;
+  label: String;
+  mode: Int;
+  resumes: Int;
+  disarmed: Int;
+  hovered: Int;
+}): Component {
   if (mode < 0) {
     return <layer w="fill" h="fill" />;
   }
@@ -41,7 +57,12 @@ function HighlightButtonFace({ label, mode, resumes }: { label: String; mode: In
 
   if (onMobile()) {
     return (
-      <layer w="fill" h="fill" options={[label]} onOptionSelect={() => highlightNext(resumes)}>
+      <layer
+        w="fill"
+        h="fill"
+        options={disarmed === 1 ? [] : [label]}
+        onOptionSelect={disarmed === 1 ? undefined : () => highlightNext(slot, resumes)}
+      >
         <StoneButtonFilled />
         <text
           x="center"
@@ -63,12 +84,17 @@ function HighlightButtonFace({ label, mode, resumes }: { label: String; mode: In
     <layer
       w="fill"
       h="fill"
-      options={[label]}
-      onMouseRepeat={() => setHovered(1)}
-      onMouseLeave={() => setHovered(0)}
-      onOptionSelect={() => highlightNext(resumes)}
+      options={disarmed === 1 ? [] : [label]}
+      onMouseRepeat={() => highlightButtonHover(slot, 1)}
+      onMouseLeave={() => highlightButtonHover(slot, 0)}
+      onOptionSelect={disarmed === 1 ? undefined : () => highlightNext(slot, resumes)}
     >
-      {hovered === 1 ? <StoneButtonPressedFilled /> : <StoneButtonFilled />}
+      <layer w="fill" h="fill" hide={hovered === 1}>
+        <StoneButtonFilled />
+      </layer>
+      <layer w="fill" h="fill" hide={hovered !== 1}>
+        <StoneButtonPressedFilled />
+      </layer>
       <text
         x="center"
         y="center"
@@ -89,19 +115,33 @@ export function HighlightNextButton(): Component {
   const [label] = useState(highlightNextLabel);
   const [mode] = useState(highlightNextMode);
   const [resumes] = useState(highlightNextResumes);
+  const [disarmed] = useState(highlightNextDisarmed);
+  const [hovered] = useState(highlightNextHovered);
   return (
-    <layer w="fill" h="fill">
-      <HighlightButtonFace label={label} mode={mode} resumes={resumes} />
-    </layer>
+    <HighlightButtonFace
+      slot={HighlightTextbox.SLOT_NEXT}
+      label={label}
+      mode={mode}
+      resumes={resumes}
+      disarmed={disarmed}
+      hovered={hovered}
+    />
   );
 }
 
 export function HighlightPrevButton(): Component {
   const [label] = useState(highlightPrevLabel);
   const [mode] = useState(highlightPrevMode);
+  const [disarmed] = useState(highlightPrevDisarmed);
+  const [hovered] = useState(highlightPrevHovered);
   return (
-    <layer w="fill" h="fill">
-      <HighlightButtonFace label={label} mode={mode} resumes={0} />
-    </layer>
+    <HighlightButtonFace
+      slot={HighlightTextbox.SLOT_PREV}
+      label={label}
+      mode={mode}
+      resumes={0}
+      disarmed={disarmed}
+      hovered={hovered}
+    />
   );
 }

@@ -1,0 +1,534 @@
+import { CS2, predictServerState, useInventory, useServerState } from 'ts2';
+
+import { RuneIndex } from '../0106_zmi_bank_payment/zmi-runes.data';
+import { flashFor } from '../lib/lib.components';
+import { groupDigits } from '../lib/lib.format';
+import { Inventories } from '../lib/game/inventories';
+import { Varbits } from '../lib/game/varbits';
+import {
+  Art,
+  Border,
+  Colour,
+  ComponentType,
+  Font,
+  Layout,
+  PosMode,
+  PouchItem,
+  Quantity,
+  SizeMode,
+  Sound,
+  TextAlign,
+  allRef,
+  customRef,
+  fiveRef,
+  frameRef,
+  inventoryRef,
+  oneRef,
+  pouchRef,
+  topRef,
+} from './rune-pouch.constants';
+import {
+  pouchSlotUnlocked,
+  pouchTier,
+  pouchVisibleSlots,
+  setPouchSlot,
+  setPouchSlotItem,
+  slotCount,
+  slotRune,
+} from './rune-pouch.helpers';
+import { steelBorder, stoneButtonPressed, stoneButtonRaised, thinStoneBox } from './rune-pouch.skins';
+
+export function runePouchInit(
+  frame: ComponentId = frameRef,
+  top: ComponentId = topRef,
+  pouch: ComponentId = pouchRef,
+  inventory: ComponentId = inventoryRef,
+): void {
+  CS2.cc_all_delete(inventory);
+  const backpack = useInventory(Inventories.INV);
+  const slots: Int = backpack.size;
+  const columns: Int = Math.max(1, slots / Layout.INV_ROWS);
+  const gapX: Int = (CS2.if_width_get(inventory) - (2 + columns * Layout.SLOT_W + 2)) / (columns + 1);
+  const usableH: Int = CS2.if_height_get(inventory) - Layout.BOX_CAPTION;
+  const gapY: Int = (usableH - Layout.INV_ROWS * Layout.SLOT_H) / (Layout.INV_ROWS + 1);
+  const gridW: Int = columns * Layout.SLOT_W + (columns - 1) * gapX;
+  const gridH: Int = Layout.INV_ROWS * Layout.SLOT_H + (Layout.INV_ROWS - 1) * gapY;
+  const left: Int = (CS2.if_width_get(inventory) + 1 - gridW) / 2;
+  const top0: Int = (usableH - gridH) / 2 + Layout.BOX_CAPTION_TOP;
+  const stepX: Int = gapX + Layout.SLOT_W;
+  const stepY: Int = gapY + Layout.SLOT_H;
+
+  let index: Int = 0;
+  while (index < slots) {
+    CS2.cc_create(inventory, ComponentType.SPRITE, index, false);
+    CS2.cc_size_set(Layout.SLOT_W, Layout.SLOT_H, SizeMode.ABS, SizeMode.ABS);
+    CS2.cc_position_set(
+      left + (index % columns) * stepX,
+      top0 + (index / columns) * stepY,
+      PosMode.ABS_LEFT,
+      PosMode.ABS_TOP,
+    );
+    CS2.cc_sprite_shadow_set(Colour.SLOT_SHADOW);
+    CS2.cc_outline_set(Layout.SLOT_OUTLINE);
+    CS2.cc_drag_dead_zone_set(Layout.DRAG_DEAD);
+    CS2.cc_drag_dead_time_set(Layout.DRAG_DEAD);
+    index = index + 1;
+  }
+  thinStoneBox(inventory, index);
+  redrawInventory(inventory);
+
+  CS2.cc_all_delete(pouch);
+  index = 0;
+  while (index < Layout.POUCH_SLOTS) {
+    CS2.cc_create(pouch, ComponentType.SPRITE, index, false);
+    CS2.cc_size_set(Layout.SLOT_W, Layout.SLOT_H, SizeMode.ABS, SizeMode.ABS);
+    CS2.cc_sprite_shadow_set(Colour.SLOT_SHADOW);
+    CS2.cc_outline_set(Layout.SLOT_OUTLINE);
+    CS2.cc_drag_dead_zone_set(Layout.DRAG_DEAD);
+    CS2.cc_drag_dead_time_set(Layout.DRAG_DEAD);
+    index = index + 1;
+  }
+  let ghost: Int = 0;
+  while (ghost < Layout.POUCH_SLOTS) {
+    CS2.cc_create(pouch, ComponentType.SPRITE, index, false);
+    CS2.cc_size_set(Layout.SLOT_W, Layout.SLOT_H, SizeMode.ABS, SizeMode.ABS);
+    CS2.cc_item_nonum_set(PouchItem.LIME_DUMMY, 1);
+    CS2.cc_transparency_set(Layout.GHOST_TRANS);
+    CS2.cc_sprite_shadow_set(Colour.SLOT_SHADOW);
+    CS2.cc_outline_set(Layout.SLOT_OUTLINE);
+    index = index + 1;
+    ghost = ghost + 1;
+  }
+  thinStoneBox(pouch, index);
+
+  drawQuantityButtons();
+
+  steelBorder(frame, '');
+  CS2.cc_all_delete(top);
+  CS2.cc_create(top, ComponentType.MODEL, 0, false);
+  CS2.cc_create(top, ComponentType.MODEL, 1, false);
+  runePouchLayout(frame, top, pouch);
+
+  drawPouch(pouch);
+}
+
+export function runePouchLayout(
+  frame: ComponentId = frameRef,
+  top: ComponentId = topRef,
+  pouch: ComponentId = pouchRef,
+): void {
+  const tier: Int = pouchTier();
+  const shown: Int = pouchVisibleSlots();
+
+  let flank: Item = PouchItem.BOUNTY_HUNTER;
+  let flankTrouver: Item = PouchItem.BOUNTY_HUNTER_TROUVER;
+  if (tier >= 4) {
+    if (CS2.cc_find(frame, Border.TITLE_INDEX)) {
+      CS2.cc_text_set('Divine Rune Pouch');
+    }
+    flank = PouchItem.DIVINE;
+    flankTrouver = PouchItem.DIVINE_TROUVER;
+  } else if (CS2.cc_find(frame, Border.TITLE_INDEX)) {
+    CS2.cc_text_set('Rune Pouch');
+  }
+
+  const gap: Int = Layout.POUCH_GAP_BASE + Layout.POUCH_GAP_STEP * (Layout.POUCH_SLOTS - shown);
+  const boxW: Int = Math.max(Layout.POUCH_MIN_W, 2 + gap + shown * Layout.SLOT_W + (shown - 1) * gap + gap + 2);
+  CS2.if_size_set(boxW, 0, SizeMode.ABS, SizeMode.MINUS, pouch);
+
+  if (CS2.cc_find(top, 0)) {
+    const side: Int = (CS2.if_width_get(top) - boxW) / 2;
+    const size: Int = Math.min(side, CS2.if_height_get(top)) - Layout.MODEL_INSET;
+    const inset: Int = Math.max(0, (side - size) / 2);
+    CS2.cc_size_set(size, size, SizeMode.ABS, SizeMode.ABS);
+    CS2.cc_position_set(inset, 0, PosMode.ABS_LEFT, PosMode.ABS_CENTRE);
+    CS2.cc_item_nonum_set(flank, 1);
+    if (CS2.cc_find(top, 1)) {
+      CS2.cc_size_set(size, size, SizeMode.ABS, SizeMode.ABS);
+      CS2.cc_position_set(inset, 0, PosMode.ABS_RIGHT, PosMode.ABS_CENTRE);
+      CS2.cc_item_nonum_set(flankTrouver, 1);
+    }
+  }
+
+  const runW: Int = shown * Layout.SLOT_W + (shown - 1) * gap;
+  const runX: Int = (boxW + 1 - runW) / 2 + 1;
+  const runY: Int = (CS2.if_height_get(pouch) - Layout.BOX_CAPTION - Layout.SLOT_H) / 2 + Layout.BOX_CAPTION_TOP;
+  const step: Int = gap + Layout.SLOT_W;
+
+  let placed: Int = 0;
+  let slot: Int = 1;
+  while (slot <= Layout.POUCH_SLOTS) {
+    if (CS2.cc_find(pouch, slot - 1)) {
+      let x: Int = 0 - Layout.SLOT_W;
+      let y: Int = 0 - Layout.SLOT_H;
+      if (pouchSlotUnlocked(slot)) {
+        x = runX + placed * step;
+        y = runY;
+        placed = placed + 1;
+      }
+      CS2.cc_position_set(x, y, PosMode.ABS_LEFT, PosMode.ABS_TOP);
+      if (CS2.cc_find(pouch, Layout.POUCH_SLOTS + slot - 1)) {
+        CS2.cc_position_set(x, y, PosMode.ABS_LEFT, PosMode.ABS_TOP);
+      }
+    }
+    slot = slot + 1;
+  }
+}
+
+export function drawPouch(pouch: ComponentId = pouchRef): void {
+  let slot: Int = 1;
+  while (slot <= Layout.POUCH_SLOTS) {
+    drawPouchSlot(pouch, slot);
+    slot = slot + 1;
+  }
+}
+
+function drawPouchSlot(pouch: ComponentId, slot: Int): void {
+  if (!CS2.cc_find(pouch, slot - 1)) {
+    return;
+  }
+  CS2.cc_ops_clear();
+  CS2.cc_on_timer_set(null);
+
+  if (!pouchSlotUnlocked(slot)) {
+    CS2.cc_hide_set(true);
+    setGhostHidden(pouch, slot, true);
+    return;
+  }
+
+  CS2.cc_hide_set(false);
+  const rune: ItemName = slotRune(slot);
+  const count: Int = slotCount(slot);
+  if (rune === -1 || count <= 0) {
+    CS2.cc_transparency_set(Layout.OPAQUE);
+    CS2.cc_item_set(PouchItem.BLANK, 1);
+    CS2.cc_onop_set(null);
+    CS2.cc_on_drag_complete_set(null);
+    setGhostHidden(pouch, slot, false);
+    return;
+  }
+
+  CS2.cc_transparency_set(Layout.OPAQUE);
+  CS2.cc_item_set(rune as Item, count);
+  CS2.cc_op_base_set(`<col=ff9040>${CS2.item_name(rune as Item)}</col>`);
+  setWithdrawOps();
+  CS2.cc_op_set(5, 'Withdraw-X');
+  CS2.cc_op_set(10, 'Examine');
+  CS2.cc_onop_set((event) => flashFor(event.self, Layout.FLASH_STORABLE, Layout.FLASH_STORABLE_BACK));
+  CS2.cc_on_drag_complete_set((event) =>
+    pouchReorder(event.component, event.dragTarget, event.subId, event.dragTargetSubId),
+  );
+  setGhostHidden(pouch, slot, true);
+}
+
+function setWithdrawOps(): void {
+  const mode: Int = useServerState(Varbits.RUNE_POUCH_SELECTEDQUANTITY);
+  const custom: Int = useServerState(Varbits.RUNE_POUCH_CUSTOMQUANTITY);
+  if (mode === Quantity.FIVE) {
+    CS2.cc_op_set(1, 'Withdraw-5');
+    CS2.cc_op_set(2, 'Withdraw-1');
+    if (custom > 0) {
+      CS2.cc_op_set(4, `Withdraw-${groupDigits(custom, ',')}`);
+    }
+    CS2.cc_op_set(6, 'Withdraw-All');
+    return;
+  }
+  if (mode === Quantity.CUSTOM) {
+    if (custom > 0) {
+      CS2.cc_op_set(1, `Withdraw-${groupDigits(custom, ',')}`);
+    } else {
+      CS2.cc_op_set(1, 'Withdraw-X');
+    }
+    CS2.cc_op_set(2, 'Withdraw-1');
+    CS2.cc_op_set(3, 'Withdraw-5');
+    CS2.cc_op_set(6, 'Withdraw-All');
+    return;
+  }
+  if (mode === Quantity.ALL) {
+    CS2.cc_op_set(1, 'Withdraw-All');
+    CS2.cc_op_set(2, 'Withdraw-1');
+    CS2.cc_op_set(3, 'Withdraw-5');
+    if (custom > 0) {
+      CS2.cc_op_set(4, `Withdraw-${groupDigits(custom, ',')}`);
+    }
+    return;
+  }
+  CS2.cc_op_set(1, 'Withdraw-1');
+  CS2.cc_op_set(3, 'Withdraw-5');
+  if (custom > 0) {
+    CS2.cc_op_set(4, `Withdraw-${groupDigits(custom, ',')}`);
+  }
+  CS2.cc_op_set(6, 'Withdraw-All');
+}
+
+function setGhostHidden(pouch: ComponentId, slot: Int, hidden: Boolean): void {
+  if (CS2.cc_find(pouch, Layout.POUCH_SLOTS + slot - 1)) {
+    CS2.cc_hide_set(hidden);
+  }
+}
+
+export function pouchReorder(from: ComponentId, onto: ComponentId, fromSubId: Int, ontoSubId: Int): void {
+  const fromSlot: Int = fromSubId + 1;
+  if (!pouchSlotUnlocked(fromSlot)) {
+    return;
+  }
+  const ontoSlot: Int = ontoSubId + 1;
+  if (!pouchSlotUnlocked(ontoSlot)) {
+    return;
+  }
+  const rune: ItemName = slotRune(fromSlot);
+  const count: Int = slotCount(fromSlot);
+  if (rune === -1) {
+    return;
+  }
+
+  if (onto !== from) {
+    if (CS2.cc_find(from, fromSubId)) {
+      CS2.cc_transparency_set(Layout.DROP_TRANS);
+      CS2.cc_on_timer_set((event) => flashFor(event.self, Layout.DROP_TRANS, Layout.FLASH_STORABLE_BACK));
+    }
+    return;
+  }
+  if (fromSlot === ontoSlot) {
+    return;
+  }
+
+  setPouchSlotItem(fromSlot, slotRune(ontoSlot), slotCount(ontoSlot));
+  setPouchSlotItem(ontoSlot, rune, count);
+  drawPouch(from);
+}
+
+export function redrawInventory(inventory: ComponentId = inventoryRef): void {
+  const backpack = useInventory(Inventories.INV);
+  const size: Int = backpack.size;
+  let slot: Int = size;
+  while (slot > 0) {
+    slot = slot - 1;
+    if (CS2.cc_find(inventory, slot)) {
+      drawInventorySlot(backpack[slot], backpack.count(slot), size);
+    }
+  }
+}
+
+function drawInventorySlot(item: Item, count: Int, slots: Int): void {
+  CS2.cc_ops_clear();
+  CS2.cc_on_timer_set(null);
+
+  if (item === -1) {
+    CS2.cc_transparency_set(Layout.OPAQUE);
+    CS2.cc_item_set(PouchItem.BLANK, 1);
+    CS2.cc_onop_set(null);
+    CS2.cc_on_drag_complete_set(null);
+    return;
+  }
+
+  if ((RuneIndex.get(item) ?? 0) === 0) {
+    CS2.cc_transparency_set(Layout.UNSTORABLE_TRANS);
+    CS2.cc_item_set(item, count);
+    CS2.cc_op_base_set(`<col=ff9040>${CS2.item_name(item)}</col>`);
+    CS2.cc_op_set(1, 'Store');
+    CS2.cc_op_set(10, 'Examine');
+    CS2.cc_onop_set((event) => flashFor(event.self, Layout.FLASH_UNSTORABLE, Layout.FLASH_UNSTORABLE_BACK));
+    CS2.cc_on_drag_complete_set((event) =>
+      inventoryReorder(
+        event.component,
+        event.dragTarget,
+        event.subId,
+        event.dragTargetSubId,
+        Layout.DROP_TRANS,
+        Layout.FLASH_UNSTORABLE_BACK,
+        slots,
+      ),
+    );
+    return;
+  }
+
+  CS2.cc_transparency_set(Layout.OPAQUE);
+  CS2.cc_item_set(item, count);
+  CS2.cc_op_base_set(`<col=ff9040>${CS2.item_name(item)}</col>`);
+  setStoreOps();
+  CS2.cc_op_set(5, 'Store-X');
+  CS2.cc_op_set(10, 'Examine');
+  CS2.cc_onop_set((event) => flashFor(event.self, Layout.FLASH_STORABLE, Layout.FLASH_STORABLE_BACK));
+  CS2.cc_on_drag_complete_set((event) =>
+    inventoryReorder(
+      event.component,
+      event.dragTarget,
+      event.subId,
+      event.dragTargetSubId,
+      Layout.DROP_TRANS,
+      Layout.FLASH_STORABLE_BACK,
+      slots,
+    ),
+  );
+}
+
+function setStoreOps(): void {
+  const mode: Int = useServerState(Varbits.RUNE_POUCH_SELECTEDQUANTITY);
+  const custom: Int = useServerState(Varbits.RUNE_POUCH_CUSTOMQUANTITY);
+  if (mode === Quantity.FIVE) {
+    CS2.cc_op_set(1, 'Store-5');
+    CS2.cc_op_set(2, 'Store-1');
+    if (custom > 0) {
+      CS2.cc_op_set(4, `Store-${groupDigits(custom, ',')}`);
+    }
+    CS2.cc_op_set(6, 'Store-All');
+    return;
+  }
+  if (mode === Quantity.CUSTOM) {
+    if (custom > 0) {
+      CS2.cc_op_set(1, `Store-${groupDigits(custom, ',')}`);
+    } else {
+      CS2.cc_op_set(1, 'Store-X');
+    }
+    CS2.cc_op_set(2, 'Store-1');
+    CS2.cc_op_set(3, 'Store-5');
+    CS2.cc_op_set(6, 'Store-All');
+    return;
+  }
+  if (mode === Quantity.ALL) {
+    CS2.cc_op_set(1, 'Store-All');
+    CS2.cc_op_set(2, 'Store-1');
+    CS2.cc_op_set(3, 'Store-5');
+    if (custom > 0) {
+      CS2.cc_op_set(4, `Store-${groupDigits(custom, ',')}`);
+    }
+    return;
+  }
+  CS2.cc_op_set(1, 'Store-1');
+  CS2.cc_op_set(3, 'Store-5');
+  if (custom > 0) {
+    CS2.cc_op_set(4, `Store-${groupDigits(custom, ',')}`);
+  }
+  CS2.cc_op_set(6, 'Store-All');
+}
+
+export function inventoryReorder(
+  from: ComponentId,
+  onto: ComponentId,
+  fromSubId: Int,
+  ontoSubId: Int,
+  dropTrans: Int,
+  restTrans: Int,
+  slots: Int,
+): void {
+  if (fromSubId < 0 || fromSubId >= slots) {
+    return;
+  }
+  if (onto !== from) {
+    if (CS2.cc_find(from, fromSubId)) {
+      CS2.cc_transparency_set(dropTrans);
+      CS2.cc_on_timer_set((event) => flashFor(event.self, dropTrans, restTrans));
+    }
+    return;
+  }
+  if (fromSubId === ontoSubId || ontoSubId < 0 || ontoSubId >= slots) {
+    return;
+  }
+
+  const backpack = useInventory(Inventories.INV);
+  const dragged: Item = backpack[fromSubId];
+  if (dragged === -1) {
+    return;
+  }
+  const under: Item = backpack[ontoSubId];
+  if (CS2.cc_find(from, ontoSubId)) {
+    drawInventorySlot(dragged, backpack.count(fromSubId), slots);
+  }
+  if (CS2.cc_find(from, fromSubId)) {
+    drawInventorySlot(under, backpack.count(ontoSubId), slots);
+  }
+}
+
+export function drawQuantityButtons(): void {
+  drawQuantityButton(oneButton(), '1', Quantity.ONE);
+  drawQuantityButton(fiveButton(), '5', Quantity.FIVE);
+  drawQuantityButton(customButton(), 'X', Quantity.CUSTOM);
+  drawQuantityButton(allButton(), 'All', Quantity.ALL);
+}
+
+function drawQuantityButton(button: ComponentId, label: String, value: Int): void {
+  CS2.cc_all_delete(button);
+  CS2.if_ops_clear(button);
+
+  const custom: Int = useServerState(Varbits.RUNE_POUCH_CUSTOMQUANTITY);
+  const isCustom: Boolean = value === Quantity.CUSTOM;
+  if (isCustom) {
+    if (custom > 0) {
+      CS2.if_op_set(1, `Custom quantity: ${groupDigits(custom, ',')}`, button);
+    }
+    CS2.if_op_set(2, 'Set custom quantity', button);
+  } else {
+    CS2.if_op_set(1, label, button);
+  }
+
+  const selected: Boolean = useServerState(Varbits.RUNE_POUCH_SELECTEDQUANTITY) === value;
+  let index: Int = 0;
+  if (selected) {
+    index = stoneButtonPressed(button);
+  } else {
+    index = stoneButtonRaised(button);
+  }
+
+  CS2.cc_create(button, ComponentType.TEXT, index, false);
+  CS2.cc_position_set(0, 0, PosMode.ABS_CENTRE, PosMode.ABS_CENTRE);
+  CS2.cc_size_set(0, 0, SizeMode.MINUS, SizeMode.MINUS);
+  if (selected) {
+    CS2.cc_colour_set(Colour.WHITE);
+    CS2.if_on_mouserepeat_set(null, button);
+    CS2.if_on_mouseleave_set(null, button);
+    if (isCustom) {
+      CS2.if_onop_set((event) => quantityOp(event.option, value, isCustom), button);
+    } else {
+      CS2.if_onop_set(null, button);
+    }
+  } else {
+    CS2.cc_colour_set(Colour.CAPTION);
+    CS2.if_on_mouserepeat_set(() => recolour(button, index, Colour.WHITE), button);
+    CS2.if_on_mouseleave_set(() => recolour(button, index, Colour.CAPTION), button);
+    CS2.if_onop_set((event) => quantityOp(event.option, value, isCustom), button);
+  }
+  CS2.cc_text_font_set(Font.P12_FULL);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_align_set(TextAlign.CENTRE, TextAlign.CENTRE, 0);
+  CS2.cc_text_set(label);
+}
+
+function recolour(button: ComponentId, index: Int, colour: Int): void {
+  if (CS2.cc_find(button, index)) {
+    CS2.cc_colour_set(colour);
+  }
+}
+
+export function quantityOp(opIndex: Int, value: Int, isCustom: Boolean): void {
+  if (isCustom) {
+    if (opIndex === 2) {
+      CS2.sound_effect(Sound.SELECT, 1, 0);
+      return;
+    }
+    if (opIndex === 1 && useServerState(Varbits.RUNE_POUCH_CUSTOMQUANTITY) > 0) {
+      CS2.sound_effect(Sound.SELECT, 1, 0);
+      predictServerState(Varbits.RUNE_POUCH_SELECTEDQUANTITY, value);
+      drawQuantityButtons();
+    }
+    return;
+  }
+  if (opIndex === 1) {
+    CS2.sound_effect(Sound.SELECT, 1, 0);
+    predictServerState(Varbits.RUNE_POUCH_SELECTEDQUANTITY, value);
+    drawQuantityButtons();
+  }
+}
+
+function oneButton(button: ComponentId = oneRef): ComponentId {
+  return button;
+}
+function fiveButton(button: ComponentId = fiveRef): ComponentId {
+  return button;
+}
+function customButton(button: ComponentId = customRef): ComponentId {
+  return button;
+}
+function allButton(button: ComponentId = allRef): ComponentId {
+  return button;
+}

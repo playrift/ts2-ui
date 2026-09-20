@@ -1,0 +1,68 @@
+import { CS2, useState } from 'ts2';
+
+import { chatchannelCurrentPrevioussort, chatchannelCurrentSort } from '../lib/game/varcs';
+import { playSound } from '../lib/lib.engine';
+import { Sounds } from '../lib/lib.constants';
+import { tooltipHide } from '../lib/tooltip.component';
+import { wildwarsWorld } from '../0076_grouping/grouping.state';
+import { ChannelSort } from './chatchannel-current.constants';
+import { SortFamily } from './tables.data';
+import { meslayerMode10 } from './meslayer-mode10';
+
+export function currentSort(): Int {
+  const [stored] = useState(chatchannelCurrentSort);
+  switch (stored) {
+    case ChannelSort.LEGACY:
+    case ChannelSort.LEGACY_REVERSED:
+    case ChannelSort.NAME_ASC:
+    case ChannelSort.NAME_DESC:
+    case ChannelSort.WORLD_ASC:
+    case ChannelSort.WORLD_DESC:
+    case ChannelSort.RANK_ASC:
+    case ChannelSort.RANK_DESC:
+    case ChannelSort.RECENT_ASC:
+    case ChannelSort.RECENT_DESC:
+      return stored;
+  }
+  return ChannelSort.LEGACY;
+}
+
+export function previousSort(): Int {
+  const [stored] = useState(chatchannelCurrentPrevioussort);
+  return stored;
+}
+
+export function chooseSort(sort: Int): void {
+  playSound(Sounds.CLICK);
+  const [current, setSort] = useState(chatchannelCurrentSort);
+  const [, setPrevious] = useState(chatchannelCurrentPrevioussort);
+  if (sort !== (SortFamily.at(current) ?? -1)) {
+    setPrevious(current);
+  }
+  setSort(sort);
+}
+
+export function sortArrowHover(arrow: Ref, transparency: Int): void {
+  arrow.transparency = transparency;
+}
+
+export function sortArrowLeave(arrow: Ref, transparency: Int): void {
+  arrow.transparency = transparency;
+  tooltipHide();
+}
+
+export function joinchatOnop(option: Int, expected: Int): void {
+  if (option !== expected) {
+    return;
+  }
+  playSound(Sounds.CLICK);
+  if (CS2.friendschat_chat_count_get() > 0) {
+    if (wildwarsWorld()) {
+      CS2.message("You can't leave your team's chat channel during Wilderness Wars.");
+      return;
+    }
+    CS2.friendschat_leavechat();
+  } else {
+    meslayerMode10();
+  }
+}

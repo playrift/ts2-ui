@@ -1,0 +1,105 @@
+import { createRef, useOnResize, useRef, useUniverse } from 'ts2';
+
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { SteelBorder } from '../lib/steel-border.component';
+import { Burger, CaColour, WideBar } from '../0717_ca_overview/ca-overview.constants';
+import { CaBurgerMenu, CaTasksProgressBar } from '../0717_ca_overview/ca-shared.local';
+import { CaTiers } from '../0717_ca_overview/ca-tiers.data';
+
+import { Layout, RewardsColour, RewardsScrollbar } from './ca-rewards.constants';
+import { rewardsContentHeight, rewardsPanelHeight, selectedTier } from './ca-rewards.helpers';
+import { CaRewardsTabs } from './ca-rewards-tabs.component';
+import { RewardBorders, RewardRows } from './ca-rewards-list.component';
+
+export const caRewardsRef = createRef('ca_rewards');
+
+export function CaRewardsPanel(): Component {
+  const universe = useUniverse();
+  useOnResize(universe);
+  const panel = useRef();
+  const pane = useRef();
+
+  const index: Int = selectedTier(CaTiers.length);
+  const tier = CaTiers.at(index);
+  if (tier === null) {
+    return null;
+  }
+
+  const paneW: Int = universe.width - Layout.RIGHT_INSET_W - Layout.PANE_INSET_W;
+  const contentW: Int = paneW - Layout.CONTENT_INSET * 2;
+  const contentH: Int = rewardsContentHeight(tier, index, contentW);
+  const panelH: Int = rewardsPanelHeight(contentH, universe.height);
+  const paneH: Int = panelH - Layout.COLUMNS_INSET_H;
+  const panelY: Int = (universe.height - panelH) / 2;
+  const rootX: Int = caRewardsRef.x;
+  const rootY: Int = caRewardsRef.y;
+
+  return (
+    <layer ref={panel} x="center" y="center" w="fill" h={panelH}>
+      <layer x="center" y="center" w="fill" h="fill">
+        <SteelBorder title="Combat Achievements - Rewards" titleColor={CaColour.ORANGE} flags={0} />
+      </layer>
+
+      <layer x="center" y={Layout.BAR_Y} w={{ fill: Layout.BAR_INSET_W }} h={Layout.BAR_H}>
+        <CaTasksProgressBar
+          mode={WideBar.MODE_REWARDS}
+          tipOriginX={rootX + Layout.BAR_X}
+          tipOriginY={rootY + panelY + Layout.BAR_Y}
+        />
+      </layer>
+
+      <layer
+        x={Layout.RIGHT_X}
+        y={Layout.COLUMNS_Y}
+        w={{ fill: Layout.RIGHT_INSET_W }}
+        h={{ fill: Layout.COLUMNS_INSET_H }}
+      >
+        <layer ref={pane} w={{ fill: Layout.PANE_INSET_W }} h="fill" scrollHeight={contentH > paneH ? contentH : 0}>
+          <layer w={Layout.FRAME_W} h={contentH}>
+            <rect x="center" y="center" w="fill" h="fill" color={RewardsColour.FRAME_OUTER} />
+            <rect
+              x={Layout.FRAME_INNER_INSET}
+              y={Layout.FRAME_INNER_INSET}
+              w={{ fill: Layout.FRAME_INNER_INSET * 2 }}
+              h={{ fill: Layout.FRAME_INNER_INSET * 2 }}
+              color={RewardsColour.FRAME_INNER}
+            />
+          </layer>
+          <layer
+            x={Layout.CONTENT_INSET}
+            y={Layout.CONTENT_INSET}
+            w={{ fill: Layout.CONTENT_INSET * 2 }}
+            h={{ fill: Layout.CONTENT_INSET * 2 }}
+          >
+            <RewardRows tier={tier} index={index} contentW={contentW} />
+          </layer>
+          <layer
+            x={Layout.CONTENT_INSET}
+            y={Layout.CONTENT_INSET}
+            w={{ fill: Layout.CONTENT_INSET * 2 }}
+            h={{ fill: Layout.CONTENT_INSET * 2 }}
+          >
+            <RewardBorders tier={tier} index={index} contentW={contentW} />
+          </layer>
+        </layer>
+        <layer x={{ right: Layout.SCROLLBAR_RIGHT }} y="center" w={Layout.SCROLLBAR_W} h="fill">
+          <ScrollbarVertical
+            content={pane}
+            track={RewardsScrollbar.TRACK}
+            capTopSprite={RewardsScrollbar.CAP_TOP}
+            thumbSprite={RewardsScrollbar.THUMB}
+            capBottomSprite={RewardsScrollbar.CAP_BOTTOM}
+            arrowUp={RewardsScrollbar.ARROW_UP}
+            arrowDown={RewardsScrollbar.ARROW_DOWN}
+          />
+        </layer>
+      </layer>
+
+      <layer x={Layout.TABS_X} y={Layout.COLUMNS_Y} w={Layout.TABS_W} h={{ fill: Layout.COLUMNS_INSET_H }}>
+        <CaRewardsTabs selected={index} />
+      </layer>
+
+      <CaBurgerMenu selected={Burger.REWARDS} />
+    </layer>
+  );
+}

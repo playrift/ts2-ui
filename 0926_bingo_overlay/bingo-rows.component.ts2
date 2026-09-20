@@ -1,0 +1,870 @@
+import { CS2, useInterval, useRef, useServerState, useState } from 'ts2';
+import { Fonts } from '../lib/game/fonts';
+import { clientClock, hasBit, membersWorld, playSound, textLineCount } from '../lib/lib.engine';
+import { onMobile } from '../lib/lib.helpers';
+import { ScrollbarVertical } from '../lib/scrollbar-vertical.component';
+import { NONE } from '../0945_reusable_floater/reusable-floater.data';
+import { SkinPieces } from '../0945_reusable_floater/floater-button.component';
+import { FloaterSounds } from '../0945_reusable_floater/reusable-floater.constants';
+import {
+  Piece,
+  clickWhenDisabled,
+  hoverSkin,
+  normalSkin,
+  pressedSkin,
+  skinBorder,
+  skinInset,
+  skinSprite,
+  skinTiling,
+  wornHoverSkin,
+  wornStyle,
+} from '../0945_reusable_floater/floater-styles';
+import { Varps } from '../lib/game/varps';
+import { bingoLookupPhrase, bingoSelectedTile } from '../lib/game/varcs';
+import { BingoButtonStyle, BingoColour } from './bingo-overlay.constants';
+import {
+  BINGO_XP_SKILL_DEFAULT,
+  BingoMastery,
+  BingoMasteryNames,
+  BingoMasteryTiers,
+  BingoXpSkillNames,
+} from './bingo-bonus.data';
+import { BingoEvents } from './bingo-overlay.data';
+import { bingoEventName, bingoTileCount } from './bingo-overlay.helpers';
+import {
+  BingoLookupReward,
+  BingoPanelAction,
+  BingoPanelServerScript,
+  bingoInfoPopout,
+  bingoLookupReward,
+  bingoTutorialDone,
+  bingoTutorialPage,
+} from './bingo-panels.state';
+
+export function BingoDetailsRow(): Component {
+  const row = BingoEvents.at(0);
+  let ends: String = '';
+  if (row !== null && row.eventEnd !== -1) {
+    ends = `Ends on ${CS2.fromdate(row.eventEnd)}`;
+  }
+  return (
+    <>
+      <text
+        x={2}
+        y={0}
+        w={{ fill: 4 }}
+        h="fill"
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="left"
+        valign="middle"
+        text={bingoEventName()}
+      />
+      <text
+        x={{ right: 2 }}
+        y={0}
+        w={{ fill: 4 }}
+        h="fill"
+        font={Fonts.P12_FULL}
+        shadow
+        color={BingoColour.ORANGE}
+        align="right"
+        valign="middle"
+        text={ends}
+      />
+    </>
+  );
+}
+
+export function BingoPanelButton({
+  x,
+  y,
+  w,
+  h,
+  hide,
+  style,
+  toggled,
+  disabled,
+  op,
+  action,
+  children,
+  actionTile = -1,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  h: Int;
+  hide: Boolean;
+  style: Int;
+  toggled: Int;
+  disabled: Boolean;
+  op: String;
+  action: Int;
+  children: Component;
+  actionTile?: Int;
+}): Component {
+  const hoverLayer = useRef();
+  const pressedLayer = useRef();
+  const [soundAt, setSoundAt] = useState(-1);
+  const [page, setPage] = useState(bingoTutorialPage);
+  const [, setDone] = useState(bingoTutorialDone);
+  const [, setPopout] = useState(bingoInfoPopout);
+  const [, setTile] = useState(bingoSelectedTile);
+
+  const worn: Int = wornStyle(style, toggled);
+  const baseHover: Int = hoverSkin(style);
+  const shownHover: Int = wornHoverSkin(style, toggled);
+
+  let clickable: Boolean = true;
+  if (disabled && !clickWhenDisabled(worn)) {
+    clickable = false;
+  }
+
+  return (
+    <layer
+      x={x}
+      y={y}
+      w={w}
+      h={h}
+      hide={hide}
+      noClickThrough
+      options={[op]}
+      onOptionSelect={(event) => {
+        if (action === BingoPanelAction.TUTORIAL_BACK) {
+          setPage(page - 1);
+        }
+        if (action === BingoPanelAction.TUTORIAL_NEXT) {
+          setPage(page + 1);
+          if (page >= 2) {
+            setDone(1);
+            CS2.if_runscript(BingoPanelServerScript.TUTORIAL_DONE, event.component, event.subId, '');
+          }
+        }
+        if (action === BingoPanelAction.CLOSE_POPOUT) {
+          setPopout(0);
+        }
+        if (action === BingoPanelAction.SELECT_TILE) {
+          setTile(actionTile);
+        }
+      }}
+    >
+      <layer
+        w="fill"
+        h="fill"
+        onOptionSelect={
+          disabled
+            ? null
+            : () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+        }
+        onMouseEnter={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                if (!onMobile()) {
+                  hoverLayer.hide = false;
+                }
+              }
+        }
+        onMouseLeave={
+          disabled || baseHover === NONE
+            ? null
+            : () => {
+                hoverLayer.hide = true;
+              }
+        }
+        onClick={
+          clickable
+            ? () => {
+                if (onMobile()) {
+                  return;
+                }
+                if (disabled) {
+                  playSound(FloaterSounds.REFUSED);
+                  return;
+                }
+                pressedLayer.hide = false;
+                if (soundAt < clientClock()) {
+                  playSound(FloaterSounds.SELECT);
+                  setSoundAt(clientClock());
+                }
+              }
+            : null
+        }
+        onRelease={
+          disabled
+            ? null
+            : () => {
+                pressedLayer.hide = true;
+              }
+        }
+      >
+        <SkinPieces skin={normalSkin(worn)} />
+      </layer>
+      {baseHover !== NONE && (
+        <layer ref={hoverLayer} w="fill" h="fill" hide>
+          <SkinPieces skin={shownHover} />
+        </layer>
+      )}
+      <layer ref={pressedLayer} w="fill" h="fill" hide>
+        <SkinPieces skin={pressedSkin(worn)} />
+      </layer>
+      {children}
+    </layer>
+  );
+}
+
+export const BingoRow = {
+  PAD: 6,
+  TEXT_PAD: 5,
+  H: 23,
+  SHADE_DARK: 220,
+  SHADE_LIGHT: 200,
+  TILE_BLOCK_H: 260,
+} as const;
+
+const VALUE_WHITE = 0xffffff;
+
+export function BingoThinBox({ x, y, w, h }: { x: Int; y: Int; w: Int; h: Int }): Component {
+  return (
+    <>
+      <rect x={x} y={y} w={w} h={h} color={0x0e0e0c} />
+      <rect x={x + 1} y={y + 1} w={w - 2} h={h - 2} color={0x474745} />
+    </>
+  );
+}
+
+export function BingoDetailRow({
+  x,
+  y,
+  w,
+  label,
+  value,
+  dark,
+}: {
+  x: Int;
+  y: Int;
+  w: Int;
+  label: String;
+  value: String;
+  dark: Boolean;
+}): Component {
+  if (label.length === 0) {
+    return <></>;
+  }
+  const stripX: Int = x + BingoRow.PAD;
+  const stripW: Int = w - BingoRow.PAD * 2;
+  const textX: Int = x + BingoRow.PAD + BingoRow.TEXT_PAD;
+  const textW: Int = w - (BingoRow.PAD + BingoRow.TEXT_PAD) * 2;
+  return (
+    <>
+      <rect
+        x={stripX}
+        y={y}
+        w={stripW}
+        h={BingoRow.H}
+        fill
+        color={BingoColour.BLACK}
+        transparency={dark ? BingoRow.SHADE_DARK : BingoRow.SHADE_LIGHT}
+      />
+      {value.length > 0 ? (
+        <>
+          <text
+            x={textX}
+            y={y}
+            w={textW}
+            h={BingoRow.H}
+            font={Fonts.P12_FULL}
+            shadow
+            color={BingoColour.ORANGE}
+            align="left"
+            valign="middle"
+            text={label}
+          />
+          <text
+            x={textX}
+            y={y}
+            w={textW}
+            h={BingoRow.H}
+            font={Fonts.P12_FULL}
+            shadow
+            color={VALUE_WHITE}
+            align="right"
+            valign="middle"
+            text={value}
+          />
+        </>
+      ) : (
+        <text
+          x={textX}
+          y={y}
+          w={textW}
+          h={BingoRow.H}
+          font={Fonts.B12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={label}
+        />
+      )}
+    </>
+  );
+}
+
+export function BingoBonusRow({
+  y,
+  label,
+  value,
+  dark,
+  lookup = -1,
+  lookupSubject = '',
+}: {
+  y: Int;
+  label: String;
+  value: String;
+  dark: Boolean;
+  lookup?: Int;
+  lookupSubject?: String;
+}): Component {
+  const [, setLookupPhrase] = useState(bingoLookupPhrase);
+  const [, setLookupReward] = useState(bingoLookupReward);
+  if (label.length === 0) {
+    return <></>;
+  }
+  return (
+    <>
+      <rect
+        x={0}
+        y={y}
+        w="fill"
+        h={BingoRow.H}
+        fill
+        color={BingoColour.BLACK}
+        transparency={dark ? BingoRow.SHADE_DARK : BingoRow.SHADE_LIGHT}
+        options={['', '', '', '', '', lookup === -1 ? '' : 'Lookup']}
+        onOptionSelect={() => {
+          setLookupPhrase(lookupSubject);
+          setLookupReward(lookup);
+        }}
+      />
+      {value.length > 0 ? (
+        <>
+          <text
+            x={BingoRow.TEXT_PAD}
+            y={y}
+            w={{ fill: BingoRow.TEXT_PAD * 2 }}
+            h={BingoRow.H}
+            font={Fonts.P12_FULL}
+            shadow
+            color={BingoColour.ORANGE}
+            align="left"
+            valign="middle"
+            text={label}
+          />
+          <text
+            x={BingoRow.TEXT_PAD}
+            y={y}
+            w={{ fill: BingoRow.TEXT_PAD * 2 }}
+            h={BingoRow.H}
+            font={Fonts.P12_FULL}
+            shadow
+            color={VALUE_WHITE}
+            align="right"
+            valign="middle"
+            text={value}
+          />
+        </>
+      ) : (
+        <text
+          x={BingoRow.TEXT_PAD}
+          y={y}
+          w={{ fill: BingoRow.TEXT_PAD * 2 }}
+          h={BingoRow.H}
+          font={Fonts.B12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={label}
+        />
+      )}
+    </>
+  );
+}
+
+export function BingoXpShareRows({
+  y,
+  label,
+  statA,
+  statB,
+  statC,
+  dark,
+  lookup,
+}: {
+  y: Int;
+  label: String;
+  statA: Int;
+  statB: Int;
+  statC: Int;
+  dark: Boolean;
+  lookup: Int;
+}): Component {
+  return (
+    <>
+      <BingoBonusRow y={y} label={label} value={bingoXpSkillName(statA)} dark={dark} lookup={lookup} />
+      <BingoBonusRow y={y + BingoRow.H} label=" " value={bingoXpSkillName(statB)} dark={dark} lookup={lookup} />
+      <BingoBonusRow y={y + BingoRow.H * 2} label=" " value={bingoXpSkillName(statC)} dark={dark} lookup={lookup} />
+    </>
+  );
+}
+
+export function BingoMasteryRow({
+  y,
+  mastery,
+  tiers,
+  dark,
+}: {
+  y: Int;
+  mastery: BingoMastery;
+  tiers: Int;
+  dark: Boolean;
+}): Component {
+  const table = BingoMasteryTiers.get(mastery);
+  const shown: Int = table === null ? 0 : Math.min(table.length, tiers);
+  const name: String = BingoMasteryNames.get(mastery) ?? '';
+  return (
+    <BingoBonusRow
+      y={y}
+      label={name}
+      value={stringOf(shown)}
+      dark={dark}
+      lookup={BingoLookupReward.ALL_COMBAT_MASTERIES}
+      lookupSubject={`${name}:`}
+    />
+  );
+}
+
+export function bingoXpSkillName(slot: Int): String {
+  return BingoXpSkillNames.get(slot) ?? BINGO_XP_SKILL_DEFAULT;
+}
+
+export function bingoXpBonus(slot: Int): Int {
+  const word: Int = slot / BINGO_XP_SLOTS_PER_VARP;
+  const low: Int = (slot % BINGO_XP_SLOTS_PER_VARP) * BINGO_XP_SLOT_BITS;
+  const high: Int = low + BINGO_XP_SLOT_BITS - 1;
+  const packed: Int = bingoBitRange(bingoXpWord(word), low, high);
+  if (slot === 0) {
+    return packed + BINGO_XP_ALL_SKILLS_BASE;
+  }
+  return packed;
+}
+
+function bingoXpWord(word: Int): Int {
+  switch (word) {
+    case 0:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_0);
+    case 1:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_1);
+    case 2:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_2);
+    case 3:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_3);
+    case 4:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_4);
+    case 5:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_5);
+    case 6:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_6);
+    case 7:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_7);
+    case 8:
+      return useServerState(Varps.EVENT_REWARDS_TEMP_8);
+  }
+  return 0;
+}
+
+function bingoBitRange(value: Int, low: Int, high: Int): Int {
+  let out: Int = 0;
+  let bit: Int = low;
+  let place: Int = 0;
+  while (bit <= high) {
+    if (hasBit(value, bit)) {
+      out = out + CS2.pow(2, place);
+    }
+    bit = bit + 1;
+    place = place + 1;
+  }
+  return out;
+}
+
+const BINGO_XP_SLOT_BITS = 10;
+const BINGO_XP_SLOTS_PER_VARP = 3;
+const BINGO_XP_ALL_SKILLS_BASE = 400;
+
+export function bingoStripMembers(name: String): String {
+  if (membersWorld()) {
+    return name;
+  }
+  const suffixLength: Int = MEMBERS_SUFFIX.length;
+  const nameLength: Int = name.length;
+  if (nameLength < suffixLength) {
+    return name;
+  }
+  const at: Int = CS2.string_indexof_string(name, MEMBERS_SUFFIX, nameLength - suffixLength);
+  if (at !== -1) {
+    return CS2.substring(name, 0, at);
+  }
+  return name;
+}
+
+const MEMBERS_SUFFIX = ' (Members)';
+
+export function bingoNoteLabelHeight(label: String, w: Int): Int {
+  const lines: Int = textLineCount(label, w, Fonts.P12_FULL);
+  if (lines > 1) {
+    return lines * 12 + 5;
+  }
+  return BingoRow.H;
+}
+
+export function BingoNoteRow({ y, w, label, text }: { y: Int; w: Int; label: String; text: String }): Component {
+  const labelH: Int = label.length > 0 ? bingoNoteLabelHeight(label, w) : 0;
+  const wrapped: Boolean = labelH !== BingoRow.H;
+  return (
+    <>
+      {label.length > 0 && wrapped && (
+        <text
+          x={0}
+          y={y}
+          w={w}
+          h={labelH}
+          font={Fonts.P12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={label}
+        />
+      )}
+      {label.length > 0 && !wrapped && (
+        <text
+          x={0}
+          y={y}
+          w="fill"
+          h={labelH}
+          font={Fonts.P12_FULL}
+          shadow
+          color={BingoColour.ORANGE}
+          align="center"
+          valign="middle"
+          text={label}
+        />
+      )}
+      {text.length > 0 && (
+        <text
+          x={0}
+          y={y + labelH}
+          w="fill"
+          h={BingoRow.H}
+          font={Fonts.P12_FULL}
+          shadow
+          color={VALUE_WHITE}
+          align="center"
+          valign="middle"
+          text={text}
+        />
+      )}
+    </>
+  );
+}
+
+export function bingoNoteBlockHeight(y: Int, w: Int, label: String, text: String): Int {
+  let height: Int = 0;
+  if (label.length > 0) {
+    if (y !== 0) {
+      height = height + BingoRow.H;
+    }
+    height = height + bingoNoteLabelHeight(label, w);
+  }
+  if (text.length > 0) {
+    height = height + BingoRow.H;
+  }
+  return height;
+}
+
+export function BingoTimedReveal({
+  armedAt,
+  holdClocks,
+  children,
+}: {
+  armedAt: Int;
+  holdClocks: Int;
+  children: Component;
+}): Component {
+  const timerHost = useRef();
+  const [hidden, setHidden] = useState(1);
+  useInterval(() => {
+    let next: Int = 1;
+    if (armedAt > 0) {
+      if (clientClock() <= armedAt + holdClocks) {
+        next = 0;
+      }
+    }
+    if (next !== hidden) {
+      setHidden(next);
+    }
+  }, timerHost);
+  return (
+    <layer ref={timerHost} w="fill" h="fill" hide={hidden === 1}>
+      {children}
+    </layer>
+  );
+}
+
+const BingoScrollSprites = {
+  TRACK: 792,
+  CAP_TOP: 789,
+  THUMB: 790,
+  CAP_BOTTOM: 791,
+  ARROW_UP: 773,
+  ARROW_DOWN: 788,
+} as const;
+
+export const BINGO_SCROLL_GUTTER = 16;
+
+export function BingoScrollbar({ content, hide }: { content: Ref; hide: Boolean }): Component {
+  return (
+    <layer x={{ right: 0 }} y={0} w={BINGO_SCROLL_GUTTER} h="fill" hide={hide}>
+      <ScrollbarVertical
+        content={content}
+        track={BingoScrollSprites.TRACK}
+        capTopSprite={BingoScrollSprites.CAP_TOP}
+        thumbSprite={BingoScrollSprites.THUMB}
+        capBottomSprite={BingoScrollSprites.CAP_BOTTOM}
+        arrowUp={BingoScrollSprites.ARROW_UP}
+        arrowDown={BingoScrollSprites.ARROW_DOWN}
+        rebuilt
+      />
+    </layer>
+  );
+}
+
+const TILE_NAV_W = 22;
+const TILE_NAV_H = 22;
+const TILE_NAV_INSET = 4;
+
+export function BingoTileNav({ grid, tile }: { grid: Int; tile: Int }): Component {
+  const width: Int = onMobile() ? TILE_NAV_W * 2 : TILE_NAV_W;
+  const previous: Int = Math.max(0, tile - 1);
+  const next: Int = Math.min(bingoTileCount(grid) - 1, tile + 1);
+
+  return (
+    <>
+      <layer x={TILE_NAV_INSET} y={{ bottom: TILE_NAV_INSET }} w={width} h={TILE_NAV_H}>
+        <BingoPanelButton
+          x={0}
+          y={0}
+          w={width}
+          h={TILE_NAV_H}
+          hide={false}
+          style={BingoButtonStyle.SIMPLE}
+          toggled={previous === tile ? 1 : 0}
+          disabled={previous === tile}
+          op={previous === tile ? '' : 'Previous Tile'}
+          action={BingoPanelAction.SELECT_TILE}
+          actionTile={previous}
+        >
+          <text
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            font={Fonts.B12_FULL}
+            shadow
+            color={BingoColour.BLACK}
+            align="center"
+            valign="middle"
+            text="<lt>"
+          />
+        </BingoPanelButton>
+      </layer>
+      <layer x={{ right: TILE_NAV_INSET }} y={{ bottom: TILE_NAV_INSET }} w={width} h={TILE_NAV_H}>
+        <BingoPanelButton
+          x={0}
+          y={0}
+          w={width}
+          h={TILE_NAV_H}
+          hide={false}
+          style={BingoButtonStyle.SIMPLE}
+          toggled={next === tile ? 1 : 0}
+          disabled={next === tile}
+          op={next === tile ? '' : 'Next Tile'}
+          action={BingoPanelAction.SELECT_TILE}
+          actionTile={next}
+        >
+          <text
+            x={0}
+            y={0}
+            w="fill"
+            h="fill"
+            font={Fonts.B12_FULL}
+            shadow
+            color={BingoColour.BLACK}
+            align="center"
+            valign="middle"
+            text="<gt>"
+          />
+        </BingoPanelButton>
+      </layer>
+    </>
+  );
+}
+
+const PULSE_SPEED = 400;
+const PULSE_UNIT = 16384;
+
+export function BingoPulse({ skin, armed }: { skin: Int; armed: Boolean }): Component {
+  const host = useRef();
+  const [frozenAt, setFrozenAt] = useState(-1);
+  const [transparency, setTransparency] = useState(0);
+
+  useInterval(() => {
+    if (!armed) {
+      return;
+    }
+    let next: Int = 0;
+    if (clientClock() > frozenAt + 1) {
+      const wave: Int = Trig.sinDeg((PULSE_SPEED * (clientClock() % PULSE_UNIT)) % PULSE_UNIT);
+      next = 255 - CS2.scale(wave + PULSE_UNIT, PULSE_UNIT * 2, 255);
+    }
+    if (next !== transparency) {
+      setTransparency(next);
+    }
+  }, host);
+
+  const border: Int = skinBorder(skin);
+  const inset: Int = skinInset(skin);
+  const tiling: Boolean = skinTiling(skin);
+  const insetFill: Sprite = skinSprite(skin, Piece.INSET_FILL);
+
+  return (
+    <layer
+      ref={host}
+      w="fill"
+      h="fill"
+      onMouseRepeat={
+        armed
+          ? () => {
+              if (onMobile()) {
+                return;
+              }
+              setFrozenAt(clientClock());
+            }
+          : null
+      }
+    >
+      {insetFill !== NONE ? (
+        <sprite
+          x={inset}
+          y={inset}
+          w={{ fill: inset * 2 }}
+          h={{ fill: inset * 2 }}
+          sprite={insetFill}
+          tiling={tiling}
+          transparency={transparency}
+        />
+      ) : (
+        <sprite
+          x={border}
+          y={border}
+          w={{ fill: border * 2 }}
+          h={{ fill: border * 2 }}
+          sprite={skinSprite(skin, Piece.FILL)}
+          tiling={tiling}
+          transparency={transparency}
+        />
+      )}
+      {border > 0 && (
+        <>
+          <sprite
+            x={0}
+            y={0}
+            w={border}
+            h={border}
+            sprite={skinSprite(skin, Piece.CORNER_TL)}
+            transparency={transparency}
+          />
+          <sprite
+            x={{ right: 0 }}
+            y={0}
+            w={border}
+            h={border}
+            sprite={skinSprite(skin, Piece.CORNER_TR)}
+            transparency={transparency}
+          />
+          <sprite
+            x={0}
+            y={{ bottom: 0 }}
+            w={border}
+            h={border}
+            sprite={skinSprite(skin, Piece.CORNER_BL)}
+            transparency={transparency}
+          />
+          <sprite
+            x={{ right: 0 }}
+            y={{ bottom: 0 }}
+            w={border}
+            h={border}
+            sprite={skinSprite(skin, Piece.CORNER_BR)}
+            transparency={transparency}
+          />
+          <sprite
+            x={0}
+            y={border}
+            w={border}
+            h={{ fill: border * 2 }}
+            sprite={skinSprite(skin, Piece.EDGE_LEFT)}
+            tiling
+            transparency={transparency}
+          />
+          <sprite
+            x={border}
+            y={0}
+            w={{ fill: border * 2 }}
+            h={border}
+            sprite={skinSprite(skin, Piece.EDGE_TOP)}
+            tiling
+            transparency={transparency}
+          />
+          <sprite
+            x={{ right: 0 }}
+            y={{ bottom: border }}
+            w={border}
+            h={{ fill: border * 2 }}
+            sprite={skinSprite(skin, Piece.EDGE_RIGHT)}
+            tiling
+            transparency={transparency}
+          />
+          <sprite
+            x={{ right: border }}
+            y={{ bottom: 0 }}
+            w={{ fill: border * 2 }}
+            h={border}
+            sprite={skinSprite(skin, Piece.EDGE_BOTTOM)}
+            tiling
+            transparency={transparency}
+          />
+        </>
+      )}
+    </layer>
+  );
+}

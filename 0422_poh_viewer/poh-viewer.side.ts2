@@ -1,0 +1,332 @@
+import { CS2, predictServerState, useServerState } from 'ts2';
+
+import { clientClock, playSound } from '../lib/lib.engine';
+import { opsound } from '../lib/lib.helpers';
+import {
+  Button,
+  Layout,
+  ViewerArt,
+  ViewerColour,
+  ViewerVarbits,
+  anticlockwiseRef,
+  cancelRef,
+  clockwiseRef,
+  deleteRef,
+  doneRef,
+  gfxRef,
+  hintRef,
+  mapRef,
+  moveRef,
+  nameRef,
+  neighbourERef,
+  neighbourNRef,
+  neighbourSRef,
+  neighbourWRef,
+  previewRef,
+  rotateRef,
+} from './poh-viewer.constants';
+import { RoomSprites, roomName } from './poh-viewer.data';
+
+export function pohViewerSideUpdate(): void {
+  const destination: Int = useServerState(ViewerVarbits.DESTINATION);
+  const rotating: Int = useServerState(ViewerVarbits.ROTATING);
+  let cell: Int = Layout.CELLS;
+  if (destination > Layout.CELLS) {
+    while (cell > 0) {
+      cell = cell - 1;
+      if (CS2.cc_find(mapRef, cell)) {
+        CS2.cc_ops_clear();
+        CS2.cc_op_set(1, 'Select');
+        CS2.cc_onop_set((event) => opsound(event.option, 2));
+        CS2.cc_colour_set(ViewerColour.CELL_SELECT);
+        CS2.cc_on_mouserepeat_set((event) => recolour(event.component, event.subId, ViewerColour.WHITE));
+        CS2.cc_on_mouseleave_set((event) => recolour(event.component, event.subId, ViewerColour.CELL_SELECT));
+      }
+    }
+  } else if (rotating === 0 && destination === 0) {
+    while (cell > 0) {
+      cell = cell - 1;
+      if (CS2.cc_find(mapRef, cell)) {
+        CS2.cc_ops_clear();
+        CS2.cc_op_set(6, 'Add room');
+        CS2.cc_onop_set((event) => opsound(event.option, 64));
+        CS2.cc_colour_set(ViewerColour.CELL);
+        CS2.cc_on_mouserepeat_set(null);
+        CS2.cc_on_mouseleave_set(null);
+      }
+    }
+  } else {
+    while (cell > 0) {
+      cell = cell - 1;
+      if (CS2.cc_find(mapRef, cell)) {
+        CS2.cc_ops_clear();
+        CS2.cc_onop_set(null);
+        CS2.cc_colour_set(ViewerColour.CELL);
+        CS2.cc_on_mouserepeat_set(null);
+        CS2.cc_on_mouseleave_set(null);
+      }
+    }
+  }
+
+  const type: Int = useServerState(ViewerVarbits.TYPE);
+  if (type <= 0) {
+    CS2.if_text_set('---', nameRef);
+    CS2.if_sprite_set(-1, gfxRef);
+    CS2.if_set2dangle(0, gfxRef);
+    if (CS2.cc_find(previewRef, 0)) {
+      CS2.cc_sprite_set(-1);
+      CS2.cc_set2dangle(0);
+    }
+    CS2.if_transparency_set(255, neighbourNRef);
+    CS2.if_transparency_set(255, neighbourSRef);
+    CS2.if_transparency_set(255, neighbourERef);
+    CS2.if_transparency_set(255, neighbourWRef);
+    CS2.if_text_set('Select a room on the map.', hintRef);
+    disableButton(moveRef, 'Move', 0);
+    disableButton(rotateRef, 'Rotate', 0);
+    disableRotate(clockwiseRef, ViewerArt.ARROW_CW);
+    disableRotate(anticlockwiseRef, ViewerArt.ARROW_ACW);
+    disableButton(deleteRef, 'Delete', 0);
+    disableButton(cancelRef, 'Cancel', 0);
+    disableButton(doneRef, 'Done', 0);
+    return;
+  }
+
+  CS2.if_text_set(roomName(type), nameRef);
+  const picture: Sprite = RoomSprites.get(type) ?? -1;
+  CS2.if_sprite_set(picture, gfxRef);
+  const rotation: Int = useServerState(ViewerVarbits.ROTATION);
+  const angle: Int = (16384 * (4 - rotation)) % 65536;
+  CS2.if_set2dangle(angle, gfxRef);
+  if (CS2.cc_find(previewRef, 0)) {
+    if (destination !== 0) {
+      CS2.cc_sprite_set(picture);
+      CS2.cc_set2dangle(angle);
+    } else {
+      CS2.cc_sprite_set(-1);
+      CS2.cc_set2dangle(0);
+    }
+  }
+  CS2.if_transparency_set(doorMark(0, 0, 3, -1, 1), neighbourNRef);
+  CS2.if_transparency_set(doorMark(2, -1, 1, 0, 3), neighbourSRef);
+  CS2.if_transparency_set(doorMark(1, 1, 0, 3, -1), neighbourERef);
+  CS2.if_transparency_set(doorMark(3, 3, -1, 1, 0), neighbourWRef);
+
+  if (destination > Layout.CELLS) {
+    CS2.if_text_set('Use the map to select a position for the room.', hintRef);
+    disableButton(moveRef, 'Move', 1);
+    disableButton(rotateRef, 'Rotate', 0);
+    disableRotate(clockwiseRef, ViewerArt.ARROW_CW);
+    disableRotate(anticlockwiseRef, ViewerArt.ARROW_ACW);
+    disableButton(deleteRef, 'Delete', 0);
+    enableButton(cancelRef, 'Cancel', Button.CANCEL);
+    disableButton(doneRef, 'Done', 0);
+    return;
+  }
+  if (rotating === 1) {
+    CS2.if_text_set("Choose an orientation for the room, then select 'Done'.", hintRef);
+    disableButton(moveRef, 'Move', 0);
+    disableButton(rotateRef, 'Rotate', 1);
+    enableRotate(clockwiseRef, 'Clockwise', ViewerArt.ARROW_CW, Button.CLOCKWISE);
+    enableRotate(anticlockwiseRef, 'Counter-clockwise', ViewerArt.ARROW_ACW, Button.ANTICLOCKWISE);
+    disableButton(deleteRef, 'Delete', 0);
+    enableButton(cancelRef, 'Cancel', Button.CANCEL);
+    enableButton(doneRef, 'Done', Button.DONE);
+    return;
+  }
+  CS2.if_text_set('Use the options to edit the room.', hintRef);
+  enableButton(moveRef, 'Move', Button.MOVE);
+  enableButton(rotateRef, 'Rotate', Button.ROTATE);
+  disableRotate(clockwiseRef, ViewerArt.ARROW_CW);
+  disableRotate(anticlockwiseRef, ViewerArt.ARROW_ACW);
+  enableButton(deleteRef, 'Delete', Button.DELETE);
+  disableButton(cancelRef, 'Cancel', 0);
+  disableButton(doneRef, 'Done', 0);
+}
+
+function doorMark(neighbour: Int, rot0: Int, rot1: Int, rot2: Int, rot3: Int): Int {
+  if (!CS2.testbit(useServerState(ViewerVarbits.NEIGHBOURS), neighbour)) {
+    return 255;
+  }
+  const rotation: Int = useServerState(ViewerVarbits.ROTATION);
+  let bit: Int = rot0;
+  if (rotation === 1) {
+    bit = rot1;
+  } else if (rotation === 2) {
+    bit = rot2;
+  } else if (rotation === 3) {
+    bit = rot3;
+  }
+  if (bit === -1) {
+    return 0;
+  }
+  if (CS2.testbit(useServerState(ViewerVarbits.DOORS), bit)) {
+    return 0;
+  }
+  return 150;
+}
+
+export function buttonSkin(container: ComponentId, lit: Boolean): Int {
+  let base: Sprite = 1141;
+  if (lit) {
+    base = 1150;
+  }
+  skinPiece(container, 0, base, 0, 0, 0, 0, 6, 6, 0, 0, false);
+  skinPiece(container, 1, base + 1, 6, 0, 0, 0, 12, 6, 1, 0, true);
+  skinPiece(container, 2, base + 2, 0, 0, 2, 0, 6, 6, 0, 0, false);
+  skinPiece(container, 3, base + 3, 0, 6, 0, 0, 6, 12, 0, 1, true);
+  skinPiece(container, 4, base + 4, 6, 6, 0, 0, 12, 12, 1, 1, true);
+  skinPiece(container, 5, base + 5, 0, 6, 2, 0, 6, 12, 0, 1, true);
+  skinPiece(container, 6, base + 6, 0, 0, 0, 2, 6, 6, 0, 0, false);
+  skinPiece(container, 7, base + 7, 6, 0, 0, 2, 12, 6, 1, 0, true);
+  skinPiece(container, 8, base + 8, 0, 0, 2, 2, 6, 6, 0, 0, false);
+  return 9;
+}
+
+function skinPiece(
+  container: ComponentId,
+  index: Int,
+  sprite: Sprite,
+  x: Int,
+  y: Int,
+  xMode: Int,
+  yMode: Int,
+  w: Int,
+  h: Int,
+  wMode: Int,
+  hMode: Int,
+  tiled: Boolean,
+): void {
+  CS2.cc_create(container, 5, index, false);
+  CS2.cc_position_set(x, y, xMode, yMode);
+  CS2.cc_size_set(w, h, wMode, hMode);
+  CS2.cc_sprite_set(sprite);
+  if (tiled) {
+    CS2.cc_tiling_set(true);
+  }
+}
+
+function disableButton(button: ComponentId, label: String, lit: Int): void {
+  CS2.cc_all_delete(button);
+  const text: Int = buttonSkin(button, lit === 1);
+  CS2.cc_create(button, 4, text, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  if (lit === 1) {
+    CS2.cc_colour_set(ViewerColour.WHITE);
+  } else {
+    CS2.cc_colour_set(ViewerColour.GREY);
+  }
+  CS2.cc_text_font_set(ViewerArt.FONT_BUTTON);
+  CS2.cc_text_align_set(1, 1, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(label);
+  CS2.if_on_mouserepeat_set(null, button);
+  CS2.if_on_mouseleave_set(null, button);
+  CS2.if_onop_set(null, button);
+  CS2.if_ops_clear(button);
+}
+
+function enableButton(button: ComponentId, label: String, which: Int): void {
+  CS2.cc_all_delete(button);
+  const text: Int = buttonSkin(button, false);
+  CS2.cc_create(button, 4, text, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_colour_set(ViewerColour.LABEL);
+  CS2.cc_text_font_set(ViewerArt.FONT_BUTTON);
+  CS2.cc_text_align_set(1, 1, 0);
+  CS2.cc_text_shadow_set(true);
+  CS2.cc_text_set(label);
+  CS2.if_on_mouserepeat_set(() => recolour(button, text, ViewerColour.WHITE), button);
+  CS2.if_on_mouseleave_set(() => recolour(button, text, ViewerColour.LABEL), button);
+  CS2.if_onop_set((event) => buttonOp(event.option, which), button);
+  CS2.if_op_set(1, label, button);
+}
+
+function disableRotate(button: ComponentId, arrow: Sprite): void {
+  CS2.cc_all_delete(button);
+  rotatePieces(button, arrow, 200);
+  CS2.if_on_mouserepeat_set(null, button);
+  CS2.if_on_mouseleave_set(null, button);
+  CS2.if_onop_set(null, button);
+  CS2.if_ops_clear(button);
+}
+
+function enableRotate(button: ComponentId, label: String, arrow: Sprite, which: Int): void {
+  CS2.cc_all_delete(button);
+  rotatePieces(button, arrow, 75);
+  CS2.if_on_mouserepeat_set(() => setTransparency(button, 1, 0), button);
+  CS2.if_on_mouseleave_set(() => setTransparency(button, 1, 75), button);
+  CS2.if_onop_set((event) => buttonOp(event.option, which), button);
+  CS2.if_op_set(1, label, button);
+}
+
+function rotatePieces(button: ComponentId, arrow: Sprite, arrowTransparency: Int): void {
+  CS2.cc_create(button, 5, 0, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_sprite_set(ViewerArt.ROTATE_BACK);
+  CS2.cc_transparency_set(0);
+  CS2.cc_create(button, 5, 1, false);
+  CS2.cc_size_set(0, 0, 1, 1);
+  CS2.cc_position_set(0, 0, 1, 1);
+  CS2.cc_sprite_set(arrow);
+  CS2.cc_transparency_set(arrowTransparency);
+}
+
+function buttonOp(option: Int, which: Int): void {
+  if (option !== 1) {
+    return;
+  }
+  playSound(ViewerArt.SELECT_SOUND);
+  if (which === Button.MOVE) {
+    predictServerState(ViewerVarbits.DESTINATION, Layout.CELLS + 1);
+  } else if (which === Button.ROTATE) {
+    predictServerState(ViewerVarbits.ROTATING, 1);
+  } else if (which === Button.CLOCKWISE) {
+    predictServerState(ViewerVarbits.ROTATION, (useServerState(ViewerVarbits.ROTATION) + 1) % 4);
+    pressRotate(clockwiseRef);
+  } else if (which === Button.ANTICLOCKWISE) {
+    predictServerState(ViewerVarbits.ROTATION, (useServerState(ViewerVarbits.ROTATION) + 3) % 4);
+    pressRotate(anticlockwiseRef);
+  } else if (which === Button.DELETE) {
+    predictServerState(ViewerVarbits.TYPE, 0);
+  } else if (which === Button.CANCEL) {
+    predictServerState(ViewerVarbits.ROTATING, 0);
+    predictServerState(ViewerVarbits.DESTINATION, 0);
+  } else if (which === Button.DONE) {
+    predictServerState(ViewerVarbits.ROTATING, 0);
+  }
+  pohViewerSideUpdate();
+}
+
+function pressRotate(button: ComponentId): void {
+  if (CS2.cc_find(button, 0)) {
+    CS2.cc_sprite_set(ViewerArt.ROTATE_PRESSED);
+    const until: Int = clientClock() + 10;
+    CS2.cc_on_timer_set(() => rotateTimeout(button, until));
+  }
+}
+
+function rotateTimeout(button: ComponentId, until: Int): void {
+  if (clientClock() < until) {
+    return;
+  }
+  if (CS2.cc_find(button, 0)) {
+    CS2.cc_sprite_set(ViewerArt.ROTATE_BACK);
+    CS2.cc_on_timer_set(null);
+  }
+}
+
+function recolour(container: ComponentId, index: Int, colour: Int): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_colour_set(colour);
+  }
+}
+
+function setTransparency(container: ComponentId, index: Int, transparency: Int): void {
+  if (CS2.cc_find(container, index)) {
+    CS2.cc_transparency_set(transparency);
+  }
+}
