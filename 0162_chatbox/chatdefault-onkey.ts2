@@ -1,0 +1,358 @@
+import { CS2, useServerState, useState } from 'ts2';
+
+import { Varbits } from '../lib/game/varbits';
+import { chatTabfeedbackspam, chatView, chatinput, lastPmReceivedSender } from '../lib/game/varcs';
+import { chatMessage, clientClock } from '../lib/lib.engine';
+import { dialogueMayAdvance } from '../lib/lib.dialogue';
+import { InputKey, InputMode, addToInputString } from '../lib/lib.input';
+import { isGroupIronman } from '../0551_raids_storage_side/raids-storage-side.helpers';
+import { searchToggleRef } from '../0621_collection/collection.constants';
+import { chatSend } from '../0701_clans_sidepanel/chat-send';
+import { clanSettingGroupType } from '../0701_clans_sidepanel/clan-settings';
+import { isArenaGroup } from '../0762_pvp_arena_sidepanel/pvp-arena-sidepanel.helpers';
+import { ChatTab } from './chatbox.data';
+import { chatboxAreaRef, chatdisplayRef } from './chatbox.constants';
+import { redrawChatInput } from './chatbox-chrome';
+import { chatoutAdd, chatoutScrollDown, chatoutScrollUp } from './chatout';
+import { keyboardHide, meslayerMode6 } from './meslayer';
+
+export function chatDefaultOnKey(key: Int, keyChar: Char): void {
+  if (CS2.if_hide_get(chatdisplayRef) || CS2.if_hide_get(chatboxAreaRef)) {
+    return;
+  }
+  if (
+    useServerState(Varbits.HAS_DISPLAYNAME_TRANSMITTER) === 0 ||
+    dialogueMayAdvance(ChatboxGate.NO_TOP, ChatboxGate.CHATBOX) === false
+  ) {
+    return;
+  }
+
+  const [typed, setTyped] = useState(chatinput);
+  let line: String = typed;
+  let length: Int = CS2.string_length(line);
+
+  let staff: Int = 0;
+  if (CS2.staffmodlevel() > 0) {
+    staff = 1;
+    if (CS2.string_indexof_char('`', keyChar) !== -1 && length === 0) {
+      return;
+    } else if (
+      CS2.string_indexof_char(':', keyChar) !== -1 &&
+      CS2.string_indexof_string(line, '::', 0) === 0 &&
+      length === 2
+    ) {
+      return;
+    }
+  }
+
+  if (key === InputKey.ENTER) {
+    keyboardHide();
+    if (length > 0) {
+      if (staff === 1) {
+        let cut: String = staffCommandFrom(line, 'give', length);
+        if (CS2.string_length(cut) === 0) {
+          cut = staffCommandFrom(line, 'set', length);
+        }
+        if (CS2.string_length(cut) === 0) {
+          cut = staffCommandFrom(line, 'get', length);
+        }
+        if (CS2.string_length(cut) === 0) {
+          cut = staffCommandFrom(line, 'tele', length);
+        }
+        if (CS2.string_length(cut) === 0) {
+          cut = staffCommandFrom(line, '~', length);
+        }
+        if (CS2.string_length(cut) > 0) {
+          line = cut;
+        } else {
+          const at: Int = CS2.string_indexof_string(line, '::', 0);
+          if (at > 0) {
+            line = CS2.substring(line, at, length);
+          }
+        }
+        length = CS2.string_length(line);
+      }
+
+      const groupIron: Boolean = isGroupIronman(useServerState(Varbits.IRONMAN));
+      const autoset: Int = useServerState(Varbits.OPTION_CHATBOX_MODE_AUTOSET);
+      const [view] = useState(chatView);
+
+      let cheat: Int = 0;
+      let channel: Int = -1;
+      let prefix: Int = 0;
+      let group: Int = 0;
+      let switchTo: Int = -1;
+
+      if (CS2.string_indexof_string(line, '::', 0) === 0) {
+        cheat = 1;
+      } else if (view === ChatTab.CLAN) {
+        channel = SendArm.CLAN;
+      } else if (view === ChatTab.CHANNEL) {
+        channel = SendArm.FRIENDS_CHAT;
+      } else if (view === ChatTab.TRADE && groupIron) {
+        channel = SendArm.CLAN;
+        group = 1;
+      }
+
+      if (CS2.string_indexof_string(line, '////', 0) === 0 && groupIron) {
+        prefix = 4;
+        channel = SendArm.CLAN;
+        group = 1;
+        if (CS2.string_indexof_string(line, '////@', 0) === 0) {
+          switchTo = ChatboxMode.GROUP;
+          prefix = 5;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.GROUP;
+        }
+      } else if (CS2.string_indexof_string(line, '///', 0) === 0) {
+        prefix = 3;
+        channel = SendArm.GUEST_CLAN;
+        if (CS2.string_indexof_string(line, '///@', 0) === 0) {
+          switchTo = ChatboxMode.GUEST_CLAN;
+          prefix = 4;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.GUEST_CLAN;
+        }
+      } else if (CS2.string_indexof_string(line, '//', 0) === 0) {
+        prefix = 2;
+        channel = SendArm.CLAN;
+        if (CS2.string_indexof_string(line, '//@', 0) === 0) {
+          switchTo = ChatboxMode.CLAN;
+          prefix = 3;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.CLAN;
+        }
+      } else if (
+        CS2.string_indexof_string(CS2.lowercase(line), '/gc ', 0) === 0 ||
+        CS2.string_indexof_string(CS2.lowercase(line), '/@gc ', 0) === 0
+      ) {
+        prefix = 4;
+        channel = SendArm.GUEST_CLAN;
+        if (CS2.string_indexof_string(CS2.lowercase(line), '/@gc ', 0) === 0) {
+          switchTo = ChatboxMode.GUEST_CLAN;
+          prefix = 5;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.GUEST_CLAN;
+        }
+      } else if (
+        CS2.string_indexof_string(CS2.lowercase(line), '/c ', 0) === 0 ||
+        CS2.string_indexof_string(CS2.lowercase(line), '/@c ', 0) === 0
+      ) {
+        prefix = 3;
+        channel = SendArm.CLAN;
+        if (CS2.string_indexof_string(line, '/@c ', 0) === 0) {
+          switchTo = ChatboxMode.CLAN;
+          prefix = 4;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.CLAN;
+        }
+      } else if (
+        groupIron &&
+        (CS2.string_indexof_string(CS2.lowercase(line), '/g ', 0) === 0 ||
+          CS2.string_indexof_string(CS2.lowercase(line), '/@g ', 0) === 0)
+      ) {
+        prefix = 3;
+        channel = SendArm.CLAN;
+        group = 1;
+        if (CS2.string_indexof_string(line, '/@g ', 0) === 0) {
+          switchTo = ChatboxMode.GROUP;
+          prefix = 4;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.GROUP;
+        }
+      } else if (
+        CS2.string_indexof_string(CS2.lowercase(line), '/f ', 0) === 0 ||
+        CS2.string_indexof_string(line, '/@f ', 0) === 0
+      ) {
+        prefix = 3;
+        channel = SendArm.FRIENDS_CHAT;
+        if (CS2.string_indexof_string(line, '/@f ', 0) === 0) {
+          switchTo = ChatboxMode.FRIENDS_CHAT;
+          prefix = 4;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.FRIENDS_CHAT;
+        }
+      } else if (
+        CS2.string_indexof_string(CS2.lowercase(line), '/p ', 0) === 0 ||
+        CS2.string_indexof_string(line, '/@p ', 0) === 0
+      ) {
+        prefix = 3;
+        channel = SendArm.PUBLIC;
+        if (CS2.string_indexof_string(line, '/@p ', 0) === 0) {
+          switchTo = ChatboxMode.PUBLIC;
+          prefix = 4;
+        }
+        if (autoset === 1) {
+          switchTo = ChatboxMode.PUBLIC;
+        }
+      } else if (CS2.string_indexof_string(line, '/', 0) === 0) {
+        if (CS2.string_indexof_string(line, '/@p', 0) === 0) {
+          switchTo = ChatboxMode.PUBLIC;
+          channel = SendArm.PUBLIC;
+          prefix = 3;
+        } else if (CS2.string_indexof_string(line, '/@f', 0) === 0) {
+          switchTo = ChatboxMode.FRIENDS_CHAT;
+          channel = SendArm.FRIENDS_CHAT;
+          prefix = 3;
+        } else if (CS2.string_indexof_string(line, '/@c', 0) === 0) {
+          switchTo = ChatboxMode.CLAN;
+          channel = SendArm.CLAN;
+          prefix = 3;
+        } else if (CS2.string_indexof_string(line, '/@gc', 0) === 0) {
+          switchTo = ChatboxMode.GUEST_CLAN;
+          channel = SendArm.GUEST_CLAN;
+          prefix = 4;
+        } else if (CS2.string_indexof_string(line, '/@g', 0) === 0) {
+          switchTo = ChatboxMode.GROUP;
+          channel = SendArm.CLAN;
+          prefix = 3;
+        } else {
+          prefix = 1;
+          channel = SendArm.FRIENDS_CHAT;
+          if (autoset === 1) {
+            switchTo = ChatboxMode.FRIENDS_CHAT;
+          }
+        }
+      }
+
+      if (channel === SendArm.GUEST_CLAN) {
+        if (CS2.activeclansettings_listened_find() && CS2.activeclanchannel_listened_find()) {
+          if (CS2.activeclansettings_allow_unaffined_get()) {
+            if (isArenaGroup(clanSettingGroupType())) {
+              chatMessage('You are not chatting as a guest in a channel at the moment.');
+            } else {
+              chatSend(CS2.substring(line, prefix, length), SendType.GUEST_CLAN, 0, 0, switchTo);
+            }
+          } else {
+            chatMessage("Guests are not invited to speak in this clan's channel.");
+          }
+        } else {
+          chatMessage('You are not chatting as a guest in a clan channel at the moment.');
+        }
+      } else if (channel === SendArm.CLAN) {
+        if (group === 0 && CS2.activeclanchannel_affined_find(0)) {
+          const slot: Int = CS2.activeclanchannel_user_slot_get(CS2.tags_remove(CS2.chat_playername()));
+          if (slot !== -1 && CS2.activeclanchannel_user_rank_get(slot) >= CS2.activeclanchannel_rank_talk_get()) {
+            chatSend(CS2.substring(line, prefix, length), SendType.CLAN, 0, 0, switchTo);
+          } else {
+            chatMessage("You do not have the required rank to talk in the clan's channel.");
+          }
+        } else if (group === 1 && CS2.activeclanchannel_affined_find(1)) {
+          chatSend(CS2.substring(line, prefix, length), SendType.CLAN, 1, 0, switchTo);
+        } else if (group === 1) {
+          chatMessage('You are not chatting in the channel of your Ironman Group at the moment.');
+        } else {
+          chatMessage('You are not chatting in the channel of your Clan at the moment.');
+        }
+      } else if (channel === SendArm.FRIENDS_CHAT) {
+        if (CS2.friendschat_chat_count_get() > 0) {
+          if (useServerState(Varbits.CHAT_STFU) === 1) {
+            CS2.friendschat_leavechat();
+          } else {
+            chatSend(CS2.substring(line, prefix, length), SendType.FRIENDS_CHAT, -1, 0, switchTo);
+          }
+        } else {
+          chatSend(CS2.substring(line, prefix, length), SendType.PUBLIC, -1, 0, -1);
+        }
+      } else if (channel === SendArm.PUBLIC) {
+        chatSend(CS2.substring(line, prefix, length), SendType.PUBLIC, -1, 0, switchTo);
+      } else if (cheat === 1) {
+        if (length > 2) {
+          CS2.cheat_do(CS2.substring(line, 2, length));
+        } else {
+          chatSend(line, SendType.PUBLIC, -1, 0, -1);
+        }
+      } else {
+        chatSend(line, SendType.PUBLIC, -1, 1, switchTo);
+      }
+      chatoutAdd(line);
+      setTyped('');
+    }
+  } else if (key === ChatKey.PAGE_UP) {
+    if (staff === 1) {
+      chatoutScrollUp();
+    }
+  } else if (key === ChatKey.PAGE_DOWN) {
+    if (staff === 1) {
+      chatoutScrollDown();
+    }
+  } else {
+    if (key === ChatKey.TAB) {
+      if (CS2.cc_find(searchToggleRef, 0)) {
+        return;
+      }
+      const [lastSender] = useState(lastPmReceivedSender);
+      const [cooldown, setCooldown] = useState(chatTabfeedbackspam);
+      if (CS2.string_length(lastSender) > 0) {
+        if (CS2.friend_test(lastSender)) {
+          meslayerMode6(lastSender);
+          return;
+        }
+        if (cooldown > clientClock()) {
+          return;
+        }
+        setCooldown(clientClock() + TAB_FEEDBACK_COOLDOWN);
+        chatMessage('That player was not found on your Friends list.');
+        return;
+      }
+      if (cooldown > clientClock()) {
+        return;
+      }
+      setCooldown(clientClock() + TAB_FEEDBACK_COOLDOWN);
+      chatMessage("You haven't received any messages to which you can reply.");
+      return;
+    }
+    setTyped(addToInputString(line, InputMode.MESSAGE, key, keyChar));
+  }
+  redrawChatInput();
+}
+
+function staffCommandFrom(line: String, command: String, length: Int): String {
+  const at: Int = CS2.string_indexof_string(line, CS2.append(':', command), 0);
+  if (at !== -1) {
+    return CS2.append(':', CS2.substring(line, at, length));
+  }
+  return '';
+}
+
+enum ChatboxGate {
+  NO_TOP = -1,
+  CHATBOX = 162,
+}
+
+enum ChatKey {
+  TAB = 80,
+  PAGE_UP = 104,
+  PAGE_DOWN = 105,
+}
+
+enum SendArm {
+  PUBLIC = 2,
+  FRIENDS_CHAT = 9,
+  CLAN = 41,
+  GUEST_CLAN = 44,
+}
+
+enum SendType {
+  PUBLIC = 0,
+  FRIENDS_CHAT = 2,
+  CLAN = 3,
+  GUEST_CLAN = 4,
+}
+
+enum ChatboxMode {
+  PUBLIC = 0,
+  FRIENDS_CHAT = 1,
+  CLAN = 2,
+  GUEST_CLAN = 3,
+  GROUP = 4,
+}
+
+const TAB_FEEDBACK_COOLDOWN = 50;

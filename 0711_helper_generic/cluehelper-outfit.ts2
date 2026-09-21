@@ -3,10 +3,10 @@ import { CS2, useInventory, useServerState } from 'ts2';
 import { Inventories } from '../lib/game/inventories';
 import { Params } from '../lib/game/params';
 import { Varps } from '../lib/game/varps';
-import { helperGenericAddText } from './helper-generic.state';
+import { helperGenericAddText, helperGenericUpdateText } from './helper-generic.state';
 import { ClueParamNames, ClueWearposNames } from './clue-enums.data';
-import { Clue, ClueKind, ClueOutfitsOf, Clues, OutfitItems, OutfitParams } from './clues.data';
-import { clueColourTernary } from './cluehelper.state';
+import { Clue, ClueKind, ClueOutfitsOf, Clues, OutfitItems, OutfitParams, OutfitSlots } from './clues.data';
+import { clueColourTernary, clueEquipRowIndex, setClueEquipRowIndex } from './cluehelper.state';
 
 const WEARPOS_HAT = 0;
 const WEARPOS_BACK = 1;
@@ -21,40 +21,33 @@ const WEARPOS_RING = 12;
 const WEARPOS_QUIVER = 13;
 const WEARPOS_ANY = -1;
 
+function outfitSlotKey(outfit: Int, wearpos: Int): Int {
+  return outfit * 16 + wearpos + 1;
+}
+
 export function outfitItemCount(outfit: Int, wearpos: Int): Int {
-  let n: Int = 0;
-  let i: Int = 0;
-  while (i < OutfitItems.length) {
-    const entry = OutfitItems.at(i);
-    if (entry !== null) {
-      if (entry.row === outfit && entry.wearpos === wearpos) {
-        n = n + 1;
-      }
-    }
-    i = i + 1;
+  const slot = OutfitSlots.get(outfitSlotKey(outfit, wearpos));
+  if (slot === null) {
+    return 0;
   }
-  return n;
+  return slot.itemsCount;
 }
 
 export function outfitItemAt(outfit: Int, wearpos: Int, n: Int): Item | null {
-  let seen: Int = 0;
-  let found: Item | null = null;
-  let i: Int = 0;
-  while (i < OutfitItems.length) {
-    const entry = OutfitItems.at(i);
-    if (entry !== null) {
-      if (entry.row === outfit && entry.wearpos === wearpos) {
-        if (seen === n) {
-          found = entry.item;
-          if (found === (BLANKOBJECT as Item)) {
-            found = null;
-          }
-          i = OutfitItems.length;
-        }
-        seen = seen + 1;
-      }
-    }
-    i = i + 1;
+  const slot = OutfitSlots.get(outfitSlotKey(outfit, wearpos));
+  if (slot === null) {
+    return null;
+  }
+  if (n >= slot.itemsCount) {
+    return null;
+  }
+  const entry = OutfitItems.at(slot.itemsStart + n);
+  if (entry === null) {
+    return null;
+  }
+  const found: Item = entry.item;
+  if (found === (BLANKOBJECT as Item)) {
+    return null;
   }
   return found;
 }
@@ -62,34 +55,26 @@ export function outfitItemAt(outfit: Int, wearpos: Int, n: Int): Item | null {
 const BLANKOBJECT = 6512;
 
 export function outfitParamCount(outfit: Int, wearpos: Int): Int {
-  let n: Int = 0;
-  let i: Int = 0;
-  while (i < OutfitParams.length) {
-    const entry = OutfitParams.at(i);
-    if (entry !== null) {
-      if (entry.row === outfit && entry.wearpos === wearpos) {
-        n = n + 1;
-      }
-    }
-    i = i + 1;
+  const slot = OutfitSlots.get(outfitSlotKey(outfit, wearpos));
+  if (slot === null) {
+    return 0;
   }
-  return n;
+  return slot.paramsCount;
 }
 
 export function outfitParamFirst(outfit: Int, wearpos: Int): Int {
-  let found: Int = 0;
-  let i: Int = 0;
-  while (i < OutfitParams.length) {
-    const entry = OutfitParams.at(i);
-    if (entry !== null) {
-      if (entry.row === outfit && entry.wearpos === wearpos) {
-        found = entry.param;
-        i = OutfitParams.length;
-      }
-    }
-    i = i + 1;
+  const slot = OutfitSlots.get(outfitSlotKey(outfit, wearpos));
+  if (slot === null) {
+    return 0;
   }
-  return found;
+  if (slot.paramsCount === 0) {
+    return 0;
+  }
+  const entry = OutfitParams.at(slot.paramsStart);
+  if (entry === null) {
+    return 0;
+  }
+  return entry.param;
 }
 
 export function clueOutfitRows(outfit: Int): void {
@@ -121,17 +106,66 @@ function slotRow(outfit: Int, wearpos: Int): void {
 }
 
 function clueOutfitRow(outfit: Int, wearpos: Int, items: Int, first: Item | null, params: Int): void {
+  if (clueOutfitSlotHasRow(items, params)) {
+    setClueEquipRowIndex(wearpos, helperGenericAddText(clueOutfitSlotText(outfit, wearpos, items, first, params)));
+  }
+}
+
+function clueOutfitSlotHasRow(items: Int, params: Int): Boolean {
+  return params > 0 || items >= 1;
+}
+
+function clueOutfitSlotText(outfit: Int, wearpos: Int, items: Int, first: Item | null, params: Int): String {
   if (params > 0) {
     if (wearpos >= 0) {
-      helperGenericAddText(clueOutfitParamSlotText(outfitParamFirst(outfit, wearpos), wearpos));
-    } else {
-      helperGenericAddText(clueOutfitParamAnyText(outfitParamFirst(outfit, -1)));
+      return clueOutfitParamSlotText(outfitParamFirst(outfit, wearpos), wearpos);
     }
+    return clueOutfitParamAnyText(outfitParamFirst(outfit, -1));
   } else if (items === 1) {
-    helperGenericAddText(clueOutfitItemText(first, wearpos));
-  } else if (items > 1) {
-    helperGenericAddText(clueOutfitItemListText(outfit, items, wearpos));
+    return clueOutfitItemText(first, wearpos);
   }
+  return clueOutfitItemListText(outfit, items, wearpos);
+}
+
+export function clueEquipUpdate(outfit: Int): void {
+  if (outfit === -1) {
+    return;
+  }
+  equipSlotUpdate(outfit, WEARPOS_HAT);
+  equipSlotUpdate(outfit, WEARPOS_BACK);
+  equipSlotUpdate(outfit, WEARPOS_FRONT);
+  equipSlotUpdate(outfit, WEARPOS_RHAND);
+  equipSlotUpdate(outfit, WEARPOS_TORSO);
+  equipSlotUpdate(outfit, WEARPOS_LHAND);
+  equipSlotUpdate(outfit, WEARPOS_LEGS);
+  equipSlotUpdate(outfit, WEARPOS_HANDS);
+  equipSlotUpdate(outfit, WEARPOS_FEET);
+  equipSlotUpdate(outfit, WEARPOS_RING);
+  equipSlotUpdate(outfit, WEARPOS_QUIVER);
+  const anyRow: Int = clueEquipRowIndex(WEARPOS_ANY);
+  if (anyRow >= 0) {
+    helperGenericUpdateText(
+      anyRow,
+      clueOutfitSlotText(outfit, WEARPOS_ANY, 0, null, outfitParamCount(outfit, WEARPOS_ANY)),
+    );
+  }
+}
+
+function equipSlotUpdate(outfit: Int, wearpos: Int): void {
+  const row: Int = clueEquipRowIndex(wearpos);
+  if (row < 0) {
+    return;
+  }
+  helperGenericUpdateText(
+    row,
+    clueOutfitSlotText(
+      outfit,
+      wearpos,
+      outfitItemCount(outfit, wearpos),
+      outfitItemAt(outfit, wearpos, 0),
+      outfitParamCount(outfit, wearpos),
+    ),
+  );
 }
 
 export function clueOutfitItemText(item: Item | null, wearpos: Int): String {
@@ -387,15 +421,55 @@ export function clueOutfitParamInInv(outfit: Int): Boolean {
 }
 
 export function clueOutfitItemInInv(outfit: Int): Boolean {
+  if (slotItemInInv(outfit, WEARPOS_HAT)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_BACK)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_FRONT)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_RHAND)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_TORSO)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_LHAND)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_LEGS)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_HANDS)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_FEET)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_RING)) {
+    return true;
+  }
+  if (slotItemInInv(outfit, WEARPOS_QUIVER)) {
+    return true;
+  }
+  return false;
+}
+
+function slotItemInInv(outfit: Int, wearpos: Int): Boolean {
+  const slot = OutfitSlots.get(outfitSlotKey(outfit, wearpos));
+  if (slot === null) {
+    return false;
+  }
   const inv: Container = useInventory(Inventories.INV);
-  let i: Int = 0;
-  while (i < OutfitItems.length) {
+  const end: Int = slot.itemsStart + slot.itemsCount;
+  let i: Int = slot.itemsStart;
+  while (i < end) {
     const entry = OutfitItems.at(i);
     if (entry !== null) {
-      if (entry.row === outfit && entry.wearpos >= 0) {
-        if (inv.total(entry.item) > 0) {
-          return true;
-        }
+      if (inv.total(entry.item) > 0) {
+        return true;
       }
     }
     i = i + 1;

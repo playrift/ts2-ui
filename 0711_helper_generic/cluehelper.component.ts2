@@ -2,9 +2,9 @@ import { useState, useWatch } from 'ts2';
 
 import { Inventories } from '../lib/game/inventories';
 import { Varps } from '../lib/game/varps';
-import { helperGenericActive, helperGenericUpdateText } from './helper-generic.state';
-import { cluehelperInfoboxDrawContent, clueSpadeText } from './cluehelper-content';
-import { HELPER_ACTIVE_CLUE, clueSpadeRowIndex } from './cluehelper.state';
+import { helperGenericActive } from './helper-generic.state';
+import { clueMusicUpdate, clueOutfitUpdate, clueSpadeUpdate, clueStashUpdate } from './cluehelper-content';
+import { HELPER_ACTIVE_CLUE } from './cluehelper.state';
 
 export function ClueHelperTransmits(): Component {
   return (
@@ -18,24 +18,12 @@ export function ClueHelperTransmits(): Component {
 }
 
 function ClueSpadeTransmits(): Component {
-  useWatch(Inventories.INV, () => clueSpadeTransmit());
+  useWatch(Inventories.INV, () => clueGated(0));
   return <layer x={0} y={0} w={1} h={1} />;
 }
 
-function clueSpadeTransmit(): void {
-  const [active] = useState(helperGenericActive);
-  if (active !== HELPER_ACTIVE_CLUE) {
-    return;
-  }
-  const [row] = useState(clueSpadeRowIndex);
-  if (row < 0) {
-    return;
-  }
-  helperGenericUpdateText(row, clueSpadeText());
-}
-
 function ClueOutfitTransmits(): Component {
-  useWatch(Inventories.WORN, () => clueTransmit());
+  useWatch([Inventories.INV, Inventories.WORN], () => clueGated(1));
   return <layer x={0} y={0} w={1} h={1} />;
 }
 
@@ -50,7 +38,7 @@ function ClueStashTransmits(): Component {
       Varps.HH_CONSTRUCTED_MASTER,
       Varps.HH_CONSTRUCTED_BEGINNER,
     ],
-    () => clueTransmit(),
+    () => clueGated(2),
   );
   return <layer x={0} y={0} w={1} h={1} />;
 }
@@ -86,15 +74,23 @@ function ClueMusicTransmits(): Component {
       Varps.MUSICMULTI_26,
       Varps.HH_CONSTRUCTED_MEDIUM,
     ],
-    () => clueTransmit(),
+    () => clueGated(3),
   );
   return <layer x={0} y={0} w={1} h={1} />;
 }
 
-function clueTransmit(): void {
+function clueGated(host: Int): void {
   const [active] = useState(helperGenericActive);
   if (active !== HELPER_ACTIVE_CLUE) {
     return;
   }
-  cluehelperInfoboxDrawContent();
+  if (host === 0) {
+    clueSpadeUpdate();
+  } else if (host === 1) {
+    clueOutfitUpdate();
+  } else if (host === 2) {
+    clueStashUpdate();
+  } else {
+    clueMusicUpdate();
+  }
 }

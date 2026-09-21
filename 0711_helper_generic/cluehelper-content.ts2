@@ -32,12 +32,16 @@ import {
 } from './clues.data';
 import {
   HELPER_ACTIVE_CLUE,
+  clueBoundRowsClear,
   clueChallengeVariant,
   clueColourBinary,
   clueColourTernary,
   clueDifficulty,
   clueHelperClue,
+  clueMusicRowIndex,
+  clueOutfitFallbackRowIndex,
   clueSpadeRowIndex,
+  clueStashRowIndex,
   clueHotColdPossible,
   clueHotColdStored,
   clueIsDig,
@@ -52,15 +56,14 @@ import {
 } from './cluehelper.state';
 import { MusicTracks } from '../0239_music/music.data';
 import { trackUnlocked } from '../0239_music/music.component';
-import { clueOutfitFallbackText, clueOutfitRows } from './cluehelper-outfit';
+import { clueEquipUpdate, clueOutfitFallbackText, clueOutfitRows } from './cluehelper-outfit';
 
 export function cluehelperInfoboxDrawContent(): void {
   const [clue] = useState(clueHelperClue);
   helperGenericSetup(1, 1, 1);
   const [, setActive] = useState(helperGenericActive);
   setActive(HELPER_ACTIVE_CLUE);
-  const [, setSpadeRow] = useState(clueSpadeRowIndex);
-  setSpadeRow(-1);
+  clueBoundRowsClear();
   const row = Clues.at(clue);
   if (row !== null) {
     switch (row.kind) {
@@ -102,10 +105,58 @@ export function cluehelperInfoboxDrawContent(): void {
     }
   }
   helperGenericBuildUi();
-  const [spadeRow] = useState(clueSpadeRowIndex);
-  if (spadeRow >= 0) {
-    helperGenericUpdateText(spadeRow, clueSpadeText());
+  clueSpadeUpdate();
+  clueStashUpdate();
+  clueOutfitUpdate();
+  clueMusicUpdate();
+}
+
+export function clueSpadeUpdate(): void {
+  const [row] = useState(clueSpadeRowIndex);
+  if (row < 0) {
+    return;
   }
+  helperGenericUpdateText(row, clueSpadeText());
+}
+
+export function clueStashUpdate(): void {
+  const [row] = useState(clueStashRowIndex);
+  if (row < 0) {
+    return;
+  }
+  const [clue] = useState(clueHelperClue);
+  const shown = Clues.at(clue);
+  if (shown === null) {
+    return;
+  }
+  const loc: WorldObject | null = shown.hideyHoleLoc ?? null;
+  if (loc === null) {
+    return;
+  }
+  helperGenericUpdateText(row, clueStashText(loc));
+}
+
+export function clueOutfitUpdate(): void {
+  const [clue] = useState(clueHelperClue);
+  const [fallbackRow] = useState(clueOutfitFallbackRowIndex);
+  if (fallbackRow >= 0) {
+    helperGenericUpdateText(fallbackRow, clueOutfitFallbackText(clue));
+    return;
+  }
+  const shown = Clues.at(clue);
+  if (shown === null) {
+    return;
+  }
+  clueEquipUpdate(shown.outfit ?? -1);
+}
+
+export function clueMusicUpdate(): void {
+  const [row] = useState(clueMusicRowIndex);
+  if (row < 0) {
+    return;
+  }
+  const [clue] = useState(clueHelperClue);
+  helperGenericUpdateText(row, clueMusicRow(clue));
 }
 
 function showClueText(): Boolean {
@@ -157,6 +208,11 @@ export function clueSpadeRow(): void {
 }
 
 export function clueStashRow(loc: WorldObject): void {
+  const [, setStashRow] = useState(clueStashRowIndex);
+  setStashRow(helperGenericAddText(clueStashText(loc)));
+}
+
+export function clueStashText(loc: WorldObject): String {
   const filled: Int = useServerState(Varbits.CLUEHELPER_HIDEYHOLE_FILLED);
   const built: Int = clueStashBuilt(loc);
   let text: String = 'null';
@@ -172,7 +228,12 @@ export function clueStashRow(loc: WorldObject): void {
     text = 'Not built';
   }
   clueColourTernary(text, state);
-  helperGenericAddText(text);
+  return text;
+}
+
+function clueOutfitFallbackRow(clue: Int): void {
+  const [, setFallbackRow] = useState(clueOutfitFallbackRowIndex);
+  setFallbackRow(helperGenericAddText(clueOutfitFallbackText(clue)));
 }
 
 function digRow(clue: Int, target: Int): void {
@@ -327,7 +388,7 @@ function drawCryptic(clue: Int): void {
   if (outfit !== -1) {
     helperGenericAddTitle('Equip', 0);
     if (CS2.string_length(row.outfitTextFallback ?? '') > 0) {
-      helperGenericAddText(clueOutfitFallbackText(clue));
+      clueOutfitFallbackRow(clue);
     } else {
       clueOutfitRows(outfit);
     }
@@ -468,7 +529,8 @@ function drawMusic(clue: Int): void {
   }
   clueTargetDisplay(targetOf(clue));
   helperGenericAddTitle('Song', 0);
-  helperGenericAddText(clueMusicRow(clue));
+  const [, setMusicRow] = useState(clueMusicRowIndex);
+  setMusicRow(helperGenericAddText(clueMusicRow(clue)));
 }
 
 export function clueMusicRow(clue: Int): String {
@@ -542,7 +604,7 @@ function drawEmote(clue: Int): void {
     if (leagueRelicActive(Relic.STRUCT_1128) === 1) {
       helperGenericAddText('Anything');
     } else if (CS2.string_length(row.outfitTextFallback ?? '') > 0) {
-      helperGenericAddText(clueOutfitFallbackText(clue));
+      clueOutfitFallbackRow(clue);
     } else {
       clueOutfitRows(outfit);
     }
