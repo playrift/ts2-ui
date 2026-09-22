@@ -1,0 +1,145 @@
+import { CS2, useState } from 'ts2';
+
+import { displayItemName } from '../0084_equipment/equipment.helpers';
+import { flashFor } from './lib.components';
+import {
+  interfaceInvColumns,
+  interfaceInvDragMode,
+  interfaceInvOps,
+  interfaceInvRows,
+  interfaceInvShown,
+} from './interface-inv.state';
+
+export function interfaceInvGapX(hostWidth: Int, columns: Int): Int {
+  return (hostWidth - InterfaceInvLayout.SLOT_W * columns) / (columns - 1);
+}
+
+export function interfaceInvGapY(hostHeight: Int, rows: Int): Int {
+  return (hostHeight - InterfaceInvLayout.SLOT_H * rows) / (rows - 1);
+}
+
+export function interfaceInvSlotX(slot: Int, columns: Int, gapX: Int): Int {
+  return (InterfaceInvLayout.SLOT_W + gapX) * (slot % columns);
+}
+
+export function interfaceInvSlotY(slot: Int, columns: Int, gapY: Int): Int {
+  return (slot / columns) * (InterfaceInvLayout.SLOT_H + gapY);
+}
+
+export enum InterfaceInvLayout {
+  SLOT_W = 36,
+  SLOT_H = 32,
+  SHADOW = 0x333333,
+  OUTLINE = 1,
+  DRAG_DEAD = 5,
+  OPAQUE = 0,
+  PRESSED = 100,
+}
+
+export const INTERFACE_INV_EXAMINE = 'Examine';
+const OP_BASE_PREFIX = '<col=ff9040>';
+const OP_BASE_SUFFIX = '</col>';
+const OP_SEPARATOR = '|';
+
+export function interfaceInvOp(ops: String, which: Int): String {
+  let start: Int = 0;
+  let seen: Int = 1;
+  while (seen < which) {
+    const cut: Int = CS2.string_indexof_string(ops, OP_SEPARATOR, start);
+    if (cut === -1) {
+      return '';
+    }
+    start = cut + 1;
+    seen = seen + 1;
+  }
+  const end: Int = CS2.string_indexof_string(ops, OP_SEPARATOR, start);
+  return CS2.substring(ops, start, end === -1 ? CS2.string_length(ops) : end);
+}
+
+export function interfaceInvPackOps(op1: String, op2: String, op3: String, op4: String, op5: String): String {
+  return `${op1}${OP_SEPARATOR}${op2}${OP_SEPARATOR}${op3}${OP_SEPARATOR}${op4}${OP_SEPARATOR}${op5}`;
+}
+
+export function interfaceInvInit(
+  host: Int,
+  inv: Int,
+  columns: Int,
+  rows: Int,
+  dragMode: Int,
+  dragHost: Int,
+  op1: String,
+  op2: String,
+  op3: String,
+  op4: String,
+  op5: String,
+): void {
+  const [, setColumns] = useState(interfaceInvColumns);
+  const [, setRows] = useState(interfaceInvRows);
+  const [, setDragMode] = useState(interfaceInvDragMode);
+  const [, setOps] = useState(interfaceInvOps);
+  const [, setShown] = useState(interfaceInvShown);
+  setColumns(columns);
+  setRows(rows);
+  setDragMode(dragMode);
+  setOps(interfaceInvPackOps(op1, op2, op3, op4, op5));
+  setShown(1);
+}
+
+export function InterfaceInvSlot({
+  item,
+  count,
+  x,
+  y,
+  dragMode,
+  op1,
+  op2,
+  op3,
+  op4,
+  op5,
+}: {
+  item: Item;
+  count: Int;
+  x: Int;
+  y: Int;
+  dragMode: Int;
+  op1: String;
+  op2: String;
+  op3: String;
+  op4: String;
+  op5: String;
+}): Component {
+  if (item === -1) {
+    return (
+      <sprite
+        x={x}
+        y={y}
+        w={InterfaceInvLayout.SLOT_W}
+        h={InterfaceInvLayout.SLOT_H}
+        transparency={InterfaceInvLayout.OPAQUE}
+      />
+    );
+  }
+
+  const subject: String = `${OP_BASE_PREFIX}${displayItemName(item)}${OP_BASE_SUFFIX}`;
+
+  return (
+    <sprite
+      x={x}
+      y={y}
+      w={InterfaceInvLayout.SLOT_W}
+      h={InterfaceInvLayout.SLOT_H}
+      item={item}
+      itemCount={count}
+      transparency={InterfaceInvLayout.OPAQUE}
+      shadowColor={InterfaceInvLayout.SHADOW}
+      outline={InterfaceInvLayout.OUTLINE}
+      dragDeadZone={dragMode > 0 ? InterfaceInvLayout.DRAG_DEAD : 0}
+      dragDeadTime={dragMode > 0 ? InterfaceInvLayout.DRAG_DEAD : 0}
+      optionSubject={subject}
+      options={[op1, op2, op3, op4, op5, '', '', '', '', INTERFACE_INV_EXAMINE]}
+      onOptionSelect={(event) => {
+        flashFor(event.self, InterfaceInvLayout.PRESSED, InterfaceInvLayout.OPAQUE);
+      }}
+    />
+  );
+}
